@@ -604,6 +604,8 @@ private:
     void saveSaveFileCons( bool output_flag );
     // CONscripter: where savescreenshot and delsavegame put a file
     std::string saveDirPath( const char *name );
+    // CONscripter: decodes a WebP image where SDL_image can't (USE_WEBP)
+    SDL_Surface *loadWebP( const unsigned char *data, size_t length );
 
     // CONscripter: screen states saved by pushscreen, restored by popscreen
     struct ScreenSprite {

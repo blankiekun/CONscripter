@@ -402,9 +402,11 @@ function(config_web TARGET_NAME)
         WEB
         LINUX
         USE_PARALLEL
+        USE_WEBP
     )
     target_link_libraries(${TARGET_NAME} PRIVATE
         lua
+        webpdecoder
     )
 endfunction()
 

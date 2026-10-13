@@ -24,7 +24,21 @@ function build_lua()
     make -C $LUA_SRC install INSTALL_TOP=$PORTBUILD_PATH -j$CORE_NUM
 }
 
+# SDL2_image's emscripten port has no WebP, so the engine decodes it with libwebp
+function build_webp()
+{
+    echo "## WEBP_SRC=$WEBP_SRC"
+    emcmake cmake -S $WEBP_SRC -B $WEBP_SRC/build_wasm \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$PORTBUILD_PATH \
+        -DWEBP_BUILD_ANIM_UTILS=OFF -DWEBP_BUILD_CWEBP=OFF -DWEBP_BUILD_DWEBP=OFF \
+        -DWEBP_BUILD_GIF2WEBP=OFF -DWEBP_BUILD_IMG2WEBP=OFF -DWEBP_BUILD_VWEBP=OFF \
+        -DWEBP_BUILD_WEBPINFO=OFF -DWEBP_BUILD_WEBPMUX=OFF -DWEBP_BUILD_EXTRAS=OFF \
+        -DWEBP_BUILD_LIBWEBPMUX=OFF
+    make -C $WEBP_SRC/build_wasm install -j$CORE_NUM
+}
+
 fetch_lua && build_lua
+fetch_webp && build_webp
 embuilder build sdl2 sdl2_ttf sdl2_image sdl2_mixer bzip2 ogg vorbis mpg123
 emcc $CMAKELISTS_PATH/src/onsyuri_web/dummy.c \
     -o $BUILD_PATH/dummy.js \

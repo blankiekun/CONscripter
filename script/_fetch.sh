@@ -25,6 +25,13 @@ function fetch_lua()
     fetch_port http://www.lua.org/ftp $LUA_NAME
 }
 
+function fetch_webp()
+{
+    WEBP_NAME=libwebp-1.5.0
+    WEBP_SRC=$CMAKELISTS_PATH/thirdparty/port/$WEBP_NAME
+    fetch_port https://storage.googleapis.com/downloads.webmproject.org/releases/webp $WEBP_NAME
+}
+
 function fetch_jpeg()
 {
     JPEG_NAME=jpeg-9

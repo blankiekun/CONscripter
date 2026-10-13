@@ -103,6 +103,11 @@ possible.
     3: as 0, while the old picture also grows as it fades.
   `effect 20,99,800,"cons_slide.dll/0,-1,0"` slides the new picture in from
   the right.
+- **WebP images in the web build**: emscripten's SDL_image port has no
+  WebP decoder, so the web build links libwebp (`script/cross_web.sh`
+  builds it) and decodes WebP itself, lossy and lossless, with alpha. The
+  other builds read WebP through SDL_image when it was built with
+  libwebp (vcpkg's Windows build and most Linux packages are).
 - **Text hooks (web build)**: the engine calls these functions on the
   page's global scope (`self`) when they are defined, so the page can lay
   selectable text over the game:

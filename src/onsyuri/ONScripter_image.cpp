@@ -193,7 +193,8 @@ SDL_Surface *ONScripter::createSurfaceFromFile(char *filename, bool *has_alpha, 
     SDL_RWops *src = SDL_RWFromMem(buffer, length);
     int is_png = IMG_isPNG(src);
 
-    SDL_Surface *tmp = IMG_Load_RW(src, 0);
+    SDL_Surface *tmp = loadWebP(buffer, length);
+    if (!tmp) tmp = IMG_Load_RW(src, 0);
     if (!tmp && ext && (!strcmp(ext+1, "JPG") || !strcmp(ext+1, "jpg"))){
         utils::printError(" *** force-loading a JPG image [%s]\n", filename);
         tmp = IMG_LoadJPG_RW(src);

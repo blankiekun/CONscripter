@@ -28,6 +28,9 @@
 #if defined(WEB)
 #include <emscripten.h>
 #endif
+#if defined(USE_WEBP)
+#include <webp/decode.h>
+#endif
 
 // Marks the block saveSaveFileCons() appends to a save file. Saves
 // written without it (stock ONScripter, older CONscripter) end before it,
@@ -589,5 +592,31 @@ void ONScripter::effectZoom( const char *params, int duration )
         drawZoomed(effect_src_surface, accumulation_surface, 1.0f, (int)(256 * s));
         break;
     }
+#endif
+}
+
+/* WebP images, for builds whose SDL_image has no WebP decoder (the
+ * emscripten port). Returns NULL for anything that isn't WebP, or when
+ * built without USE_WEBP, so the caller falls back to IMG_Load_RW. */
+SDL_Surface *ONScripter::loadWebP(const unsigned char *data, size_t length)
+{
+#if defined(USE_WEBP)
+    if (length < 12 || memcmp(data, "RIFF", 4) || memcmp(data + 8, "WEBP", 4)) return NULL;
+    int w, h;
+    if (!WebPGetInfo(data, length, &w, &h)) return NULL;
+    SDL_Surface *s = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_RGBA32);
+    if (!s) return NULL;
+    SDL_LockSurface(s);
+    uint8_t *ok = WebPDecodeRGBAInto(data, length, (uint8_t *)s->pixels, (size_t)s->pitch * h, s->pitch);
+    SDL_UnlockSurface(s);
+    if (!ok){
+        SDL_FreeSurface(s);
+        return NULL;
+    }
+    return s;
+#else
+    (void)data;
+    (void)length;
+    return NULL;
 #endif
 }
