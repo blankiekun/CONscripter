@@ -981,22 +981,7 @@ int ONScripter::savescreenshotCommand()
 
     const char *buf = script_h.readStr();
    
-    // fix --root, --save-dir problem
-    std::string savepath;
-    std::string imgpath(buf); // dirty fix for screenshot save/save problem
-    std::replace(imgpath.begin(), imgpath.end(), '\\', '/');
-
-    if(this->save_dir) {
-        int idx = imgpath.find_last_of("/");
-        std::string savename = idx < 0 ? imgpath : imgpath.substr( idx + 1);
-        savepath = std::string(this->save_dir) +  savename;
-    }
-    else if(this->archive_path){
-        savepath = std::string(this->archive_path) +  imgpath;
-    }
-    else{
-        savepath = imgpath;
-    }
+    std::string savepath = saveDirPath(buf);
 
 #if defined(ANDROID) || defined(WEB)
     FILE *fp = ::fopen(savepath.c_str(), "wb");

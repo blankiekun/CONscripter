@@ -324,6 +324,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"draw",			&ONScripter::drawCommand},
     {"div",				&ONScripter::divCommand},
     {"dim",				&ONScripter::dimCommand},
+    {"delsavegame",		&ONScripter::delsavegameCommand},
     {"deletescreenshot",&ONScripter::deletescreenshotCommand},
     {"delay",			&ONScripter::delayCommand},
     {"defvoicevol",		&ONScripter::defvoicevolCommand},

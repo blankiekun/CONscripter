@@ -29,6 +29,7 @@
 #include "ScriptParser.h"
 #include "DirtyRect.h"
 #include "ButtonLink.h"
+#include <string>
 
 #if defined(ANDROID)
 #include "SDL.h"
@@ -288,6 +289,7 @@ public:
     int drawbgCommand();
     int drawCommand();
     int deletescreenshotCommand();
+    int delsavegameCommand();
     int delayCommand();
     int defineresetCommand();
     int cspCommand();
@@ -597,6 +599,8 @@ private:
     // CONscripter: extra state after the NScripter save data (ONScripter_cons.cpp)
     void loadSaveFileCons();
     void saveSaveFileCons( bool output_flag );
+    // CONscripter: where savescreenshot and delsavegame put a file
+    std::string saveDirPath( const char *name );
 
     // CONscripter: screen states saved by pushscreen, restored by popscreen
     struct ScreenSprite {

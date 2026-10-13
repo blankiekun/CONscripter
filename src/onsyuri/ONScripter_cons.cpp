@@ -19,6 +19,12 @@
 
 #include "ONScripter.h"
 #include "Utils.h"
+#include <algorithm>
+#include <errno.h>
+#include <stdio.h>
+#if defined(WEB)
+#include <emscripten.h>
+#endif
 
 // Marks the block saveSaveFileCons() appends to a save file. Saves
 // written without it (stock ONScripter, older CONscripter) end before it,
@@ -374,4 +380,61 @@ void ONScripter::loadSaveFileCons()
             delete[] st.bgm_name;
         }
     }
+}
+
+/* Where savescreenshot writes name: in the save directory (without name's
+ * folders) when one is set, else in the game folder. The save files are
+ * in the same place, so thumbnails sit next to their saves. */
+std::string ONScripter::saveDirPath( const char *name )
+{
+    std::string path(name);
+    std::replace(path.begin(), path.end(), '\\', '/');
+
+    if (save_dir){
+        size_t idx = path.find_last_of('/');
+        if (idx != std::string::npos) path = path.substr(idx + 1);
+        return std::string(save_dir) + path;
+    }
+    if (archive_path) return std::string(archive_path) + path;
+    return path;
+}
+
+/* delsavegame no[,file]
+ *   Deletes save file no and, when given, file (the save's thumbnail, as
+ *   named to savescreenshot), so savefileexist reports the slot empty.
+ *   A missing file is not an error. In the web build the save directory
+ *   is synced afterwards, as after savegame. */
+int ONScripter::delsavegameCommand()
+{
+    int no = script_h.readInt();
+    const char *thumb = NULL;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA)
+        thumb = script_h.readStr();
+
+    char filename[64];
+    sprintf( filename, "save%d.dat", no );
+    std::string path = std::string(save_dir ? save_dir : archive_path) + filename;
+    if (::remove(path.c_str()) != 0 && errno != ENOENT)
+        utils::printError("delsavegame: can't delete %s\n", path.c_str());
+#if !defined(WEB)
+    // writeSaveFile's second copy
+    sprintf( filename, RELATIVEPATH "sav%csave%d.dat", DELIMITER, no );
+    path = std::string(save_dir ? save_dir : archive_path) + filename;
+    ::remove(path.c_str());
+#endif
+
+    if (thumb && thumb[0]){
+        path = saveDirPath(thumb);
+        if (::remove(path.c_str()) != 0 && errno != ENOENT)
+            utils::printError("delsavegame: can't delete %s\n", path.c_str());
+    }
+
+#if defined(WEB)
+    EM_ASM(
+        if(window.flush_save) window.flush_save();
+        else FS.syncfs(false, (err)=>{console.log(err);});
+    );
+#endif
+
+    return RET_CONTINUE;
 }

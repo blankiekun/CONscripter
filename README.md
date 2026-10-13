@@ -81,6 +81,12 @@ possible.
   `pushscreen 0,999:gosub *scene:popscreen:print 10`. The stack is kept
   in save files (so a game saved inside the scene still returns
   correctly) and emptied by `reset`.
+- **`delsavegame no[,file]`**: deletes save file `no` and, when given,
+  `file`, its thumbnail as named to `savescreenshot`, from the folder
+  `savescreenshot` writes to (the save directory, or the game folder when
+  none is set, the same folder as the saves). `savefileexist` then reports
+  the slot empty. In the web build the save directory is synced
+  afterwards. `delsavegame 3,"savethumb3.bmp"`.
 - **Save files** end with an extra block (`CONS`, a version, then the
   state above) after the NScripter data. Saves without it load as before.
 
