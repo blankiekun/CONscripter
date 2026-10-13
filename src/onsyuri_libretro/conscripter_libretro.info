@@ -1,6 +1,6 @@
 # Software Information
 display_name = "CONscripter"
-display_version = "0.12.0"
+display_version = "0.13.0"
 authors = "Studio O.G.A.|jh10001|YuriSizuku|blankiekun"
 categories = "Game engine"
 license = "GPLv2+"
