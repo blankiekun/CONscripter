@@ -417,7 +417,7 @@ int ONScripter::strspCommand()
     ai->is_single_line = false;
     ai->is_tight_region = false;
     ai->is_ruby_drawable = sentence_font.rubyon_flag;
-    setupAnimationInfo(ai, &fi);
+    recordSpriteText(sprite_no, &fi);
     if ( ai->visible ) dirty_rect.add( ai->pos );
 
     return RET_CONTINUE;

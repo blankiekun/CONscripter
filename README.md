@@ -157,9 +157,15 @@ possible.
     it is drawn: its raw bytes, position, font size and character pitch
     in screen pixels.
   - `onsyuriOverlay(event)` when drawn text leaves the screen: `'page'` (a
-    new page, or the text window hidden), `'choices'` (the buttons
-    cleared), `'enter'` (the system menu or backlog opened), `'leave'`
-    (back to the page) or `'reset'` (a game loaded from the menu).
+    new page), `'hide'` and `'show'` (the text window hidden and shown
+    again with its page), `'choices'` (the buttons cleared), `'enter'` (the
+    system menu or backlog opened), `'leave'` (back to the page) or
+    `'reset'` (a game loaded from the menu).
+  - `onsyuriBacklog(text, boxes)` for each backlog page shown, like
+    `onsyuriText` (the current page's boxes are kept for when it returns).
+  - `onsyuriSprites(text, boxes)` whenever the game waits for input: the
+    visible `strsp` sprites' text and character boxes, like `onsyuriText`
+    (all sprites in one `text`), for menus and backlogs a script draws itself.
 - **Save files** end with an extra block (`CONS`, a version, then the
   state above) after the NScripter data. Saves without it load as before.
 

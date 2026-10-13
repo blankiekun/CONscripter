@@ -25,6 +25,7 @@
 #include "ONScripter.h"
 #include "coding2utf16.h"
 #include "Utils.h"
+#include <vector>
 
 #if defined(WEB)
 #include <emscripten.h>
@@ -60,6 +61,17 @@ static void textHook(const char *text, int len, int skipped)
     }, text, len, skipped, char_boxes, char_box_count);
 #endif
 }
+
+// chimimouryou: byte offset of the backlog character being drawn (-1 otherwise), so
+// restoreTextBuffer records its boxes too.
+static int backlog_offset = -1;
+
+// chimimouryou: the text of strsp sprites (script bytes as drawn, the source string) and
+// where each character is (byte offset, x, y relative to the sprite, size), recorded while
+// recordSpriteText draws one.
+struct SpriteText { std::string text, source; std::vector<int> boxes; };
+static SpriteText sprite_texts[MAX_SPRITE_NUM];
+static SpriteText *recording_sprite = NULL;
 
 extern Coding2UTF16 *coding2utf16;
 
@@ -260,6 +272,20 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
                    info->x() * screen_ratio1 / screen_ratio2,
                    info->y() * screen_ratio1 / screen_ratio2,
                    info->font_size_xy[1] * screen_ratio1 / screen_ratio2);
+    else if (backlog_offset >= 0)
+        addCharBox(backlog_offset,
+                   info->x() * screen_ratio1 / screen_ratio2,
+                   info->y() * screen_ratio1 / screen_ratio2,
+                   info->font_size_xy[1] * screen_ratio1 / screen_ratio2);
+    else if (recording_sprite && info != &ruby_font){
+        int len = coding2utf16->force_utf8 ? UTF8_N_BYTE(text[0]) : IS_TWO_BYTE(text[0]) ? 2 : 1;
+        int box[4] = {(int)recording_sprite->text.size(),
+                      info->x() * screen_ratio1 / screen_ratio2,
+                      info->y() * screen_ratio1 / screen_ratio2,
+                      info->font_size_xy[1] * screen_ratio1 / screen_ratio2};
+        recording_sprite->text.append(text, len);
+        recording_sprite->boxes.insert(recording_sprite->boxes.end(), box, box + 4);
+    }
 
     char text2[5] = {text[0], 0, 0, 0, 0};
     if (coding2utf16->force_utf8) strncpy(text2, text, UTF8_N_BYTE(text[0]));
@@ -426,6 +452,54 @@ void ONScripter::drawString( const char *str, uchar3 color, FontInfo *info, bool
     if ( rect ) *rect = clipped_rect;
 }
 
+// chimimouryou: (re)draw string sprite no, recording its characters for sendSpriteTexts.
+void ONScripter::recordSpriteText(int no, FontInfo *fi)
+{
+    AnimationInfo *ai = &sprite_info[no];
+    SpriteText &sprite = sprite_texts[no];
+
+    sprite.text.clear();
+    sprite.boxes.clear();
+    recording_sprite = &sprite;
+    setupAnimationInfo(ai, fi);
+    recording_sprite = NULL;
+    // Every cell draws the same characters: keep the first.
+    int cells = ai->num_of_cells > 0 ? ai->num_of_cells : 1;
+    sprite.boxes.resize(sprite.boxes.size() / 4 / cells * 4);
+    sprite.text.resize(sprite.text.size() / cells);
+    sprite.source = ai->file_name ? ai->file_name : "";
+}
+
+// chimimouryou: hand the visible string sprites' text and character boxes (in screen pixels)
+// to the web page while the game waits for input, so they can be looked up too.
+void ONScripter::sendSpriteTexts()
+{
+#if defined(WEB)
+    std::string text;
+    std::vector<int> boxes;
+
+    for (int no = 0; no < MAX_SPRITE_NUM; no++){
+        AnimationInfo *ai = &sprite_info[no];
+        SpriteText &sprite = sprite_texts[no];
+
+        if (sprite.boxes.empty() || !ai->visible || !ai->file_name ||
+            ai->trans_mode != AnimationInfo::TRANS_STRING || sprite.source != ai->file_name)
+            continue;
+        for (size_t i = 0; i < sprite.boxes.size(); i += 4){
+            boxes.push_back(sprite.boxes[i] + text.size());
+            boxes.push_back(sprite.boxes[i + 1] + ai->pos.x);
+            boxes.push_back(sprite.boxes[i + 2] + ai->pos.y);
+            boxes.push_back(sprite.boxes[i + 3]);
+        }
+        text += sprite.text;
+    }
+    EM_ASM({
+        if (self.onsyuriSprites)
+            self.onsyuriSprites(HEAPU8.slice($0, $0 + $1), HEAP32.slice($2 >> 2, ($2 >> 2) + $3));
+    }, text.data(), text.size(), boxes.data(), boxes.size());
+#endif
+}
+
 void ONScripter::restoreTextBuffer(SDL_Surface *surface)
 {
     text_info.fill( 0, 0, 0, 0 );
@@ -433,7 +507,13 @@ void ONScripter::restoreTextBuffer(SDL_Surface *surface)
     char out_text[5] = { '\0','\0','\0', '\0', '\0' };
     FontInfo f_info = sentence_font;
     f_info.clear();
+    // chimimouryou: the backlog page gets its own boxes; the current page's come back after.
+    static int page_boxes[4 * 4096];
+    int page_box_count = char_box_count;
+    memcpy(page_boxes, char_boxes, sizeof(int) * 4 * char_box_count);
+    char_box_count = 0;
     for ( int i=0 ; i<current_page->text_count ; i++ ){
+        int start = i;
         if ( current_page->text[i] == 0x0a ){
             f_info.newLine();
         }
@@ -495,9 +575,19 @@ void ONScripter::restoreTextBuffer(SDL_Surface *surface)
                     i++;
                 }
             }
+            backlog_offset = start;
             drawChar( out_text, &f_info, false, false, surface, &text_info );
+            backlog_offset = -1;
         }
     }
+#if defined(WEB)
+    EM_ASM({
+        if (self.onsyuriBacklog)
+            self.onsyuriBacklog(HEAPU8.slice($0, $0 + $1), HEAP32.slice($2 >> 2, ($2 >> 2) + $3 * 4));
+    }, current_page->text, current_page->text_count, char_boxes, char_box_count);
+#endif
+    memcpy(char_boxes, page_boxes, sizeof(int) * 4 * page_box_count);
+    char_box_count = page_box_count;
 }
 
 void ONScripter::enterTextDisplayMode(bool text_flag)
@@ -511,6 +601,10 @@ void ONScripter::enterTextDisplayMode(bool text_flag)
         dirty_rect.clear();
         dirty_rect.add( sentence_font_info.pos );
         display_mode = DISPLAY_MODE_TEXT;
+#if defined(WEB)
+        // chimimouryou: the text window and its text are back.
+        EM_ASM({ if (self.onsyuriOverlay) self.onsyuriOverlay('show'); });
+#endif
 
         if (setEffect(&window_effect)) return;
         while(doEffect(&window_effect, false));
@@ -528,7 +622,7 @@ void ONScripter::leaveTextDisplayMode(bool force_leave_flag)
         display_mode = DISPLAY_MODE_NORMAL;
 #if defined(WEB)
         // chimimouryou: the text window is hidden; so is its text.
-        EM_ASM({ if (self.onsyuriOverlay) self.onsyuriOverlay('page'); });
+        EM_ASM({ if (self.onsyuriOverlay) self.onsyuriOverlay('hide'); });
 #endif
             
         if (setEffect(&window_effect)) return;
