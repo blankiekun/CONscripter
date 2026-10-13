@@ -171,6 +171,7 @@ public:
     int screenfilterCommand();
     int screenshakeCommand();
     int screenrippleCommand();
+    int screenpulseCommand();
     int spbtnCommand();
     int skipoffCommand();
     int sevolCommand();
@@ -617,9 +618,9 @@ private:
     void applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip );
 
     // CONscripter: animated effects on the same picture (screenshake,
-    // screenripple), by slot, stepped like sprite animations
+    // screenripple, screenpulse), by slot, stepped like sprite animations
     enum { MAX_SCREEN_EFFECT = 4, SCREEN_EFFECT_PARAMS = 9 };
-    enum { SCREEN_EFFECT_NONE = 0, SCREEN_EFFECT_SHAKE = 1, SCREEN_EFFECT_RIPPLE = 2 };
+    enum { SCREEN_EFFECT_NONE = 0, SCREEN_EFFECT_SHAKE = 1, SCREEN_EFFECT_RIPPLE = 2, SCREEN_EFFECT_PULSE = 3 };
     struct ScreenEffect {
         int kind;
         int param[SCREEN_EFFECT_PARAMS]; // the command's numbers after the slot (and map)
@@ -632,6 +633,8 @@ private:
         unsigned int phase_x, phase_y;   // shake: wave phases (or path progress)
         int point;                       // shake: point on the path (mode 1)
         int opacity, amp, angle, phase;  // ripple: 0-256, 16.16 pixels, 0.1 degrees, 0-999
+        ONSBuf *snap;                    // pulse: the tinted picture when it started
+        int snap_w, snap_h;
     };
     ScreenEffect screen_effect[MAX_SCREEN_EFFECT];
     int screenEffectCommand( int kind, const char *name );

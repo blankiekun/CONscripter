@@ -94,8 +94,15 @@ possible.
   direction `angle` (tenths of a degree, 0 = right, 900 = down), `grey`
   being the pixel's level in the greyscale image `map`, and lays the
   result over the picture at `opacity` (0-256); each step turns the angle
-  by `angle_step` and moves the phase by `phase_step`. Slots 1-4 are shared;
-  either command with only a slot clears it, slot 0 clears them all. Like
+  by `angle_step` and moves the phase by `phase_step`.
+  **`screenpulse slot,time,interval,zoom_x,zoom_y,opacity,colour,tint_opacity,tint`**
+  keeps a copy of the picture when it first shows, tinted (`tint` 0 none,
+  1 multiplied by `colour` 0xRRGGBB, 2 `colour` laid over it, at
+  `tint_opacity` 0-256), and lays it over the live picture scaled by
+  1 + f × `zoom`/1000 around the centre at f × `opacity` (0-256), f going
+  0 → 1 → 0 as sin(π × elapsed/`time`); after `time` ms nothing shows
+  until the slot is cleared. Slots 1-4 are shared;
+  each command with only a slot clears it, slot 0 clears them all. Like
   `screenfilter` they don't draw: follow them with `print`. Kept in save
   files (restarted when loaded), cleared by `reset`. While one runs, every
   update redraws the whole screen.

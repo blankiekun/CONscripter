@@ -220,6 +220,23 @@ int ONScripter::screenrippleCommand()
     return screenEffectCommand( SCREEN_EFFECT_RIPPLE, "screenripple" );
 }
 
+/* screenpulse slot, time, interval, zoom_x, zoom_y, opacity, colour,
+ *             tint_opacity, tint
+ *   A pulse over the picture behind the text window: when it first
+ *   shows, the picture is kept as it is and tinted (tint 0 none, 1
+ *   multiplied by colour, 2 colour laid over it), with colour 0xRRGGBB
+ *   at tint_opacity (0-256). Over time ms, that copy is laid over the
+ *   live picture scaled by 1 + f * zoom / 1000 (x and y) around the
+ *   centre at f * opacity (0-256), f going 0 -> 1 -> 0 as
+ *   sin(pi * elapsed / time); every interval ms it takes a step. After
+ *   time ms nothing shows until the slot is cleared.
+ *   "screenpulse 3,700,10,150,150,150,16744703,256,1" pulses a
+ *   reddened copy 15 % larger. */
+int ONScripter::screenpulseCommand()
+{
+    return screenEffectCommand( SCREEN_EFFECT_PULSE, "screenpulse" );
+}
+
 int ONScripter::screenEffectCommand( int kind, const char *name )
 {
     leaveTextDisplayMode();
@@ -282,6 +299,8 @@ void ONScripter::startScreenEffect( ScreenEffect &e )
     e.range_x = e.range_y = 0;
     e.phase_x = e.phase_y = 0;
     e.point = 0;
+    delete[] e.snap;
+    e.snap = NULL; // pulse: taken when next drawn
     if (e.kind == SCREEN_EFFECT_RIPPLE){
         e.opacity = p[2];
         e.amp = p[4] << 16;
@@ -326,6 +345,9 @@ void ONScripter::clearScreenEffect( ScreenEffect &e )
 {
     delete[] e.map_name;
     delete[] e.map;
+    delete[] e.snap;
+    e.snap = NULL;
+    e.snap_w = e.snap_h = 0;
     e.kind = SCREEN_EFFECT_NONE;
     e.map_name = NULL;
     e.map = NULL;
@@ -415,6 +437,49 @@ void ONScripter::applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip )
                 if (sy < 0 || sy >= h) continue;
                 int x0 = std::max(0, dx), x1 = std::min(w, w + dx);
                 if (x1 > x0) memcpy( buf + y * pitch + x0, copy + sy * w + x0 - dx, (x1 - x0) * sizeof(ONSBuf) );
+            }
+        }
+        else if (e.kind == SCREEN_EFFECT_PULSE){
+            // param: time, interval, zoom x, y, opacity, colour, tint opacity, tint
+            int *p = e.param;
+            if (e.snap == NULL || e.snap_w != w || e.snap_h != h){
+                delete[] e.snap;
+                e.snap = new ONSBuf[w * h];
+                e.snap_w = w;
+                e.snap_h = h;
+                int cr = (p[5] >> 16) & 0xff, cg = (p[5] >> 8) & 0xff, cb = p[5] & 0xff;
+                int to = p[6] < 0 ? 0 : p[6] > 256 ? 256 : p[6];
+                for (int k=0 ; k<w * h ; k++){
+                    ONSBuf c = copy[k];
+                    int r = (c >> 16) & 0xff, g = (c >> 8) & 0xff, b = c & 0xff;
+                    int tr = r, tg = g, tb = b;
+                    if (p[7] == 1){ tr = r * cr / 255; tg = g * cg / 255; tb = b * cb / 255; }
+                    else if (p[7] == 2){ tr = cr; tg = cg; tb = cb; }
+                    r += (tr - r) * to >> 8;
+                    g += (tg - g) * to >> 8;
+                    b += (tb - b) * to >> 8;
+                    e.snap[k] = (c & 0xff000000) | (r << 16) | (g << 8) | b;
+                }
+            }
+            double f = (p[0] > 0) ? sin( M_PI * e.elapsed / p[0] ) : 0;
+            int opa = (int)(f * p[4]);
+            if (opa > 256) opa = 256;
+            if (opa > 0){
+                double sx = 1 + f * p[2] / 1000, sy = 1 + f * p[3] / 1000;
+                double cx = w / 2.0, cy = h / 2.0;
+                for (int y=clip.y ; y<clip.y + clip.h ; y++){
+                    int ty = (int)(cy + (y + 0.5 - cy) / sy);
+                    if (ty < 0 || ty >= h) continue;
+                    ONSBuf *dst = buf + y * pitch;
+                    for (int x=clip.x ; x<clip.x + clip.w ; x++){
+                        int tx = (int)(cx + (x + 0.5 - cx) / sx);
+                        if (tx < 0 || tx >= w) continue;
+                        ONSBuf src = e.snap[ty * w + tx], org = dst[x];
+                        ONSBuf rb = (((org & 0xff00ff) * (256 - opa) + (src & 0xff00ff) * opa) >> 8) & 0xff00ff;
+                        ONSBuf g  = (((org & 0x00ff00) * (256 - opa) + (src & 0x00ff00) * opa) >> 8) & 0x00ff00;
+                        dst[x] = (org & 0xff000000) | rb | g;
+                    }
+                }
             }
         }
         else if (e.kind == SCREEN_EFFECT_RIPPLE){
