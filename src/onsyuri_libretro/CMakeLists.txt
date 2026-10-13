@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(onsyuri-libretro C CXX)
+project(conscripter-libretro C CXX)
 option(LIBRETRO_STATIC "Statically link the libretro core" OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_STANDARD 11)
@@ -50,7 +50,7 @@ file(COPY deps/SDL_config.h DESTINATION ${CMAKE_SOURCE_DIR}/deps/SDL/include)
 file(COPY deps/SDL_dynapi.h DESTINATION ${CMAKE_SOURCE_DIR}/deps/SDL/src/dynapi)
 file(COPY deps/close_code.h DESTINATION ${CMAKE_SOURCE_DIR}/deps/SDL/include)
 
-# prepare <SDL2/*.h> headers directory for onsyuri
+# prepare <SDL2/*.h> headers directory for conscripter
 file(CREATE_LINK ${CMAKE_SOURCE_DIR}/deps/SDL/include
   ${CMAKE_SOURCE_DIR}/deps/SDL/include/SDL2 SYMBOLIC)
 file(CREATE_LINK ${CMAKE_SOURCE_DIR}/deps/SDL_image/include/SDL_image.h
@@ -328,40 +328,40 @@ target_include_directories(lua PUBLIC
 target_link_libraries(lua PUBLIC m)
 
 if (LIBRETRO_STATIC)
-  add_library(onsyuri_libretro STATIC ${SOURCES})
+  add_library(conscripter_libretro STATIC ${SOURCES})
 else ()
-  add_library(onsyuri_libretro SHARED ${SOURCES})
+  add_library(conscripter_libretro SHARED ${SOURCES})
 
-  target_link_options(onsyuri_libretro PRIVATE
+  target_link_options(conscripter_libretro PRIVATE
     -Wl,--version-script=${CMAKE_SOURCE_DIR}/link.T
     -Wl,--no-undefined
     -lm -pthread
   )
 endif ()
 
-target_link_libraries(onsyuri_libretro
+target_link_libraries(conscripter_libretro
   bzip2 sdl2 sdl2_image sdl2_mixer sdl2_ttf lua
 )
 
-target_include_directories(onsyuri_libretro PRIVATE
+target_include_directories(conscripter_libretro PRIVATE
   ../onsyuri
   deps
 )
-target_compile_definitions(onsyuri_libretro PRIVATE
+target_compile_definitions(conscripter_libretro PRIVATE
    __LIBRETRO__
    USE_BUILTIN_LAYER_EFFECTS ENABLE_1BYTE_CHAR
    USE_LUA
 )
 if (HAVE_NEON)
-  target_compile_definitions(onsyuri_libretro PRIVATE USE_SIMD USE_SIMD_ARM_NEON)
+  target_compile_definitions(conscripter_libretro PRIVATE USE_SIMD USE_SIMD_ARM_NEON)
 endif ()
 
 # Follow naming conventions for libretro cores
-set_target_properties(onsyuri_libretro PROPERTIES PREFIX "")
+set_target_properties(conscripter_libretro PROPERTIES PREFIX "")
 if (ANDROID)
-  set_target_properties(onsyuri_libretro PROPERTIES SUFFIX "_android.so")
+  set_target_properties(conscripter_libretro PROPERTIES SUFFIX "_android.so")
 elseif (EMSCRIPTEN)
-  set_target_properties(onsyuri_libretro PROPERTIES SUFFIX "${LIBRETRO_SUFFIX}.bc")
+  set_target_properties(conscripter_libretro PROPERTIES SUFFIX "${LIBRETRO_SUFFIX}.bc")
 elseif (LIBRETRO_STATIC)
-  set_target_properties(onsyuri_libretro PROPERTIES SUFFIX "${LIBRETRO_SUFFIX}.a")
+  set_target_properties(conscripter_libretro PROPERTIES SUFFIX "${LIBRETRO_SUFFIX}.a")
 endif ()

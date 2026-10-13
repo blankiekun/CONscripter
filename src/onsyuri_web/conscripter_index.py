@@ -24,7 +24,7 @@ def debug():
 def main(cmdstr=None):
     parser = argparse.ArgumentParser(
         description="Generate onsyuri_index.json for web\n" 
-            "v0.1, developed by devseed")
+            "v0.1, developed by devseed, part of CONscripter")
     parser.add_argument('-i', '--inpath', type=str, default='./')
     parser.add_argument('-o', '--outpath', type=str)
     parser.add_argument('--title', type=str, help="game title, default indir name")

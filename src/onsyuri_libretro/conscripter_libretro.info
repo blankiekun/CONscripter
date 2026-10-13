@@ -1,7 +1,7 @@
 # Software Information
-display_name = "ONScripter Yuri"
-display_version = "0.7.4+2"
-authors = "Studio O.G.A.|jh10001|YuriSizuku"
+display_name = "CONscripter"
+display_version = "0.7.7"
+authors = "Studio O.G.A.|jh10001|YuriSizuku|blankiekun"
 categories = "Game engine"
 license = "GPLv2+"
 permissions = ""
@@ -9,8 +9,8 @@ supported_extensions = "txt|dat|___|nt2|nt3|ons|/"
 
 # Hardware Information
 manufacturer = "ONScripter"
-systemname = "ONScripter Yuri"
-systemid = "onsyuri"
+systemname = "CONscripter"
+systemid = "conscripter"
 
 # Libretro Features
 database = "ONScripter"
@@ -20,4 +20,4 @@ cheats = "false"
 needs_fullpath = "true"
 disk_control = "false"
 
-description = "A port of the ONScripter Yuri visual novel games engine to libretro."
+description = "A port of the CONscripter visual novel engine (a fork of ONScripter Yuri) to libretro."

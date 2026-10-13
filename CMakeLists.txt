@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 3.16.3)
-project(onsyuri)
+project(conscripter)
 
 function(config_linux TARGET_NAME)
-    add_executable(${TARGET_NAME} ${ONSYURI_CODE})
+    add_executable(${TARGET_NAME} ${CONSCRIPTER_CODE})
     install(TARGETS ${TARGET_NAME} RUNTIME)
     message("Linux enviroment for ${TARGET_NAME}, type ${CMAKE_BUILD_TYPE}, compiler ${CMAKE_C_COMPILER}")
     target_compile_definitions(${TARGET_NAME} PRIVATE
-        ${ONSYURI_DEFINES}
+        ${CONSCRIPTER_DEFINES}
         LINUX
         USE_PARALLEL
         USE_GLES
@@ -81,10 +81,10 @@ function(config_linux TARGET_NAME)
 endfunction()
 
 function(config_darwin TARGET_NAME)
-    add_executable(${TARGET_NAME} ${ONSYURI_CODE})
+    add_executable(${TARGET_NAME} ${CONSCRIPTER_CODE})
     message("Darwin enviroment for ${TARGET_NAME}, type ${CMAKE_BUILD_TYPE}, compiler ${CMAKE_C_COMPILER}")
     target_compile_definitions(${TARGET_NAME} PRIVATE
-            ${ONSYURI_DEFINES}
+            ${CONSCRIPTER_DEFINES}
             MACOSX
             USE_PARALLEL
             USE_GLES
@@ -126,7 +126,7 @@ endfunction()
 
 function(config_windows_msys2 TARGET_NAME)
     add_executable(${TARGET_NAME} WIN32 
-        ${ONSYURI_CODE}
+        ${CONSCRIPTER_CODE}
         ${PROJECT_SOURCE_DIR}/asset/icon1.rc)
     if(MINGW)
         message("MINGW enviroment for ${TARGET_NAME}, type ${CMAKE_BUILD_TYPE}")
@@ -144,7 +144,7 @@ function(config_windows_msys2 TARGET_NAME)
         endif()
 
         target_compile_definitions(${TARGET_NAME} PRIVATE
-            ${ONSYURI_DEFINES}
+            ${CONSCRIPTER_DEFINES}
             _WIN32
             USE_PARALLEL
             USE_SIMD
@@ -211,7 +211,7 @@ endfunction()
 
 function(config_windows_mingw TARGET_NAME)
     add_executable(${TARGET_NAME} WIN32 
-        ${ONSYURI_CODE}
+        ${CONSCRIPTER_CODE}
         ${PROJECT_SOURCE_DIR}/asset/icon1.rc)
     message("Cross MINGW enviroment for ${TARGET_NAME}, type ${CMAKE_BUILD_TYPE}, compiler ${CMAKE_C_COMPILER}")
    
@@ -237,7 +237,7 @@ function(config_windows_mingw TARGET_NAME)
         -Wno-invalid-source-encoding
     )
     target_compile_definitions(${TARGET_NAME} PRIVATE
-        ${ONSYURI_DEFINES}
+        ${CONSCRIPTER_DEFINES}
         -D_WIN32_WINNT=0X0400 # support win xp
         _WIN32
         XMD_H # fix jpeg IN32 problem in jmorecfg.h
@@ -285,7 +285,7 @@ endfunction()
 
 function(config_windows_msvc TARGET_NAME)
     add_executable(${TARGET_NAME} WIN32 
-        ${ONSYURI_CODE}
+        ${CONSCRIPTER_CODE}
         ${PROJECT_SOURCE_DIR}/asset/icon1.rc)
     if(MSVC)
         # get package with cpp package manager like vcpkg
@@ -310,7 +310,7 @@ function(config_windows_msvc TARGET_NAME)
         endif()
 
         target_compile_definitions(${TARGET_NAME} PRIVATE 
-            ${ONSYURI_DEFINES}
+            ${CONSCRIPTER_DEFINES}
             _WIN32
             USE_PARALLEL
             USE_GLES
@@ -371,7 +371,7 @@ function(config_windows_msvc TARGET_NAME)
 endfunction()
 
 function(config_web TARGET_NAME)
-    add_executable(${TARGET_NAME} ${ONSYURI_CODE})
+    add_executable(${TARGET_NAME} ${CONSCRIPTER_CODE})
     message("Web enviroment for "  ${TARGET_NAME})
     target_link_directories(${TARGET_NAME} PRIVATE
         ${PROJECT_SOURCE_DIR}/thirdparty/build/arch_wasm/lib
@@ -387,7 +387,7 @@ function(config_web TARGET_NAME)
 
     # pass flags for emcc
     set(EMCC_FLAGS "-o ${TARGET_NAME}.js -sASYNCIFY -sALLOW_MEMORY_GROWTH=1") # this two is very important! 
-    set(EMCC_FLAGS "${EMCC_FLAGS} -sMODULARIZE -sINVOKE_RUN=0 -sEXPORT_NAME=${TARGET_NAME}")
+    set(EMCC_FLAGS "${EMCC_FLAGS} -sMODULARIZE -sINVOKE_RUN=0 -sEXPORT_NAME=onsyuri") # keep the JS factory name, web players call onsyuri(module)
     set(EMCC_FLAGS "${EMCC_FLAGS} -sEXPORTED_RUNTIME_METHODS=callMain,UTF8ToString,FS,PATH,IDBFS") # make as module
     set(EMCC_FLAGS "${EMCC_FLAGS} -sUSE_SDL=2 -sUSE_SDL_TTF=2 -sUSE_BZIP2=1")
     set(EMCC_FLAGS "${EMCC_FLAGS} -sUSE_SDL_IMAGE=2 -sSDL2_IMAGE_FORMATS=bmp,png,jpg")
@@ -398,7 +398,7 @@ function(config_web TARGET_NAME)
         -Wno-invalid-source-encoding
     )
     target_compile_definitions(${TARGET_NAME} PRIVATE
-        ${ONSYURI_DEFINES}
+        ${CONSCRIPTER_DEFINES}
         WEB
         LINUX
         USE_PARALLEL
@@ -409,7 +409,7 @@ function(config_web TARGET_NAME)
 endfunction()
 
 function(config_android TARGET_NAME)
-    add_library(${TARGET_NAME} SHARED ${ONSYURI_CODE})
+    add_library(${TARGET_NAME} SHARED ${CONSCRIPTER_CODE})
     message("Android enviroment for ${TARGET_NAME}, type ${CMAKE_BUILD_TYPE}, compiler ${CMAKE_C_COMPILER}")
     if(CMAKE_BUILD_TYPE MATCHES "Debug")
         message("generating debug configuration")
@@ -423,7 +423,7 @@ function(config_android TARGET_NAME)
     endif()
 
     target_compile_definitions(${TARGET_NAME} PRIVATE
-        ${ONSYURI_DEFINES} 
+        ${CONSCRIPTER_DEFINES} 
         ANDROID
         USE_PARALLEL
         USE_GLES
@@ -481,7 +481,7 @@ function(config_platform TARGET_NAME)
 endfunction()
 
 set(CMAKE_CXX_STANDARD 11)
-set(ONSYURI_CODE
+set(CONSCRIPTER_CODE
     src/onsyuri/AnimationInfo.cpp
     src/onsyuri/coding2utf16.cpp
     src/onsyuri/DirectReader.cpp
@@ -517,7 +517,7 @@ set(ONSYURI_CODE
     src/onsyuri/builtin_dll/ONScripter_effect_cascade.cpp
     src/onsyuri/builtin_dll/ONScripter_effect_trig.cpp
 )
-set(ONSYURI_DEFINES
+set(CONSCRIPTER_DEFINES
     USE_LUA
     USE_BUILTIN_LAYER_EFFECTS
     ENABLE_1BYTE_CHAR

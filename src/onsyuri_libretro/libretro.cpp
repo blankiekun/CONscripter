@@ -57,21 +57,21 @@ retro_set_environment(retro_environment_t cb)
 
     static struct retro_core_option_definition opts[] = {
         {
-            .key = "onsyuri_script_encoding",
+            .key = "conscripter_script_encoding",
             .desc = "Script Encoding",
             .info = NULL,
             .values = { { "GBK" }, { "SHIFTJIS" }, {"UTF-8"}, { NULL } },
             .default_value = "GBK",
         },
         {
-            .key = "onsyuri_mouse_mode",
+            .key = "conscripter_mouse_mode",
             .desc = "Mouse Mode",
             .info = NULL,
             .values = { { "Touch" }, { "Classical" }, { NULL } },
             .default_value = DEFAULT_MOUSE_MODE,
         },
         {
-            .key = "onsyuri_mouse_joybtn",
+            .key = "conscripter_mouse_joybtn",
             .desc = "Emulate mouse with this joypad button pressed",
             .info = NULL,
             .values = {
@@ -82,7 +82,7 @@ retro_set_environment(retro_environment_t cb)
             .default_value = "SELECT",
         },
         {
-            .key = "onsyuri_mouse_sensitivity",
+            .key = "conscripter_mouse_sensitivity",
             .desc = "Classical Mouse Sensitivity",
             .info = NULL,
             .values = {
@@ -140,8 +140,8 @@ retro_get_system_info(struct retro_system_info* info)
 {
     info->need_fullpath = true;
     info->valid_extensions = "txt|dat|___|nt2|nt3|ons|/";
-    info->library_version = "0.7.4+2";
-    info->library_name = "onsyuri";
+    info->library_version = "0.7.7";
+    info->library_name = "conscripter";
     info->block_extract = false;
 }
 
@@ -166,7 +166,7 @@ retro_init(void)
     environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &pixfmt);
 
     struct retro_variable var = { 0 };
-    var.key = "onsyuri_script_encoding";
+    var.key = "conscripter_script_encoding";
     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var)) {
         if (strcmp(var.value, "SHIFTJIS") == 0) {
             coding2utf16 = new SJIS2UTF16();
@@ -177,7 +177,7 @@ retro_init(void)
             coding2utf16 = new GBK2UTF16();
         }
     }
-    var.key = "onsyuri_mouse_mode";
+    var.key = "conscripter_mouse_mode";
     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var)) {
         if (strcmp(var.value, "Classical") == 0) {
             classical_mouse = true;
@@ -185,7 +185,7 @@ retro_init(void)
             classical_mouse = false;
         }
     }
-    var.key = "onsyuri_mouse_joybtn";
+    var.key = "conscripter_mouse_joybtn";
     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var)) {
         if (strcmp(var.value, "SELECT") == 0)
             mouse_joybtn = RETRO_DEVICE_ID_JOYPAD_SELECT;
@@ -204,7 +204,7 @@ retro_init(void)
         if (strcmp(var.value, "R3") == 0)
             mouse_joybtn = RETRO_DEVICE_ID_JOYPAD_R3;
     }
-    var.key = "onsyuri_mouse_sensitivity";
+    var.key = "conscripter_mouse_sensitivity";
     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var)) {
         mouse_sensitivity = SDL_atof(var.value);
     }
@@ -257,7 +257,7 @@ retro_load_game(const struct retro_game_info* game)
     };
     environ_cb(RETRO_ENVIRONMENT_SET_KEYBOARD_CALLBACK, &keyboard);
 
-    game_thread = SDL_CreateThread(game_main, "onsyuri", NULL);
+    game_thread = SDL_CreateThread(game_main, "conscripter", NULL);
     return true;
 }
 

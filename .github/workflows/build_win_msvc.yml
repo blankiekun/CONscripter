@@ -35,18 +35,18 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: onsyuri-${{env.VCPKG_TRIPLET}}
+        name: conscripter-${{env.VCPKG_TRIPLET}}
         path: ${{github.workspace}}/build/${{env.BUILD_TYPE}}
     
     - name: prepare release
       if: github.event_name == 'push'
-      run: mv ${{github.workspace}}/build/${{env.BUILD_TYPE}}/onsyuri.exe ${{github.workspace}}/onsyuri_${{github.ref_name}}_x86_win.exe
+      run: mv ${{github.workspace}}/build/${{env.BUILD_TYPE}}/conscripter.exe ${{github.workspace}}/conscripter_${{github.ref_name}}_x86_win.exe
       
     - name: create release
       uses: ncipollo/release-action@v1
       if: github.event_name == 'push'
       with:
-        artifacts: ${{github.workspace}}/onsyuri_${{github.ref_name}}_x86_win.exe
+        artifacts: ${{github.workspace}}/conscripter_${{github.ref_name}}_x86_win.exe
         allowUpdates: "true"
         token: ${{secrets.GITHUB_TOKEN}}
 
@@ -80,18 +80,18 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: onsyuri-${{env.VCPKG_TRIPLET}}
+        name: conscripter-${{env.VCPKG_TRIPLET}}
         path: ${{github.workspace}}/build/${{env.BUILD_TYPE}}
     
     - name: prepare release
       if: github.event_name == 'push'
-      run: mv ${{github.workspace}}/build/${{env.BUILD_TYPE}}/onsyuri.exe ${{github.workspace}}/onsyuri_${{github.ref_name}}_amd64_win.exe
+      run: mv ${{github.workspace}}/build/${{env.BUILD_TYPE}}/conscripter.exe ${{github.workspace}}/conscripter_${{github.ref_name}}_amd64_win.exe
       
     - name: create release
       if: github.event_name == 'push'
       uses: ncipollo/release-action@v1
       with:
-        artifacts: ${{github.workspace}}/onsyuri_${{github.ref_name}}_amd64_win.exe
+        artifacts: ${{github.workspace}}/conscripter_${{github.ref_name}}_amd64_win.exe
         allowUpdates: "true"
         token: ${{secrets.GITHUB_TOKEN}}
 
@@ -125,17 +125,17 @@ jobs:
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: onsyuri-${{env.VCPKG_TRIPLET}}
+        name: conscripter-${{env.VCPKG_TRIPLET}}
         path: ${{github.workspace}}/build/${{env.BUILD_TYPE}}
     
     - name: prepare release
       if: github.event_name == 'push'
-      run: mv ${{github.workspace}}/build/${{env.BUILD_TYPE}}/onsyuri.exe ${{github.workspace}}/onsyuri_${{github.ref_name}}_arm64_win.exe
+      run: mv ${{github.workspace}}/build/${{env.BUILD_TYPE}}/conscripter.exe ${{github.workspace}}/conscripter_${{github.ref_name}}_arm64_win.exe
       
     - name: create release
       if: github.event_name == 'push'
       uses: ncipollo/release-action@v1
       with:
-        artifacts: ${{github.workspace}}/onsyuri_${{github.ref_name}}_arm64_win.exe
+        artifacts: ${{github.workspace}}/conscripter_${{github.ref_name}}_arm64_win.exe
         allowUpdates: "true"
         token: ${{secrets.GITHUB_TOKEN}}

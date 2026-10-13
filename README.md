@@ -1,88 +1,71 @@
-# Onscripter-Yuri
+# CONscripter
 
-![GitHub release](https://img.shields.io/github/v/release/YuriSizuku/OnscripterYuri?color=green&label=onsyuri&logo=4chan&style=flat-square)![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/YuriSizuku/OnscripterYuri/build_web.yml?label=web(wasm)&logo=firefox&style=flat-square)![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/YuriSizuku/OnscripterYuri/build_android.yml?label=android(arm|arm64)&&logo=android&style=flat-square)
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/YuriSizuku/OnscripterYuri/build_win.yml?label=win_mingw(x86|x64)&logo=mingww64&style=flat-square)![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/YuriSizuku/OnscripterYuri/build_win.yml?label=win_msvc(x86|x64|arm64)&logo=codeblocks&style=flat-square)
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/YuriSizuku/OnscripterYuri/build_linux.yml?label=linux(x86|x64|arm|arm64)&logo=linux&style=flat-square)![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/YuriSizuku/OnscripterYuri/build_darwin.yml?label=mac(x64|arm64)&logo=apple&style=flat-square)
+![GitHub release](https://img.shields.io/github/v/release/blankiekun/CONscripter?color=green&label=conscripter&style=flat-square)
+![web](https://img.shields.io/github/actions/workflow/status/blankiekun/CONscripter/build_web.yml?label=web(wasm)&logo=firefox&style=flat-square)
+![android](https://img.shields.io/github/actions/workflow/status/blankiekun/CONscripter/build_android.yml?label=android&logo=android&style=flat-square)
+![windows](https://img.shields.io/github/actions/workflow/status/blankiekun/CONscripter/build_win.yml?label=windows&logo=mingww64&style=flat-square)
+![linux](https://img.shields.io/github/actions/workflow/status/blankiekun/CONscripter/build_linux.yml?label=linux&logo=linux&style=flat-square)
+![mac](https://img.shields.io/github/actions/workflow/status/blankiekun/CONscripter/build_darwin.yml?label=mac&logo=apple&style=flat-square)
 
-☘️ An enhancement ONScripter project porting to many platforms, especially **web** ！
-We also support for `windows`, `linux`, `mac`, `android`, `retroarch` and `psv`. This project is base on [ONScripter-Jh](https://github.com/jh10001/ONScripter-Jh) by `SDL2`.
+An [ONScripter](https://onscripter.osdn.jp/onscripter.html) engine for playing
+NScripter visual novels on the web, Windows, Linux, macOS, Android and
+RetroArch: a fork of [ONScripter-Yuri](https://github.com/YuriSizuku/OnscripterYuri)
+(itself based on [ONScripter-Jh](https://github.com/jh10001/ONScripter-Jh)),
+built on SDL2.
 
-Online Demo: [lifegame](https://onsgame.netlify.app/lifegame/), [luasnow](https://onsgame.netlify.app/luasnow/), [noesis1 (lazyload)](https://onsgame.netlify.app/noesis1/)
-PSV: [psv-OnscripterJH](https://github.com/YuriSizuku/psv-OnscripterJH/releases)
-Android : [Google PlayStore](https://play.google.com/store/apps/details?id=com.yuri.onscripter)
-Multi Platform: [github action release](https://github.com/YuriSizuku/OnscripterYuri/releases)
+CONscripter is the engine behind two companion projects:
 
-![onsyuri_webtest_mo2](screenshot/onsyuri_mo2_webtest.png)
+- [chimimouryou](https://github.com/blankiekun/chimimouryou), a self-hosted
+  Japanese e-book reader, plays visual novels in the browser with the
+  WebAssembly build of CONscripter. A small patch
+  ([`scripts/onsyuri/text-hook.patch`](https://github.com/blankiekun/chimimouryou/blob/main/scripts/onsyuri/text-hook.patch))
+  hands each page's text and where each character was drawn to the web page,
+  which lays it over the game for Yomitan and counts it in reading statistics.
+- [conscripter-convert](https://github.com/blankiekun/conscripter-convert)
+  (`vn2ons`) converts games made with other engines (Xuse, for now) into a
+  `0.txt` script and `.nsa` archives that CONscripter plays without engine
+  patches.
 
-**Now it supprts utf8 script with option `--enc:utf8`** !
-As the original `Onsscripter` only support `sjis` or `gbk` encoding, you can aslo convert them to utf8 like `iconv -f gbk -t utf8 0.txt -o 0.txt`.
+![CONscripter running a game in the browser](screenshot/onsyuri_mo2_webtest.png)
 
-New features :
+## Features
 
-- script
-  - [x] lua script and animation
-  - [x] English half-width text // since [v0.7.4](https://github.com/YuriSizuku/OnscripterYuri/releases/tag/v0.7.4)
-  - [x] sjis `--enc:sjis` and gbk `--enc:gbk` script
-  - [x] utf8 script `--enc:utf8` // since [v0.7.6](https://github.com/YuriSizuku/OnscripterYuri/releases/tag/v0.7.6)
-  - [x] `nt2`, `nt3` script encryption (Mine exclusive format)
-  - [x] long click or touch to invoke menu
+- **Scripts**: Shift-JIS (`--enc:sjis`), GBK (`--enc:gbk`) and UTF-8
+  (`--enc:utf8`) scripts; Lua scripts and animation; English half-width text;
+  `nt2`/`nt3` encrypted scripts; the `effectskip` command.
+- **Archives**: `arc.sar`, `arc.nsa` and friends, including games that mix
+  `.sar` and `.nsa` archives.
+- **Rendering**: fullscreen (`--fullscreen`, <kbd>Alt</kbd>+<kbd>Enter</kbd>)
+  and stretched fullscreen (`--fullscreen2`, <kbd>F10</kbd>), any resolution
+  (`--width`, `--height`), GLES2 sharpening (`--sharpness 1.0`).
+- **Input**: long click or touch opens the menu; the backlog works with UTF-8
+  scripts.
+- **Platforms**:
 
-- render
-  - [x] fullscreen by `--fullscreen` or `alt+enter`, scretch to fullscreen by `--fullscreen2` or `f10`
-  - [x] arbitary resolution `--width`, `--height`
-  - [x] gles2 sharpness rendering by `--sharpness 1.0` parameter, fix bugs on windows
-
-- platform
-  - [x] windows
-    - [x] x86, x64 (local or cross compile by mingw, static link)
-    - [x] amd64, arm64 (local msvc, vcpkg, contributed by [ryank231231](https://github.com/YuriSizuku/OnscripterYuri/pull/3))
-    - [x] video by system player
-  - [x] linux
-    - [x] x86, x64 (local compile, static or dynamic link)
-    - [x] arm, aarch64 (cross compile, SDL2 build from raspberrypi, static link)
-    - [x] retroarch (contributed by [iyzsong](https://github.com/iyzsong))
-  - [x] mac
-    - [x] x64, arm64 (local compile, contributed by [yujincheng08](https://github.com/yujincheng08))
-  - [x] web (by emscripten)
-    - [x] fs to save in indexdb
-    - [x] export and import save by zip file  // since [v0.7.5beta5](https://github.com/YuriSizuku/OnscripterYuri/releases/tag/v0.7.5beta5)
-    - [x] lazy load by ~~BrowserFS or worker~~ async fetch to avoid block the audio
-    - [x] mobile web with touch, with webui menu
-  - [x] android
-    - [x] SDK level above 21 (android 5.1, Lolipop)
-    - [x] extern SD card by [SAF](https://github.com/YuriSizuku/android-SafFile), and scoped storage
-    - [x] non-english charactor in path
-    - [x] video by system player
-  - [x] psv, see [psv-Onscripter](https://github.com/YuriSizuku/psv-OnscripterJH)
-
-- bugfix
-  - [x] fix some bugs in origin version (can not read `00.txt` problem)
-  - [x] fix lua animation problem
-  - [x] fix button position wrong in fulllscreen, strech fullscreen // since [v0.7.5beta4](https://github.com/YuriSizuku/OnscripterYuri/releases/tag/v0.7.5beta4)
-  - [x] fix android onresume gles null pointer
-  - [x] fix android file stat problem (save not found)
-
-- develop
-  - [x] clear camke project structure
-  - [x] well documention for develop and usage
-  - [x] scripts to compile or cross compile without pain
-  - [x] vscode and android studio project for multi enviroment
-  - [x] ci in github action to automaticly build
-  - [x] use docker to build for all platform
+| Platform | Builds | Notes |
+|---|---|---|
+| Web | Emscripten (WebAssembly) | Saves in IndexedDB, zip export/import of saves, lazy loading of game files, touch and a web menu on phones |
+| Windows | x86, x64 (MinGW, static); x86, x64, ARM64 (MSVC + vcpkg) | Video through the system player |
+| Linux | x86, x64, arm, aarch64 | Static or dynamic link |
+| macOS | x64, arm64 | |
+| Android | API 22+ (Android 5.1) | SD cards through SAF, scoped storage, non-English paths, video through the system player, 16 KB pages |
+| RetroArch | libretro core `conscripter_libretro` | |
 
 ## 1. Usage
 
-### (1) general command
+### (1) Command line
 
-You can also put these option in `ons_args` file.
+Options can also go in an `ons_args` file in the game folder.
 
 ``` bash
-./onsyuri --help
-./onsyuri --root /path/to/game --save-dir /path/to/save --font /path/default.ttf --enc:sjis
-./onsyuri --width 1280 --height 720 --sharpness=3.1
-./onsyuri --fullscreen2 # fullscreen1 alt+f, fullscreen2 f10 (toggle stretch)
+./conscripter --help
+./conscripter --root /path/to/game --save-dir /path/to/save --font /path/default.ttf --enc:sjis
+./conscripter --width 1280 --height 720 --sharpness=3.1
+./conscripter --fullscreen2 # fullscreen1 alt+f, fullscreen2 f10 (toggle stretch)
+```
 
-Usage: onsyuri [option ...]
+```
+Usage: conscripter [option ...]
   -h, --help            show this help and exit
   -v, --version         show the version information and exit
 
@@ -91,7 +74,7 @@ Usage: onsyuri [option ...]
   -r, --root path       set the root path to the archives
       --save-dir        set save dir
       --debug:1         print debug info
-      --enc:[gbk|sjis|utf8]  change encoding of the script, default is gbk
+      --enc:[gbk|sjis|utf8]  define the encoding of script
 
  render options:
       --window          start in windowed mode
@@ -99,7 +82,7 @@ Usage: onsyuri [option ...]
       --height 720      force window height
       --fullscreen      start in fullscreen mode (alt+f or alt+enter)
       --fullscreen2     start in fullscreen mode with stretch (f10 to toggle stretch)
-      --sharpness 3.1    use gles to make image sharp
+      --sharpness 3.1   use gles to make image sharp
       --no-video        do not decode video
       --no-vsync        turn off vsync
 
@@ -115,53 +98,54 @@ Usage: onsyuri [option ...]
       --edit            enable online modification of the volume and variables when 'z' is pressed
       --key-exe file    set a file (*.EXE) that includes a key table
       --fontcache       cache default font
-
 ```
 
-❗ If you force exit the game, the save might be damaged, try to remvoe envdata to play again.
+Japanese games need a font that covers Japanese, passed with `--font` or put in
+the game folder as `default.ttf`. Use a fixed-width font such as IPA Gothic:
+the engine draws each character in a full-width cell, so a proportional font
+leaves gaps after narrow kana.
 
-### (2) linux
+❗ Force-quitting a game can damage its save; if a game won't start afterwards,
+remove `envdata` from the save folder.
 
-You can either download the prebuild static elf from the [release](https://github.com/YuriSizuku/OnscripterYuri/releases) or build from source (see next part).
+### (2) Games from other engines
 
-![onsyuri_mo2_linuxtest](screenshot/onsyuri_mo2_linuxtest.jpg)
-
-- Arch Linux
-  - [Arch User Repository](https://aur.archlinux.org/packages/onscripter-yuri)
+[conscripter-convert](https://github.com/blankiekun/conscripter-convert)
+turns a game you own into one CONscripter can play:
 
 ``` sh
-# Install with your AUR helper
-yay -S onscripter-yuri
+vn2ons convert-game /path/to/game -o out/mygame --font /path/to/ipag.ttf --title "My Game"
+./conscripter --root out/mygame
 ```
 
-- Gentoo
-  - [gentoo-zh Overlay](https://github.com/microcai/gentoo-zh/tree/master/games-emulation/onscripter-yuri)
+See its README for the supported engines and what converts.
 
-``` sh
-# Enable gentoo-zh overlay (use 'repository' subcommamd for 'eselect' need install 'app-eselect/eselect-repository' first):
-eselect repository enable gentoo-zh
-# Install onscripter-yuri:
-emerge --ask games-emulation/onscripter-yuri
-```
+### (3) Linux
 
-### (3) web
+Download a static binary from the
+[releases](https://github.com/blankiekun/CONscripter/releases) or build from
+source (see [Build](#2-build)).
 
-This project can run in a browser through hosted web server.
-Press `F10` to strech full in a webpage, `F11` in fullscreen, `F9 | Right Click| Long Click` to invoke menu.
+![CONscripter on Linux](screenshot/onsyuri_mo2_linuxtest.jpg)
 
-The structure is as bellow:
+### (4) Web
+
+Serve these files from a web server. <kbd>F10</kbd> stretches the game to the
+page, <kbd>F11</kbd> goes fullscreen, <kbd>F9</kbd>, right click or a long
+click opens the menu.
 
 ``` bash
-onsyuri.html
-onsyuri.js
-onsyuri.wasm
+conscripter.html
+conscripter.js
+conscripter.wasm
 onsyuri_index.json
 [your game files]
 ```
 
-![onsyuri_mo2_webtest3](screenshot/onsyuri_mo2_webtest3.jpg)
+![CONscripter in a phone browser](screenshot/onsyuri_mo2_webtest3.jpg)
 
-It will load the game according to `onsyuri_index.json`, whitch is defined by `<meta onsyuri_index="onsyuri_index.json">` in `onsyuri.html`.
+The page loads the game listed in `onsyuri_index.json` (set by
+`<meta onsyuri_index="onsyuri_index.json">` in `conscripter.html`):
 
 ``` json
 {
@@ -176,21 +160,42 @@ It will load the game according to `onsyuri_index.json`, whitch is defined by `<
     {"path": "default.ttf" , "url":"http://localhost:5500/asset/test/default.ttf"}
   ]
 }
-
 ```
 
-This can be generated by `onsyuri_index.py`.
+`conscripter_index.py` generates it:
 
-~~Futhremoe, use `make_xhrfs_index > onsyuri_lazyload.json` after `npm i -g browserfs`~~  deprecated.
+``` sh
+python conscripter_index.py -i /path/to/game --urlbase https://example.com/game1/ --lazyload
+```
 
-### (4) android
+The JavaScript interface keeps ONScripter-Yuri's names, so pages written for
+ONScripter-Yuri (chimimouryou's player among them) work unchanged and existing
+web saves stay where they were: the module factory is `onsyuri(module)`, the
+globals are `g_onsyuri_module`, `g_onsyuri_index` and `g_onsyuri_filemap`, the
+index is `onsyuri_index.json` and saves default to `/onsyuri_save/<title>` in
+IndexedDB.
 
-Install the apk, use `3 figures|long touch` for invoke menu, `4 figures` to invoke skip.
-You can either put game into `/storage/emulated/0/Android/data/com.yuri.onscripter/files`, or any directory by `saf`.
+### (5) Android
 
-![onsyuri_ui_androidtest1](screenshot/onsyuri_ui_androidtest2.jpg)
+Install the APK. A three-finger tap or a long touch opens the menu, four fingers
+skip text. Put games in `/storage/emulated/0/Android/data/com.yuri.onscripter/files`
+or pick any folder through SAF. The package id is still ONScripter-Yuri's
+`com.yuri.onscripter`.
+
+![CONscripter on Android](screenshot/onsyuri_ui_androidtest2.jpg)
+
+### (6) RetroArch
+
+Build `src/onsyuri_libretro` (see its `CMakeLists.txt`) and load
+`conscripter_libretro` with a game's `0.txt`, `00.txt`, `nscript.dat` or folder.
+Script encoding and mouse emulation are core options.
 
 ## 2. Build
+
+The build scripts are in `script/`, Dockerfiles in `docker/`; GitHub Actions
+builds every platform on each tag (`.github/workflows/`). Every build produces
+`conscripter` (`conscripter.exe`, `conscripter.js` + `conscripter.wasm`,
+`libconscripter.so` on Android).
 
 ### (1) local windows
 
@@ -285,7 +290,7 @@ sudo apt-get -y install crossbuild-essential-arm64
 
 then use `cross_linuxa64.sh` or `cross_linuxa32.sh`, `cross_linux32.sh`, `cross_linux64.sh` to compile.
 
-![onsyuri_mo2_linuxtest2.png](screenshot/onsyuri_mo2_linuxtest2.png)
+![CONscripter on a Raspberry Pi](screenshot/onsyuri_mo2_linuxtest2.png)
 
 For raspberrypi or the other arm64 devices cross compiling.
 As there are many system bindings in SDL2,
@@ -297,7 +302,7 @@ Or you can use `docker_linuxarm64.sh` for cross compile.
 sh -c "export SYSROOT=/ && ./local_linux64.sh"
 
 # copy prebuild of dependency to local
-cp -rf /path/to/rpi/OnscripterYuri/thirdparty/build/arch_aarch64 thirdparty/build/arch_aarch64
+cp -rf /path/to/rpi/CONscripter/thirdparty/build/arch_aarch64 thirdparty/build/arch_aarch64
 
 # use SKIP_PORTS to skip thirdpart builds
 cd script
@@ -379,31 +384,29 @@ If you want to build for linux arm in x86 platform, install qemu at first.
 sudo apt-get install qemu-user-static binfmt-support
 ```
 
-## 3. Compatibility
+## 3. Known issues
 
-|game|version|status|description|
-|----|-------|------|-----------|
-
-## 4. Issues (including already solved)
-
-- general
-  - ~~release file too big~~; This is because of static link all libraries for better compatibility. Partly solved by recomiple SDL libraries.
-- windows
-  - ~~windows fullscreen aliasing~~; This is because window high dpi scale problem, use `change high dpi setting` or edit reg as below:
+- Windows: blurry fullscreen comes from high-DPI scaling. Change the
+  executable's high-DPI setting, or:
 
   ```bat
-  set app_name=onsyuri.exe
+  set app_name=conscripter.exe
   reg add "HKCU\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers" /t reg_sz /v "%~dp0%app_name%" /d "~ HIGHDPIAWARE" /f
   ```
 
-- linux
-- android
-- web
-  - ~~lazy load in workerfs not work, see this [issue](https://github.com/emscripten-core/emscripten/issues/18698)~~ ; solved by using [BrowserFS](https://github.com/jvilk/BrowserFS)
-  - ~~Audio glitch problem in slow network~~ ; solved by async fetch without blocking audio
-  - SDL2 Mix_LoadMUS can not decode mp3
+- Web: SDL2 `Mix_LoadMUS` can't decode MP3 music.
+- Release binaries are large because every library is linked statically, for
+  compatibility.
 
-## 5. Todo
+## 4. Credits and license
 
-- ~~video support (future plan)~~  partly finish by invoke system player
-- ~~web preloading (future plan)~~ might not need ? lazyload partly solved
+CONscripter is [GPL-2.0-or-later](LICENSE), like the projects it derives from:
+
+- [ONScripter](https://onscripter.osdn.jp/onscripter.html) by Ogapee (Studio O.G.A.)
+- [ONScripter-Jh](https://github.com/jh10001/ONScripter-Jh) by jh10001
+- [ONScripter-Yuri](https://github.com/YuriSizuku/OnscripterYuri) by YuriSizuku
+  and its contributors (MSVC builds by ryank231231, the libretro core by iyzsong,
+  macOS builds by yujincheng08, and others)
+
+CONscripter is not affiliated with or endorsed by these projects; bug reports
+about CONscripter belong in [this repository](https://github.com/blankiekun/CONscripter/issues).

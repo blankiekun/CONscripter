@@ -2,7 +2,7 @@
 
 PROJECT_PATH=$(pwd)/..
 DOCKER_TYPE=android
-DOCKER_IMAGE=onsyuri_${DOCKER_TYPE}
+DOCKER_IMAGE=conscripter_${DOCKER_TYPE}
 DOCKER_RUN=${DOCKER_IMAGE}_run
 DOKCER_FILE=Dockerfile_${DOCKER_TYPE}
 ANDROID_HOME=/opt/sdk/android_sdk

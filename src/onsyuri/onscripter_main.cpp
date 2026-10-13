@@ -54,7 +54,7 @@ std::string g_stderrpath = "stderr.txt";
 
 void optionHelp()
 {
-    printf( "Usage: onsyuri [option ...]\n" );
+    printf( "Usage: conscripter [option ...]\n" );
     printf( "  -h, --help\t\tshow this help and exit\n");
     printf( "  -v, --version\t\tshow the version information and exit\n\n");
     
@@ -92,6 +92,8 @@ void optionHelp()
 
 void optionVersion()
 {
+    printf("CONscripter %s <https://github.com/blankiekun/CONscripter>\n", CONSCRIPTER_VERSION);
+    printf("a fork of ONScripter-Yuri, based on ONScripter-Jh and ONScripter\n\n");
     printf("Written by Ogapee <ogapee@aqua.dti2.ne.jp>\n\n");
     printf("Copyright (c) 2001-2018 Ogapee.\n\
                 (c) 2014-2018 jh10001<jh10001@live.cn>\n\
@@ -539,8 +541,8 @@ int main(int argc, char *argv[])
     argv++;
     parseOption(argc - 1, argv);
 
-    utils::printInfo("ONScripter Yuri %s, (Jh%s,Ons%s,NSC%d.%02d)\n", 
-        ONS_YURI_VERSION, ONS_JH_VERSION, 
+    utils::printInfo("CONscripter %s, (Jh%s,Ons%s,NSC%d.%02d)\n", 
+        CONSCRIPTER_VERSION, ONS_JH_VERSION, 
         ONS_VERSION, NSC_VERSION / 100, NSC_VERSION % 100);
 
     const char *argfilename = "ons_args";

@@ -391,7 +391,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // onsyuri info
+    // conscripter info
     private String[] m_appdirs;
 
     private String m_gamedir = null; // direct dir without saf
@@ -399,7 +399,7 @@ public class MainActivity extends AppCompatActivity {
     private SharedPreferences m_sharedpref;
     private JSONObject m_gameargs;
 
-    // onsyuri ui
+    // conscripter ui
     private EditText m_textgamedir;
     private GamelistAdapter m_listgameadaptor;
 
@@ -463,7 +463,7 @@ public class MainActivity extends AppCompatActivity {
         super.onConfigurationChanged(newConfig);
         m_listgameadaptor.notifyDataSetChanged();
     }
-    // onsyuri android info function
+    // conscripter android info function
     private void initValue() {
         // init valus
         m_gamelist = new ArrayList<>();
@@ -530,7 +530,7 @@ public class MainActivity extends AppCompatActivity {
                 onsargs.add(sharpness_value);
             }
         } catch (JSONException e) {
-           Log.e("## onsyuri_android", e.toString());
+           Log.e("## conscripter_android", e.toString());
         }
         return onsargs;
     }
@@ -550,14 +550,14 @@ public class MainActivity extends AppCompatActivity {
             ignorecutout = m_gameargs.getBoolean("ignorecutout");
         }
         catch (JSONException e) {
-            Log.e("## onsyuri_android", e.getMessage());
+            Log.e("## conscripter_android", e.getMessage());
         }
         intent.putExtra("ignorecutout", ignorecutout);
 
         startActivity(intent);
     }
 
-    // onsyuri android ui function
+    // conscripter android ui function
 
     private void initUiGameConfig(){
         updateGameConfig(true);
@@ -598,7 +598,7 @@ public class MainActivity extends AppCompatActivity {
         button_checkupdate.setOnClickListener(view -> {
             Intent intent = new Intent();
             intent.setAction("android.intent.action.VIEW");
-            intent.setData(Uri.parse("https://github.com/YuriSizuku/OnscripterYuri/releases"));
+            intent.setData(Uri.parse("https://github.com/blankiekun/CONscripter/releases"));
             startActivity(intent);
         });
         Button button_about = findViewById(R.id.button_about);
@@ -710,7 +710,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         catch (JSONException e){
-            Log.e("## onsyuri_android", e.toString());
+            Log.e("## conscripter_android", e.toString());
         }
 
         // immediate change

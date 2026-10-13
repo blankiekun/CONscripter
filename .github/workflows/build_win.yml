@@ -47,10 +47,10 @@ jobs:
       with:
         platform: ${{ matrix.arch.suffix }}
     
-    - name: build onsyuri_${{ matrix.arch.suffix }}_win.exe
+    - name: build conscripter_${{ matrix.arch.suffix }}_win.exe
       run: |
         if [ -z "$(echo ${{  github.ref_name }} | grep merge)" ]; then 
-          sed -i -E 's/#define ONS_YURI_VERSION "(.+?)"/#define ONS_YURI_VERSION "${{  github.ref_name }}"/g' src/onsyuri/version.h
+          sed -i -E 's/#define CONSCRIPTER_VERSION "(.+?)"/#define CONSCRIPTER_VERSION "${{  github.ref_name }}"/g' src/onsyuri/version.h
         fi
         cd script 
         SKIP_PORTS=yes bash cross_mingw${{ matrix.arch.suffix2 }}.sh
@@ -59,12 +59,12 @@ jobs:
       if: github.event_name == 'push'
       run: |
         cd build_mingw${{ matrix.arch.suffix2 }}
-        mv onsyuri.exe onsyuri_${{  github.ref_name }}_${{ matrix.arch.suffix }}_win.exe
+        mv conscripter.exe conscripter_${{  github.ref_name }}_${{ matrix.arch.suffix }}_win.exe
       
     - name: create release
       uses: ncipollo/release-action@v1
       if: github.event_name == 'push'
       with:
-        artifacts: "build_mingw${{ matrix.arch.suffix2 }}/onsyuri_*.exe"
+        artifacts: "build_mingw${{ matrix.arch.suffix2 }}/conscripter_*.exe"
         allowUpdates: "true"
         token: ${{ secrets.GITHUB_TOKEN }}

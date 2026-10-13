@@ -29,7 +29,7 @@ public class ONScripter extends SDLActivity {
     private DocumentFile m_onsbase;
     private boolean m_ignorecutout;
 
-    // for onsyuri c code
+    // for conscripter c code
     private native int nativeInitJavaCallbacks();
 
     @SuppressWarnings("UnnecessaryLocalVariable")
@@ -38,7 +38,7 @@ public class ONScripter extends SDLActivity {
         String path = new String(pathbyte, StandardCharsets.UTF_8);
         String safmode = mode==0 ? "r" : "w";
         int fd = SafFile.getFdSaf(this, m_onsbase, path, safmode);
-        // Log.i("## onsyuri_android", String.format("getFD path=%s, mode=%d, fd=%d", new String(path), mode, fd));
+        // Log.i("## conscripter_android", String.format("getFD path=%s, mode=%d, fd=%d", new String(path), mode, fd));
         return fd;
     }
 
@@ -62,11 +62,11 @@ public class ONScripter extends SDLActivity {
                         new File(path));
             }
             else uri = Uri.parse(m_onsbase.getUri() + "%2F" + Uri.encode(path));
-            Log.i("## onsyuri_android", "playVideo " + uri.toString());
+            Log.i("## conscripter_android", "playVideo " + uri.toString());
             invokeSystemPlayer(uri);
 
         } catch (Exception e) {
-            Log.e("## onsyuri_android", "playVideo error:  " + e.getClass().getName() + " "+ e.getMessage());
+            Log.e("## conscripter_android", "playVideo error:  " + e.getClass().getName() + " "+ e.getMessage());
         }
     }
 
@@ -97,7 +97,7 @@ public class ONScripter extends SDLActivity {
         System.loadLibrary("lua");
         System.loadLibrary("jpeg");
         System.loadLibrary("bz2");
-        System.loadLibrary("onsyuri");
+        System.loadLibrary("conscripter");
     }
 
     @Override
@@ -107,7 +107,7 @@ public class ONScripter extends SDLActivity {
                 "SDL2_image",
                 "SDL2_mixer",
                 "SDL2_ttf",
-                "onsyuri"
+                "conscripter"
         };
     }
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16.3)
-project(onsyuri_android)
+project(conscripter_android)
 
 # configure path
 set(ONSYURI_DIR ${CMAKE_SOURCE_DIR}/../../../..)
@@ -72,7 +72,7 @@ add_library(bz2 SHARED ${BZ2_CODE})
 target_compile_options(bz2 PRIVATE -D_FILE_OFFSET_BITS=64)
 target_link_options(bz2 PRIVATE "-Wl,-z,max-page-size=16384")
 
-# build onsyuri_android
+# build conscripter_android
 set(CMAKE_SYSTEM_NAME Android)
 #set(CMAKE_BUILD_TYPE Debug)
 include_directories(
@@ -80,4 +80,4 @@ include_directories(
     ${LUASRC_DIR}
 )
 add_subdirectory(${ONSYURI_DIR} ${ONSYURI_DIR}/build_android)
-target_link_options(onsyuri PRIVATE "-Wl,-z,max-page-size=16384")
+target_link_options(conscripter PRIVATE "-Wl,-z,max-page-size=16384")

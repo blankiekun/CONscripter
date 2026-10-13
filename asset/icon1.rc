@@ -8,12 +8,12 @@ BEGIN
   BEGIN
     BLOCK "080904E4"
     BEGIN
-      VALUE "CompanyName", "YuriSizuku"
-      VALUE "FileDescription", "An enhancement ONScripter project porting to many platforms, especially web"
+      VALUE "CompanyName", "blankiekun"
+      VALUE "FileDescription", "CONscripter, an ONScripter (NScripter-compatible) visual novel engine"
       VALUE "FileVersion", "0.7.7"
-      VALUE "InternalName", "onsyuri"
-      VALUE "OriginalFilename", "onsyuri.exe"
-      VALUE "ProductName", "ONScripterYuri"
+      VALUE "InternalName", "conscripter"
+      VALUE "OriginalFilename", "conscripter.exe"
+      VALUE "ProductName", "CONscripter"
       VALUE "ProductVersion", "0.7.7"
     END
   END

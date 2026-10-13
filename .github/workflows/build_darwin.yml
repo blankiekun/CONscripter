@@ -25,12 +25,12 @@ jobs:
         if: github.event_name == 'push'
         run: |
           cd build_darwin
-          mv onsyuri onsyuri_${{  github.ref_name }}_aarch64_darwin
+          mv conscripter conscripter_${{  github.ref_name }}_aarch64_darwin
 
       - name: create release
         uses: ncipollo/release-action@v1
         if: github.event_name == 'push'
         with:
-          artifacts: "./build_darwin/onsyuri_${{  github.ref_name }}_aarch64_darwin"
+          artifacts: "./build_darwin/conscripter_${{  github.ref_name }}_aarch64_darwin"
           allowUpdates: "true"
           token: ${{ secrets.GITHUB_TOKEN }}

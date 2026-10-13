@@ -124,7 +124,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:autoLink="web"
-                android:text="https://github.com/YuriSizuku/OnscripterYuri" />
+                android:text="https://github.com/blankiekun/CONscripter" />
 
             <LinearLayout
                 android:layout_width="match_parent"

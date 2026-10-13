@@ -8,7 +8,7 @@ permissions:
   
 env:
   EMSDK_HOME: /opt/emsdk
-  BUILD_NAME: onsyuri_web
+  BUILD_NAME: conscripter_web
 
 jobs:
   install_emsdk:
@@ -44,10 +44,10 @@ jobs:
         key: emsdk
         path: ${{ env.EMSDK_HOME }}
     
-    - name: build onsyuri_web
+    - name: build conscripter_web
       run: |
         if [ -z "$(echo ${{  github.ref_name }} | grep merge)" ]; then 
-          sed -i -E 's/#define ONS_YURI_VERSION "(.+?)"/#define ONS_YURI_VERSION "${{  github.ref_name }}"/g' src/onsyuri/version.h
+          sed -i -E 's/#define CONSCRIPTER_VERSION "(.+?)"/#define CONSCRIPTER_VERSION "${{  github.ref_name }}"/g' src/onsyuri/version.h
         fi
         cd script 
         EMCSDK=${{ env.EMCSDK }} bash ./cross_web.sh
@@ -57,15 +57,15 @@ jobs:
       run: |
         cd build_web
         mkdir ${{ env.BUILD_NAME }} 
-        cp onsyuri{.html,.js,.wasm} ${{ env.BUILD_NAME }}/ 
-        cp onsyuri_index.py ${{ env.BUILD_NAME }}/
+        cp conscripter{.html,.js,.wasm} ${{ env.BUILD_NAME }}/ 
+        cp conscripter_index.py ${{ env.BUILD_NAME }}/
         7z a -t7z -mtc=on -ms=off -mx=5 -m0=lzma2 ${{ env.BUILD_NAME }}.7z ${{ env.BUILD_NAME }} 
-        mv ${{ env.BUILD_NAME }}.7z onsyuri_${{  github.ref_name }}_web.7z
+        mv ${{ env.BUILD_NAME }}.7z conscripter_${{  github.ref_name }}_web.7z
     
     - name: create release
       uses: ncipollo/release-action@v1
       if: github.event_name == 'push'
       with:
-        artifacts: "./build_web/onsyuri_${{  github.ref_name }}_web.7z"
+        artifacts: "./build_web/conscripter_${{  github.ref_name }}_web.7z"
         allowUpdates: "true"
         token: ${{ secrets.GITHUB_TOKEN }}

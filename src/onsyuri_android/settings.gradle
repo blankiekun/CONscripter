@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 include ':app'
-rootProject.name = "onsyuri_android"
+rootProject.name = "conscripter_android"

@@ -49,10 +49,10 @@ jobs:
         sudo apt-get -y install crossbuild-essential-armhf
         sudo apt-get -y install crossbuild-essential-arm64
     
-    - name: build onsyuri_${{ matrix.arch.suffix }}_linux
+    - name: build conscripter_${{ matrix.arch.suffix }}_linux
       run: |
         if [ -z "$(echo ${{  github.ref_name }} | grep merge)" ]; then 
-          sed -i -E 's/#define ONS_YURI_VERSION "(.+?)"/#define ONS_YURI_VERSION "${{  github.ref_name }}"/g' src/onsyuri/version.h
+          sed -i -E 's/#define CONSCRIPTER_VERSION "(.+?)"/#define CONSCRIPTER_VERSION "${{  github.ref_name }}"/g' src/onsyuri/version.h
         fi
         cd script
         SKIP_PORTS=yes bash cross_linux${{ matrix.arch.suffix2 }}.sh
@@ -61,12 +61,12 @@ jobs:
       if: github.event_name == 'push'
       run: |
         cd build_linux${{ matrix.arch.suffix2 }}
-        mv onsyuri onsyuri_${{  github.ref_name }}_${{ matrix.arch.suffix }}_linux
+        mv conscripter conscripter_${{  github.ref_name }}_${{ matrix.arch.suffix }}_linux
       
     - name: create release
       uses: ncipollo/release-action@v1
       if: github.event_name == 'push'
       with:
-        artifacts: "build_linux${{ matrix.arch.suffix2 }}/onsyuri_*"
+        artifacts: "build_linux${{ matrix.arch.suffix2 }}/conscripter_*"
         allowUpdates: "true"
         token: ${{ secrets.GITHUB_TOKEN }}

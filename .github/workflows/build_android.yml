@@ -18,7 +18,7 @@ jobs:
         distribution: 'temurin'
         cache: gradle
     
-    - name: build onsyuri_android
+    - name: build conscripter_android
       env:
         SIGN_KEY_ALIAS: ${{ secrets.SIGN_KEY_ALIAS }}
         SIGN_KEY_PASS: ${{ secrets.SIGN_KEY_PASS }}
@@ -31,7 +31,7 @@ jobs:
           ls -la src/onsyuri_android/app
         fi
         if [ -z "$(echo ${{  github.ref_name }} | grep merge)" ]; then 
-          sed -i -E 's/#define ONS_YURI_VERSION "(.+?)"/#define ONS_YURI_VERSION "${{  github.ref_name }}"/g' src/onsyuri/version.h
+          sed -i -E 's/#define CONSCRIPTER_VERSION "(.+?)"/#define CONSCRIPTER_VERSION "${{  github.ref_name }}"/g' src/onsyuri/version.h
         fi
         cd script 
         bash ./cross_android.sh
@@ -40,12 +40,12 @@ jobs:
 
     - name: prepare to release
       if: github.event_name == 'push'
-      run: cp ./build_android/outputs/apk/release/*.apk onsyuri_${{  github.ref_name }}_android.apk
+      run: cp ./build_android/outputs/apk/release/*.apk conscripter_${{  github.ref_name }}_android.apk
     
     - name: create release
       uses: ncipollo/release-action@v1
       if: github.event_name == 'push'
       with:
-        artifacts: "onsyuri_${{  github.ref_name }}_android.apk"
+        artifacts: "conscripter_${{  github.ref_name }}_android.apk"
         allowUpdates: "true"
         token: ${{ secrets.GITHUB_TOKEN }}

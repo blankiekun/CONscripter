@@ -75,7 +75,7 @@ namespace utils{
 		}
 #endif
 #ifdef ANDROID
-		__android_log_vprint(ANDROID_LOG_INFO, "## onsyuri", format, ap);
+		__android_log_vprint(ANDROID_LOG_INFO, "## conscripter", format, ap);
 #elif defined(WINRT)
 		char *buf = new char[256];
 		vsprintf(buf, format, ap);
@@ -110,7 +110,7 @@ namespace utils{
 		}
 #endif
 #ifdef ANDROID
-		__android_log_vprint(ANDROID_LOG_ERROR, "## onsyuri", format, ap);
+		__android_log_vprint(ANDROID_LOG_ERROR, "## conscripter", format, ap);
 #elif defined(WINRT)
 		char *buf = new char[256];
 		vsprintf(buf,format,ap);
