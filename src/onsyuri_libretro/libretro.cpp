@@ -140,7 +140,7 @@ retro_get_system_info(struct retro_system_info* info)
 {
     info->need_fullpath = true;
     info->valid_extensions = "txt|dat|___|nt2|nt3|ons|/";
-    info->library_version = "0.13.0";
+    info->library_version = "0.14.0";
     info->library_name = "conscripter";
     info->block_extract = false;
 }
