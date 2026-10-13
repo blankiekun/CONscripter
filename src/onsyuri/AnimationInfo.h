@@ -109,7 +109,11 @@ public:
            FILTER_GREYSCALE  = 2,
            FILTER_NEGATIVE   = 3,
            FILTER_BRIGHTNESS = 4, // param[0] = -255..255, added to r, g, b
-           FILTER_MONOTONE   = 5  // greyscale plus param = r, g, b offsets (-255..255)
+           FILTER_MONOTONE   = 5, // greyscale plus param = r, g, b offsets (-255..255)
+           FILTER_BLUR       = 6, // mean of the pixels up to param[0], param[1] pixels away (x, y)
+           FILTER_HUE_SATURATION = 7, // hue turned by param[0]/256 of a turn, saturation scaled toward 0 or full by param[1] (-256..256)
+           FILTER_LIGHTNESS_INVERT = 8, // lightness inverted, hue and saturation kept
+           FILTER_LAST       = FILTER_LIGHTNESS_INVERT
     };
     // How a filter's colour is combined with the pixel's.
     enum { FILTER_BLEND_COPY     = 0,

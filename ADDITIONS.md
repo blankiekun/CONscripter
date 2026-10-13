@@ -12,7 +12,11 @@ possible.
   frame). `kind` makes a colour for each pixel: 1 the colour `p1,p2,p3`
   (r, g, b); 2 the pixel in greyscale; 3 its negative; 4 the pixel
   plus `p1` (-255..255); 5 the pixel in greyscale plus the offsets
-  `p1,p2,p3` (a monotone such as sepia: `28,-8,-38`). `blend` combines it with the pixel: 0 copy
+  `p1,p2,p3` (a monotone such as sepia: `28,-8,-38`); 6 a blur, the
+  mean of the pixels up to `p1`,`p2` pixels away (x, y); 7 the pixel with
+  its hue turned by `p1`/256 of a turn and its saturation moved by `p2`
+  (-256 grey, 0 kept, 256 full); 8 the pixel with its lightness inverted
+  (a negative that keeps the hue). `blend` combines it with the pixel: 0 copy
   (default), 1 multiply, 2 add, 3 screen. `strength` 0-256 (default 256)
   is how much of the result replaces the pixel. Up to 4 filters stack in
   order; `spfilter num,0` removes them. The filters stay when `lsp`
@@ -48,7 +52,7 @@ possible.
   `tint_opacity` 0-256), and lays it over the live picture scaled by
   1 + f × `zoom`/1000 around the centre at f × `opacity` (0-256), f going
   0 → 1 → 0 as sin(π × elapsed/`time`); after `time` ms nothing shows
-  until the slot is cleared. Slots 1-4 are shared;
+  until the slot is cleared. Slots 1-8 are shared;
   each command with only a slot clears it, slot 0 clears them all. Like
   `screenfilter` they don't draw: follow them with `print`. Kept in save
   files (restarted when loaded), cleared by `reset`. While one runs, every

@@ -716,8 +716,8 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
     clip.w = surface->w;
     clip.h = surface->h;
     if (clip_src) if ( AnimationInfo::doClipping( &clip, clip_src ) ) return;
-    // CONscripter: screen effects move pixels around; redraw everything
-    if (screenEffectActive()){
+    // CONscripter: screen effects and blurs move pixels around; redraw everything
+    if (screenEffectActive() || screenFilterBlurs()){
         clip.x = clip.y = 0;
         clip.w = surface->w;
         clip.h = surface->h;

@@ -615,11 +615,12 @@ private:
     enum { MAX_SCREEN_FILTER = 4 };
     AnimationInfo::Filter screen_filter[MAX_SCREEN_FILTER];
     void clearScreenFilters();
+    bool screenFilterBlurs();
     void applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip );
 
     // CONscripter: animated effects on the same picture (screenshake,
     // screenripple, screenpulse), by slot, stepped like sprite animations
-    enum { MAX_SCREEN_EFFECT = 4, SCREEN_EFFECT_PARAMS = 9 };
+    enum { MAX_SCREEN_EFFECT = 8, SCREEN_EFFECT_PARAMS = 9 };
     enum { SCREEN_EFFECT_NONE = 0, SCREEN_EFFECT_SHAKE = 1, SCREEN_EFFECT_RIPPLE = 2, SCREEN_EFFECT_PULSE = 3 };
     struct ScreenEffect {
         int kind;

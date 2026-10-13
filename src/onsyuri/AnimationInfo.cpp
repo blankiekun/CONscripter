@@ -1211,52 +1211,188 @@ void AnimationInfo::applyFilters( SDL_Surface *surface )
     applyFilterList( surface, rect, filter, num_of_filters );
 }
 
+// CONscripter: HSL with every part 0..1, for FILTER_HUE_SATURATION
+static void rgbToHsl( int r, int g, int b, float &h, float &s, float &l )
+{
+    int max = r > g ? (r > b ? r : b) : (g > b ? g : b);
+    int min = r < g ? (r < b ? r : b) : (g < b ? g : b);
+    l = (max + min) / 510.0f;
+    if (max == min){
+        h = s = 0;
+        return;
+    }
+    float d = (max - min) / 255.0f;
+    s = (l <= 0.5f) ? d / ((max + min) / 255.0f) : d / (2 - (max + min) / 255.0f);
+    if      (max == r) h = (g - b) / 255.0f / d;
+    else if (max == g) h = 2 + (b - r) / 255.0f / d;
+    else               h = 4 + (r - g) / 255.0f / d;
+    h /= 6;
+    if (h < 0) h += 1;
+}
+
+static int hueToRgb( float m1, float m2, float h )
+{
+    if (h < 0) h += 1;
+    if (h > 1) h -= 1;
+    float v;
+    if      (h * 6 < 1) v = m1 + (m2 - m1) * h * 6;
+    else if (h * 2 < 1) v = m2;
+    else if (h * 3 < 2) v = m1 + (m2 - m1) * (2.0f / 3 - h) * 6;
+    else                v = m1;
+    return (int)(v * 255 + 0.5f);
+}
+
+static void hslToRgb( float h, float s, float l, int *c )
+{
+    if (s <= 0){
+        c[0] = c[1] = c[2] = (int)(l * 255 + 0.5f);
+        return;
+    }
+    float m2 = (l <= 0.5f) ? l * (1 + s) : l + s - l * s;
+    float m1 = 2 * l - m2;
+    c[0] = hueToRgb( m1, m2, h + 1.0f / 3 );
+    c[1] = hueToRgb( m1, m2, h );
+    c[2] = hueToRgb( m1, m2, h - 1.0f / 3 );
+}
+
+// The colour a pointwise filter makes from the pixel c.
+static void filterColour( const AnimationInfo::Filter &f, const int *c, int *d )
+{
+    if (f.kind == AnimationInfo::FILTER_COLOUR){
+        for (int k=0 ; k<3 ; k++) d[k] = f.param[k];
+    }
+    else if (f.kind == AnimationInfo::FILTER_GREYSCALE){
+        d[0] = d[1] = d[2] = (c[0]*77 + c[1]*150 + c[2]*29) >> 8;
+    }
+    else if (f.kind == AnimationInfo::FILTER_NEGATIVE){
+        for (int k=0 ; k<3 ; k++) d[k] = 255 - c[k];
+    }
+    else if (f.kind == AnimationInfo::FILTER_BRIGHTNESS){
+        for (int k=0 ; k<3 ; k++) d[k] = c[k] + f.param[0];
+    }
+    else if (f.kind == AnimationInfo::FILTER_MONOTONE){
+        int grey = (c[0]*77 + c[1]*150 + c[2]*29) >> 8;
+        for (int k=0 ; k<3 ; k++) d[k] = grey + f.param[k];
+    }
+    else if (f.kind == AnimationInfo::FILTER_HUE_SATURATION){
+        float h, s, l;
+        rgbToHsl( c[0], c[1], c[2], h, s, l );
+        h += f.param[0] / 256.0f;
+        h -= floorf(h);
+        int n = f.param[1] < -256 ? -256 : f.param[1] > 256 ? 256 : f.param[1];
+        if (n < 0) s += s * n / 256;
+        else       s += (1 - s) * n / 256;
+        hslToRgb( h, s, l, d );
+    }
+    else if (f.kind == AnimationInfo::FILTER_LIGHTNESS_INVERT){
+        // The negative turned half way round the hue circle: in HSL that
+        // inverts the lightness alone.
+        int max = c[0] > c[1] ? (c[0] > c[2] ? c[0] : c[2]) : (c[1] > c[2] ? c[1] : c[2]);
+        int min = c[0] < c[1] ? (c[0] < c[2] ? c[0] : c[2]) : (c[1] < c[2] ? c[1] : c[2]);
+        for (int k=0 ; k<3 ; k++) d[k] = c[k] + 255 - max - min;
+    }
+    else{
+        for (int k=0 ; k<3 ; k++) d[k] = c[k];
+    }
+}
+
+// Combines the filter's colour d with the pixel c, in c.
+static void blendFilter( const AnimationInfo::Filter &f, int *c, int *d )
+{
+    for (int k=0 ; k<3 ; k++){
+        if      (d[k] < 0)   d[k] = 0;
+        else if (d[k] > 255) d[k] = 255;
+        if      (f.blend == AnimationInfo::FILTER_BLEND_MULTIPLY) d[k] = c[k] * d[k] / 255;
+        else if (f.blend == AnimationInfo::FILTER_BLEND_ADD)      d[k] = (c[k] + d[k] > 255) ? 255 : c[k] + d[k];
+        else if (f.blend == AnimationInfo::FILTER_BLEND_SCREEN)   d[k] = 255 - (255 - c[k]) * (255 - d[k]) / 255;
+        c[k] += (d[k] - c[k]) * f.strength / 256;
+    }
+}
+
+// FILTER_BLUR: each pixel of rect becomes the mean of the pixels of rect
+// up to rx, ry away (a box; fewer pixels at the edges), then is blended.
+static void applyBlur( SDL_Surface *surface, const SDL_Rect &rect, const AnimationInfo::Filter &f )
+{
+    int rx = f.param[0] < 0 ? 0 : f.param[0], ry = f.param[1] < 0 ? 0 : f.param[1];
+    int w = rect.w, h = rect.h;
+    if ((rx == 0 && ry == 0) || w <= 0 || h <= 0) return;
+    SDL_PixelFormat *fmt = surface->format;
+    Uint32 shift[3] = { fmt->Rshift, fmt->Gshift, fmt->Bshift };
+    Uint32 mask[3] = { fmt->Rmask, fmt->Gmask, fmt->Bmask };
+    int *row = new int[(w + 1) * 3], *sum = new int[w * h * 3];
+
+    // Across: running sums along each row.
+    for (int y=0 ; y<h ; y++){
+        Uint32 *p = (Uint32 *)((Uint8 *)surface->pixels + (rect.y + y)*surface->pitch) + rect.x;
+        for (int k=0 ; k<3 ; k++) row[k] = 0;
+        for (int x=0 ; x<w ; x++)
+            for (int k=0 ; k<3 ; k++)
+                row[(x+1)*3+k] = row[x*3+k] + (int)((p[x] & mask[k]) >> shift[k]);
+        for (int x=0 ; x<w ; x++){
+            int x0 = x - rx < 0 ? 0 : x - rx, x1 = x + rx + 1 > w ? w : x + rx + 1;
+            for (int k=0 ; k<3 ; k++)
+                sum[(y*w + x)*3+k] = (row[x1*3+k] - row[x0*3+k]) * 16 / (x1 - x0);
+        }
+    }
+    // Down: the means of those, blended over the pixels.
+    int *col = new int[(h + 1) * 3];
+    for (int x=0 ; x<w ; x++){
+        for (int k=0 ; k<3 ; k++) col[k] = 0;
+        for (int y=0 ; y<h ; y++)
+            for (int k=0 ; k<3 ; k++)
+                col[(y+1)*3+k] = col[y*3+k] + sum[(y*w + x)*3+k];
+        for (int y=0 ; y<h ; y++){
+            int y0 = y - ry < 0 ? 0 : y - ry, y1 = y + ry + 1 > h ? h : y + ry + 1;
+            Uint32 *p = (Uint32 *)((Uint8 *)surface->pixels + (rect.y + y)*surface->pitch) + rect.x + x;
+            int c[3], d[3];
+            for (int k=0 ; k<3 ; k++){
+                c[k] = (int)((*p & mask[k]) >> shift[k]);
+                d[k] = ((col[y1*3+k] - col[y0*3+k]) / (y1 - y0) + 8) / 16;
+            }
+            blendFilter( f, c, d );
+            *p = (*p & ~(mask[0] | mask[1] | mask[2])) |
+                 ((Uint32)c[0] << shift[0]) | ((Uint32)c[1] << shift[1]) | ((Uint32)c[2] << shift[2]);
+        }
+    }
+    delete[] row;
+    delete[] sum;
+    delete[] col;
+}
+
 void AnimationInfo::applyFilterList( SDL_Surface *surface, const SDL_Rect &rect, const Filter *filter, int num )
 {
     if (surface == NULL || num == 0) return;
 
     SDL_LockSurface( surface );
     SDL_PixelFormat *fmt = surface->format;
-    for (int y=rect.y ; y<rect.y+rect.h ; y++){
-        Uint32 *p = (Uint32 *)((Uint8 *)surface->pixels + y*surface->pitch) + rect.x;
-        for (int x=0 ; x<rect.w ; x++, p++){
-            int c[3] = { (int)((*p & fmt->Rmask) >> fmt->Rshift),
-                         (int)((*p & fmt->Gmask) >> fmt->Gshift),
-                         (int)((*p & fmt->Bmask) >> fmt->Bshift) };
-            for (int i=0 ; i<num ; i++){
-                const Filter &f = filter[i];
-                int d[3];
-                if (f.kind == FILTER_COLOUR){
-                    for (int k=0 ; k<3 ; k++) d[k] = f.param[k];
-                }
-                else if (f.kind == FILTER_GREYSCALE){
-                    d[0] = d[1] = d[2] = (c[0]*77 + c[1]*150 + c[2]*29) >> 8;
-                }
-                else if (f.kind == FILTER_NEGATIVE){
-                    for (int k=0 ; k<3 ; k++) d[k] = 255 - c[k];
-                }
-                else if (f.kind == FILTER_BRIGHTNESS){
-                    for (int k=0 ; k<3 ; k++) d[k] = c[k] + f.param[0];
-                }
-                else if (f.kind == FILTER_MONOTONE){
-                    int grey = (c[0]*77 + c[1]*150 + c[2]*29) >> 8;
-                    for (int k=0 ; k<3 ; k++) d[k] = grey + f.param[k];
-                }
-                else continue;
-                for (int k=0 ; k<3 ; k++){
-                    if      (d[k] < 0)   d[k] = 0;
-                    else if (d[k] > 255) d[k] = 255;
-                    if      (f.blend == FILTER_BLEND_MULTIPLY) d[k] = c[k] * d[k] / 255;
-                    else if (f.blend == FILTER_BLEND_ADD)      d[k] = (c[k] + d[k] > 255) ? 255 : c[k] + d[k];
-                    else if (f.blend == FILTER_BLEND_SCREEN)   d[k] = 255 - (255 - c[k]) * (255 - d[k]) / 255;
-                    c[k] += (d[k] - c[k]) * f.strength / 256;
-                }
-            }
-            *p = (*p & ~(fmt->Rmask | fmt->Gmask | fmt->Bmask)) |
-                 ((Uint32)c[0] << fmt->Rshift) |
-                 ((Uint32)c[1] << fmt->Gshift) |
-                 ((Uint32)c[2] << fmt->Bshift);
+    // Runs of pointwise filters go in one pass; a blur needs the whole
+    // picture as the filters before it left it.
+    for (int first=0 ; first<num ; ){
+        if (filter[first].kind == FILTER_BLUR){
+            applyBlur( surface, rect, filter[first++] );
+            continue;
         }
+        int last = first;
+        while (last < num && filter[last].kind != FILTER_BLUR) last++;
+        for (int y=rect.y ; y<rect.y+rect.h ; y++){
+            Uint32 *p = (Uint32 *)((Uint8 *)surface->pixels + y*surface->pitch) + rect.x;
+            for (int x=0 ; x<rect.w ; x++, p++){
+                int c[3] = { (int)((*p & fmt->Rmask) >> fmt->Rshift),
+                             (int)((*p & fmt->Gmask) >> fmt->Gshift),
+                             (int)((*p & fmt->Bmask) >> fmt->Bshift) };
+                for (int i=first ; i<last ; i++){
+                    if (filter[i].kind == FILTER_NONE) continue;
+                    int d[3];
+                    filterColour( filter[i], c, d );
+                    blendFilter( filter[i], c, d );
+                }
+                *p = (*p & ~(fmt->Rmask | fmt->Gmask | fmt->Bmask)) |
+                     ((Uint32)c[0] << fmt->Rshift) |
+                     ((Uint32)c[1] << fmt->Gshift) |
+                     ((Uint32)c[2] << fmt->Bshift);
+            }
+        }
+        first = last;
     }
     SDL_UnlockSurface( surface );
 }

@@ -44,7 +44,11 @@
  *   colour for each pixel: 1 the colour param r,g,b; 2 the pixel in
  *   greyscale; 3 its negative; 4 the pixel plus param (-255..255);
  *   5 the pixel in greyscale plus the offsets r,g,b (-255..255), a
- *   monotone like sepia: "spfilter 10,5,0,256,28,-8,-38".
+ *   monotone like sepia: "spfilter 10,5,0,256,28,-8,-38"; 6 a blur: the
+ *   mean of the pixels up to param x,y pixels away; 7 the pixel with its
+ *   hue turned by param/256 of a turn and its saturation moved by the
+ *   second param (-256 grey .. 0 kept .. 256 full); 8 the pixel with its
+ *   lightness inverted (a negative that keeps the hue).
  *   blend combines that colour with the pixel's: 0 copy (default),
  *   1 multiply, 2 add, 3 screen. strength 0-256 (default 256) is how much
  *   of the result replaces the pixel. So "spfilter 10,1,1,256,255,200,160"
@@ -81,7 +85,7 @@ int ONScripter::spfilterCommand()
         if (ai->num_of_filters == 0) return RET_CONTINUE;
         ai->clearFilters();
     }
-    else if (f.kind < AnimationInfo::FILTER_COLOUR || f.kind > AnimationInfo::FILTER_MONOTONE){
+    else if (f.kind < AnimationInfo::FILTER_COLOUR || f.kind > AnimationInfo::FILTER_LAST){
         utils::printError("spfilter: unknown kind %d\n", f.kind);
         return RET_CONTINUE;
     }
@@ -142,7 +146,7 @@ int ONScripter::screenfilterCommand()
         utils::printError("screenfilter: slot %d out of range\n", slot);
         return RET_CONTINUE;
     }
-    else if (f.kind < AnimationInfo::FILTER_NONE || f.kind > AnimationInfo::FILTER_MONOTONE){
+    else if (f.kind < AnimationInfo::FILTER_NONE || f.kind > AnimationInfo::FILTER_LAST){
         utils::printError("screenfilter: unknown kind %d\n", f.kind);
         return RET_CONTINUE;
     }
@@ -168,6 +172,13 @@ void ONScripter::clearScreenFilters()
         screen_filter[i].strength = 256;
         screen_filter[i].param[0] = screen_filter[i].param[1] = screen_filter[i].param[2] = 0;
     }
+}
+
+bool ONScripter::screenFilterBlurs()
+{
+    for (int i=0 ; i<MAX_SCREEN_FILTER ; i++)
+        if (screen_filter[i].kind == AnimationInfo::FILTER_BLUR) return true;
+    return false;
 }
 
 void ONScripter::applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip )
@@ -205,7 +216,7 @@ void ONScripter::applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip )
  *   phase_step.
  *   "screenripple 1,"wave.png",3000,100,100,150,5,10,3150,20,30"
  *
- * Either command with only a slot (1-4) clears that slot, whatever it
+ * Either command with only a slot (1-8) clears that slot, whatever it
  * holds; slot 0 clears them all. The effects apply after the screen
  * filters, in slot order. Neither command draws: the next print shows the
  * effect, which then moves by itself. Kept in save files (restarted when
