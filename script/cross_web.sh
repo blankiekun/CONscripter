@@ -37,8 +37,11 @@ function build_webp()
     make -C $WEBP_SRC/build_wasm install -j$CORE_NUM
 }
 
-fetch_lua && build_lua
-fetch_webp && build_webp
+# skip ports already built (a stamp per version; CI caches them)
+fetch_lua
+if ! [ -f "$PORTBUILD_PATH/.$LUA_NAME" ]; then build_lua && touch "$PORTBUILD_PATH/.$LUA_NAME"; fi
+fetch_webp
+if ! [ -f "$PORTBUILD_PATH/.$WEBP_NAME" ]; then build_webp && touch "$PORTBUILD_PATH/.$WEBP_NAME"; fi
 embuilder build sdl2 sdl2_ttf sdl2_image sdl2_mixer bzip2 ogg vorbis mpg123
 emcc $CMAKELISTS_PATH/src/onsyuri_web/dummy.c \
     -o $BUILD_PATH/dummy.js \
