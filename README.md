@@ -44,7 +44,7 @@ CONscripter is the engine behind two companion projects:
 
 | Platform | Builds | Notes |
 |---|---|---|
-| Web | Emscripten (WebAssembly) | Saves in IndexedDB, zip export/import of saves, lazy loading of game files, touch and a web menu on phones |
+| Web | Emscripten (WebAssembly) | Saves in IndexedDB, zip export/import of saves, lazy loading of game files, touch and a web menu on phones, WebP images, video in a `<video>` element |
 | Windows | x86, x64 (MinGW, static); x86, x64, ARM64 (MSVC + vcpkg) | Video through the system player |
 | Linux | x86, x64, arm, aarch64 | Static or dynamic link |
 | macOS | x64, arm64 | |
@@ -250,6 +250,11 @@ web saves stay where they were: the module factory is `onsyuri(module)`, the
 globals are `g_onsyuri_module`, `g_onsyuri_index` and `g_onsyuri_filemap`, the
 index is `onsyuri_index.json` and saves default to `/onsyuri_save/<title>` in
 IndexedDB.
+
+`mpegplay` and `movie` play a loose file (not one inside an archive) in the
+page's `<video>` element, over the game and at its size; MP4 with H.264 and
+AAC plays in every browser. Browsers block autoplay with sound until the page
+has been clicked; the video then plays muted instead of waiting.
 
 ### (5) Android
 

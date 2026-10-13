@@ -492,13 +492,23 @@
                 const videoUrl = URL.createObjectURL(videoBlob);
                 video.src = videoUrl;
 
-                g_onsyuri_module.canvas.style.display="none";
+                // the same size as the game on the page
+                const canvas=g_onsyuri_module.canvas;
+                video.style.width=canvas.style.width||canvas.clientWidth+"px";
+                video.style.height=canvas.style.height||canvas.clientHeight+"px";
+                canvas.style.display="none";
                 video.style.display="block";
 
                 video.onclick=click_flag?videoEnded:null;
                 video.loop=loop_flag;
 
-                video.play();
+                // browsers block autoplay with sound until the page was clicked;
+                // play muted then, rather than wait forever
+                video.muted=false;
+                video.play().catch(()=>{
+                    video.muted=true;
+                    video.play().catch(videoEnded);
+                });
             }
 
             video.addEventListener('error', function(event) {
