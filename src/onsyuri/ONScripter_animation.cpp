@@ -63,6 +63,10 @@ int ONScripter::calcDurationToNextAnimation()
         }
     }
 
+    int effect_time = nextScreenEffectTime(); // CONscripter
+    if (effect_time > 0 && (min == 0 || min > effect_time))
+        min = effect_time;
+
 #ifdef USE_LUA
     if (lua_handler.is_animatable && !script_h.isExternalScript()){
         if (min == 0 || min > lua_handler.next_time)
@@ -82,6 +86,8 @@ void ONScripter::proceedAnimation(int current_time)
     for (int i=MAX_SPRITE_NUM-1 ; i>=0 ; i--)
         if (sprite_info[i].proceedAnimation(current_time))
             flushDirect(sprite_info[i].pos, refreshMode() | (draw_cursor_flag?REFRESH_CURSOR_MODE:0));
+
+    proceedScreenEffects(current_time); // CONscripter
 
 #ifdef USE_LUA
     if (lua_handler.is_animatable && !script_h.isExternalScript()){

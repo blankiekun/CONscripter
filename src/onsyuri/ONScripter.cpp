@@ -360,6 +360,7 @@ ONScripter::ONScripter()
     screen_stack_num = 0;
     text_size_percent = 100;
     clearScreenFilters();
+    memset( screen_effect, 0, sizeof(screen_effect) );
 
     cdrom_drive_number = 0;
     cdaudio_flag = false;
@@ -789,6 +790,7 @@ void ONScripter::resetSub()
     clearScreenStack();
     text_size_percent = 100;
     clearScreenFilters();
+    clearScreenEffects();
 
     stopCommand();
     loopbgmstopCommand();

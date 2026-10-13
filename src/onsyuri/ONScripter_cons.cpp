@@ -36,7 +36,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 3 // 1: sprite filters; 2: + screen stack; 3: + screen filters
+#define CONS_SAVE_VERSION 4 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects
 
 /* spfilter num, kind[, blend[, strength[, param...]]]
  *   kind 0 clears every filter on sprite num. Other kinds add a filter
@@ -178,6 +178,281 @@ void ONScripter::applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip )
         if (screen_filter[i].kind != AnimationInfo::FILTER_NONE) f[num++] = screen_filter[i];
     if (num == 0 || surface == NULL || surface->format->BytesPerPixel != 4) return;
     AnimationInfo::applyFilterList( surface, clip, f, num );
+}
+
+/* screenshake slot[, time, interval, mode, speed_x, speed_y, x0, y0, x1, y1]
+ *   Shakes the picture behind the text window (what screenfilter
+ *   filters) until the slot is cleared, without waiting: the script and
+ *   the text go on while it shakes. Every interval ms the picture is drawn
+ *   moved by an offset whose largest size grows from x0,y0 to x1,y1
+ *   pixels over time ms, then stays. Mode 0 swings each axis on a sine
+ *   wave that advances speed/65536 of a turn per ms (speed_x for x,
+ *   speed_y for y); mode 1 jumps along a fixed path of 7 points, moving on
+ *   when speed_x * ms reaches 65536. Where the picture moved away, what
+ *   was there stays (it is drawn over itself).
+ *   "screenshake 1,1000,100,0,800,800,0,0,30,30" shakes harder and
+ *   harder for a second; "screenshake 1" stops it.
+ *
+ * screenripple slot[, "map", time, interval, opacity0, opacity1, amp0,
+ *              amp1, angle, angle_step, phase_step]
+ *   Ripples the same picture through a displacement map (a greyscale
+ *   image as large as the screen): each pixel is taken from amp *
+ *   sin(2 pi (grey / 256 + phase / 1000)) pixels away in the direction
+ *   angle (tenths of a degree, 0 = right, 900 = down). The rippled picture
+ *   is laid over the plain one at opacity (0-256). Over time ms, opacity
+ *   goes from opacity0 to opacity1 and amp from amp0 to amp1; every
+ *   interval ms the angle turns by angle_step and the phase moves by
+ *   phase_step.
+ *   "screenripple 1,"wave.png",3000,100,100,150,5,10,3150,20,30"
+ *
+ * Either command with only a slot (1-4) clears that slot, whatever it
+ * holds; slot 0 clears them all. The effects apply after the screen
+ * filters, in slot order. Neither command draws: the next print shows the
+ * effect, which then moves by itself. Kept in save files (restarted when
+ * loaded), cleared by reset. */
+int ONScripter::screenshakeCommand()
+{
+    return screenEffectCommand( SCREEN_EFFECT_SHAKE, "screenshake" );
+}
+
+int ONScripter::screenrippleCommand()
+{
+    return screenEffectCommand( SCREEN_EFFECT_RIPPLE, "screenripple" );
+}
+
+int ONScripter::screenEffectCommand( int kind, const char *name )
+{
+    leaveTextDisplayMode();
+
+    int slot = script_h.readInt();
+    bool set = (script_h.getEndStatus() & ScriptHandler::END_COMMA) != 0;
+    if (slot < 0 || slot > MAX_SCREEN_EFFECT || (slot == 0 && set)){
+        utils::printError("%s: slot %d out of range\n", name, slot);
+        return RET_CONTINUE;
+    }
+    if (!set){
+        if (slot == 0) clearScreenEffects();
+        else clearScreenEffect( screen_effect[slot-1] );
+        dirty_rect.fill( screen_width, screen_height );
+        return RET_CONTINUE;
+    }
+
+    ScreenEffect &e = screen_effect[slot-1];
+    clearScreenEffect( e );
+    if (kind == SCREEN_EFFECT_RIPPLE) setStr( &e.map_name, script_h.readStr() );
+    for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++)
+        e.param[i] = script_h.readInt();
+    e.kind = kind;
+    startScreenEffect( e );
+    dirty_rect.fill( screen_width, screen_height );
+
+    return RET_CONTINUE;
+}
+
+// Puts an effect in its first state (after its parameters are set).
+void ONScripter::startScreenEffect( ScreenEffect &e )
+{
+    int *p = e.param;
+    if (p[1] < 1) p[1] = 1; // interval
+    if (e.kind == SCREEN_EFFECT_RIPPLE && e.map == NULL && e.map_name){
+        bool has_alpha;
+        SDL_Surface *map = loadImage( e.map_name, &has_alpha );
+        if (map == NULL){
+            utils::printError("screenripple: can't load %s\n", e.map_name);
+            e.kind = SCREEN_EFFECT_NONE;
+            return;
+        }
+        e.map_w = map->w;
+        e.map_h = map->h;
+        e.map = new unsigned char[map->w * map->h];
+        SDL_LockSurface( map );
+        for (int y=0 ; y<map->h ; y++){
+            ONSBuf *row = (ONSBuf*)((unsigned char*)map->pixels + map->pitch * y);
+            for (int x=0 ; x<map->w ; x++){
+                Uint8 r, g, b;
+                SDL_GetRGB( row[x], map->format, &r, &g, &b );
+                e.map[y * map->w + x] = r;
+            }
+        }
+        SDL_UnlockSurface( map );
+        SDL_FreeSurface( map );
+    }
+    e.elapsed = 0;
+    e.next_step = SDL_GetTicks() + p[1];
+    e.range_x = e.range_y = 0;
+    e.phase_x = e.phase_y = 0;
+    e.point = 0;
+    if (e.kind == SCREEN_EFFECT_RIPPLE){
+        e.opacity = p[2];
+        e.amp = p[4] << 16;
+        e.angle = p[6];
+        e.phase = 0;
+    }
+}
+
+// One interval of an effect: its sizes move toward their end values and
+// its waves on.
+void ONScripter::stepScreenEffect( ScreenEffect &e )
+{
+    int *p = e.param;
+    int time = p[0], interval = p[1];
+    e.elapsed += interval;
+    if (e.elapsed > time) e.elapsed = time;
+    int t = (time > 0) ? (int)((long long)e.elapsed * 256 / time) : 256;
+
+    if (e.kind == SCREEN_EFFECT_SHAKE){
+        // param: time, interval, mode, speed x, y, x0, y0, x1, y1
+        e.range_x = (p[5] << 16) + (int)((((long long)(p[7] - p[5])) << 16) * t >> 8);
+        e.range_y = (p[6] << 16) + (int)((((long long)(p[8] - p[6])) << 16) * t >> 8);
+        e.phase_x += (unsigned int)(p[3] * interval);
+        if (p[2] == 1){
+            if (e.phase_x >= 0x10000){
+                e.phase_x = 0;
+                e.point = (e.point + 1) % 7;
+            }
+        }
+        else e.phase_y += (unsigned int)(p[4] * interval);
+    }
+    else if (e.kind == SCREEN_EFFECT_RIPPLE){
+        // param: time, interval, opacity0, opacity1, amp0, amp1, angle, angle step, phase step
+        e.opacity = p[2] + ((p[3] - p[2]) * t >> 8);
+        e.amp = (p[4] << 16) + (int)((((long long)(p[5] - p[4])) << 16) * t >> 8);
+        e.angle += p[7];
+        e.phase = ((e.phase + p[8]) % 1000 + 1000) % 1000;
+    }
+}
+
+void ONScripter::clearScreenEffect( ScreenEffect &e )
+{
+    delete[] e.map_name;
+    delete[] e.map;
+    e.kind = SCREEN_EFFECT_NONE;
+    e.map_name = NULL;
+    e.map = NULL;
+    e.map_w = e.map_h = 0;
+    for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++) e.param[i] = 0;
+}
+
+void ONScripter::clearScreenEffects()
+{
+    for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++)
+        clearScreenEffect( screen_effect[i] );
+}
+
+bool ONScripter::screenEffectActive()
+{
+    for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++)
+        if (screen_effect[i].kind != SCREEN_EFFECT_NONE) return true;
+    return false;
+}
+
+// The ticks of the next step of any effect, 0 when none runs.
+int ONScripter::nextScreenEffectTime()
+{
+    int min = 0;
+    for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
+        ScreenEffect &e = screen_effect[i];
+        if (e.kind == SCREEN_EFFECT_NONE) continue;
+        if (min == 0 || min > e.next_step) min = e.next_step;
+    }
+    return min;
+}
+
+void ONScripter::proceedScreenEffects( int current_time )
+{
+    bool changed = false;
+    for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
+        ScreenEffect &e = screen_effect[i];
+        if (e.kind == SCREEN_EFFECT_NONE) continue;
+        // After a long stop (a menu, a load) go on from now.
+        if (current_time - e.next_step > 1000) e.next_step = current_time;
+        while (e.next_step <= current_time){
+            stepScreenEffect( e );
+            e.next_step += e.param[1];
+            changed = true;
+        }
+    }
+    if (changed){
+        SDL_Rect rect = {0, 0, screen_width, screen_height};
+        flushDirect( rect, refreshMode() | (draw_cursor_flag ? REFRESH_CURSOR_MODE : 0) );
+    }
+}
+
+static const int shake_path[8][2] = { // 16.16, the original's table
+    {-65536, 32768}, {65536, 49152}, {0, 32768}, {16384, 0},
+    {-32768, -32768}, {16384, -16384}, {0, 0}, {-65536, 32768} };
+
+void ONScripter::applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip )
+{
+    if (surface == NULL || surface->format->BytesPerPixel != 4) return;
+    int w = surface->w, h = surface->h, pitch = surface->pitch / 4;
+    ONSBuf *copy = NULL;
+
+    for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
+        ScreenEffect &e = screen_effect[i];
+        if (e.kind == SCREEN_EFFECT_NONE) continue;
+        SDL_LockSurface( surface );
+        ONSBuf *buf = (ONSBuf*)surface->pixels;
+        if (copy == NULL) copy = new ONSBuf[w * h];
+        for (int y=0 ; y<h ; y++)
+            memcpy( copy + y * w, buf + y * pitch, w * sizeof(ONSBuf) );
+
+        if (e.kind == SCREEN_EFFECT_SHAKE){
+            long long ux, uy; // where on the wave or path, 16.16
+            if (e.param[2] == 1){
+                const int *a = shake_path[e.point], *b = shake_path[e.point + 1];
+                ux = a[0] + ((long long)(b[0] - a[0]) * e.phase_x >> 16);
+                uy = a[1] + ((long long)(b[1] - a[1]) * e.phase_x >> 16);
+            }
+            else{
+                ux = (long long)(sin( M_PI * 2 * ((e.phase_x >> 8) & 0xff) / 256 ) * 65536);
+                uy = (long long)(sin( M_PI * 2 * ((e.phase_y >> 8) & 0xff) / 256 ) * 65536);
+            }
+            int dx = (int)((ux * e.range_x) >> 32) * screen_ratio1 / screen_ratio2;
+            int dy = (int)((uy * e.range_y) >> 32) * screen_ratio1 / screen_ratio2;
+            for (int y=0 ; y<h ; y++){
+                int sy = y - dy;
+                if (sy < 0 || sy >= h) continue;
+                int x0 = std::max(0, dx), x1 = std::min(w, w + dx);
+                if (x1 > x0) memcpy( buf + y * pitch + x0, copy + sy * w + x0 - dx, (x1 - x0) * sizeof(ONSBuf) );
+            }
+        }
+        else if (e.kind == SCREEN_EFFECT_RIPPLE){
+            double amp = e.amp / 65536.0 * screen_ratio1 / screen_ratio2;
+            double th = M_PI * 2 * e.angle / 3600;
+            long long ax = (long long)(cos(th) * amp * 65536), ay = (long long)(sin(th) * amp * 65536);
+            int phase = (int)(((long long)e.phase << 16) / 1000) >> 6;
+            static int sine[1024]; // 16.16
+            if (sine[256] == 0)
+                for (int k=0 ; k<1024 ; k++) sine[k] = (int)lround(sin( M_PI * 2 * k / 1024 ) * 65536);
+            int opa = e.opacity < 0 ? 0 : e.opacity > 256 ? 256 : e.opacity;
+            for (int y=clip.y ; y<clip.y + clip.h ; y++){
+                ONSBuf *dst = buf + y * pitch;
+                for (int x=clip.x ; x<clip.x + clip.w ; x++){
+                    int m = 0;
+                    if (e.map){
+                        int mx = x * e.map_w / w, my = y * e.map_h / h;
+                        m = e.map[my * e.map_w + mx];
+                    }
+                    int s = sine[(m * 4 + phase) & 1023];
+                    int sx = x + (int)((ax * s) >> 32), sy = y + (int)((ay * s) >> 32);
+                    if (sx < 0 || sx >= w) sx = x;
+                    if (sy < 0 || sy >= h) sy = y;
+                    ONSBuf src = copy[sy * w + sx];
+                    if (opa >= 256){
+                        dst[x] = src;
+                        continue;
+                    }
+                    ONSBuf org = copy[y * w + x];
+                    ONSBuf rb = (((org & 0xff00ff) * (256 - opa) + (src & 0xff00ff) * opa) >> 8) & 0xff00ff;
+                    ONSBuf g  = (((org & 0x00ff00) * (256 - opa) + (src & 0x00ff00) * opa) >> 8) & 0x00ff00;
+                    dst[x] = (org & 0xff000000) | rb | g;
+                }
+            }
+        }
+        SDL_UnlockSurface( surface );
+    }
+    delete[] copy;
 }
 
 static bool sameStr( const char *a, const char *b )
@@ -400,12 +675,25 @@ void ONScripter::saveSaveFileCons( bool output_flag )
                 writeInt( f[i].param[k], output_flag );
         }
     }
+
+    // Version 4: the screen effect slots (kind, map, parameters); their
+    // animation starts again when loaded.
+    writeInt( MAX_SCREEN_EFFECT, output_flag );
+    writeInt( SCREEN_EFFECT_PARAMS, output_flag );
+    for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
+        ScreenEffect &e = screen_effect[i];
+        writeInt( e.kind, output_flag );
+        writeStr( e.map_name, output_flag );
+        for (int k=0 ; k<SCREEN_EFFECT_PARAMS ; k++)
+            writeInt( e.param[k], output_flag );
+    }
 }
 
 void ONScripter::loadSaveFileCons()
 {
     clearScreenStack();
     clearScreenFilters();
+    clearScreenEffects();
     dirty_rect.fill( screen_width, screen_height );
     if (readInt() != CONS_SAVE_MAGIC) return;
     int version = readInt();
@@ -503,6 +791,24 @@ void ONScripter::loadSaveFileCons()
             for (int k=0 ; k<3 ; k++) f.param[k] = readInt();
             if (i < MAX_SCREEN_FILTER) dst[i] = f;
         }
+    }
+
+    if (version < 4) return;
+    slots = readInt();
+    int params = readInt();
+    for (int i=0 ; i<slots ; i++){
+        ScreenEffect dummy;
+        memset( &dummy, 0, sizeof(dummy) );
+        ScreenEffect &e = (i < MAX_SCREEN_EFFECT) ? screen_effect[i] : dummy;
+        int kind = readInt();
+        readStr( &e.map_name );
+        for (int k=0 ; k<params ; k++){
+            int n = readInt();
+            if (k < SCREEN_EFFECT_PARAMS) e.param[k] = n;
+        }
+        e.kind = kind;
+        if (kind != SCREEN_EFFECT_NONE) startScreenEffect( e );
+        if (&e == &dummy) clearScreenEffect( dummy );
     }
 }
 

@@ -81,6 +81,26 @@ possible.
   draw: follow it with `print` (an effect fades it in). Kept in save
   files and by `pushscreen`, cleared by `reset`.
   `screenfilter 1,4,0,256,-200:print 10` darkens the scene for night.
+- **`screenshake slot,time,interval,mode,speed_x,speed_y,x0,y0,x1,y1`**
+  and **`screenripple slot,"map",time,interval,opacity0,opacity1,amp0,amp1,angle,angle_step,phase_step`**:
+  effects that move by themselves on the same picture as `screenfilter`
+  (applied after the filters), while the script and the text go on. Every
+  `interval` ms they take a step; over `time` ms their sizes go from the
+  first to the second value, then stay. `screenshake` moves the picture by
+  up to `x`,`y` pixels: mode 0 swings each axis on a sine wave advancing
+  `speed`/65536 of a turn per ms, mode 1 jumps along a fixed 7-point path
+  (the next point when `speed_x` × ms reaches 65536). `screenripple` takes
+  each pixel from `amp` × sin(2π(grey/256 + phase/1000)) pixels away in
+  direction `angle` (tenths of a degree, 0 = right, 900 = down), `grey`
+  being the pixel's level in the greyscale image `map`, and lays the
+  result over the picture at `opacity` (0-256); each step turns the angle
+  by `angle_step` and moves the phase by `phase_step`. Slots 1-4 are shared;
+  either command with only a slot clears it, slot 0 clears them all. Like
+  `screenfilter` they don't draw: follow them with `print`. Kept in save
+  files (restarted when loaded), cleared by `reset`. While one runs, every
+  update redraws the whole screen.
+  `screenshake 1,1000,100,0,800,800,0,0,30,30` shakes harder and harder for
+  a second, then keeps shaking until `screenshake 1`.
 - **`pushscreen first,last`** / **`popscreen`**: save the background,
   sprites `first`..`last` (image, position, visibility, cell, filters),
   the screen filters and the BGM on a stack (32 deep), and put the newest back. Neither

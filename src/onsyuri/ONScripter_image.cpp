@@ -716,6 +716,12 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
     clip.w = surface->w;
     clip.h = surface->h;
     if (clip_src) if ( AnimationInfo::doClipping( &clip, clip_src ) ) return;
+    // CONscripter: screen effects move pixels around; redraw everything
+    if (screenEffectActive()){
+        clip.x = clip.y = 0;
+        clip.w = surface->w;
+        clip.h = surface->h;
+    }
 
     int i, top;
     SDL_BlitSurface( bg_info.image_surface, &clip, surface, &clip );
@@ -743,6 +749,7 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
         if ( monocro_flag )   makeMonochromeSurface( surface, clip );
         if ( nega_mode == 2 ) makeNegaSurface( surface, clip );
         applyScreenFilters( surface, clip );
+        applyScreenEffects( surface, clip );
 
         if (!all_sprite2_hide_flag){
             for ( i=MAX_SPRITE2_NUM-1 ; i>=0 ; i-- ){
@@ -780,6 +787,7 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
         if ( monocro_flag )   makeMonochromeSurface( surface, clip );
         if ( nega_mode == 2 ) makeNegaSurface( surface, clip );
         applyScreenFilters( surface, clip );
+        applyScreenEffects( surface, clip );
     }
     
     if ( !( refresh_mode & REFRESH_SAYA_MODE ) ){

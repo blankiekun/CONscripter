@@ -169,6 +169,8 @@ public:
     int spclclkCommand();
     int spfilterCommand();
     int screenfilterCommand();
+    int screenshakeCommand();
+    int screenrippleCommand();
     int spbtnCommand();
     int skipoffCommand();
     int sevolCommand();
@@ -613,6 +615,34 @@ private:
     AnimationInfo::Filter screen_filter[MAX_SCREEN_FILTER];
     void clearScreenFilters();
     void applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip );
+
+    // CONscripter: animated effects on the same picture (screenshake,
+    // screenripple), by slot, stepped like sprite animations
+    enum { MAX_SCREEN_EFFECT = 4, SCREEN_EFFECT_PARAMS = 9 };
+    enum { SCREEN_EFFECT_NONE = 0, SCREEN_EFFECT_SHAKE = 1, SCREEN_EFFECT_RIPPLE = 2 };
+    struct ScreenEffect {
+        int kind;
+        int param[SCREEN_EFFECT_PARAMS]; // the command's numbers after the slot (and map)
+        char *map_name;                  // ripple: the displacement map
+        unsigned char *map;              // its grey levels
+        int map_w, map_h;
+        int next_step;                   // ticks of the next step
+        int elapsed;                     // ms, up to the effect's time
+        int range_x, range_y;            // shake: amplitude, 16.16 pixels
+        unsigned int phase_x, phase_y;   // shake: wave phases (or path progress)
+        int point;                       // shake: point on the path (mode 1)
+        int opacity, amp, angle, phase;  // ripple: 0-256, 16.16 pixels, 0.1 degrees, 0-999
+    };
+    ScreenEffect screen_effect[MAX_SCREEN_EFFECT];
+    int screenEffectCommand( int kind, const char *name );
+    void startScreenEffect( ScreenEffect &e );
+    void stepScreenEffect( ScreenEffect &e );
+    void clearScreenEffect( ScreenEffect &e );
+    void clearScreenEffects();
+    bool screenEffectActive();
+    int nextScreenEffectTime();
+    void proceedScreenEffects( int current_time );
+    void applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip );
 
     // CONscripter: screen states saved by pushscreen, restored by popscreen
     struct ScreenSprite {
