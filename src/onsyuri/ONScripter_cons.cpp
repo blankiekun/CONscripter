@@ -21,7 +21,10 @@
 #include "Utils.h"
 #include <algorithm>
 #include <errno.h>
+#include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #if defined(WEB)
 #include <emscripten.h>
 #endif
@@ -437,4 +440,154 @@ int ONScripter::delsavegameCommand()
 #endif
 
     return RET_CONTINUE;
+}
+
+// The numbers after the '/' of an effect's dll name ("cons_zoom.dll/0,5100").
+static int readDllParams( const char *name, int *param, int max )
+{
+    const char *p = strchr(name, '/');
+    int n = 0;
+    while (p && n < max){
+        param[n++] = atoi(p + 1);
+        p = strchr(p + 1, ',');
+    }
+    return n;
+}
+
+/* effect num,99,duration,"cons_slide.dll/layer,dx,dy"
+ *   A picture slides across the screen, moving in direction dx,dy (each
+ *   -1, 0 or 1, so 8 directions) by one screen width or height:
+ *   layer 0 the new picture slides in over the old one, 1 the old picture
+ *   slides out and uncovers the new one, 2 both move together (a push,
+ *   like effects 11-14 but also diagonal). Without the dll name's
+ *   parameters it is 0,-1,0 (the new picture comes in from the right). */
+void ONScripter::effectSlide( const char *params, int duration )
+{
+    int param[3] = {0, -1, 0};
+    readDllParams(params, param, 3);
+    int layer = param[0], dx = param[1], dy = param[2];
+
+    int ox = duration > 0 ? screen_width  * effect_counter / duration : screen_width;
+    int oy = duration > 0 ? screen_height * effect_counter / duration : screen_height;
+    SDL_Rect old_rect = {0, 0, screen_width, screen_height};
+    SDL_Rect new_rect = old_rect;
+    if (layer == 0){
+        new_rect.x = -dx * (screen_width  - ox);
+        new_rect.y = -dy * (screen_height - oy);
+    }
+    else{
+        old_rect.x = dx * ox;
+        old_rect.y = dy * oy;
+        if (layer == 2){
+            new_rect.x = old_rect.x - dx * screen_width;
+            new_rect.y = old_rect.y - dy * screen_height;
+        }
+    }
+
+    // The picture below first, then the moving one over it (SDL_BlitSurface
+    // clips the rect it is given, hence the copies).
+    SDL_Rect below = layer == 0 ? old_rect : new_rect, above = layer == 0 ? new_rect : old_rect;
+    if (layer == 2)
+        SDL_FillRect( accumulation_surface, NULL, SDL_MapRGBA( accumulation_surface->format, 0, 0, 0, 0xff ) );
+    SDL_BlitSurface(layer == 0 ? effect_src_surface : effect_dst_surface, NULL, accumulation_surface, &below);
+    SDL_BlitSurface(layer == 0 ? effect_dst_surface : effect_src_surface, NULL, accumulation_surface, &above);
+}
+
+// src magnified by scale about the screen centre (bilinear), drawn over
+// dst with opacity alpha (0-256).
+static void drawZoomed( SDL_Surface *src, SDL_Surface *dst, float scale, int alpha )
+{
+    if (alpha <= 0) return;
+    if (alpha > 256) alpha = 256;
+    if (scale < 1.0f) scale = 1.0f;
+    int w = dst->w, h = dst->h;
+    // Source position of a pixel centre, in 16.16: c + (x + 0.5 - c) / scale - 0.5
+    Sint64 step = (Sint64)(65536.0f / scale);
+    Sint64 x0 = (Sint64)((w * 0.5f - w * 0.5f / scale - 0.5f + 0.5f / scale) * 65536.0f);
+    Sint64 y0 = (Sint64)((h * 0.5f - h * 0.5f / scale - 0.5f + 0.5f / scale) * 65536.0f);
+
+    SDL_LockSurface(src);
+    SDL_LockSurface(dst);
+    for (int y=0 ; y<h ; y++){
+        Sint64 fy = y0 + step * y;
+        if (fy < 0) fy = 0;
+        int sy = (int)(fy >> 16), wy = (int)((fy >> 8) & 0xff);
+        if (sy >= h - 1){ sy = h - 1; wy = 0; }
+        const Uint8 *row0 = (const Uint8*)src->pixels + sy * src->pitch;
+        const Uint8 *row1 = wy ? row0 + src->pitch : row0;
+        Uint8 *out = (Uint8*)dst->pixels + y * dst->pitch;
+        for (int x=0 ; x<w ; x++, out+=4){
+            Sint64 fx = x0 + step * x;
+            if (fx < 0) fx = 0;
+            int sx = (int)(fx >> 16), wx = (int)((fx >> 8) & 0xff);
+            if (sx >= w - 1){ sx = w - 1; wx = 0; }
+            const Uint8 *a = row0 + sx * 4, *b = row1 + sx * 4;
+            int nx = wx ? 4 : 0;
+            for (int c=0 ; c<4 ; c++){
+                int top = a[c] * (256 - wx) + a[c + nx] * wx;
+                int bottom = b[c] * (256 - wx) + b[c + nx] * wx;
+                int v = (top * (256 - wy) + bottom * wy) >> 16;
+                out[c] = alpha == 256 ? v : (v * alpha + out[c] * (256 - alpha)) >> 8;
+            }
+        }
+    }
+    SDL_UnlockSurface(dst);
+    SDL_UnlockSurface(src);
+}
+
+/* effect num,99,duration,"cons_zoom.dll/mode,scale[,curve]"
+ *   Zooms about the screen centre. scale is the largest magnification in
+ *   percent (5100 = 51 times); curve (default 1) is the power of the
+ *   eased progress, so higher values move faster at the magnified end.
+ *   With progress p (0 to 1) and z(s) = 1 + (scale/100 - 1) * s:
+ *   mode 0: the new picture shrinks into place from z(1), the old one
+ *     fading out over it: s = (1-p)^curve, old opacity s;
+ *   mode 1: the old picture grows to z(1) and fades out over the new one:
+ *     s = p^curve, old opacity 1-s;
+ *   mode 2: zooms into the old picture for the first half, then out of
+ *     the new one: s = (2p)^curve, then (2-2p)^curve;
+ *   mode 3: as mode 0, while the old picture also grows to z(1) as it
+ *     fades (linearly in p). */
+void ONScripter::effectZoom( const char *params, int duration )
+{
+#if defined(BPP16)
+    alphaBlend( NULL, ALPHA_BLEND_CONST, 256 * effect_counter / duration, &dirty_rect.bounding_box );
+#else
+    int param[3] = {0, 200, 1};
+    readDllParams(params, param, 3);
+    int mode = param[0];
+    float range = param[1] / 100.0f - 1.0f;
+    float curve = param[2] > 0 ? (float)param[2] : 1.0f;
+    float p = duration > 0 ? (float)effect_counter / duration : 1.0f;
+    if (p > 1.0f) p = 1.0f;
+
+    float s;
+    switch (mode){
+      case 1:
+        s = powf(p, curve);
+        SDL_BlitSurface(effect_dst_surface, NULL, accumulation_surface, NULL);
+        drawZoomed(effect_src_surface, accumulation_surface, 1.0f + range * s, (int)(256 * (1.0f - s)));
+        break;
+      case 2:
+        if (p < 0.5f){
+            s = powf(2.0f * p, curve);
+            drawZoomed(effect_src_surface, accumulation_surface, 1.0f + range * s, 256);
+        }
+        else{
+            s = powf(2.0f - 2.0f * p, curve);
+            drawZoomed(effect_dst_surface, accumulation_surface, 1.0f + range * s, 256);
+        }
+        break;
+      case 3:
+        s = powf(1.0f - p, curve);
+        drawZoomed(effect_dst_surface, accumulation_surface, 1.0f + range * s, 256);
+        drawZoomed(effect_src_surface, accumulation_surface, 1.0f + range * p, (int)(256 * s));
+        break;
+      default:
+        s = powf(1.0f - p, curve);
+        drawZoomed(effect_dst_surface, accumulation_surface, 1.0f + range * s, 256);
+        drawZoomed(effect_src_surface, accumulation_surface, 1.0f, (int)(256 * s));
+        break;
+    }
+#endif
 }

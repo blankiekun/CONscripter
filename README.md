@@ -87,6 +87,22 @@ possible.
   none is set, the same folder as the saves). `savefileexist` then reports
   the slot empty. In the web build the save directory is synced
   afterwards. `delsavegame 3,"savethumb3.bmp"`.
+- **Slide and zoom transitions**, as effect 99 plugins (stock builds
+  draw an unknown plugin as a cross-fade):
+  - `effect num,99,ms,"cons_slide.dll/layer,dx,dy"`: a picture moves one
+    screen width or height in direction `dx`,`dy` (each -1, 0 or 1).
+    `layer` 0: the new picture slides in over the old one; 1: the old
+    picture slides out, uncovering the new one; 2: both move together
+    (like effects 11-14, also diagonally).
+  - `effect num,99,ms,"cons_zoom.dll/mode,scale[,curve]"`: zooms about the
+    screen centre, up to `scale` percent (5100 = 51 times), the zoom
+    eased by the progress to the power `curve` (default 1). `mode` 0: the
+    new picture shrinks into place while the old one fades out over it;
+    1: the old picture grows and fades out over the new one; 2: zooms
+    into the old picture for the first half, then out of the new one;
+    3: as 0, while the old picture also grows as it fades.
+  `effect 20,99,800,"cons_slide.dll/0,-1,0"` slides the new picture in from
+  the right.
 - **Save files** end with an extra block (`CONS`, a version, then the
   state above) after the NScripter data. Saves without it load as before.
 

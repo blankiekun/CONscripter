@@ -427,6 +427,10 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
               effectTrvswave(effect->anim.image_name, effect_duration);
             }
 #endif
+            else if (!strncmp(effect->anim.image_name, "cons_slide.dll", 14))
+                effectSlide(effect->anim.image_name, effect_duration);
+            else if (!strncmp(effect->anim.image_name, "cons_zoom.dll", 13))
+                effectZoom(effect->anim.image_name, effect_duration);
             else {
                 // do crossfade
                 height = 256 * effect_counter / effect_duration;
