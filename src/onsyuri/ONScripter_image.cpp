@@ -742,6 +742,7 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
         if ( nega_mode == 1 ) makeNegaSurface( surface, clip );
         if ( monocro_flag )   makeMonochromeSurface( surface, clip );
         if ( nega_mode == 2 ) makeNegaSurface( surface, clip );
+        applyScreenFilters( surface, clip );
 
         if (!all_sprite2_hide_flag){
             for ( i=MAX_SPRITE2_NUM-1 ; i>=0 ; i-- ){
@@ -778,6 +779,7 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
         if ( nega_mode == 1 ) makeNegaSurface( surface, clip );
         if ( monocro_flag )   makeMonochromeSurface( surface, clip );
         if ( nega_mode == 2 ) makeNegaSurface( surface, clip );
+        applyScreenFilters( surface, clip );
     }
     
     if ( !( refresh_mode & REFRESH_SAYA_MODE ) ){

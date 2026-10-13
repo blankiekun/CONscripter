@@ -168,6 +168,7 @@ public:
     int splitCommand();
     int spclclkCommand();
     int spfilterCommand();
+    int screenfilterCommand();
     int spbtnCommand();
     int skipoffCommand();
     int sevolCommand();
@@ -607,6 +608,12 @@ private:
     // CONscripter: decodes a WebP image where SDL_image can't (USE_WEBP)
     SDL_Surface *loadWebP( const unsigned char *data, size_t length );
 
+    // CONscripter: screen filters (screenfilter), by slot; kind 0 = slot unused
+    enum { MAX_SCREEN_FILTER = 4 };
+    AnimationInfo::Filter screen_filter[MAX_SCREEN_FILTER];
+    void clearScreenFilters();
+    void applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip );
+
     // CONscripter: screen states saved by pushscreen, restored by popscreen
     struct ScreenSprite {
         char *image_name;
@@ -621,6 +628,7 @@ private:
         bool bgm_loop;
         int first, last; // the sprites saved
         ScreenSprite *sprite;
+        AnimationInfo::Filter screen_filter[MAX_SCREEN_FILTER];
     };
     enum { MAX_SCREEN_STACK = 32 };
     ScreenState screen_stack[MAX_SCREEN_STACK];

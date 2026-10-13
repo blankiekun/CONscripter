@@ -64,7 +64,8 @@ possible.
   on an `lsp` sprite, applied when its image is loaded (no cost per
   frame). `kind` makes a colour for each pixel: 1 the colour `p1,p2,p3`
   (r, g, b); 2 the pixel in greyscale; 3 its negative; 4 the pixel
-  plus `p1` (-255..255). `blend` combines it with the pixel: 0 copy
+  plus `p1` (-255..255); 5 the pixel in greyscale plus the offsets
+  `p1,p2,p3` (a monotone such as sepia: `28,-8,-38`). `blend` combines it with the pixel: 0 copy
   (default), 1 multiply, 2 add, 3 screen. `strength` 0-256 (default 256)
   is how much of the result replaces the pixel. Up to 4 filters stack in
   order; `spfilter num,0` removes them. The filters stay when `lsp`
@@ -72,9 +73,17 @@ possible.
   sprite without an image, and are kept in save files.
   `spfilter 10,1,1,256,148,152,200` tints sprite 10 for a night scene;
   `spfilter 10,1,0,256,0,0,0` makes it a black silhouette.
+- **`screenfilter slot,kind[,blend[,strength[,p1,p2,p3]]]`**: the same
+  filters on the whole picture: the background and the sprites behind the
+  text window (numbers above `humanz`), where `monocro` applies; not the
+  text window or the sprites in front of it. Slots 1-4 apply in order;
+  kind 0 clears a slot and `screenfilter 0` clears them all. It doesn't
+  draw: follow it with `print` (an effect fades it in). Kept in save
+  files and by `pushscreen`, cleared by `reset`.
+  `screenfilter 1,4,0,256,-200:print 10` darkens the scene for night.
 - **`pushscreen first,last`** / **`popscreen`**: save the background,
-  sprites `first`..`last` (image, position, visibility, cell, filters)
-  and the BGM on a stack (32 deep), and put the newest back. Neither
+  sprites `first`..`last` (image, position, visibility, cell, filters),
+  the screen filters and the BGM on a stack (32 deep), and put the newest back. Neither
   draws: follow `popscreen` with `print`. Unchanged sprites aren't
   reloaded and a BGM that is still playing keeps playing. For a scene run
   as a subroutine that may change the whole screen:

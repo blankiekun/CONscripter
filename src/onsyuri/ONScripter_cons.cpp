@@ -36,13 +36,15 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 2 // 1: sprite filters; 2: + screen stack
+#define CONS_SAVE_VERSION 3 // 1: sprite filters; 2: + screen stack; 3: + screen filters
 
 /* spfilter num, kind[, blend[, strength[, param...]]]
  *   kind 0 clears every filter on sprite num. Other kinds add a filter
  *   (up to AnimationInfo::MAX_FILTER_NUM, applied in order) that makes a
  *   colour for each pixel: 1 the colour param r,g,b; 2 the pixel in
- *   greyscale; 3 its negative; 4 the pixel plus param (-255..255).
+ *   greyscale; 3 its negative; 4 the pixel plus param (-255..255);
+ *   5 the pixel in greyscale plus the offsets r,g,b (-255..255), a
+ *   monotone like sepia: "spfilter 10,5,0,256,28,-8,-38".
  *   blend combines that colour with the pixel's: 0 copy (default),
  *   1 multiply, 2 add, 3 screen. strength 0-256 (default 256) is how much
  *   of the result replaces the pixel. So "spfilter 10,1,1,256,255,200,160"
@@ -79,7 +81,7 @@ int ONScripter::spfilterCommand()
         if (ai->num_of_filters == 0) return RET_CONTINUE;
         ai->clearFilters();
     }
-    else if (f.kind < AnimationInfo::FILTER_COLOUR || f.kind > AnimationInfo::FILTER_BRIGHTNESS){
+    else if (f.kind < AnimationInfo::FILTER_COLOUR || f.kind > AnimationInfo::FILTER_MONOTONE){
         utils::printError("spfilter: unknown kind %d\n", f.kind);
         return RET_CONTINUE;
     }
@@ -105,6 +107,79 @@ int ONScripter::spfilterCommand()
     return RET_CONTINUE;
 }
 
+/* screenfilter slot, kind[, blend[, strength[, param...]]]
+ *   A filter like spfilter's (same kinds, blends and parameters) on the
+ *   whole picture: the background and the sprites behind the text window
+ *   (those above the humanz number), where monocro applies. Not the text
+ *   window or the sprites in front of it. Slots 1-4 apply in order; kind 0
+ *   clears a slot and "screenfilter 0" clears them all. Like spfilter it
+ *   doesn't draw: show the result with print (an effect fades it in). The
+ *   filters are kept in save files and cleared by reset.
+ *   "screenfilter 1,4,0,256,-200" darkens the scene for night. */
+int ONScripter::screenfilterCommand()
+{
+    leaveTextDisplayMode();
+
+    int slot = script_h.readInt();
+    AnimationInfo::Filter f;
+    f.kind = AnimationInfo::FILTER_NONE;
+    f.blend = AnimationInfo::FILTER_BLEND_COPY;
+    f.strength = 256;
+    f.param[0] = f.param[1] = f.param[2] = 0;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA)
+        f.kind = script_h.readInt();
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA)
+        f.blend = script_h.readInt();
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA)
+        f.strength = script_h.readInt();
+    for (int i=0 ; i<3 && (script_h.getEndStatus() & ScriptHandler::END_COMMA) ; i++)
+        f.param[i] = script_h.readInt();
+
+    if (slot == 0){
+        clearScreenFilters();
+    }
+    else if (slot < 0 || slot > MAX_SCREEN_FILTER){
+        utils::printError("screenfilter: slot %d out of range\n", slot);
+        return RET_CONTINUE;
+    }
+    else if (f.kind < AnimationInfo::FILTER_NONE || f.kind > AnimationInfo::FILTER_MONOTONE){
+        utils::printError("screenfilter: unknown kind %d\n", f.kind);
+        return RET_CONTINUE;
+    }
+    else if (f.blend < AnimationInfo::FILTER_BLEND_COPY || f.blend > AnimationInfo::FILTER_BLEND_SCREEN){
+        utils::printError("screenfilter: unknown blend %d\n", f.blend);
+        return RET_CONTINUE;
+    }
+    else{
+        if (f.strength < 0)   f.strength = 0;
+        if (f.strength > 256) f.strength = 256;
+        screen_filter[slot-1] = f;
+    }
+    dirty_rect.fill( screen_width, screen_height );
+
+    return RET_CONTINUE;
+}
+
+void ONScripter::clearScreenFilters()
+{
+    for (int i=0 ; i<MAX_SCREEN_FILTER ; i++){
+        screen_filter[i].kind = AnimationInfo::FILTER_NONE;
+        screen_filter[i].blend = AnimationInfo::FILTER_BLEND_COPY;
+        screen_filter[i].strength = 256;
+        screen_filter[i].param[0] = screen_filter[i].param[1] = screen_filter[i].param[2] = 0;
+    }
+}
+
+void ONScripter::applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip )
+{
+    AnimationInfo::Filter f[MAX_SCREEN_FILTER];
+    int num = 0;
+    for (int i=0 ; i<MAX_SCREEN_FILTER ; i++)
+        if (screen_filter[i].kind != AnimationInfo::FILTER_NONE) f[num++] = screen_filter[i];
+    if (num == 0 || surface == NULL || surface->format->BytesPerPixel != 4) return;
+    AnimationInfo::applyFilterList( surface, clip, f, num );
+}
+
 static bool sameStr( const char *a, const char *b )
 {
     if (a == NULL || b == NULL) return a == b;
@@ -121,7 +196,8 @@ static char *copyStr( const char *s )
 
 /* pushscreen first,last
  *   Saves the background, sprites first..last (image, position,
- *   visibility, cell, transparency, filters) and the BGM on a stack.
+ *   visibility, cell, transparency, filters), the screen filters and the
+ *   BGM on a stack.
  *   popscreen puts the newest saved state back and removes it from the
  *   stack. Neither draws anything: show the result with print. Sprites
  *   and the background that didn't change in between aren't reloaded, and
@@ -158,6 +234,7 @@ int ONScripter::pushscreenCommand()
         sp.num_of_filters = ai->num_of_filters;
         memcpy(sp.filter, ai->filter, sizeof(sp.filter));
     }
+    memcpy(st.screen_filter, screen_filter, sizeof(st.screen_filter));
 
     return RET_CONTINUE;
 }
@@ -217,6 +294,11 @@ void ONScripter::popScreenState()
         delete[] sp.image_name;
     }
     delete[] st.sprite;
+
+    if (memcmp(screen_filter, st.screen_filter, sizeof(screen_filter)) != 0){
+        memcpy(screen_filter, st.screen_filter, sizeof(screen_filter));
+        dirty_rect.fill( screen_width, screen_height );
+    }
 
     if (!sameStr(music_file_name, st.bgm_name)){
         stopBGM( false );
@@ -304,11 +386,27 @@ void ONScripter::saveSaveFileCons( bool output_flag )
             }
         }
     }
+
+    // Version 3: the screen filter slots (kind, blend, strength, parameters),
+    // the current ones, then those of each pushscreen state.
+    writeInt( MAX_SCREEN_FILTER, output_flag );
+    for (int n=-1 ; n<screen_stack_num ; n++){
+        AnimationInfo::Filter *f = (n < 0) ? screen_filter : screen_stack[n].screen_filter;
+        for (int i=0 ; i<MAX_SCREEN_FILTER ; i++){
+            writeInt( f[i].kind, output_flag );
+            writeInt( f[i].blend, output_flag );
+            writeInt( f[i].strength, output_flag );
+            for (int k=0 ; k<3 ; k++)
+                writeInt( f[i].param[k], output_flag );
+        }
+    }
 }
 
 void ONScripter::loadSaveFileCons()
 {
     clearScreenStack();
+    clearScreenFilters();
+    dirty_rect.fill( screen_width, screen_height );
     if (readInt() != CONS_SAVE_MAGIC) return;
     int version = readInt();
     if (version < 1) return;
@@ -338,6 +436,12 @@ void ONScripter::loadSaveFileCons()
         ScreenState st;
         st.bg_name = NULL;
         st.bgm_name = NULL;
+        for (int i=0 ; i<MAX_SCREEN_FILTER ; i++){ // saves before version 3 have none
+            st.screen_filter[i].kind = AnimationInfo::FILTER_NONE;
+            st.screen_filter[i].blend = AnimationInfo::FILTER_BLEND_COPY;
+            st.screen_filter[i].strength = 256;
+            st.screen_filter[i].param[0] = st.screen_filter[i].param[1] = st.screen_filter[i].param[2] = 0;
+        }
         readStr( &st.bg_name );
         readStr( &st.bgm_name );
         st.bgm_loop = readInt() == 1;
@@ -384,6 +488,20 @@ void ONScripter::loadSaveFileCons()
             delete[] st.sprite;
             delete[] st.bg_name;
             delete[] st.bgm_name;
+        }
+    }
+
+    if (version < 3) return;
+    int slots = readInt();
+    for (int n=-1 ; n<screen_stack_num ; n++){
+        AnimationInfo::Filter *dst = (n < 0) ? screen_filter : screen_stack[n].screen_filter;
+        for (int i=0 ; i<slots ; i++){
+            AnimationInfo::Filter f;
+            f.kind = readInt();
+            f.blend = readInt();
+            f.strength = readInt();
+            for (int k=0 ; k<3 ; k++) f.param[k] = readInt();
+            if (i < MAX_SCREEN_FILTER) dst[i] = f;
         }
     }
 }

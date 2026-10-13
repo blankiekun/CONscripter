@@ -108,7 +108,8 @@ public:
            FILTER_COLOUR     = 1, // param = r, g, b
            FILTER_GREYSCALE  = 2,
            FILTER_NEGATIVE   = 3,
-           FILTER_BRIGHTNESS = 4  // param[0] = -255..255, added to r, g, b
+           FILTER_BRIGHTNESS = 4, // param[0] = -255..255, added to r, g, b
+           FILTER_MONOTONE   = 5  // greyscale plus param = r, g, b offsets (-255..255)
     };
     // How a filter's colour is combined with the pixel's.
     enum { FILTER_BLEND_COPY     = 0,
@@ -179,6 +180,8 @@ public:
     void setImage( SDL_Surface *surface, Uint32 texture_format );
     void clearFilters();
     void applyFilters( SDL_Surface *surface );
+    // CONscripter: filters applied to rect of a 32-bit surface (spfilter, screenfilter)
+    static void applyFilterList( SDL_Surface *surface, const SDL_Rect &rect, const Filter *filter, int num );
     unsigned char getAlpha(int x, int y);
 
 #ifdef USE_SMPEG

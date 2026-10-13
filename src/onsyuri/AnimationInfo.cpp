@@ -1207,17 +1207,24 @@ void AnimationInfo::setImage( SDL_Surface *surface, Uint32 texture_format )
 void AnimationInfo::applyFilters( SDL_Surface *surface )
 {
     if (surface == NULL || num_of_filters == 0) return;
+    SDL_Rect rect = { 0, 0, surface->w, surface->h };
+    applyFilterList( surface, rect, filter, num_of_filters );
+}
+
+void AnimationInfo::applyFilterList( SDL_Surface *surface, const SDL_Rect &rect, const Filter *filter, int num )
+{
+    if (surface == NULL || num == 0) return;
 
     SDL_LockSurface( surface );
     SDL_PixelFormat *fmt = surface->format;
-    for (int y=0 ; y<surface->h ; y++){
-        Uint32 *p = (Uint32 *)((Uint8 *)surface->pixels + y*surface->pitch);
-        for (int x=0 ; x<surface->w ; x++, p++){
+    for (int y=rect.y ; y<rect.y+rect.h ; y++){
+        Uint32 *p = (Uint32 *)((Uint8 *)surface->pixels + y*surface->pitch) + rect.x;
+        for (int x=0 ; x<rect.w ; x++, p++){
             int c[3] = { (int)((*p & fmt->Rmask) >> fmt->Rshift),
                          (int)((*p & fmt->Gmask) >> fmt->Gshift),
                          (int)((*p & fmt->Bmask) >> fmt->Bshift) };
-            for (int i=0 ; i<num_of_filters ; i++){
-                Filter &f = filter[i];
+            for (int i=0 ; i<num ; i++){
+                const Filter &f = filter[i];
                 int d[3];
                 if (f.kind == FILTER_COLOUR){
                     for (int k=0 ; k<3 ; k++) d[k] = f.param[k];
@@ -1230,6 +1237,10 @@ void AnimationInfo::applyFilters( SDL_Surface *surface )
                 }
                 else if (f.kind == FILTER_BRIGHTNESS){
                     for (int k=0 ; k<3 ; k++) d[k] = c[k] + f.param[0];
+                }
+                else if (f.kind == FILTER_MONOTONE){
+                    int grey = (c[0]*77 + c[1]*150 + c[2]*29) >> 8;
+                    for (int k=0 ; k<3 ; k++) d[k] = grey + f.param[k];
                 }
                 else continue;
                 for (int k=0 ; k<3 ; k++){
