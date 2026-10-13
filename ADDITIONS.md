@@ -60,6 +60,11 @@ possible.
   update redraws the whole screen.
   `screenshake 1,1000,100,0,800,800,0,0,30,30` shakes harder and harder for
   a second, then keeps shaking until `screenshake 1`.
+- **`windowtrans opacity`**: draws the text window's picture (setwindow's
+  image) at `opacity` (0-255), on top of the picture's own alpha, for a
+  "window opacity" setting. Kept across `setwindow` and loading a save
+  (not saved: set it again from the game's settings at startup); `reset`
+  puts it back to 255. `windowtrans 128`.
 - **`pushscreen first,last`** / **`popscreen`**: save the background,
   sprites `first`..`last` (image, position, visibility, cell, filters),
   the screen filters and the BGM on a stack (32 deep), and put the newest back. Neither

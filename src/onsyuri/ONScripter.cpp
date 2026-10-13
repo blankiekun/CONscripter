@@ -358,6 +358,7 @@ ONScripter::ONScripter()
 {
     is_script_read = false;
     screen_stack_num = 0;
+    window_trans = 255;
     text_size_percent = 100;
     clearScreenFilters();
     memset( screen_effect, 0, sizeof(screen_effect) );
@@ -691,6 +692,7 @@ int ONScripter::init()
 
 void ONScripter::reset()
 {
+    window_trans = 255;
     automode_flag = false;
     automode_time = DEFAULT_AUTOMODE_TIME;
     autoclick_time = 0;
@@ -1325,7 +1327,12 @@ void ONScripter::shadowTextDisplay( SDL_Surface *surface, SDL_Rect &clip )
         SDL_UnlockSurface( surface );
     }
     else if ( sentence_font_info.image_surface ){
+        // windowtrans scales the picture's own opacity.
+        int trans = sentence_font_info.trans;
+        if (window_trans < 255)
+            sentence_font_info.trans = (trans < 0 ? 255 : trans) * window_trans / 255;
         drawTaggedSurface( surface, &sentence_font_info, clip );
+        sentence_font_info.trans = trans;
     }
 }
 

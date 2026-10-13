@@ -233,6 +233,20 @@ int ONScripter::screenrippleCommand()
     return screenEffectCommand( SCREEN_EFFECT_RIPPLE, "screenripple" );
 }
 
+/* windowtrans opacity
+ *   Draws the text window's picture (setwindow's image) at opacity
+ *   (0-255, 255 = as the picture is), on top of the picture's own alpha.
+ *   Kept across setwindow and loading a save (not saved itself: a game
+ *   sets it again from its settings at startup); reset puts it back to
+ *   255. "windowtrans 128" halves the window's opacity. */
+int ONScripter::windowtransCommand()
+{
+    int n = script_h.readInt();
+    window_trans = n < 0 ? 0 : n > 255 ? 255 : n;
+    dirty_rect.add( sentence_font_info.pos );
+    return RET_CONTINUE;
+}
+
 /* screenpulse slot, time, interval, zoom_x, zoom_y, opacity, colour,
  *             tint_opacity, tint
  *   A pulse over the picture behind the text window: when it first

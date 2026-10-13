@@ -172,6 +172,7 @@ public:
     int screenshakeCommand();
     int screenrippleCommand();
     int screenpulseCommand();
+    int windowtransCommand();
     int spbtnCommand();
     int skipoffCommand();
     int sevolCommand();
@@ -668,6 +669,7 @@ private:
     enum { MAX_SCREEN_STACK = 32 };
     ScreenState screen_stack[MAX_SCREEN_STACK];
     int screen_stack_num;
+    int window_trans; // windowtrans: the text window picture's opacity, 0-255
     void clearScreenStack();
     void popScreenState();
     // CONscripter: text size tag "!zNNN" (percent of the window's font size)
