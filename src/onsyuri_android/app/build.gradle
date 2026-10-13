@@ -27,8 +27,8 @@ android {
                 arguments "-Wno-dev",  "-DANDROID_ARM_NEON=TRUE"
             }
         }
-        versionCode 11
-        versionName '0.8.0'
+        versionCode 12
+        versionName '0.9.0'
     }
     signingConfigs {
         release {
