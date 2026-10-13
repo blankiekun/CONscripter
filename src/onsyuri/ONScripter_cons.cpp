@@ -445,6 +445,25 @@ int ONScripter::delsavegameCommand()
     return RET_CONTINUE;
 }
 
+/* "!zNNN" in text draws the following characters at NNN percent of the
+ * text window's font size until the next "!z" ("!z100" or "!z" goes back;
+ * reset clears it). A character takes its scaled width on the line and
+ * sits on the line's baseline; the line pitch stays. The window's column
+ * count still counts characters, so a script with larger text has to
+ * break its lines itself. Only the text window's own text is scaled, not
+ * the backlog. Returns the font to draw info's next character with: info
+ * itself, or scaled set up at the tag's size. */
+FontInfo *ONScripter::textSizeFont( FontInfo *info, FontInfo &scaled )
+{
+    if (info != &sentence_font || text_size_percent == 100) return info;
+    scaled = *info;
+    for (int i=0 ; i<2 ; i++)
+        scaled.font_size_xy[i] = info->font_size_xy[i] * text_size_percent / 100;
+    if (scaled.font_size_xy[0] < 1 || scaled.font_size_xy[1] < 1) return info;
+    if (scaled.openFont( font_file, screen_ratio1, screen_ratio2 ) == NULL) return info;
+    return &scaled;
+}
+
 // The numbers after the '/' of an effect's dll name ("cons_zoom.dll/0,5100").
 static int readDllParams( const char *name, int *param, int max )
 {

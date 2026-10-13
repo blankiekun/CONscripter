@@ -103,6 +103,13 @@ possible.
     3: as 0, while the old picture also grows as it fades.
   `effect 20,99,800,"cons_slide.dll/0,-1,0"` slides the new picture in from
   the right.
+- **Text size tag `!zNNN`**: the text that follows is drawn at `NNN`
+  percent of the text window's font size, until the next `!z` (`!z100` or
+  `!z` goes back; `reset` clears it). Each character takes its scaled
+  width on the line and sits on the line's baseline; the line pitch stays.
+  The window's column count still counts characters, so a script with
+  larger text breaks its lines itself. The backlog shows the text at the
+  normal size. `!z150「ぎゃーっ！！」!z100` (other engines print the tag).
 - **WebP images in the web build**: emscripten's SDL_image port has no
   WebP decoder, so the web build links libwebp (`script/cross_web.sh`
   builds it) and decodes WebP itself, lossy and lossless, with alpha. The

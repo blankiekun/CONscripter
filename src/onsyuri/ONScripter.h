@@ -627,6 +627,9 @@ private:
     int screen_stack_num;
     void clearScreenStack();
     void popScreenState();
+    // CONscripter: text size tag "!zNNN" (percent of the window's font size)
+    int text_size_percent;
+    FontInfo *textSizeFont( FontInfo *info, FontInfo &scaled );
     
     // ----------------------------------------
     // variables and methods relevant to image

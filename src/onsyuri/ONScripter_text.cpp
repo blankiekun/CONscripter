@@ -250,6 +250,11 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
     info->old_xy[0] = info->x(false);
     info->old_xy[1] = info->y(false);
 
+    // CONscripter: drawn at the size of a "!z" tag, on the line's baseline
+    FontInfo scaled_font;
+    FontInfo *glyph_info = textSizeFont(info, scaled_font);
+    int size_dy = info->font_size_xy[1] - glyph_info->font_size_xy[1];
+
     if (lookback_flag && info == &sentence_font)
         addCharBox(current_page->text_count,
                    info->x() * screen_ratio1 / screen_ratio2,
@@ -264,11 +269,11 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
     for (int i=0 ; i<2 ; i++){
         int xy[2];
         xy[0] = info->x() * screen_ratio1 / screen_ratio2;
-        xy[1] = info->y() * screen_ratio1 / screen_ratio2;
+        xy[1] = (info->y() + size_dy) * screen_ratio1 / screen_ratio2;
     
         SDL_Color color = {info->color[0], info->color[1], info->color[2]};
         SDL_Rect dst_rect;
-        drawGlyph( surface, info, color, text2, xy, cache_info, clip, dst_rect );
+        drawGlyph( surface, glyph_info, color, text2, xy, cache_info, clip, dst_rect );
 
         if ( surface == accumulation_surface &&
              !flush_flag &&
@@ -287,9 +292,11 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
 
         if (IS_TWO_BYTE(text[0])){
             info->advanceCharInHankaku(2);
+            if (glyph_info != info) info->addLineOffset(glyph_info->font_size_xy[0] - info->font_size_xy[0]);
             break;
         }
         info->advanceCharInHankaku(1);
+        if (glyph_info != info) info->addLineOffset((glyph_info->font_size_xy[0] - info->font_size_xy[0])/2);
         text2[0] = text[1];
         if (text2[0] == 0) break;
     }
@@ -988,6 +995,18 @@ bool ONScripter::processText()
                 while (script_h.getStringBuffer()[ string_buffer_offset ] == ' ' ||
                        script_h.getStringBuffer()[ string_buffer_offset ] == '\t') string_buffer_offset++;
             }
+        }
+        else if ( script_h.getStringBuffer()[ string_buffer_offset ] == 'z' ){
+            // CONscripter: "!zNNN" draws the following text at NNN percent
+            // of the window's font size; "!z100" or "!z" goes back
+            string_buffer_offset++;
+            int t = 0;
+            while( script_h.getStringBuffer()[ string_buffer_offset ] >= '0' &&
+                   script_h.getStringBuffer()[ string_buffer_offset ] <= '9' ){
+                t = t*10 + script_h.getStringBuffer()[ string_buffer_offset ] - '0';
+                string_buffer_offset++;
+            }
+            text_size_percent = (t > 0) ? t : 100;
         }
         else if ( script_h.getStringBuffer()[ string_buffer_offset ] == 'w' ||
                   script_h.getStringBuffer()[ string_buffer_offset ] == 'd' ){
