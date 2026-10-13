@@ -33,7 +33,7 @@ possible.
   files and by `pushscreen`, cleared by `reset`.
   `screenfilter 1,4,0,256,-200:print 10` darkens the scene for night.
 - **`screenshake slot,time,interval,mode,speed_x,speed_y,x0,y0,x1,y1`**
-  and **`screenripple slot,"map",time,interval,opacity0,opacity1,amp0,amp1,angle,angle_step,phase_step`**:
+  and **`screenripple slot,"map",time,interval,opacity0,opacity1,amp0,amp1,angle,angle_step,phase_step[,blend]`**:
   effects that move by themselves on the same picture as `screenfilter`
   (applied after the filters), while the script and the text go on. Every
   `interval` ms they take a step; over `time` ms their sizes go from the
@@ -44,7 +44,8 @@ possible.
   each pixel from `amp` × sin(2π(grey/256 + phase/1000)) pixels away in
   direction `angle` (tenths of a degree, 0 = right, 900 = down), `grey`
   being the pixel's level in the greyscale image `map`, and lays the
-  result over the picture at `opacity` (0-256); each step turns the angle
+  result over the picture at `opacity` (0-256), or with a 10th number
+  `blend` 1 multiplies the picture by it at that opacity; each step turns the angle
   by `angle_step` and moves the phase by `phase_step`.
   **`screenpulse slot,time,interval,zoom_x,zoom_y,opacity,colour,tint_opacity,tint`**
   keeps a copy of the picture when it first shows, tinted (`tint` 0 none,

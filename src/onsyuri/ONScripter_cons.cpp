@@ -205,12 +205,14 @@ void ONScripter::applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip )
  *   harder for a second; "screenshake 1" stops it.
  *
  * screenripple slot[, "map", time, interval, opacity0, opacity1, amp0,
- *              amp1, angle, angle_step, phase_step]
+ *              amp1, angle, angle_step, phase_step[, blend]]
  *   Ripples the same picture through a displacement map (a greyscale
  *   image as large as the screen): each pixel is taken from amp *
  *   sin(2 pi (grey / 256 + phase / 1000)) pixels away in the direction
  *   angle (tenths of a degree, 0 = right, 900 = down). The rippled picture
- *   is laid over the plain one at opacity (0-256). Over time ms, opacity
+ *   is laid over the plain one at opacity (0-256); with blend 1 the plain
+ *   picture is multiplied by the rippled one instead (darker where both
+ *   are dark), at that opacity. Over time ms, opacity
  *   goes from opacity0 to opacity1 and amp from amp0 to amp1; every
  *   interval ms the angle turns by angle_step and the phase moves by
  *   phase_step.
@@ -268,8 +270,11 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
     ScreenEffect &e = screen_effect[slot-1];
     clearScreenEffect( e );
     if (kind == SCREEN_EFFECT_RIPPLE) setStr( &e.map_name, script_h.readStr() );
-    for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++)
+    // Nine numbers, then optional ones (screenripple's blend).
+    for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++){
+        if (i >= 9 && !(script_h.getEndStatus() & ScriptHandler::END_COMMA)) break;
         e.param[i] = script_h.readInt();
+    }
     e.kind = kind;
     startScreenEffect( e );
     dirty_rect.fill( screen_width, screen_height );
@@ -502,6 +507,7 @@ void ONScripter::applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip )
             if (sine[256] == 0)
                 for (int k=0 ; k<1024 ; k++) sine[k] = (int)lround(sin( M_PI * 2 * k / 1024 ) * 65536);
             int opa = e.opacity < 0 ? 0 : e.opacity > 256 ? 256 : e.opacity;
+            bool multiply = e.param[9] == 1;
             for (int y=clip.y ; y<clip.y + clip.h ; y++){
                 ONSBuf *dst = buf + y * pitch;
                 for (int x=clip.x ; x<clip.x + clip.w ; x++){
@@ -515,6 +521,13 @@ void ONScripter::applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip )
                     if (sx < 0 || sx >= w) sx = x;
                     if (sy < 0 || sy >= h) sy = y;
                     ONSBuf src = copy[sy * w + sx];
+                    if (multiply){
+                        ONSBuf o = copy[y * w + x];
+                        ONSBuf r = ((((o >> 16) & 0xff) * ((src >> 16) & 0xff)) / 255) << 16;
+                        ONSBuf g = ((((o >> 8) & 0xff) * ((src >> 8) & 0xff)) / 255) << 8;
+                        ONSBuf b = ((o & 0xff) * (src & 0xff)) / 255;
+                        src = (o & 0xff000000) | r | g | b;
+                    }
                     if (opa >= 256){
                         dst[x] = src;
                         continue;
