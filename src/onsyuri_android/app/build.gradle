@@ -27,8 +27,8 @@ android {
                 arguments "-Wno-dev",  "-DANDROID_ARM_NEON=TRUE"
             }
         }
-        versionCode 18
-        versionName '0.15.0'
+        versionCode 19
+        versionName '0.16.0'
     }
     signingConfigs {
         release {
