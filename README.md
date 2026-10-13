@@ -17,10 +17,10 @@ CONscripter is the engine behind two companion projects:
 
 - [chimimouryou](https://github.com/blankiekun/chimimouryou), a self-hosted
   Japanese e-book reader, plays visual novels in the browser with the
-  WebAssembly build of CONscripter. A small patch
-  ([`scripts/onsyuri/text-hook.patch`](https://github.com/blankiekun/chimimouryou/blob/main/scripts/onsyuri/text-hook.patch))
-  hands each page's text and where each character was drawn to the web page,
-  which lays it over the game for Yomitan and counts it in reading statistics.
+  WebAssembly build of CONscripter. The web build hands each page's text and
+  where each character was drawn to the web page (see the text hooks under
+  "CONscripter additions"), which lays it over the game for Yomitan and
+  counts it in reading statistics.
 - [conscripter-convert](https://github.com/blankiekun/conscripter-convert)
   (`vn2ons`) converts games made with other engines (Xuse, for now) into a
   `0.txt` script and `.nsa` archives that CONscripter plays without engine
@@ -103,6 +103,22 @@ possible.
     3: as 0, while the old picture also grows as it fades.
   `effect 20,99,800,"cons_slide.dll/0,-1,0"` slides the new picture in from
   the right.
+- **Text hooks (web build)**: the engine calls these functions on the
+  page's global scope (`self`) when they are defined, so the page can lay
+  selectable text over the game:
+  - `onsyuriText(text, skipped, boxes)` at each click wait and new page:
+    `text` is the page shown so far as raw script bytes (a `Uint8Array`
+    in the script's encoding), `skipped` is 1 while the reader skips
+    text, and `boxes` is an `Int32Array` of `offset, x, y, size` per
+    character drawn (byte offset in `text`; position and font size in
+    screen pixels).
+  - `onsyuriChoice(text, x, y, size, pitch)` for each `select` choice as
+    it is drawn: its raw bytes, position, font size and character pitch
+    in screen pixels.
+  - `onsyuriOverlay(event)` when drawn text leaves the screen: `'page'` (a
+    new page, or the text window hidden), `'choices'` (the buttons
+    cleared), `'enter'` (the system menu or backlog opened), `'leave'`
+    (back to the page) or `'reset'` (a game loaded from the menu).
 - **Save files** end with an extra block (`CONS`, a version, then the
   state above) after the NScripter data. Saves without it load as before.
 

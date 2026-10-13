@@ -1177,6 +1177,10 @@ int ONScripter::parseLine( )
 /* ---------------------------------------- */
 void ONScripter::deleteButtonLink()
 {
+#ifdef WEB
+    // chimimouryou: choices (and menu items) leave the screen.
+    EM_ASM({ if (self.onsyuriOverlay) self.onsyuriOverlay('choices'); });
+#endif
     ButtonLink *b1 = root_button_link.next;
 
     while( b1 ){
@@ -1321,6 +1325,10 @@ void ONScripter::shadowTextDisplay( SDL_Surface *surface, SDL_Rect &clip )
 
 void ONScripter::newPage()
 {
+#ifdef WEB
+    // chimimouryou: the page's text leaves the screen; the web page drops its overlay.
+    EM_ASM({ if (self.onsyuriOverlay) self.onsyuriOverlay('page'); });
+#endif
     if ( current_page->text_count != 0 ){
         current_page = current_page->next;
         if ( start_page == current_page )
@@ -1364,6 +1372,15 @@ ButtonLink *ONScripter::getSelectableSentence( char *buffer, FontInfo *info, boo
 
     setupAnimationInfo( ai, info );
     bl->select_rect = bl->image_rect = ai->pos;
+#ifdef WEB
+    // chimimouryou: a choice's text and where it is drawn (screen pixels), for hover lookups.
+    EM_ASM({
+        if (self.onsyuriChoice)
+            self.onsyuriChoice(HEAPU8.slice($0, $0 + $1), $2, $3, $4, $5);
+    }, buffer, strlen(buffer), ai->pos.x, ai->pos.y,
+       info->font_size_xy[1] * screen_ratio1 / screen_ratio2,
+       info->pitch_xy[0] * screen_ratio1 / screen_ratio2);
+#endif
 
     info->newLine();
     if (info->getTateyokoMode() == FontInfo::YOKO_MODE)

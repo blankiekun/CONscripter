@@ -23,6 +23,9 @@
  */
 
 #include "ONScripter.h"
+#if defined(WEB)
+#include <emscripten.h>
+#endif
 #include "Utils.h"
 #include "coding2utf16.h"
 
@@ -86,6 +89,10 @@ static int osprintf(char *str, const char *format, ...)
 
 void ONScripter::enterSystemCall()
 {
+#if defined(WEB)
+    // chimimouryou: the system menu or backlog covers the page and its choices.
+    EM_ASM({ if (self.onsyuriOverlay) self.onsyuriOverlay('enter'); });
+#endif
     shelter_button_link = root_button_link.next;
     root_button_link.next = NULL;
     shelter_select_link = root_select_link.next;
@@ -102,6 +109,10 @@ void ONScripter::enterSystemCall()
 
 void ONScripter::leaveSystemCall( bool restore_flag )
 {
+#if defined(WEB)
+    // chimimouryou: back to the page (restored) or elsewhere (a loaded game).
+    EM_ASM({ if (self.onsyuriOverlay) self.onsyuriOverlay($0 ? 'leave' : 'reset'); }, restore_flag);
+#endif
     current_font = &sentence_font;
     display_mode = shelter_display_mode;
 
