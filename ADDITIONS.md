@@ -88,6 +88,11 @@ possible.
     1: the old picture grows and fades out over the new one; 2: zooms
     into the old picture for the first half, then out of the new one;
     3: as 0, while the old picture also grows as it fades.
+  - `effect num,99,ms,"cons_flip.dll/axis,layer"`: a picture turns like a
+    card seen edge-on about the screen centre (axis 0 squeezes the width,
+    1 the height): layer 0, the new picture grows from a line over the old
+    one (its size sin(p · 90°)); layer 1, the old picture shrinks to a line
+    over the new one (cos(p · 90°)).
   `effect 20,99,800,"cons_slide.dll/0,-1,0"` slides the new picture in from
   the right.
 - **Text size tag `!zNNN`**: the text that follows is drawn at `NNN`

@@ -1114,6 +1114,60 @@ void ONScripter::effectZoom( const char *params, int duration )
 #endif
 }
 
+// src squeezed to factor f (0-1) of its width (axis 0) or height (axis 1)
+// about the screen centre, drawn opaque over dst (nearest pixel).
+static void drawSqueezed( SDL_Surface *src, SDL_Surface *dst, int axis, float f )
+{
+    int w = dst->w, h = dst->h;
+    int len = axis == 0 ? w : h;
+    int span = (int)(len * f + 0.5f);
+    if (span <= 0) return;
+    int start = (len - span) / 2;
+    SDL_LockSurface(src);
+    SDL_LockSurface(dst);
+    for (int i=0 ; i<span ; i++){
+        int s = (int)((i + 0.5f) * len / span);
+        if (s >= len) s = len - 1;
+        int d = start + i;
+        if (axis == 0){
+            for (int y=0 ; y<h ; y++)
+                *((Uint32*)((Uint8*)dst->pixels + y * dst->pitch) + d) = *((const Uint32*)((const Uint8*)src->pixels + y * src->pitch) + s);
+        }
+        else
+            memcpy((Uint8*)dst->pixels + d * dst->pitch, (const Uint8*)src->pixels + s * src->pitch, w * 4);
+    }
+    SDL_UnlockSurface(dst);
+    SDL_UnlockSurface(src);
+}
+
+/* effect num,99,duration,"cons_flip.dll/axis,layer"
+ *   A picture turns like a card seen edge-on, about the screen centre:
+ *   axis 0 squeezes the width, 1 the height. layer 0: the new picture
+ *   grows from a line over the old one, its size sin(p * 90 degrees);
+ *   1: the old picture shrinks to a line over the new one, cos(p * 90
+ *   degrees). p is the progress, 0 to 1. */
+void ONScripter::effectFlip( const char *params, int duration )
+{
+#if defined(BPP16)
+    alphaBlend( NULL, ALPHA_BLEND_CONST, 256 * effect_counter / duration, &dirty_rect.bounding_box );
+#else
+    int param[2] = {0, 0};
+    readDllParams(params, param, 2);
+    int axis = param[0] ? 1 : 0, layer = param[1];
+    float p = duration > 0 ? (float)effect_counter / duration : 1.0f;
+    if (p > 1.0f) p = 1.0f;
+    const float quarter = 1.57079632679f;
+    if (layer == 0){
+        SDL_BlitSurface(effect_src_surface, NULL, accumulation_surface, NULL);
+        drawSqueezed(effect_dst_surface, accumulation_surface, axis, sinf(p * quarter));
+    }
+    else{
+        SDL_BlitSurface(effect_dst_surface, NULL, accumulation_surface, NULL);
+        drawSqueezed(effect_src_surface, accumulation_surface, axis, cosf(p * quarter));
+    }
+#endif
+}
+
 /* WebP images, for builds whose SDL_image has no WebP decoder (the
  * emscripten port). Returns NULL for anything that isn't WebP, or when
  * built without USE_WEBP, so the caller falls back to IMG_Load_RW. */

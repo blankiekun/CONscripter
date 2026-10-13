@@ -532,6 +532,7 @@ private:
     // CONscripter: effect 99 with "cons_slide.dll" / "cons_zoom.dll" (ONScripter_cons.cpp)
     void effectSlide( const char *params, int duration );
     void effectZoom( const char *params, int duration );
+    void effectFlip( const char *params, int duration );
 
 #ifdef USE_BUILTIN_EFFECTS
     //cascade
