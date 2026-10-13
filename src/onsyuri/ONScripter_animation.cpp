@@ -143,8 +143,10 @@ void ONScripter::setupAnimationInfo( AnimationInfo *anim, FontInfo *info )
         strcmp(anim->file_name, anim->surface_name) == 0 &&
         ((!anim->mask_file_name && !anim->mask_surface_name) ||
          (anim->mask_file_name && !anim->mask_surface_name &&
-          strcmp(anim->mask_file_name, anim->mask_surface_name) == 0))) return;
+          strcmp(anim->mask_file_name, anim->mask_surface_name) == 0)) &&
+        !anim->filter_changed) return;
 
+    anim->filter_changed = false;
     anim->deleteSurface();
     anim->abs_flag = true;
 
@@ -237,6 +239,7 @@ void ONScripter::setupAnimationInfo( AnimationInfo *anim, FontInfo *info )
             surface_m = loadImage( anim->mask_file_name );
         
         surface = anim->setupImageAlpha(surface, surface_m, has_alpha);
+        anim->applyFilters(surface);
 
         if (surface &&
             screen_ratio2 != screen_ratio1 &&

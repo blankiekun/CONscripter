@@ -493,6 +493,7 @@ set(CONSCRIPTER_CODE
     src/onsyuri/ONScripter.cpp
     src/onsyuri/ONScripter_animation.cpp
     src/onsyuri/ONScripter_command.cpp
+    src/onsyuri/ONScripter_cons.cpp
     src/onsyuri/ONScripter_effect.cpp
     src/onsyuri/ONScripter_effect_breakup.cpp
     src/onsyuri/ONScripter_event.cpp

@@ -166,6 +166,7 @@ public:
     int spreloadCommand();
     int splitCommand();
     int spclclkCommand();
+    int spfilterCommand();
     int spbtnCommand();
     int skipoffCommand();
     int sevolCommand();
@@ -591,6 +592,9 @@ private:
 
     int  loadSaveFile2( int file_version );
     void saveSaveFile2( bool output_flag );
+    // CONscripter: extra state after the NScripter save data (ONScripter_cons.cpp)
+    void loadSaveFileCons();
+    void saveSaveFileCons( bool output_flag );
     
     // ----------------------------------------
     // variables and methods relevant to image

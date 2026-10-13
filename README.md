@@ -51,6 +51,30 @@ CONscripter is the engine behind two companion projects:
 | Android | API 22+ (Android 5.1) | SD cards through SAF, scoped storage, non-English paths, video through the system player, 16 KB pages |
 | RetroArch | libretro core `conscripter_libretro` | |
 
+## CONscripter additions
+
+When a game converted by
+[conscripter-convert](https://github.com/blankiekun/conscripter-convert)
+needs something the NScripter command set can't do, it is added here.
+Every addition is opt-in: scripts that don't use it behave exactly as in
+ONScripter-Yuri. The code is in `src/onsyuri/ONScripter_cons.cpp` where
+possible.
+
+- **`spfilter num,kind[,blend[,strength[,p1,p2,p3]]]`**: colour filters
+  on an `lsp` sprite, applied when its image is loaded (no cost per
+  frame). `kind` makes a colour for each pixel: 1 the colour `p1,p2,p3`
+  (r, g, b); 2 the pixel in greyscale; 3 its negative; 4 the pixel
+  plus `p1` (-255..255). `blend` combines it with the pixel: 0 copy
+  (default), 1 multiply, 2 add, 3 screen. `strength` 0-256 (default 256)
+  is how much of the result replaces the pixel. Up to 4 filters stack in
+  order; `spfilter num,0` removes them. The filters stay when `lsp`
+  changes the sprite's image, are removed by `csp`, are ignored by a
+  sprite without an image, and are kept in save files.
+  `spfilter 10,1,1,256,148,152,200` tints sprite 10 for a night scene;
+  `spfilter 10,1,0,256,0,0,0` makes it a black silhouette.
+- **Save files** end with an extra block (`CONS`, a version, then the
+  state above) after the NScripter data. Saves without it load as before.
+
 ## 1. Usage
 
 ### (1) Command line

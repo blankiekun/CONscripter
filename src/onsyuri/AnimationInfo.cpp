@@ -61,6 +61,8 @@ AnimationInfo::AnimationInfo()
 
     trans_mode = TRANS_TOPLEFT;
     affine_flag = false;
+    num_of_filters = 0;
+    filter_changed = false;
 
     if (!is_inv_alpha_lut_initialized){
         inv_alpha_lut[0] = 255;
@@ -186,6 +188,13 @@ void AnimationInfo::remove()
     deleteImageName();
     deleteSurface();
     removeTag();
+    clearFilters();
+}
+
+void AnimationInfo::clearFilters()
+{
+    if (num_of_filters > 0) filter_changed = true;
+    num_of_filters = 0;
 }
 
 void AnimationInfo::removeTag()
@@ -1193,6 +1202,52 @@ void AnimationInfo::setImage( SDL_Surface *surface, Uint32 texture_format )
     this->texture_format = texture_format;
     image_surface = surface; // deleteSurface() should be called beforehand
     allocImage(surface->w, surface->h, texture_format);
+}
+
+void AnimationInfo::applyFilters( SDL_Surface *surface )
+{
+    if (surface == NULL || num_of_filters == 0) return;
+
+    SDL_LockSurface( surface );
+    SDL_PixelFormat *fmt = surface->format;
+    for (int y=0 ; y<surface->h ; y++){
+        Uint32 *p = (Uint32 *)((Uint8 *)surface->pixels + y*surface->pitch);
+        for (int x=0 ; x<surface->w ; x++, p++){
+            int c[3] = { (int)((*p & fmt->Rmask) >> fmt->Rshift),
+                         (int)((*p & fmt->Gmask) >> fmt->Gshift),
+                         (int)((*p & fmt->Bmask) >> fmt->Bshift) };
+            for (int i=0 ; i<num_of_filters ; i++){
+                Filter &f = filter[i];
+                int d[3];
+                if (f.kind == FILTER_COLOUR){
+                    for (int k=0 ; k<3 ; k++) d[k] = f.param[k];
+                }
+                else if (f.kind == FILTER_GREYSCALE){
+                    d[0] = d[1] = d[2] = (c[0]*77 + c[1]*150 + c[2]*29) >> 8;
+                }
+                else if (f.kind == FILTER_NEGATIVE){
+                    for (int k=0 ; k<3 ; k++) d[k] = 255 - c[k];
+                }
+                else if (f.kind == FILTER_BRIGHTNESS){
+                    for (int k=0 ; k<3 ; k++) d[k] = c[k] + f.param[0];
+                }
+                else continue;
+                for (int k=0 ; k<3 ; k++){
+                    if      (d[k] < 0)   d[k] = 0;
+                    else if (d[k] > 255) d[k] = 255;
+                    if      (f.blend == FILTER_BLEND_MULTIPLY) d[k] = c[k] * d[k] / 255;
+                    else if (f.blend == FILTER_BLEND_ADD)      d[k] = (c[k] + d[k] > 255) ? 255 : c[k] + d[k];
+                    else if (f.blend == FILTER_BLEND_SCREEN)   d[k] = 255 - (255 - c[k]) * (255 - d[k]) / 255;
+                    c[k] += (d[k] - c[k]) * f.strength / 256;
+                }
+            }
+            *p = (*p & ~(fmt->Rmask | fmt->Gmask | fmt->Bmask)) |
+                 ((Uint32)c[0] << fmt->Rshift) |
+                 ((Uint32)c[1] << fmt->Gshift) |
+                 ((Uint32)c[2] << fmt->Bshift);
+        }
+    }
+    SDL_UnlockSurface( surface );
 }
 
 unsigned char AnimationInfo::getAlpha(int x, int y)

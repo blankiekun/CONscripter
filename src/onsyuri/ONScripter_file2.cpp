@@ -446,6 +446,8 @@ int ONScripter::loadSaveFile2( int file_version )
     }
     script_h.setCurrent( buf );
 
+    loadSaveFileCons();
+
     display_mode = shelter_display_mode = DISPLAY_MODE_TEXT;
     clickstr_state = CLICK_NONE;
     draw_cursor_flag = false;
@@ -710,4 +712,6 @@ void ONScripter::saveSaveFile2( bool output_flag )
         }
     }
     writeInt( i, output_flag );
+
+    saveSaveFileCons( output_flag );
 }

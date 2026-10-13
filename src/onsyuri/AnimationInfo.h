@@ -102,6 +102,31 @@ public:
     int blending_mode;
     int cos_i, sin_i;
 
+    /* CONscripter: colour filters (spfilter), applied in order when the
+       image is loaded. They stay across lsp and are cleared by remove(). */
+    enum { FILTER_NONE       = 0,
+           FILTER_COLOUR     = 1, // param = r, g, b
+           FILTER_GREYSCALE  = 2,
+           FILTER_NEGATIVE   = 3,
+           FILTER_BRIGHTNESS = 4  // param[0] = -255..255, added to r, g, b
+    };
+    // How a filter's colour is combined with the pixel's.
+    enum { FILTER_BLEND_COPY     = 0,
+           FILTER_BLEND_MULTIPLY = 1,
+           FILTER_BLEND_ADD      = 2,
+           FILTER_BLEND_SCREEN   = 3
+    };
+    enum { MAX_FILTER_NUM = 4 };
+    struct Filter {
+        int kind;
+        int blend;
+        int strength; // 0..256: how much of the blended colour replaces the pixel's
+        int param[3];
+    };
+    Filter filter[MAX_FILTER_NUM];
+    int num_of_filters;
+    bool filter_changed; // image_surface doesn't reflect filter[] yet
+
     int font_size_xy[2]; // used by prnum and lsp string
     int font_pitch[2]; // used by lsp string
     int next_time;
@@ -152,6 +177,8 @@ public:
     void fill( Uint8 r, Uint8 g, Uint8 b, Uint8 a );
     SDL_Surface *setupImageAlpha( SDL_Surface *surface, SDL_Surface *surface_m, bool has_alpha );
     void setImage( SDL_Surface *surface, Uint32 texture_format );
+    void clearFilters();
+    void applyFilters( SDL_Surface *surface );
     unsigned char getAlpha(int x, int y);
 
 #ifdef USE_SMPEG
