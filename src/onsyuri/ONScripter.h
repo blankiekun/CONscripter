@@ -191,7 +191,9 @@ public:
     int puttextCommand();
     int prnumclearCommand();
     int prnumCommand();
+    int pushscreenCommand();
     int printCommand();
+    int popscreenCommand();
     int playstopCommand();
     int playonceCommand();
     int playCommand();
@@ -595,6 +597,27 @@ private:
     // CONscripter: extra state after the NScripter save data (ONScripter_cons.cpp)
     void loadSaveFileCons();
     void saveSaveFileCons( bool output_flag );
+
+    // CONscripter: screen states saved by pushscreen, restored by popscreen
+    struct ScreenSprite {
+        char *image_name;
+        int x, y, cell, trans;
+        bool visible;
+        int num_of_filters;
+        AnimationInfo::Filter filter[AnimationInfo::MAX_FILTER_NUM];
+    };
+    struct ScreenState {
+        char *bg_name;
+        char *bgm_name; // NULL: no BGM
+        bool bgm_loop;
+        int first, last; // the sprites saved
+        ScreenSprite *sprite;
+    };
+    enum { MAX_SCREEN_STACK = 32 };
+    ScreenState screen_stack[MAX_SCREEN_STACK];
+    int screen_stack_num;
+    void clearScreenStack();
+    void popScreenState();
     
     // ----------------------------------------
     // variables and methods relevant to image

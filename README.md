@@ -72,6 +72,15 @@ possible.
   sprite without an image, and are kept in save files.
   `spfilter 10,1,1,256,148,152,200` tints sprite 10 for a night scene;
   `spfilter 10,1,0,256,0,0,0` makes it a black silhouette.
+- **`pushscreen first,last`** / **`popscreen`**: save the background,
+  sprites `first`..`last` (image, position, visibility, cell, filters)
+  and the BGM on a stack (32 deep), and put the newest back. Neither
+  draws: follow `popscreen` with `print`. Unchanged sprites aren't
+  reloaded and a BGM that is still playing keeps playing. For a scene run
+  as a subroutine that may change the whole screen:
+  `pushscreen 0,999:gosub *scene:popscreen:print 10`. The stack is kept
+  in save files (so a game saved inside the scene still returns
+  correctly) and emptied by `reset`.
 - **Save files** end with an extra block (`CONS`, a version, then the
   state above) after the NScripter data. Saves without it load as before.
 

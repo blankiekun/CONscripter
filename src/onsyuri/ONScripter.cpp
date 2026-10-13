@@ -357,6 +357,7 @@ void ONScripter::openAudio(int freq)
 ONScripter::ONScripter()
 {
     is_script_read = false;
+    screen_stack_num = 0;
 
     cdrom_drive_number = 0;
     cdaudio_flag = false;
@@ -783,6 +784,7 @@ void ONScripter::resetSub()
     deleteNestInfo();
     deleteButtonLink();
     deleteSelectLink();
+    clearScreenStack();
 
     stopCommand();
     loopbgmstopCommand();

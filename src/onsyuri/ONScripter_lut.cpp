@@ -131,10 +131,12 @@ static ONScripter::FuncLUT func_lut[] = {
     {"quake",			&ONScripter::quakeCommand},
 
     {"puttext",			&ONScripter::puttextCommand},
+    {"pushscreen",		&ONScripter::pushscreenCommand},
     {"prnumclear",		&ONScripter::prnumclearCommand},
     {"prnum",			&ONScripter::prnumCommand},
     {"print",			&ONScripter::printCommand},
     {"pretextgosub",	&ONScripter::pretextgosubCommand},
+    {"popscreen",		&ONScripter::popscreenCommand},
     {"playstop",		&ONScripter::playstopCommand},
     {"playonce",		&ONScripter::playCommand},
     {"play",			&ONScripter::playCommand},
