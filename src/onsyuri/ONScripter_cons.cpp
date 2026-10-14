@@ -2806,3 +2806,27 @@ void ONScripter::webPageHook()
            script_h.getOffset( address ), script_h.getScriptLength(), name.c_str(), script_h.getKidokuState());
 #endif
 }
+
+// --trace-long-wait ms: a "long wait" warn when a wait, effect or BGM fade
+// asks for more than this, whether or not auto-play shortens it (a
+// "print 10,270000" that makes the player wait four minutes).
+void ONScripter::setTraceLongWait( int ms )
+{
+    trace_long_wait = ms;
+}
+
+void ONScripter::traceLongWait( int ms )
+{
+    if (ms <= trace_long_wait) return;
+    const char *cmd = trace_recent_count ? trace_recent[(trace_recent_count-1) % TRACE_RECENT].cmd : NULL;
+    char buf[96];
+    snprintf( buf, sizeof(buf), "{\"t\":\"warn\",\"pg\":%d,\"what\":\"long wait\",\"cmd\":", trace_page );
+    std::string r = buf;
+    traceString( r, cmd );
+    snprintf( buf, sizeof(buf), ",\"ms\":%d,\"at\":", ms );
+    r += buf;
+    traceAt( r, trace_cmd_start );
+    traceVia( r );
+    r += '}';
+    traceWrite( r );
+}

@@ -132,6 +132,7 @@ public:
     void setStartLoad(int slot); // CONscripter: --load, --checkpoint-every, --checkpoint-slot
     void setCheckpoints(int pages, int slot);
     void setTraceVars(const char *spec); // CONscripter: --trace-vars
+    void setTraceLongWait(int ms); // CONscripter: --trace-long-wait
     void setDumpVars(const char *path);
     const char* getArchivePath() { return archive_path; }
     void setWindowWidth(int width);
@@ -806,6 +807,8 @@ private:
     std::vector<std::string> trace_str_seen;
     void traceVarsSetup();
     void traceVarChanges( char *at );
+    int trace_long_wait;             // --trace-long-wait ms
+    void traceLongWait( int ms );
     static void traceErrorHook( const char *message );
     static void traceExitHook();
     

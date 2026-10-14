@@ -368,6 +368,7 @@ ONScripter::ONScripter()
     start_load = -1;
     trace_vars_spec = NULL;
     trace_vars_flag = false;
+    trace_long_wait = 10000;
     ruby_hidden = false;
     text_speed_override = -1;
     web_mode_sent = -1;

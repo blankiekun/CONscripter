@@ -95,6 +95,7 @@ bool ONScripter::setEffect( EffectLink *effect )
     effect_counter = 0;
 
     effect_duration = effect->duration;
+    if (trace_fp) traceLongWait( effect_duration ); // CONscripter: as asked, however long it is shown
     if (skip_mode & SKIP_NORMAL || ctrl_pressed_status){
         // shorten the duration of effects while skipping
         if ( effect_cut_flag ) effect_duration = 0;

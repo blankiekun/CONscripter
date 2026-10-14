@@ -1428,6 +1428,7 @@ int ONScripter::mp3stopCommand()
 int ONScripter::mp3fadeoutCommand()
 {
     mp3fadeout_duration = script_h.readInt();
+    if (trace_fp) traceLongWait( mp3fadeout_duration ); // CONscripter
 
     return RET_CONTINUE;
 }
@@ -1435,6 +1436,7 @@ int ONScripter::mp3fadeoutCommand()
 int ONScripter::mp3fadeinCommand()
 {
     mp3fadein_duration = script_h.readInt();
+    if (trace_fp) traceLongWait( mp3fadein_duration ); // CONscripter
 
     return RET_CONTINUE;
 }
