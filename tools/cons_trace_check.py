@@ -74,7 +74,8 @@ GARBLED = [
     (re.compile('[\u7e3a\u7e67\u7e5d].{0,3}[\u7e3a\u7e67\u7e5d]'), 'UTF-8 read as Shift-JIS (mojibake)'),
     (re.compile('\u00c3[\u0080-\u00bf]|\u00e2\u20ac|\u00c2[\u00a0-\u00bf]'), 'UTF-8 read as Latin-1 (mojibake)'),
 ]
-HALF_KANA = re.compile('[\uff61-\uff9f]{3,}')
+# UTF-8 read as Shift-JIS: kanji and half-width katakana in turn (a run of katakana alone is fine)
+HALF_KANA = re.compile('(?:[\u3000-\u30ff\u4e00-\u9fff][\uff61-\uff9f]){3,}')
 # Text tags the engine runs; in a page's text they were shown instead.
 TAGS = re.compile(r'![wd]\d+|!s(?:\d+|d)|#[0-9A-Fa-f]{6}|~[^~\n]*~|\\|@')
 # In a text line of the script: these print a variable or read an array.
@@ -207,6 +208,8 @@ class Checker:
         self.stretches = {}                # (from at, to at) -> [total ms, count, max, pg, desc]
         self.mem = []                      # (pg, at, bytes, surfaces)
         self.starts = []                   # (channel, file) started since the last page
+        self.reloading = False             # between a "roundtrip" record and the next page
+        self.mismatch = OrderedDict()      # the fields that differed -> [round trips, first at, page, diff]
         self.twice = OrderedDict()         # file -> [first at, page, channels, pages] played on two channels
 
     def add(self, rule, key, at, message):
@@ -235,6 +238,7 @@ class Checker:
             self.counts[t] += 1
             if t == 'page':
                 self.pg = r['pg']
+                self.reloading = False
             for k in ('at', 'via'):
                 if isinstance(r.get(k), str):
                     self.labels.add(label_of(r[k]).lower())
@@ -256,6 +260,8 @@ class Checker:
                     self.page(r)
             elif t == 'warn':
                 self.warn(r)
+            elif t == 'roundtrip':
+                self.reloading = True
             elif t == 'error':
                 stack = ' <- '.join(r.get('stack') or [])
                 self.add('error', None, r.get('at'), '%s error: %s%s' % (
@@ -282,6 +288,10 @@ class Checker:
             self.add('missing', None, at, '%s %s%s' % (what, f, ' (%d times)' % n if n > 1 else ''))
         if self.args.script and self.lines is None:
             self.lines = script_lines(self.args.script, False)
+        for (n, at, pg, diff) in self.mismatch.values():
+            self.pg = pg
+            self.add('save', None, at, 'after a save and load: %s%s' % (
+                '; '.join(diff), ' (and %d more round trips with the same fields)' % (n - 1) if n > 1 else ''))
         for f, (at, pg, chs, n) in self.twice.items():
             self.pg = pg
             self.add('sound', None, at, '%s plays on two channels at once (%s), on %d page%s' % (
@@ -290,6 +300,7 @@ class Checker:
         self.slow()
         self.memory()
         if self.lines is not None:
+            self.reserved()
             self.coverage()
 
     def warn(self, r):
@@ -304,14 +315,16 @@ class Checker:
             self.add('web', r.get('file') or at, at, '%s is %sx%s, too large for the web build' % (
                 r.get('file') or 'a scaled picture', r.get('w'), r.get('h')))
         elif what == 'save/load mismatch':
-            self.add('save', at, at, 'after a save and load: %s' % '; '.join(r.get('diff') or []))
+            diff = r.get('diff') or []
+            fields = tuple(sorted({d.split(':')[0] for d in diff}))
+            s = self.mismatch.setdefault(fields, [0, at, self.pg, diff])
+            s[0] += 1
         elif what == 'replay diverged':
             self.add('replay', None, at, 'the run reached a choice here, the recorded run at %s' % r.get('expected'))
         elif what == 'replay ended':
             self.add('replay', None, at, 'the recorded choices ran out here; --auto-choice picks from here on')
-        elif what == 'half-width character under tateyoko':
-            self.add('text', ('tateyoko', at), at, 'half-width character %s under tateyoko (not shown)'
-                     % json.dumps(r.get('char'), ensure_ascii=False))
+        elif self.reloading:
+            pass  # the load of a --roundtrip-every repeats the scene's warnings
         else:
             key = (what, r.get('file'))
             if key not in self.missing:
@@ -477,41 +490,39 @@ class Checker:
         else:
             m = HALF_KANA.search(text)
             if m and not self.meta.get('utf8'):
-                self.add('text', ('garbled', at), at, 'the text has half-width katakana (mojibake?): %s'
+                self.add('text', ('garbled', at), at, 'the text has kanji and half-width katakana in turn (mojibake?): %s'
                          % snippet(text, m.start()))
         if not shown.strip(' \t\n\u3000'):
             self.add('text', ('empty', at), at, 'an empty page (a click wait with no text)')
         m = TAGS.search(shown)
         if m:
             self.add('text', ('tag', at), at, 'a text tag shown as text, %s: %s' % (m.group(0), snippet(shown, m.start())))
-        if p.get('overflow'):
+        prev = self.prev or {}
+        # "overflow" stays on for the later click waits of the same page: report it once
+        if p.get('overflow') and not (prev.get('overflow') and text.startswith(prev.get('text', '\0'))):
             self.add('text', ('overflow', at), at, 'the text runs past the window: %s' % snippet(shown, len(shown) - 20))
-        elif self.args.line_chars:
+        elif self.args.line_chars and not p.get('overflow'):
             for line in shown.split('\n'):
                 if width_of(line) > self.args.line_chars:
                     self.add('text', ('long', at), at, 'a line of %g characters (--line-chars %d): %s'
                              % (width_of(line), self.args.line_chars, snippet(line, len(line) - 20)))
                     break
-        if self.lines is not None:
-            self.reserved(p)
 
-    def reserved(self, p):
-        """%, $ and ? in the script's text lines leading to this page."""
-        n = line_of(p.get('at'))
-        if not n or n > len(self.lines):
-            return
-        first = n
-        pn = line_of((self.prev or {}).get('at'))
-        if pn and pn < n <= pn + 30 and label_of(self.prev.get('at')) == label_of(p.get('at')):
-            first = pn + 1
-        for i in range(first, n + 1):
-            line = self.lines[i - 1].lstrip(' \t')
+    def reserved(self):
+        """%, $ and ? in the script's text lines, reached or not."""
+        label = None
+        for i, line in enumerate(self.lines, 1):
+            line = line.lstrip(' \t')
+            m = re.match(r'\*+([^\s:;/]+)', line)
+            if m:
+                label = m.group(1).lower()
             if not line or re.match(r'[A-Za-z_*;~:{}]', line):
                 continue
             body = re.sub(r'^\[[^\]]*\]', '', line)
             m = RESERVED.search(body)
             if m:
-                at = '*%s:%d' % (label_of(p['at']), i)
+                at = '*%s:%d' % (label, i)
+                self.pg = 0
                 self.add('text', ('reserved', i), at, '%s in a text line prints a variable or reads an array: %s'
                          % (m.group(0), snippet(body, m.start())))
 
