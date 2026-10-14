@@ -1195,6 +1195,82 @@ void ONScripter::effectFlip( const char *params, int duration )
 #endif
 }
 
+/* effect num,99,duration,"cons_melt.dll/stretch[,seed]"
+ *   The old picture melts down off the screen, uncovering the new one
+ *   (Xuse's MeltDown). Its top edge is a smooth random curve (a
+ *   Catmull-Rom spline through 11 random points across the width, its
+ *   lowest 40 % cut off flat); each column starts to fall at a delay of
+ *   0.2-0.3 of the duration (0.2 where flat) and
+ *   falls with constant acceleration, h * ((p - delay) / (1 - delay))^2,
+ *   so the last column leaves the screen at the end. A falling column is
+ *   stretched by 1 + stretch / 100 * fallen / h. seed picks the curve
+ *   (default 0: a new one each time). */
+void ONScripter::effectMelt( const char *params, int duration )
+{
+#if defined(BPP16)
+    alphaBlend( NULL, ALPHA_BLEND_CONST, 256 * effect_counter / duration, &dirty_rect.bounding_box );
+#else
+    int param[2] = {0, 0};
+    readDllParams(params, param, 2);
+    int w = accumulation_surface->w, h = accumulation_surface->h;
+    static float *delay = NULL;
+    static int delay_w = 0, last_counter = 0;
+    if (!delay || delay_w != w || effect_counter < last_counter){
+        unsigned int r = param[1] ? (unsigned int)param[1] : (unsigned int)SDL_GetTicks() * 2654435761u + 1;
+        float pt[13];
+        for (int i=0 ; i<11 ; i++){
+            r = r * 1103515245u + 12345u;
+            pt[i + 1] = (float)((r >> 16) & 0x7fff) / 32768.0f;
+        }
+        pt[0] = pt[1];
+        pt[12] = pt[11];
+        delete[] delay;
+        delay = new float[w];
+        delay_w = w;
+        float lo = 1.0f, hi = 0.0f;
+        for (int x=0 ; x<w ; x++){
+            float u = (float)x * 10 / w;
+            int i = (int)u;
+            float t = u - i;
+            const float *q = pt + i;
+            float v = 0.5f * (2 * q[1] + (q[2] - q[0]) * t
+                              + (2 * q[0] - 5 * q[1] + 4 * q[2] - q[3]) * t * t
+                              + (3 * q[1] - q[0] - 3 * q[2] + q[3]) * t * t * t);
+            delay[x] = v;
+            lo = std::min(lo, v);
+            hi = std::max(hi, v);
+        }
+        for (int x=0 ; x<w ; x++)
+        {
+            // the lowest 40 % of the curve is cut off: flat stretches
+            float n = hi > lo ? (delay[x] - lo) / (hi - lo) : 0.0f;
+            delay[x] = 0.2f + 0.1f * std::max(0.0f, (n - 0.4f) / 0.6f);
+        }
+    }
+    last_counter = effect_counter;
+
+    float p = duration > 0 ? (float)effect_counter / duration : 1.0f;
+    if (p > 1.0f) p = 1.0f;
+    SDL_BlitSurface(effect_dst_surface, NULL, accumulation_surface, NULL);
+    SDL_LockSurface(effect_src_surface);
+    SDL_LockSurface(accumulation_surface);
+    for (int x=0 ; x<w ; x++){
+        float f = p > delay[x] ? (p - delay[x]) / (1.0f - delay[x]) : 0.0f;
+        float fallen = h * f * f;
+        if (fallen >= h) continue;
+        float scale = 1.0f + param[0] / 100.0f * fallen / h;
+        for (int y=(int)fallen ; y<h ; y++){
+            int s = (int)((y - fallen) / scale);
+            if (s >= h) break;
+            *((Uint32*)((Uint8*)accumulation_surface->pixels + y * accumulation_surface->pitch) + x) =
+                *((const Uint32*)((const Uint8*)effect_src_surface->pixels + s * effect_src_surface->pitch) + x);
+        }
+    }
+    SDL_UnlockSurface(accumulation_surface);
+    SDL_UnlockSurface(effect_src_surface);
+#endif
+}
+
 /* WebP images, for builds whose SDL_image has no WebP decoder (the
  * emscripten port). Returns NULL for anything that isn't WebP, or when
  * built without USE_WEBP, so the caller falls back to IMG_Load_RW. */

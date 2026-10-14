@@ -433,6 +433,8 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
                 effectZoom(effect->anim.image_name, effect_duration);
             else if (!strncmp(effect->anim.image_name, "cons_flip.dll", 13))
                 effectFlip(effect->anim.image_name, effect_duration);
+            else if (!strncmp(effect->anim.image_name, "cons_melt.dll", 13))
+                effectMelt(effect->anim.image_name, effect_duration);
             else {
                 // do crossfade
                 height = 256 * effect_counter / effect_duration;
