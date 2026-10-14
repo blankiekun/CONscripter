@@ -364,15 +364,18 @@ protected:
         int text_count;
 
         char *tag;
+        char *voice; // CONscripter: the last sound dwave played on channel 0 for this page
 
         Page(){
             text = NULL;
             text_count = 0;
             tag = NULL;
+            voice = NULL;
         }
         ~Page(){
             if (text) delete[] text;
             if (tag)  delete[] tag;
+            if (voice) delete[] voice;
         }
         char add(char ch){
             if (text_count >= max_text){

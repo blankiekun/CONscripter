@@ -124,6 +124,9 @@ public:
     void setTraceShotEvery(int pages);
     void setTraceShotDir(const char *dir);
     void startupFailed(); // CONscripter: records the error just printed, exits with 3
+    // CONscripter: calls from the web page, as ONS_WEB_EVENT events (ONScripter_cons.cpp)
+#define ONS_WEB_EVENT (SDL_USEREVENT+7)
+    enum { WEB_SET_AUTO = 1, WEB_SET_SKIP = 2, WEB_SET_RUBY = 3, WEB_SET_TEXT_SPEED = 4 };
     void setStartGoto(const char *label); // CONscripter: --goto, --vars, --dump-vars
     void setStartVars(const char *path);
     void setStartLoad(int slot); // CONscripter: --load, --checkpoint-every, --checkpoint-slot
@@ -746,6 +749,16 @@ private:
     std::string trace_effect;        // the effect the command being run used, as JSON
     void traceEffect( std::string &out, EffectLink *effect );
     std::string trace_sound;         // the sound the command being run plays, as JSON fields
+
+    // CONscripter: what the web page can change (ONS_WEB_EVENT, from its
+    // onsyuriSet... calls) and what it is told (ONScripter_cons.cpp)
+    bool ruby_hidden;                // ruby isn't drawn (the text hooks still have it)
+    int text_speed_override;         // ms per character, -1 for the game's own
+    int web_mode_sent;               // auto and skip as last sent to onsyuriMode
+    int web_window_sent[5];          // the text window as last sent to onsyuriWindow
+    bool webEvent( int code, int value );
+    void webStateHook();
+    void webPageHook();
     void soundCommand( int channel, const char *name, bool play );
 
     // CONscripter: --auto-play, a run that plays itself (ONScripter_cons.cpp)

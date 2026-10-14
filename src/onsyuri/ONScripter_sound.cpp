@@ -128,7 +128,7 @@ int ONScripter::playSound(const char *filename, int format, bool loop_flag, int 
             if (trace_fp) traceWarn("broken sound", filename);
         }
         if (chunk && playWave(chunk, format, loop_flag, channel) == 0){
-            if (trace_fp) traceSound(channel, filename, loop_flag);
+            traceSound(channel, filename, loop_flag); // also for the web page's onsyuriVoice
             delete[] buffer;
             return SOUND_CHUNK;
         }

@@ -583,8 +583,9 @@ void ONScripter::restoreTextBuffer(SDL_Surface *surface)
 #if defined(WEB)
     EM_ASM({
         if (self.onsyuriBacklog)
-            self.onsyuriBacklog(HEAPU8.slice($0, $0 + $1), HEAP32.slice($2 >> 2, ($2 >> 2) + $3 * 4));
-    }, current_page->text, current_page->text_count, char_boxes, char_box_count);
+            self.onsyuriBacklog(HEAPU8.slice($0, $0 + $1), HEAP32.slice($2 >> 2, ($2 >> 2) + $3 * 4),
+                                $4 ? UTF8ToString($4) : null);
+    }, current_page->text, current_page->text_count, char_boxes, char_box_count, current_page->voice);
 #endif
     memcpy(char_boxes, page_boxes, sizeof(int) * 4 * page_box_count);
     char_box_count = page_box_count;
@@ -674,6 +675,7 @@ bool ONScripter::clickWait( char *out_text )
         else{ // called on '@'
             flush(refreshMode());
         }
+        webPageHook();
         textHook(current_page->text, current_page->text_count, 1);
         if (trace_fp) tracePage();
         if (auto_play_flag) autoPlayPage();
@@ -687,6 +689,7 @@ bool ONScripter::clickWait( char *out_text )
             drawChar( out_text, &sentence_font, true, true, accumulation_surface, &text_info );
             num_chars_in_sentence++;
         }
+        webPageHook();
         textHook(current_page->text, current_page->text_count, 0);
         if (trace_fp) tracePage();
         if (auto_play_flag) autoPlayPage();
@@ -731,6 +734,7 @@ bool ONScripter::clickNewPage( char *out_text )
         drawChar( out_text, &sentence_font, true, true, accumulation_surface, &text_info );
         num_chars_in_sentence++;
     }
+    webPageHook();
     textHook(current_page->text, current_page->text_count,
              (skip_mode & SKIP_NORMAL || ctrl_pressed_status) ? 1 : 0);
     if (trace_fp) tracePage();
@@ -822,7 +826,7 @@ void ONScripter::startRuby(const char *buf, FontInfo &info)
 void ONScripter::endRuby(bool flush_flag, bool lookback_flag, SDL_Surface *surface, AnimationInfo *cache_info)
 {
     char out_text[3]= {'\0', '\0', '\0'};
-    if ( sentence_font.rubyon_flag ){
+    if ( sentence_font.rubyon_flag && !ruby_hidden ){ // CONscripter: the web page may hide it
         ruby_font.clear();
         const char *buf = ruby_struct.ruby_start;
         while( buf < ruby_struct.ruby_end ){
@@ -1032,6 +1036,7 @@ bool ONScripter::processText()
         }
 
         int wait_time = sentence_font.wait_time == -1 ? default_text_speed[text_speed_no] : sentence_font.wait_time;
+        if (text_speed_override >= 0) wait_time = text_speed_override; // CONscripter: set by the web page
         if ( skip_mode || ctrl_pressed_status || wait_time == 0 ){
             drawChar( out_text, &sentence_font, false, true, accumulation_surface, &text_info );
         }
@@ -1249,6 +1254,7 @@ bool ONScripter::processText()
         }
 
         int wait_time = sentence_font.wait_time == -1 ? default_text_speed[text_speed_no] : sentence_font.wait_time;
+        if (text_speed_override >= 0) wait_time = text_speed_override; // CONscripter: set by the web page
         if (!skip_mode && !ctrl_pressed_status && wait_time != 0){
             event_mode = WAIT_TIMER_MODE | WAIT_INPUT_MODE;
             waitEvent( wait_time );

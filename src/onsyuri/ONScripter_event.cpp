@@ -299,9 +299,11 @@ bool ONScripter::waitEvent( int count )
     // chimimouryou: the reader may look up sprite text while the game waits for input.
     // shortcut: timed waits (btntime, automode) don't send it; add them if games need it.
     if (count == -1) sendSpriteTexts();
+    webStateHook(); // CONscripter: auto, skip and the text window, for the web page
     
     while(1){
         waitEventSub( count );
+        webStateHook();
         if ( system_menu_mode == SYSTEM_NULL ) break;
         int ret = executeSystemCall();
         if      (ret == 1) return true;
@@ -1343,6 +1345,10 @@ void ONScripter::runEventLoop()
 
           case ONS_TIMER_EVENT:
             timerEvent(false);
+            break;
+
+          case ONS_WEB_EVENT:
+            if (webEvent( event.user.code, (int)(intptr_t)event.user.data1 )) return;
             break;
 
           case ONS_MUSIC_EVENT:

@@ -2124,15 +2124,14 @@ void ONScripter::soundCommand( int channel, const char *name, bool play )
             traceString( trace_sound, before );
         }
     }
-#if defined(WEB)
     if (play && name){
         std::string file;
         traceString( file, name, -1, false ); // UTF-8
+        if (channel == 0 && current_page) setStr( &current_page->voice, file.c_str() ); // for onsyuriBacklog
+#if defined(WEB)
         EM_ASM({ if (self.onsyuriVoice) self.onsyuriVoice($0, UTF8ToString($1)); }, channel, file.c_str());
-    }
-#else
-    (void)play;
 #endif
+    }
 }
 
 // Notes the sound a channel plays, for the pages' "se" lists.
@@ -2697,4 +2696,113 @@ void ONScripter::traceVarChanges( char *at )
         r += '}';
         traceWrite( r );
     }
+}
+
+/* Web page controls (chimimouryou): the page calls these on the module
+ * (module._onsyuriSetAuto(1), ...); each becomes an event the engine
+ * handles while it waits, as a key press would be. */
+#if defined(WEB)
+static void pushWebEvent( int code, int value )
+{
+    SDL_Event event;
+    SDL_zero( event );
+    event.type = ONS_WEB_EVENT;
+    event.user.code = code;
+    event.user.data1 = (void*)(intptr_t)value;
+    SDL_PushEvent( &event );
+}
+
+extern "C" {
+// auto mode on (1) or off (0)
+EMSCRIPTEN_KEEPALIVE void onsyuriSetAuto( int on ){ pushWebEvent( ONScripter::WEB_SET_AUTO, on ); }
+// skip mode on (1) or off (0)
+EMSCRIPTEN_KEEPALIVE void onsyuriSetSkip( int on ){ pushWebEvent( ONScripter::WEB_SET_SKIP, on ); }
+// ruby drawn (1) or not (0)
+EMSCRIPTEN_KEEPALIVE void onsyuriSetRuby( int on ){ pushWebEvent( ONScripter::WEB_SET_RUBY, on ); }
+// ms per character, 0 at once, -1 the game's own speed
+EMSCRIPTEN_KEEPALIVE void onsyuriSetTextSpeed( int ms ){ pushWebEvent( ONScripter::WEB_SET_TEXT_SPEED, ms ); }
+}
+#endif
+
+// A call from the web page. Returns true when it ends the wait, as the
+// 'a' and 's' keys do at a click wait.
+bool ONScripter::webEvent( int code, int value )
+{
+    if (code == WEB_SET_AUTO && value && !automode_flag){
+        automode_flag = true;
+        skip_mode &= ~SKIP_NORMAL;
+        webStateHook();
+        if (event_mode & WAIT_INPUT_MODE){
+            current_button_state.button = 0;
+            stopAnimation( clickstr_state );
+            return true;
+        }
+    }
+    else if (code == WEB_SET_AUTO && !value && automode_flag){
+        automode_flag = false;
+        // a click wait timed for auto mode now waits for a click
+        if ((event_mode & WAIT_TEXT_MODE) && (event_mode & WAIT_INPUT_MODE)){
+            event_mode &= ~WAIT_VOICE_MODE;
+            next_time = -1;
+            timerEvent( false );
+        }
+        webStateHook();
+    }
+    else if (code == WEB_SET_SKIP && value && !(skip_mode & SKIP_NORMAL)){
+        automode_flag = false;
+        skip_mode |= SKIP_NORMAL;
+        webStateHook();
+        if (event_mode & WAIT_INPUT_MODE){
+            current_button_state.button = 0;
+            stopAnimation( clickstr_state );
+            return true;
+        }
+    }
+    else if (code == WEB_SET_SKIP && !value && (skip_mode & SKIP_NORMAL)){
+        skip_mode &= ~SKIP_NORMAL;
+        webStateHook();
+    }
+    else if (code == WEB_SET_RUBY) ruby_hidden = !value; // from the next text drawn
+    else if (code == WEB_SET_TEXT_SPEED) text_speed_override = value >= 0 ? value : -1;
+    return false;
+}
+
+// Tells the web page when auto or skip mode changed, as
+// self.onsyuriMode(auto, skip), and when the text window moved, was resized,
+// shown or hidden, as self.onsyuriWindow(x, y, w, h, shown) in screen
+// pixels. Called as the engine waits.
+void ONScripter::webStateHook()
+{
+#if defined(WEB)
+    int mode = (automode_flag ? 1 : 0) | ((skip_mode & SKIP_NORMAL) ? 2 : 0);
+    if (mode != web_mode_sent){
+        web_mode_sent = mode;
+        EM_ASM({ if (self.onsyuriMode) self.onsyuriMode($0, $1); }, mode & 1, mode >> 1);
+    }
+    SDL_Rect &r = sentence_font_info.pos;
+    int window[5] = { r.x, r.y, r.w, r.h, (display_mode & DISPLAY_MODE_TEXT) ? 1 : 0 };
+    if (memcmp( window, web_window_sent, sizeof(window) )){
+        memcpy( web_window_sent, window, sizeof(window) );
+        EM_ASM({ if (self.onsyuriWindow) self.onsyuriWindow($0, $1, $2, $3, $4); },
+               window[0], window[1], window[2], window[3], window[4]);
+    }
+#endif
+}
+
+// At each click wait and new page, before onsyuriText: where the text is
+// in the script, as self.onsyuriPosition(offset, total, label, read): the
+// byte offset of the text's line in the script, the script's length, the
+// label it is in (UTF-8), and 1 if it was read before, 0 if not, -1 when
+// the game doesn't keep track (kidokuskip off).
+void ONScripter::webPageHook()
+{
+    webStateHook();
+#if defined(WEB)
+    char *address = script_h.getCurrent( true );
+    int label = script_h.getLabelIndex( address );
+    std::string name;
+    if (label >= 0) traceString( name, script_h.getLabelName( label ), -1, false );
+    EM_ASM({ if (self.onsyuriPosition) self.onsyuriPosition($0, $1, UTF8ToString($2), $3); },
+           script_h.getOffset( address ), script_h.getScriptLength(), name.c_str(), script_h.getKidokuState());
+#endif
 }
