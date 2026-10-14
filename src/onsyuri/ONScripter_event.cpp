@@ -829,7 +829,13 @@ bool ONScripter::keyPressEvent( SDL_KeyboardEvent *event )
         }
     }
     
-    if (event->type == SDL_KEYUP)
+    // a key ends skip mode, as a click does; CONscripter: but not a
+    // modifier or function key (Shift held for a dictionary popup, Alt+Tab,
+    // F8 for the trace, F10 for full screen), which isn't meant for the game
+    if (event->type == SDL_KEYUP &&
+        !(event->keysym.sym >= SDLK_LCTRL && event->keysym.sym <= SDLK_RGUI) &&
+        !(event->keysym.sym >= SDLK_F1 && event->keysym.sym <= SDLK_F12) &&
+        event->keysym.sym != SDLK_CAPSLOCK)
         skip_mode &= ~SKIP_NORMAL;
     
     if ( shift_pressed_status && event->keysym.sym == SDLK_q && current_mode == NORMAL_MODE ){
