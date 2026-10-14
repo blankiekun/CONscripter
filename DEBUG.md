@@ -88,6 +88,24 @@ CONS_TRACE=/tmp/trace.jsonl CONS_TRACE_IGNORE=22-48,lsp2:12-23 \
     python3 -I research/xuse/smoke.py out/<game>-cons /tmp/work 1,0,0,0,... --goto <label>
 ```
 
+## Pictures of pages
+
+A trace is meant to find a bug without looking. To see a page once the
+trace or the checker points at it, run the game again the same way and
+save pictures of just those pages:
+
+```sh
+conscripter --root . --trace trace.jsonl --auto-play 0 --shot-pages 412,980-990 --shot-dir shots
+```
+
+`--shot-pages` takes page numbers and ranges (the trace's `pg`), and
+`--shot-every n` takes every n-th page. Each picture is the screen as
+shown at that page's click wait, text window and all, saved as
+`<shot-dir>/page000412.png` (`--shot-dir` defaults to `shots`, relative to
+the folder the engine was started from). The page's record gives the
+file as `shot`. Both need `--trace`, which counts the pages. An
+auto-play run with the same options and `--seed` reaches the same pages.
+
 ## Records
 
 Every record has `"t"`, its type. `"pg"` is the number of text pages
@@ -144,6 +162,7 @@ handles the wait.
 | `nega` | The `nega` mode, while it is on |
 | `filters` | The `screenfilter` slots in use: `{"slot","kind","blend","strength","p":[p1,p2,p3]}` (see ADDITIONS.md) |
 | `fx` | The `screenshake`/`screenripple`/`screenpulse` slots in use: `{"slot","kind":"shake"\|"ripple"\|"pulse"}`, with the ripple's `map` |
+| `shot` | The picture saved of this page (`--shot-pages`, `--shot-every`) |
 | `sprites_hidden` | `true` while `allsphide` hides the `lsp` and `ld` sprites (they are still listed); `sprites2_hidden` likewise for `allsp2hide` and `lsp2` |
 | `sp` | Every visible sprite, in the order: `lsp` 0-999, `lsp2` 0-255, `ld` (0 left, 1 centre, 2 right). A lower `lsp` number is drawn in front |
 

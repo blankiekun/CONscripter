@@ -117,6 +117,9 @@ public:
     void setAutoPlay(int pages); // CONscripter: --auto-play, a run that plays itself
     void setAutoChoice(const char *policy);
     void setSeed(int seed);
+    void setTraceShots(const char *pages); // CONscripter: --shot-pages, --shot-every, --shot-dir
+    void setTraceShotEvery(int pages);
+    void setTraceShotDir(const char *dir);
     const char* getArchivePath() { return archive_path; }
     void setWindowWidth(int width);
     void setWindowHeight(int height);
@@ -701,6 +704,10 @@ private:
     bool trace_shown;                // something changed since the last print was recorded
     char *trace_cmd_start;           // the command being run
     std::vector<bool> trace_label_seen;
+    std::vector<std::pair<int, int> > trace_shot_pages; // ranges of pages to take a picture of
+    int trace_shot_every;
+    std::string trace_shot_dir;
+    void traceShot( std::string &out );
     void traceLabel( char *address );
     char *trace_se_name[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS]; // the sound each channel last played
     bool trace_se_loop[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS];

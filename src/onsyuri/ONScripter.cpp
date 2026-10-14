@@ -368,6 +368,8 @@ ONScripter::ONScripter()
     trace_shown = false;
     trace_cmd_start = NULL;
     trace_end_reason = NULL;
+    trace_shot_every = 0;
+    trace_shot_dir = "shots";
     auto_play_flag = false;
     auto_play_limit = 0;
     auto_play_pages = 0;

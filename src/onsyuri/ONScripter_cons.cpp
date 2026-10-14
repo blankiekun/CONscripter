@@ -28,6 +28,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/stat.h>
+#if defined(_WIN32)
+#include <direct.h>
+#endif
 #include <vector>
 #if defined(WEB)
 #include <emscripten.h>
@@ -1876,6 +1880,7 @@ void ONScripter::tracePage()
 
     if (all_sprite_hide_flag) r += ",\"sprites_hidden\":true";
     if (all_sprite2_hide_flag) r += ",\"sprites2_hidden\":true";
+    traceShot( r );
     r += ",\"sp\":[";
     for (int i=0 ; i<TRACE_SPRITES ; i++){
         if (trace_ignore[i]) continue;
@@ -1884,6 +1889,62 @@ void ONScripter::tracePage()
     }
     r += "]}";
     traceWrite( r );
+}
+
+// "412,980-990": the pages --shot-pages takes a picture of.
+void ONScripter::setTraceShots( const char *pages )
+{
+    for (const char *p = pages ; p && *p ; ){
+        char *end;
+        int first = strtol( p, &end, 10 ), last = first;
+        if (*end == '-') last = strtol( end+1, &end, 10 );
+        if (end == p){
+            utils::printError( "--shot-pages: can't read [%s]\n", p );
+            break;
+        }
+        trace_shot_pages.push_back( std::make_pair( first, last ) );
+        p = strchr( end, ',' );
+        if (p) p++;
+    }
+}
+
+void ONScripter::setTraceShotEvery( int pages )
+{
+    trace_shot_every = pages;
+}
+
+void ONScripter::setTraceShotDir( const char *dir )
+{
+    trace_shot_dir = dir;
+}
+
+// On a page --shot-pages or --shot-every asks for, saves the screen as
+// <shot dir>/page<pg>.png and appends ,"shot":"<file>".
+void ONScripter::traceShot( std::string &out )
+{
+    bool wanted = trace_shot_every > 0 && trace_page % trace_shot_every == 0;
+    for (size_t i=0 ; i<trace_shot_pages.size() && !wanted ; i++)
+        wanted = trace_page >= trace_shot_pages[i].first && trace_page <= trace_shot_pages[i].second;
+    if (!wanted) return;
+
+#if defined(_WIN32)
+    _mkdir( trace_shot_dir.c_str() );
+#else
+    mkdir( trace_shot_dir.c_str(), 0755 );
+#endif
+    char name[32];
+    snprintf( name, sizeof(name), "/page%06d.png", trace_page );
+    std::string path = trace_shot_dir + name;
+    // the screen as shown, without the alpha channel the picture doesn't use
+    SDL_Surface *rgb = SDL_ConvertSurfaceFormat( accumulation_surface, SDL_PIXELFORMAT_RGB24, 0 );
+    if (!rgb || IMG_SavePNG( rgb, path.c_str() ) != 0){
+        utils::printError( "can't save the picture %s: %s\n", path.c_str(), SDL_GetError() );
+        if (rgb) SDL_FreeSurface( rgb );
+        return;
+    }
+    SDL_FreeSurface( rgb );
+    out += ",\"shot\":";
+    traceString( out, path.c_str() );
 }
 
 // Notes the sound a channel plays, for the pages' "se" lists.

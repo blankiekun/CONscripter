@@ -68,6 +68,8 @@ void optionHelp()
     printf( "      --auto-play pages\tplay by itself, without waiting, for this many pages (0: to the end)\n");
     printf( "      --auto-choice first|cycle|random\thow --auto-play picks a button or choice\n");
     printf( "      --seed n\t\tstart the random numbers (rnd, --auto-choice random) from n\n");
+    printf( "      --shot-pages 412,980-990\twith --trace, save a picture of these pages (--shot-dir, default shots)\n");
+    printf( "      --shot-every n\twith --trace, save a picture of every n-th page\n");
     printf( "      --enc:[gbk|sjis|utf8]\tdefine the encoding of script\n\n");
 
     printf( " render options: \n");
@@ -406,6 +408,21 @@ void parseOption(int argc, char *argv[]) {
                 argc--;
                 argv++;
                 ons.setAutoChoice(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-shot-pages" ) ){
+                argc--;
+                argv++;
+                ons.setTraceShots(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-shot-every" ) ){
+                argc--;
+                argv++;
+                ons.setTraceShotEvery(atoi(argv[0]));
+            }
+            else if ( !strcmp( argv[0]+1, "-shot-dir" ) ){
+                argc--;
+                argv++;
+                ons.setTraceShotDir(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-seed" ) ){
                 argc--;
