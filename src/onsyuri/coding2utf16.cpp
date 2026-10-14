@@ -22,6 +22,8 @@
 #include "coding2utf16.h"
 
 
+bool cons_sjis = false;
+
 char Coding2UTF16::space[4] = "　";
 char Coding2UTF16::minus[4] = "－";
 char Coding2UTF16::bracket[8] = "【】";

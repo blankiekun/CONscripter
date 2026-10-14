@@ -1349,6 +1349,8 @@ static void traceString( std::string &out, const char *text, int len=-1, bool js
             u = coding2utf16->conv2UTF16( c << 8 | (unsigned char)text[++i] );
             if (u == 0) u = 0xfffd; // not in the table
         }
+        else if (cons_sjis && c >= 0xa1 && c <= 0xdf)
+            u = c - 0xa0 + 0xff60; // Shift_JIS half-width katakana, as drawGlyph draws it
         else if (c >= 0x80){
             if (!coding2utf16->force_utf8) u = 0xfffd; // a stray byte
             else{ // part of a UTF-8 character

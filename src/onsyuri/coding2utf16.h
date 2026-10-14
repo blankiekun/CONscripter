@@ -24,6 +24,10 @@
 
 #include <stdint.h>
 
+// CONscripter: the script is Shift_JIS, where 0xa0-0xdf are half-width
+// katakana of one byte, not the first byte of two (IS_TWO_BYTE)
+extern bool cons_sjis;
+
 class Coding2UTF16{
 public:
   bool force_utf8=false;

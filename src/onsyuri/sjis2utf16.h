@@ -26,6 +26,7 @@
 
 class SJIS2UTF16 : public Coding2UTF16 {
 public:
+  SJIS2UTF16(){ cons_sjis = true; } // CONscripter: see IS_TWO_BYTE
   void init() final;
   uint16_t conv2UTF16(uint16_t) const final;
   uint16_t convUTF162Coding(uint16_t) const final;

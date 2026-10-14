@@ -36,8 +36,11 @@
 #include <dirent.h>
 #endif
 
+// CONscripter: in Shift_JIS, 0xa0-0xdf are half-width katakana (cons_sjis)
+extern bool cons_sjis;
 #define IS_TWO_BYTE(x) \
-        ( ((unsigned char)(x) > (unsigned char)0x80) && ((unsigned char)(x) !=(unsigned char) 0xff) )
+        ( ((unsigned char)(x) > (unsigned char)0x80) && ((unsigned char)(x) !=(unsigned char) 0xff) && \
+          !(cons_sjis && (unsigned char)(x) >= (unsigned char)0xa0 && (unsigned char)(x) <= (unsigned char)0xdf) )
 
 extern Coding2UTF16 *coding2utf16;
 
