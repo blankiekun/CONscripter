@@ -1387,7 +1387,10 @@ int ONScripter::mpegplayCommand()
     bool click_flag = (script_h.readInt()==1)?true:false;
 
     stopBGM( false );
-    if (playMPEG( save_buf, click_flag )) endCommand();
+    if (playMPEG( save_buf, click_flag )){
+        trace_end_reason = "window closed"; // CONscripter: closed during the movie
+        endCommand();
+    }
 
     repaintCommand();
     
@@ -1578,7 +1581,10 @@ int ONScripter::movieCommand()
         }
     }
     
-    if (playMPEG(filename, click_flag, loop_flag)) endCommand();
+    if (playMPEG(filename, click_flag, loop_flag)){
+        trace_end_reason = "window closed"; // CONscripter: closed during the movie
+        endCommand();
+    }
 
     return RET_CONTINUE;
 }
@@ -2891,10 +2897,11 @@ int ONScripter::erasetextwindowCommand()
 
 int ONScripter::endCommand()
 {
+    int code = quitReason(); // CONscripter: the end record's reason, and 128+n for signal n
     if (trace_fp) traceEnd(); // CONscripter: the web build's exit() runs no atexit handlers
     quit();
     stopSMPEG();
-    exit(0);
+    exit(code);
     return RET_CONTINUE; // dummy
 }
 
@@ -3881,7 +3888,10 @@ int ONScripter::aviCommand()
     bool click_flag = (script_h.readInt()==1)?true:false;
 
     stopBGM( false );
-    if (playAVI( save_buf, click_flag )) endCommand();
+    if (playAVI( save_buf, click_flag )){
+        trace_end_reason = "window closed"; // CONscripter: closed during the movie
+        endCommand();
+    }
 
     // should be commented out
     //repaintCommand();

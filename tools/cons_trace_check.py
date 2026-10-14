@@ -8,7 +8,8 @@ Reads the trace (DEBUG.md describes it) and prints what looks wrong, ranked
 by kind, each finding at the script line ("*label:line") to look at:
 
   error        script and startup errors; a crash (its signal and last
-               commands); a run that ended without "end" or got stuck
+               commands); a run that ended without "end", was killed by a
+               signal or got stuck
   missing      files that couldn't be loaded, grouped by file
   text         garbled characters, text past the window, empty pages,
                text tags shown as text; with --script, %, $ or ? in a text
@@ -282,6 +283,9 @@ class Checker:
         if self.end is None and self.crash is None:
             last = self.prev.get('at') if self.prev else None
             self.add('error', None, last, 'the trace has no "end": the engine crashed or was killed after this page')
+        elif self.end and str(self.end.get('reason', '')).startswith('signal '):
+            last = self.prev.get('at') if self.prev else None
+            self.add('error', None, last, 'the engine was killed (%s) after this page' % self.end['reason'][7:])
         elif self.end and str(self.end.get('reason', '')).startswith('stuck') and not self.findings['error']:
             self.add('error', None, self.prev.get('at') if self.prev else None,
                      'auto-play stopped: %s' % self.end['reason'])

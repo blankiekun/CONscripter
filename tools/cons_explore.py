@@ -146,7 +146,10 @@ def main():
         how = end.get('reason') or {'crash': 'crashed (%s)' % end.get('signal'),
                                     'error': 'error at %s: %s' % (end.get('at'), end.get('msg'))}.get(end.get('t'), 'ended')
         stop = blame = None
-        if end.get('t') == 'error':
+        if str(end.get('reason', '')).startswith('signal '):
+            # stopped from outside (timeout, pkill, ^C): not a finished run
+            stop = 'run %d was killed (%s): stopping' % (run, end['reason'][7:])
+        elif end.get('t') == 'error':
             # the last choice before the error not avoided already (an
             # avoided one is made only when its place has nothing else)
             err = errors.setdefault((end.get('at'), end.get('msg')), [0, []])

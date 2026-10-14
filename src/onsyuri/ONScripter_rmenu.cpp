@@ -278,8 +278,10 @@ bool ONScripter::executeSystemReset()
 
 void ONScripter::executeSystemEnd()
 {
-    if ( executeSystemYesNo( SYSTEM_END ) )
+    if ( executeSystemYesNo( SYSTEM_END ) ){
+        trace_end_reason = "player quit"; // CONscripter
         endCommand();
+    }
     else
         leaveSystemCall();
 }

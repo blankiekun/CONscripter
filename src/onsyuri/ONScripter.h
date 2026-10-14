@@ -124,6 +124,8 @@ public:
     void setTaken(const char *path);
     void setKnownLabels(const char *path); // CONscripter: --known-labels
     void setStopKnown(int pages) { stop_known = pages; } // CONscripter: --stop-known
+    void setUntil(const char *label); // CONscripter: --until, --max-pages
+    void setMaxPages(int pages) { max_pages = pages; }
     void setTraceShots(const char *pages); // CONscripter: --shot-pages, --shot-every, --shot-dir
     void setTraceShotEvery(int pages);
     void setTraceShotDir(const char *dir);
@@ -847,6 +849,14 @@ private:
     int autoPlayButton();
     void autoPlayPage();
     void autoPlayStuck( const char *what );
+    char *until_label = NULL;        // --until label (without '*')
+    int until_index = -1;            // its label, once the script is read
+    int max_pages = 0;               // --max-pages: pages before the run ends, 0 for no limit
+    int run_pages = 0;               // pages shown, for --max-pages
+    void untilSetup();
+    void stopRun( const char *reason );
+    void signalSetup();
+    int quitReason();
     char *start_goto;                // --goto label (without '*')
     char *start_vars;                // --vars file
     char *dump_vars_path;            // --dump-vars file

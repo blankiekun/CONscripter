@@ -318,14 +318,14 @@
                 ];
                 args = args.concat(g_onsyuri_index.args);
                 // the debug trace (DEBUG.md): ?trace, with ?trace-ignore=, ?auto-play=,
-                // ?auto-choice=, ?seed=; the page keeps the records for "trace[F7]"
+                // ?auto-choice=, ?seed=, ?until=, ?max-pages=; the page keeps the records for "trace[F7]"
                 var params = new URLSearchParams(window.location.search);
                 if(params.has("trace")){
                     args.push("--trace", "/trace.jsonl");
                     self.onsyuriTrace = (line) => { g_trace_lines.push(line); };
                     document.getElementById("onsyuri_trace_button").style.display = "";
                 }
-                for(var name of ["trace-ignore", "auto-play", "auto-choice", "seed"]){
+                for(var name of ["trace-ignore", "auto-play", "auto-choice", "seed", "until", "max-pages"]){
                     if(params.get(name) !== null) args.push("--" + name, params.get(name));
                 }
                 console.log("## onsyuri: args", args);

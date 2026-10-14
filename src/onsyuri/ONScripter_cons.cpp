@@ -20,6 +20,7 @@
 #include "ONScripter.h"
 #include "Utils.h"
 #include "coding2utf16.h"
+#include "gbk2utf16.h"
 #include "version.h"
 #include <algorithm>
 #include <errno.h>
@@ -2380,6 +2381,10 @@ void ONScripter::traceCrash( int sig )
 // of kind "startup" with the message just printed, then exit code 3.
 void ONScripter::startupFailed()
 {
+    // a bad option or --replay file fails while the options are read,
+    // before main sets the encoding the trace's strings are converted with
+    if (!coding2utf16) coding2utf16 = new GBK2UTF16();
+    trace_end_reason = "startup error";
     if (trace_fp){
         traceError( utils::lastError(), "startup" );
         traceEnd();
@@ -2391,6 +2396,7 @@ void ONScripter::traceErrorHook( const char *message )
 {
     if (trace_ons && trace_ons->trace_fp){
         trace_ons->traceError( message );
+        trace_ons->trace_end_reason = "script error";
         trace_ons->traceEnd(); // the engine exits next, and the web build runs no atexit handlers
     }
 }
@@ -2398,6 +2404,7 @@ void ONScripter::traceErrorHook( const char *message )
 void ONScripter::traceExitHook()
 {
     if (!trace_ons) return;
+    if (!coding2utf16) coding2utf16 = new GBK2UTF16(); // -h with --trace before it: an exit before main sets it
     if (trace_ons->dump_vars_path) trace_ons->writeVarsFile();
     if (trace_ons->trace_fp) trace_ons->traceEnd();
 }
@@ -2506,6 +2513,18 @@ void ONScripter::traceMeta()
             snprintf( buf, sizeof(buf), ",\"stop_known\":%d,\"known\":", stop_known );
             r += buf;
             traceString( r, known_path );
+        }
+        r += '}';
+    }
+    if (until_label || max_pages > 0){
+        r += ",\"stop\":{";
+        if (until_label){
+            r += "\"until\":";
+            traceString( r, until_label );
+        }
+        if (max_pages > 0){
+            snprintf( buf, sizeof(buf), "%s\"max_pages\":%d", until_label ? "," : "", max_pages );
+            r += buf;
         }
         r += '}';
     }
@@ -3147,16 +3166,13 @@ void ONScripter::traceStack( std::string &out )
 }
 
 // The last record, written as the engine exits normally or after a script
-// error; a trace without it ended in a crash.
+// error, with why it ended; a trace without it ended in a crash.
 void ONScripter::traceEnd()
 {
     char buf[64];
-    snprintf( buf, sizeof(buf), "{\"t\":\"end\",\"pg\":%d", trace_page );
+    snprintf( buf, sizeof(buf), "{\"t\":\"end\",\"pg\":%d,\"reason\":", trace_page );
     std::string r = buf;
-    if (trace_end_reason){
-        r += ",\"reason\":";
-        traceString( r, trace_end_reason );
-    }
+    traceString( r, trace_end_reason ? trace_end_reason : "exit" ); // "exit": none of the others (-h)
     r += '}';
     traceWrite( r );
     fclose( trace_fp );
@@ -3460,13 +3476,16 @@ void ONScripter::autoPlayStuck( const char *what )
 
 // After each page: stop at the page limit, or when 3000 pages have passed
 // without one in a label not seen before (the game going round a loop of
-// routes, the same choice taken at each turn).
+// routes, the same choice taken at each turn). Also called without
+// --auto-play for --max-pages.
 void ONScripter::autoPlayPage()
 {
     if (roundtrip_skip_page){ // the page shown again after a round trip
         roundtrip_skip_page = false;
         return;
     }
+    if (max_pages > 0 && ++run_pages >= max_pages) stopRun( "page limit" );
+    if (!auto_play_flag) return;
     auto_play_waits = 0;
     auto_play_choices = 0;
     int label = script_h.getLabelIndex( script_h.getCurrent( true ) );
@@ -3513,6 +3532,99 @@ void ONScripter::setStartGoto( const char *label )
     setStr( &start_goto, label );
     for (char *p = start_goto ; *p ; p++) // labels are kept in lower case
         if (*p >= 'A' && *p <= 'Z') *p += 'a' - 'A';
+}
+
+/* --until label and --max-pages n: a run, played by hand or by itself,
+ * ends when the script first reaches that label, or after n text pages
+ * (counted as the trace counts them), with exit code 0. */
+void ONScripter::setUntil( const char *label )
+{
+    if (label[0] == '*') label++;
+    setStr( &until_label, label );
+    for (char *p = until_label ; *p ; p++) // labels are kept in lower case
+        if (*p >= 'A' && *p <= 'Z') *p += 'a' - 'A';
+}
+
+// Called once the script is read: the label --until waits for.
+void ONScripter::untilSetup()
+{
+    for (int i=0 ; i<script_h.getNumLabels() && until_index < 0 ; i++)
+        if (!strcmp( script_h.getLabelName( i ), until_label )) until_index = i;
+    if (until_index < 0){
+        utils::printError( "--until: no label *%s\n", until_label );
+        startupFailed();
+    }
+}
+
+void ONScripter::stopRun( const char *reason )
+{
+    utils::printInfo( "stopped: %s\n", reason );
+    trace_end_reason = reason;
+    if (trace_fp) traceEnd();
+    exit(0);
+}
+
+/* SIGTERM, SIGINT and SIGHUP end the run as closing the window does, but
+ * the end record says which signal it was and the exit code is 128+n.
+ * SDL's own handlers, which only send a quit, are turned off; this one
+ * notes the signal, and a timer sends the quit, since SDL_PushEvent isn't
+ * safe in a signal handler. Another signal two seconds or more later kills
+ * at once (a hung run); one sooner is the same signal sent twice, as
+ * timeout sends it to the engine and to its process group. */
+static volatile sig_atomic_t quit_signal = 0;
+static volatile time_t quit_signal_time = 0;
+
+static void quitSignal( int sig )
+{
+    if (quit_signal){
+        if (time( NULL ) - quit_signal_time < 2) return;
+        signal( sig, SIG_DFL );
+        raise( sig );
+        return;
+    }
+    quit_signal_time = time( NULL );
+    quit_signal = sig;
+}
+
+static Uint32 quitSignalTimer( Uint32 interval, void *param )
+{
+    if (quit_signal && SDL_PeepEvents( NULL, 0, SDL_PEEKEVENT, SDL_QUIT, SDL_QUIT ) == 0){
+        SDL_Event event;
+        SDL_zero( event );
+        event.type = SDL_QUIT;
+        SDL_PushEvent( &event ); // again if something else (a movie) takes it
+    }
+    return interval;
+}
+
+// Called before SDL_Init.
+void ONScripter::signalSetup()
+{
+#if !defined(WEB)
+    SDL_SetHint( SDL_HINT_NO_SIGNAL_HANDLERS, "1" );
+    signal( SIGTERM, quitSignal );
+    signal( SIGINT, quitSignal );
+#if defined(SIGHUP)
+    signal( SIGHUP, quitSignal );
+#endif
+    if (SDL_InitSubSystem( SDL_INIT_TIMER ) == 0) SDL_AddTimer( 100, quitSignalTimer, NULL );
+#endif
+}
+
+// Why the run ends, as the engine quits (endCommand): a signal, or the
+// reason given before (the window closed, the player quit), or else the
+// script ended. Returns the exit code.
+int ONScripter::quitReason()
+{
+    if (quit_signal){
+        static char reason[32];
+        int sig = quit_signal;
+        snprintf( reason, sizeof(reason), "signal %s", sig == SIGTERM ? "SIGTERM" : sig == SIGINT ? "SIGINT" : "SIGHUP" );
+        trace_end_reason = reason;
+        return 128 + sig;
+    }
+    if (!trace_end_reason) trace_end_reason = "script end";
+    return 0;
 }
 
 void ONScripter::setStartVars( const char *path )

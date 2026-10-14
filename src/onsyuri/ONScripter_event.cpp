@@ -842,6 +842,7 @@ bool ONScripter::keyPressEvent( SDL_KeyboardEvent *event )
         skip_mode &= ~SKIP_NORMAL;
     
     if ( shift_pressed_status && event->keysym.sym == SDLK_q && current_mode == NORMAL_MODE ){
+        trace_end_reason = "player quit"; // CONscripter
         endCommand();
     }
 
@@ -1458,6 +1459,7 @@ void ONScripter::runEventLoop()
               repaintCommand();
               break;
           case SDL_QUIT:
+            trace_end_reason = "window closed"; // CONscripter: or a signal (quitReason)
             endCommand();
             break;
             

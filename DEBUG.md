@@ -67,6 +67,17 @@ one in a label it hadn't shown a page in before (a loop of routes, the
 same choice taken at each turn). It then writes a `warn` with `what`
 `auto-play stuck` and where, then an `end` with the `reason`.
 
+`--until label` ends a run when the script first reaches that label
+(written with or without `*`), and `--max-pages n` after n text pages,
+counted as the trace counts them. Both work without `--auto-play` too,
+while playing by hand. The end `reason` is `until label` or `page
+limit`, and the exit code 0. A label the script doesn't have is a
+startup failure.
+
+```sh
+conscripter --root . --trace trace.jsonl --auto-play 0 --until s9_l36
+```
+
 The trace isn't needed: `--auto-play` alone checks that a game runs to
 the end without a script error. Give it a `--save-dir` of its own, since
 a game that saves as it goes would otherwise write to the player's save
@@ -139,11 +150,11 @@ reading the trace:
 
 | Code | Meaning |
 |---|---|
-| 0 | the script ended, the `--auto-play` page limit was reached, or the window was closed |
+| 0 | the script ended, a page limit, `--until` or `--stop-known` stopped it, or the window was closed |
 | 1 | `--auto-play` got stuck |
 | 2 | a script error |
-| 3 | it couldn't start: no script or font, SDL failed, a `--goto` label or `--vars` file it can't use, a save `--load` can't load |
-| 128+n | killed by signal n (139 a segmentation fault, 134 an abort); the trace ends with a `crash` record |
+| 3 | it couldn't start: an unknown option on the command line (one in `ons_args` is only reported), no script or font, SDL failed, a `--goto` or `--until` label or `--vars` file it can't use, a save `--load` can't load |
+| 128+n | ended by signal n: 143 `SIGTERM` (`timeout`, `kill`), 130 `SIGINT` (Ctrl+C) or 129 `SIGHUP`, with an `end` record; or a crash, 139 a segmentation fault, 134 an abort, with a `crash` record |
 
 ### Replaying a run
 
@@ -208,6 +219,8 @@ Fix the error (in the converter or the game) and explore again to reach
 what lies past it.
 
 Each run has its own trace (`runNN.jsonl`) and save folder in `--out`.
+A run ended by a signal (`timeout`, `kill`) didn't finish, so the
+explorer stops there.
 Each run after the first stops once it has played `--stop-known` pages
 (1000) back on ground earlier runs reached, after going its own way, so
 it doesn't play the rest of a route again; `--stop-known 0` plays every
@@ -329,6 +342,9 @@ in the URL too:
 conscripter.html?trace&trace-ignore=22-48,lsp2:12-23&auto-play=0&auto-choice=random&seed=3
 ```
 
+It takes `trace-ignore`, `auto-play`, `auto-choice`, `seed`, `until` and
+`max-pages`.
+
 F8 works as above, without the picture (the web build has nowhere to
 save it). A page of your own can do the same: add `--trace`, `"/trace.jsonl"`
 to the arguments given to `callMain`, and define `self.onsyuriTrace`
@@ -371,7 +387,8 @@ Text and file names are converted to UTF-8 from the script's encoding.
 
 ```json
 {"t":"meta","schema":2,"engine":"CONscripter 0.18.0","time":"2026-10-14T11:20:43","w":800,"h":600,"utf8":false,"dir":"./",
- "ignore":"22-48,lsp2:12-23","start":{"goto":"s9_l36","vars":"vars.txt"},"auto":{"pages":0,"choice":"first","seed":3}}
+ "ignore":"22-48,lsp2:12-23","start":{"goto":"s9_l36","vars":"vars.txt"},"auto":{"pages":0,"choice":"first","seed":3},
+ "stop":{"until":"s9_l40","max_pages":500}}
 ```
 
 `schema` changes when a record's meaning changes (2 added the records and
@@ -382,7 +399,9 @@ how the run started when not from the beginning (`goto` and `vars`, or
 `load` with the slot), and
 `auto` the `--auto-play` settings (only with `--auto-play`; `seed` only
 with `--seed`, `replay` and `taken` with those files, `stop_known` and
-`known` with `--stop-known`). A run that can't
+`known` with `--stop-known`), and `stop` what ends the run early
+(`until` the `--until` label, `max_pages` the `--max-pages`; only with
+them). A run that can't
 start still writes a `meta` record (`w`,`h` may be 0) before its `error`.
 
 ### `page`: each click wait and new page
@@ -574,8 +593,8 @@ Schema 2 adds these, with their own fields:
 
 `stack` is the chain of `gosub` calls that led there, innermost first,
 each given as the place it returns to. `kind` (schema 2) is `script`, or
-`startup` when the engine couldn't start (no script or font, a bad
-`--goto` label, `--vars` file or `--load` slot); `at` is then `null` and
+`startup` when the engine couldn't start (an unknown option, no script
+or font, a bad `--goto` or `--until` label, `--vars` file or `--load` slot); `at` is then `null` and
 `stack` empty if the script wasn't running yet.
 
 ### `crash`: the engine crashed (schema 2)
@@ -594,16 +613,27 @@ follows, and the exit code is 128 plus the signal's number.
 ### `end`: the last record
 
 ```json
-{"t":"end","pg":119}
+{"t":"end","pg":119,"reason":"script end"}
 {"t":"end","pg":300,"reason":"auto-play page limit"}
 ```
 
-Written when the engine exits: at `end`, after a script error, or when
-the window is closed (`timeout`'s SIGTERM counts, as SDL turns it into a
-quit). `reason` says why `--auto-play` stopped it: `auto-play page
-limit`, `known ground` (`--stop-known`), or `stuck: ...`. A trace that ends with neither `end` nor `crash`
-was killed with SIGKILL (or crashed too hard to write); the last records
-show where.
+Written when the engine exits, with `reason` saying why:
+
+| `reason` | Why |
+|---|---|
+| `script end` | the script ran `end`, or ran out |
+| `window closed` | the window was closed |
+| `player quit` | the player quit from the game's menu, or with Shift+Q |
+| `signal SIGTERM` | a signal: `SIGTERM` (`timeout`, `kill`), `SIGINT` (Ctrl+C) or `SIGHUP`. The engine ends as when the window is closed, and the exit code is 128 plus the signal's number |
+| `script error`, `startup error` | after the `error` record |
+| `until label`, `page limit` | `--until`, `--max-pages` |
+| `auto-play page limit`, `known ground`, `stuck: ...` | `--auto-play` stopped it (above), `known ground` for `--stop-known` |
+| `exit` | none of these (`--help` after `--trace`) |
+
+If the run hangs, a second signal two seconds or more after the first
+ends it at once, without an `end`. A trace that ends with neither `end`
+nor `crash` was killed so, or with SIGKILL, or crashed too hard to
+write; the last records show where.
 
 ## Checking a trace
 
@@ -630,7 +660,7 @@ image memory: 12 to 340 MB (the most at page 4120, *s9_l36:62672), 54 MB at the 
 
 | Kind | What it finds |
 |---|---|
-| `error` | Script and startup errors (with the gosub chain), a crash (its signal and the last commands run), a trace without `end` (killed), an auto-play run that got stuck |
+| `error` | Script and startup errors (with the gosub chain), a crash (its signal and the last commands run), a trace without `end` or ended by a signal (killed), an auto-play run that got stuck |
 | `missing` | Files that couldn't be loaded, grouped by file, and sprites shown without their image |
 | `text` | A page's text with garbled characters (U+FFFD, control or private-use characters, mojibake such as UTF-8 read as Shift-JIS, which mixes kanji and half-width katakana); text past the window (`overflow`, or a line longer than `--line-chars`); an empty page; a text tag shown as text (`!w100`, `!s`, `!d`, `#rrggbb`, `~...~`, a `\` or `@`); with `--script`, a `%`, `$` or `?` in a text line, which prints a variable or reads an array (a converter that left them in) |
 | `sound` | The same sound started on two channels before one click wait, or a looping one doubled (in a trace without `--auto-play`, any overlap); a voice cut off by the next sound before a click wait, so it was never heard |

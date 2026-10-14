@@ -34,6 +34,8 @@ ONScripter ons;
 Coding2UTF16 *coding2utf16 = NULL;
 std::string g_stdoutpath = "stdout.txt";
 std::string g_stderrpath = "stderr.txt";
+static std::string g_bad_options; // CONscripter: unknown options and stray words, a startup failure
+static bool g_options_file = false; // reading ons_args: an unknown option there is only reported
 
 #if defined(IOS)
 #import <Foundation/NSArray.h>
@@ -82,9 +84,11 @@ void optionHelp()
     printf( "      --vars file\tset these variables at the start (lines %%312=876, $5=text; UTF-8)\n");
     printf( "      --load n\t\tstart by loading save slot n\n");
     printf( "      --checkpoint-every n\twith --auto-play, save every n pages, to slots 900, 901, ... (--checkpoint-slot)\n");
+    printf( "      --until label\tend the run when the script first reaches this label\n");
+    printf( "      --max-pages n\tend the run after n text pages\n");
     printf( "      --dump-vars file\twrite the variables in that form at F8 and at exit\n");
     printf( "      --enc:[gbk|sjis|utf8]\tdefine the encoding of script\n");
-    printf( "      (exit codes: 0 ok, 1 --auto-play stuck, 2 script error, 3 startup failure)\n\n");
+    printf( "      (exit codes: 0 ok, 1 --auto-play stuck, 2 script error, 3 startup failure, 128+n signal n)\n\n");
 
     printf( " render options: \n");
     printf( "      --window\t\tstart in windowed mode\n");
@@ -514,6 +518,16 @@ void parseOption(int argc, char *argv[]) {
                 argv++;
                 ons.setDumpVars(argv[0]);
             }
+            else if ( !strcmp( argv[0]+1, "-until" ) ){
+                argc--;
+                argv++;
+                ons.setUntil(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-max-pages" ) ){
+                argc--;
+                argv++;
+                ons.setMaxPages(atoi(argv[0]));
+            }
             else if ( !strcmp( argv[0]+1, "-seed" ) ){
                 argc--;
                 argv++;
@@ -604,12 +618,18 @@ void parseOption(int argc, char *argv[]) {
             else if (!strcmp(argv[0]+1, "-fontcache")){
                 ons.setFontCache();
             }
+            else if (g_options_file){
+                utils::printInfo(" unknown option %s in ons_args\n", argv[0]);
+            }
             else{
-                utils::printInfo(" unknown option %s\n", argv[0]);
+                g_bad_options += std::string(g_bad_options.empty() ? "" : ", ") + "unknown option " + argv[0];
             }
         }
+        else if (g_options_file){
+            utils::printInfo(" not an option in ons_args: %s\n", argv[0]);
+        }
         else{
-            optionHelp();
+            g_bad_options += std::string(g_bad_options.empty() ? "" : ", ") + "not an option: " + argv[0];
         }
         argc--;
         argv++;
@@ -700,12 +720,18 @@ int main(int argc, char *argv[])
             ++argn;
             if (argn < 16) args[argn] = new char[64];
         }
+        g_options_file = true;
         parseOption(argn, args);
+        g_options_file = false;
         for (int i = 0; i < argn; ++i) delete[] args[i];
         delete[] args;
     }
 
     if (coding2utf16 == NULL) coding2utf16 = new GBK2UTF16();
+    if (!g_bad_options.empty()){ // CONscripter: once the options are read, so --trace after them counts
+        utils::printError("%s (--help lists the options)\n", g_bad_options.c_str());
+        ons.startupFailed(); // exits with 3
+    }
 
     // ----------------------------------------
     // Run ONScripter

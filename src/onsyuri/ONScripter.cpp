@@ -133,6 +133,7 @@ void ONScripter::initSDL()
     /* ---------------------------------------- */
     /* Initialize SDL */
 
+    signalSetup(); // CONscripter: SIGTERM, SIGINT and SIGHUP end the run with their own end reason
     if ( SDL_Init( SDL_INIT_VIDEO | SDL_INIT_TIMER  ) < 0 ){
         utils::printError("Couldn't initialize SDL: %s\n", SDL_GetError());
         startupFailed();
@@ -734,6 +735,7 @@ int ONScripter::init()
     if ( trace_fp || auto_play_flag ) traceIgnoreSetup();
     if ( trace_fp ) traceStart();
     if ( trace_fp && trace_vars_spec ) traceVarsSetup();
+    if ( until_label ) untilSetup();
     
     return 0;
 }
@@ -1150,6 +1152,10 @@ void ONScripter::executeLabel()
             continue;
         }
         char *line_start = script_h.getCurrent();
+        if (until_index >= 0 && script_h.getLabelIndex( line_start ) == until_index){ // CONscripter: --until
+            if (trace_fp) traceLabel( line_start );
+            stopRun( "until label" );
+        }
         int ret = parseLine();
         if (trace_vars_flag) traceVarChanges( line_start ); // CONscripter: --trace-vars
         if ( ret & (RET_SKIP_LINE | RET_EOL) ){
