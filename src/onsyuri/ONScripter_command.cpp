@@ -1851,11 +1851,18 @@ int ONScripter::locateCommand()
 
 int ONScripter::loadgameCommand()
 {
-    int no = script_h.readInt();
+    loadGame( script_h.readInt() );
+    return RET_CONTINUE;
+}
 
+// loadgame's work, also used by --load; returns false when the slot can't be loaded.
+bool ONScripter::loadGame( int no )
+{
+    bool loaded = false;
     int fadeout = mp3fadeout_duration;
     mp3fadeout_duration = 0; //don't use fadeout during a load
     if ( !loadSaveFile( no ) ){
+        loaded = true;
         dirty_rect.fill( screen_width, screen_height );
         flush( refreshMode() );
 
@@ -1887,7 +1894,7 @@ int ONScripter::loadgameCommand()
 
     mp3fadeout_duration = fadeout;
 
-    return RET_CONTINUE;
+    return loaded;
 }
 
 int ONScripter::ldCommand()

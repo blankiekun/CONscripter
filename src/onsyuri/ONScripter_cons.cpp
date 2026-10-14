@@ -1554,7 +1554,11 @@ void ONScripter::traceMeta()
     traceString( r, archive_path );
     r += ",\"ignore\":";
     traceString( r, trace_ignore_spec );
-    if (start_goto || start_vars){
+    if (start_load >= 0){
+        snprintf( buf, sizeof(buf), ",\"start\":{\"load\":%d}", start_load );
+        r += buf;
+    }
+    else if (start_goto || start_vars){
         r += ",\"start\":{\"goto\":";
         traceString( r, start_goto );
         r += ",\"vars\":";
@@ -2417,6 +2421,7 @@ void ONScripter::autoPlayPage()
         auto_play_same = 0;
     }
     else if (++auto_play_same >= 3000) autoPlayStuck( "3000 pages without a new label" );
+    if (checkpoint_every > 0) autoPlayCheckpoint();
     if (auto_play_limit > 0 && ++auto_play_pages >= auto_play_limit){
         utils::printInfo( "auto-play: stopped after %d pages\n", auto_play_pages );
         trace_end_reason = "auto-play page limit";
@@ -2454,9 +2459,46 @@ void ONScripter::setDumpVars( const char *path )
     exit_hooked = true;
 }
 
+void ONScripter::setStartLoad( int slot )
+{
+    start_load = slot;
+}
+
+// --checkpoint-every pages (with --auto-play): save to a new slot every so
+// many pages, counting up from --checkpoint-slot (900), so a run can be
+// started again from there with --load. -1 leaves a setting as it is.
+void ONScripter::setCheckpoints( int pages, int slot )
+{
+    if (pages >= 0) checkpoint_every = pages;
+    if (slot >= 0) checkpoint_slot = slot;
+}
+
+// After each page with --checkpoint-every: the save a player would make
+// at this click wait, and a "checkpoint" record.
+void ONScripter::autoPlayCheckpoint()
+{
+    if (++checkpoint_pages % checkpoint_every) return;
+    int slot = checkpoint_slot + checkpoint_count++;
+    if (saveon_flag && internal_saveon_flag) storeSaveFile();
+    if (writeSaveFile( slot ) != 0 || !trace_fp) return;
+    char buf[80];
+    snprintf( buf, sizeof(buf), "{\"t\":\"checkpoint\",\"pg\":%d,\"slot\":%d,\"at\":", trace_page, slot );
+    std::string r = buf;
+    traceAt( r, script_h.getCurrent( true ) );
+    r += '}';
+    traceWrite( r );
+}
+
 // Called by game, after *start's variables are cleared.
 void ONScripter::startAt()
 {
+    if (start_load >= 0){ // the saved game's variables and place
+        if (!loadGame( start_load )){
+            utils::printError( "--load: can't load save slot %d\n", start_load );
+            startupFailed();
+        }
+        return;
+    }
     if (start_vars) readVarsFile( start_vars );
     if (!start_goto) return;
     bool found = false;

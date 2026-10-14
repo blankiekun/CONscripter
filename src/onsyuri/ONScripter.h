@@ -126,6 +126,8 @@ public:
     void startupFailed(); // CONscripter: records the error just printed, exits with 3
     void setStartGoto(const char *label); // CONscripter: --goto, --vars, --dump-vars
     void setStartVars(const char *path);
+    void setStartLoad(int slot); // CONscripter: --load, --checkpoint-every, --checkpoint-slot
+    void setCheckpoints(int pages, int slot);
     void setDumpVars(const char *path);
     const char* getArchivePath() { return archive_path; }
     void setWindowWidth(int width);
@@ -774,6 +776,10 @@ private:
     char *start_vars;                // --vars file
     char *dump_vars_path;            // --dump-vars file
     void startAt();
+    int start_load;                  // --load slot, -1 for none
+    int checkpoint_every, checkpoint_slot, checkpoint_count, checkpoint_pages;
+    void autoPlayCheckpoint();
+    bool loadGame( int no );
     void readVarsFile( const char *path );
     void writeVarsFile();
     void traceVars( std::string &out );

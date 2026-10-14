@@ -74,6 +74,8 @@ void optionHelp()
     printf( "      --shot-every n\twith --trace, save a picture of every n-th page\n");
     printf( "      --goto label\tstart at this label, once the define section has run\n");
     printf( "      --vars file\tset these variables at the start (lines %%312=876, $5=text; UTF-8)\n");
+    printf( "      --load n\t\tstart by loading save slot n\n");
+    printf( "      --checkpoint-every n\twith --auto-play, save every n pages, to slots 900, 901, ... (--checkpoint-slot)\n");
     printf( "      --dump-vars file\twrite the variables in that form at F8 and at exit\n");
     printf( "      --enc:[gbk|sjis|utf8]\tdefine the encoding of script\n");
     printf( "      (exit codes: 0 ok, 1 --auto-play stuck, 2 script error, 3 startup failure)\n\n");
@@ -439,6 +441,21 @@ void parseOption(int argc, char *argv[]) {
                 argc--;
                 argv++;
                 ons.setTaken(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-load" ) ){
+                argc--;
+                argv++;
+                ons.setStartLoad(atoi(argv[0]));
+            }
+            else if ( !strcmp( argv[0]+1, "-checkpoint-every" ) ){
+                argc--;
+                argv++;
+                ons.setCheckpoints(atoi(argv[0]), -1);
+            }
+            else if ( !strcmp( argv[0]+1, "-checkpoint-slot" ) ){
+                argc--;
+                argv++;
+                ons.setCheckpoints(-1, atoi(argv[0]));
             }
             else if ( !strcmp( argv[0]+1, "-goto" ) ){
                 argc--;

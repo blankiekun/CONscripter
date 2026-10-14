@@ -365,6 +365,9 @@ ONScripter::ONScripter()
     start_goto = NULL;
     start_vars = NULL;
     dump_vars_path = NULL;
+    start_load = -1;
+    checkpoint_every = checkpoint_count = checkpoint_pages = 0;
+    checkpoint_slot = 900;
     trace_page = 0;
     trace_sprite = NULL;
     trace_ignore = NULL;
