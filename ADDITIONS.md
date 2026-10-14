@@ -24,6 +24,16 @@ possible.
   sprite without an image, and are kept in save files.
   `spfilter 10,1,1,256,148,152,200` tints sprite 10 for a night scene;
   `spfilter 10,1,0,256,0,0,0` makes it a black silhouette.
+- **`spzoom num,zoom_x[,zoom_y]`**: draws `lsp` sprite `num` zoomed by
+  `zoom_x` and `zoom_y` percent (100 = its size; `zoom_y` defaults to
+  `zoom_x`; negative flips it) about the centre of its place, which `amsp`
+  and `msp` move as usual. Unlike `lsp2`, the sprite keeps its place among
+  the other sprites (`lsp2` sprites are all drawn over them). The zoom
+  stays when `lsp` changes the image, is reset by `csp` and is kept in
+  save files and by `pushscreen`. Its buttons keep their unzoomed place.
+  `spzoom` redraws the whole screen at the next `print`, so call it again
+  after moving a zoomed sprite: `amsp 10,x,y:spzoom 10,150:print 1` (a
+  camera zoom on a background, step by step).
 - **`screenfilter slot,kind[,blend[,strength[,p1,p2,p3]]]`**: the same
   filters on the whole picture: the background and the sprites behind the
   text window (numbers above `humanz`), where `monocro` applies; not the

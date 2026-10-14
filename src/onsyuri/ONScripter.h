@@ -196,6 +196,7 @@ public:
     int splitCommand();
     int spclclkCommand();
     int spfilterCommand();
+    int spzoomCommand();
     int screenfilterCommand();
     int screenshakeCommand();
     int screenrippleCommand();
@@ -527,6 +528,8 @@ private:
     void setupAnimationInfo(AnimationInfo *anim, FontInfo *info=NULL);
     void parseTaggedString(AnimationInfo *anim );
     void drawTaggedSurface(SDL_Surface *dst_surface, AnimationInfo *anim, SDL_Rect &clip);
+    void drawZoomedSurface(SDL_Surface *dst_surface, AnimationInfo *anim, SDL_Rect &poly_rect, SDL_Rect &clip);
+    SDL_Rect zoomedRect(const AnimationInfo &ai);
     void stopAnimation(int click);
     void loadCursor(int no, const char *str, int x, int y, bool abs_flag = false);
 
@@ -692,6 +695,7 @@ private:
         bool visible;
         int num_of_filters;
         AnimationInfo::Filter filter[AnimationInfo::MAX_FILTER_NUM];
+        int zoom_x, zoom_y;
     };
     struct ScreenState {
         char *bg_name;

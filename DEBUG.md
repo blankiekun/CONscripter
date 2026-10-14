@@ -406,7 +406,7 @@ Each sprite in `sp`:
 | Field | Meaning |
 |---|---|
 | `n`, `kind` | Its number and how it was made: `lsp`, `lsp2` or `ld` |
-| `x`,`y`,`w`,`h` | Its box on the screen in pixels (the current cell; for `lsp2`, the bounding box after scaling and rotation) |
+| `x`,`y`,`w`,`h` | Its box on the screen in pixels (the current cell; for `lsp2`, the bounding box after scaling and rotation; zoomed by `spzoom`) |
 | `alpha` | 0-255, as set by `lsp`'s opacity or `amsp` |
 | `file` | The image file; `str` instead for a string sprite (its text), `tag` for a sprite without a file (a colour) |
 | `missing` | `true` if the image couldn't be loaded (no size then) |
@@ -414,6 +414,7 @@ Each sprite in `sp`:
 | `edges` | Which screen edges the box touches or crosses: `T`op, `B`ottom, `L`eft, `R`ight (omitted when none) |
 | `off` | `true` when the box is entirely off the screen |
 | `filters` | The number of `spfilter` filters on it |
+| `zoom` | `[x,y]`, its `spzoom` in percent (omitted at 100) |
 | `since` | The page where it last appeared, or changed its image, position, size, opacity or cell (an animation stepping its own cells doesn't count) |
 
 `since` makes lingering sprites easy to spot: a character still up with

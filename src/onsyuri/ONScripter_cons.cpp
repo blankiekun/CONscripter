@@ -45,8 +45,9 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 6 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
-                            // 5: + strsp sprites, looping dwave sounds; 6: + strsp sprites in the screen stack
+#define CONS_SAVE_VERSION 7 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
+                            // 5: + strsp sprites, looping dwave sounds; 6: + strsp sprites in the screen stack;
+                            // 7: + sprite zooms
 
 /* spfilter num, kind[, blend[, strength[, param...]]]
  *   kind 0 clears every filter on sprite num. Other kinds add a filter
@@ -119,6 +120,79 @@ int ONScripter::spfilterCommand()
     if (ai->visible) dirty_rect.add( ai->pos );
 
     return RET_CONTINUE;
+}
+
+/* spzoom num, zoom_x[, zoom_y]
+ *   Draws sprite num (an lsp sprite) zoomed by zoom_x and zoom_y percent
+ *   (100 = its size; zoom_y defaults to zoom_x) about the centre of its
+ *   place, which amsp and msp move as usual. Unlike lsp2, the sprite keeps
+ *   its place among the other sprites. The zoom stays when lsp changes the
+ *   image and is reset by csp. A zoomed sprite's buttons keep their
+ *   unzoomed place. spzoom redraws the whole screen at the next print:
+ *   call it again after moving a zoomed sprite, so that what its zoomed
+ *   picture covered is redrawn too: "amsp 10,x,y:spzoom 10,150:print 1". */
+int ONScripter::spzoomCommand()
+{
+    leaveTextDisplayMode();
+
+    int no = script_h.readInt();
+    int zx = script_h.readInt();
+    int zy = zx;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA)
+        zy = script_h.readInt();
+
+    if (no < 0 || no >= MAX_SPRITE_NUM){
+        utils::printError("spzoom: sprite %d out of range\n", no);
+        return RET_CONTINUE;
+    }
+    AnimationInfo *ai = &sprite_info[no];
+    ai->zoom_x = zx;
+    ai->zoom_y = zy;
+    // Where the zoomed picture was isn't known after an amsp: redraw it all.
+    if (ai->visible) dirty_rect.fill( screen_width, screen_height );
+
+    return RET_CONTINUE;
+}
+
+// The box a sprite's picture covers, zoomed (spzoom) about its centre.
+SDL_Rect ONScripter::zoomedRect( const AnimationInfo &ai )
+{
+    SDL_Rect r = ai.pos;
+    if (ai.zoom_x == 100 && ai.zoom_y == 100) return r;
+    int w = ai.pos.w * abs(ai.zoom_x) / 100, h = ai.pos.h * abs(ai.zoom_y) / 100;
+    r.x = ai.pos.x + ai.pos.w/2 - w/2 - 1;
+    r.y = ai.pos.y + ai.pos.h/2 - h/2 - 1;
+    r.w = w + 2;
+    r.h = h + 2;
+    return r;
+}
+
+// Draws a zoomed lsp sprite with lsp2's scaling, about the centre of its
+// place (poly_rect, its top left on the screen).
+void ONScripter::drawZoomedSurface( SDL_Surface *dst_surface, AnimationInfo *anim, SDL_Rect &poly_rect, SDL_Rect &clip )
+{
+    if (anim->zoom_x == 0 || anim->zoom_y == 0) return;
+    SDL_Rect pos = anim->pos, affine_pos = anim->affine_pos, bounding_rect = anim->bounding_rect;
+    int scale_x = anim->scale_x, scale_y = anim->scale_y, rot = anim->rot;
+
+    anim->pos.x = poly_rect.x + pos.w/2;
+    anim->pos.y = poly_rect.y + pos.h/2;
+    anim->affine_pos.x = pos.w * anim->current_cell;
+    anim->affine_pos.y = 0;
+    anim->affine_pos.w = pos.w;
+    anim->affine_pos.h = pos.h;
+    anim->scale_x = anim->zoom_x;
+    anim->scale_y = anim->zoom_y;
+    anim->rot = 0;
+    anim->calcAffineMatrix();
+    anim->blendOnSurface2( dst_surface, anim->pos.x, anim->pos.y, clip, anim->trans );
+
+    anim->pos = pos;
+    anim->affine_pos = affine_pos;
+    anim->bounding_rect = bounding_rect;
+    anim->scale_x = scale_x;
+    anim->scale_y = scale_y;
+    anim->rot = rot;
 }
 
 /* screenfilter slot, kind[, blend[, strength[, param...]]]
@@ -641,6 +715,8 @@ int ONScripter::pushscreenCommand()
         sp.trans = ai->trans;
         sp.num_of_filters = ai->num_of_filters;
         memcpy(sp.filter, ai->filter, sizeof(sp.filter));
+        sp.zoom_x = ai->zoom_x;
+        sp.zoom_y = ai->zoom_y;
     }
     memcpy(st.screen_filter, screen_filter, sizeof(st.screen_filter));
 
@@ -709,6 +785,10 @@ void ONScripter::popScreenState()
         ai->visible = sp.visible && (sp.image_name || sp.str);
         ai->trans = sp.trans;
         if (ai->num_of_cells > 0) ai->setCell(sp.cell);
+        if (ai->image_surface && ai->visible) dirty_rect.add( zoomedRect( *ai ) ); // the old zoom
+        ai->zoom_x = sp.zoom_x;
+        ai->zoom_y = sp.zoom_y;
+        if (ai->image_surface && ai->visible) dirty_rect.add( zoomedRect( *ai ) );
         if (ai->image_surface && ai->visible) dirty_rect.add( ai->pos );
         delete[] sp.image_name;
         delete[] sp.str;
@@ -890,6 +970,36 @@ void ONScripter::saveSaveFileCons( bool output_flag )
                     writeInt( sp.filter[j].param[k], output_flag );
             }
             writeStrsp( sp.str, sp.font, sp.cells, sp.colors, output_flag );
+        }
+    }
+
+    // Version 7: the sprite zooms (spzoom): the count, then per sprite its
+    // number and zoom x and y; then the number of pushscreen states and per
+    // state, oldest first, the same for the sprites it saved.
+    num = 0;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (sprite_info[i].zoom_x != 100 || sprite_info[i].zoom_y != 100) num++;
+    writeInt( num, output_flag );
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        AnimationInfo *ai = &sprite_info[i];
+        if (ai->zoom_x == 100 && ai->zoom_y == 100) continue;
+        writeInt( i, output_flag );
+        writeInt( ai->zoom_x, output_flag );
+        writeInt( ai->zoom_y, output_flag );
+    }
+    writeInt( screen_stack_num, output_flag );
+    for (int n=0 ; n<screen_stack_num ; n++){
+        ScreenState &st = screen_stack[n];
+        num = 0;
+        for (int i=st.first ; i<=st.last ; i++)
+            if (st.sprite[i - st.first].zoom_x != 100 || st.sprite[i - st.first].zoom_y != 100) num++;
+        writeInt( num, output_flag );
+        for (int i=st.first ; i<=st.last ; i++){
+            ScreenSprite &sp = st.sprite[i - st.first];
+            if (sp.zoom_x == 100 && sp.zoom_y == 100) continue;
+            writeInt( i, output_flag );
+            writeInt( sp.zoom_x, output_flag );
+            writeInt( sp.zoom_y, output_flag );
         }
     }
 }
@@ -1110,6 +1220,7 @@ void ONScripter::loadSaveFileCons()
             sp.trans = -1;
             sp.visible = false;
             sp.num_of_filters = 0;
+            sp.zoom_x = sp.zoom_y = 100;
         }
         int num = readInt();
         for (int m=0 ; m<num ; m++){
@@ -1211,6 +1322,7 @@ void ONScripter::loadSaveFileCons()
             int i = readInt();
             ScreenSprite sp;
             sp.image_name = NULL;
+            sp.zoom_x = sp.zoom_y = 100;
             sp.x = readInt();
             sp.y = readInt();
             sp.visible = readInt() == 1;
@@ -1239,6 +1351,30 @@ void ONScripter::loadSaveFileCons()
             else{
                 delete[] sp.str;
                 delete[] sp.colors;
+            }
+        }
+    }
+
+    if (version < 7) return;
+    num = readInt();
+    for (int n=0 ; n<num ; n++){
+        int no = readInt();
+        int zx = readInt(), zy = readInt();
+        if (no >= 0 && no < MAX_SPRITE_NUM){
+            sprite_info[no].zoom_x = zx;
+            sprite_info[no].zoom_y = zy;
+        }
+    }
+    depth = readInt();
+    for (int n=0 ; n<depth ; n++){
+        num = readInt();
+        for (int m=0 ; m<num ; m++){
+            int i = readInt();
+            int zx = readInt(), zy = readInt();
+            ScreenState *st = (n < screen_stack_num) ? &screen_stack[n] : NULL;
+            if (st && i >= st->first && i <= st->last){
+                st->sprite[i - st->first].zoom_x = zx;
+                st->sprite[i - st->first].zoom_y = zy;
             }
         }
     }
@@ -2014,7 +2150,7 @@ int ONScripter::traceSpriteUpdate( int i, int since )
         ts.image.clear();
         return 2;
     }
-    SDL_Rect r = (kind[3] == '2') ? ai.bounding_rect : ai.pos; // lsp2: its box after scaling and turning
+    SDL_Rect r = (kind[3] == '2') ? ai.bounding_rect : zoomedRect( ai ); // lsp2: its box after scaling and turning
     // an animation steps its cells by itself
     int cell = ai.is_animatable ? -1 : ai.current_cell;
     if (ts.image == image && ts.x == r.x && ts.y == r.y && ts.w == r.w && ts.h == r.h &&
@@ -2074,6 +2210,10 @@ void ONScripter::traceSprite( std::string &out, int i )
         snprintf( buf, sizeof(buf), ",\"filters\":%d", ai.num_of_filters );
         out += buf;
     }
+    if (ai.zoom_x != 100 || ai.zoom_y != 100){
+        snprintf( buf, sizeof(buf), ",\"zoom\":[%d,%d]", ai.zoom_x, ai.zoom_y );
+        out += buf;
+    }
     snprintf( buf, sizeof(buf), ",\"since\":%d}", ts.since );
     out += buf;
 }
@@ -2125,7 +2265,7 @@ bool ONScripter::traceChanges( std::string &out )
 static const struct { const char *name; int kind; } trace_commands[] = {
     {"lsp",1}, {"lsph",1}, {"lsp2",1}, {"lsph2",1}, {"lsp2add",1}, {"lsph2add",1},
     {"lsp2sub",1}, {"lsph2sub",1}, {"csp",1}, {"csp2",1}, {"vsp",1}, {"vsp2",1},
-    {"msp",1}, {"msp2",1}, {"amsp",1}, {"amsp2",1}, {"cell",1}, {"spfilter",1},
+    {"msp",1}, {"msp2",1}, {"amsp",1}, {"amsp2",1}, {"cell",1}, {"spfilter",1}, {"spzoom",1},
     {"strsp",1}, {"strsph",1}, {"spstr",1}, {"spreload",1}, {"ld",1}, {"cl",1},
     {"bg",1}, {"bgcopy",1}, {"bgcpy",1}, {"popscreen",1},
     {"bgm",2}, {"bgmonce",2}, {"mp3",2}, {"mp3loop",2}, {"mp3save",2}, {"play",2},
@@ -3310,7 +3450,7 @@ void ONScripter::roundtripState( std::map<std::string, std::string> &state )
         const char *image = ai.image_name;
         if (!image && ai.trans_mode == AnimationInfo::TRANS_STRING) image = ai.file_name;
         if (!ai.visible || !image) continue;
-        SDL_Rect r = (kind[3] == '2') ? ai.bounding_rect : ai.pos;
+        SDL_Rect r = (kind[3] == '2') ? ai.bounding_rect : zoomedRect( ai );
         snprintf( buf, sizeof(buf), "sp %s %d", kind, no );
         std::string &v = state[buf];
         traceString( v, image );

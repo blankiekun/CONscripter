@@ -453,7 +453,9 @@ void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
         poly_rect.y += sentence_font.y() * screen_ratio1 / screen_ratio2;
     }
 
-    if (!anim->affine_flag)
+    if (!anim->affine_flag && (anim->zoom_x != 100 || anim->zoom_y != 100))
+        drawZoomedSurface( dst_surface, anim, poly_rect, clip );
+    else if (!anim->affine_flag)
         anim->blendOnSurface( dst_surface, poly_rect.x, poly_rect.y, clip, anim->trans );
     else
         anim->blendOnSurface2( dst_surface, poly_rect.x, poly_rect.y, clip, anim->trans );

@@ -132,6 +132,11 @@ public:
     int num_of_filters;
     bool filter_changed; // image_surface doesn't reflect filter[] yet
 
+    /* CONscripter: a sprite's zoom (spzoom), in percent (100 = none),
+       about the centre of its place. It stays across lsp and is reset by
+       remove(). */
+    int zoom_x, zoom_y;
+
     int font_size_xy[2]; // used by prnum and lsp string
     int font_pitch[2]; // used by lsp string
     int next_time;

@@ -63,6 +63,7 @@ AnimationInfo::AnimationInfo()
     affine_flag = false;
     num_of_filters = 0;
     filter_changed = false;
+    zoom_x = zoom_y = 100;
 
     if (!is_inv_alpha_lut_initialized){
         inv_alpha_lut[0] = 255;
@@ -191,6 +192,7 @@ void AnimationInfo::remove()
     deleteSurface();
     removeTag();
     clearFilters();
+    zoom_x = zoom_y = 100;
 }
 
 void AnimationInfo::clearFilters()
