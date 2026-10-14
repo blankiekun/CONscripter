@@ -109,9 +109,11 @@ int ONScripter::waveCommand()
     if (script_h.isName( "waveloop" ))
         wave_play_loop_flag = true;
 
+    const char *name = script_h.readStr();
+    soundCommand( MIX_WAVE_CHANNEL, name, true ); // CONscripter: for the trace and the web page
     wavestopCommand();
 
-    setStr(&wave_file_name, script_h.readStr());
+    setStr(&wave_file_name, name);
     playSound(wave_file_name, SOUND_CHUNK, wave_play_loop_flag, MIX_WAVE_CHANNEL);
         
     return RET_CONTINUE;
@@ -2921,10 +2923,12 @@ int ONScripter::dwaveCommand()
     else if (ch >= ONS_MIX_CHANNELS) ch = ONS_MIX_CHANNELS-1;
 
     if (play_mode == WAVE_PLAY_LOADED){
+        soundCommand( ch, NULL, true ); // CONscripter: for the trace and the web page
         Mix_PlayChannel(ch, wave_sample[ch], loop_flag?-1:0);
     }
     else{
         const char *buf = script_h.readStr();
+        soundCommand( ch, buf, play_mode == WAVE_PLAY );
         int fmt = SOUND_CHUNK;
         if (play_mode == WAVE_PRELOAD) fmt |= SOUND_PRELOAD;
         playSound(buf, fmt, loop_flag, ch);

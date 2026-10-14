@@ -1672,7 +1672,9 @@ int ONScripter::traceSpriteUpdate( int i, int since )
     int no;
     AnimationInfo &ai = traceSpriteInfo( i, kind, no );
     TraceSprite &ts = trace_sprite[i];
-    if (!ai.visible || !ai.image_name){
+    const char *image = ai.image_name;
+    if (!image && ai.trans_mode == AnimationInfo::TRANS_STRING) image = ai.file_name; // strsp: its text
+    if (!ai.visible || !image){
         if (ts.image.empty()) return 0;
         ts.image.clear();
         return 2;
@@ -1680,9 +1682,9 @@ int ONScripter::traceSpriteUpdate( int i, int since )
     SDL_Rect r = (kind[3] == '2') ? ai.bounding_rect : ai.pos; // lsp2: its box after scaling and turning
     // an animation steps its cells by itself
     int cell = ai.is_animatable ? -1 : ai.current_cell;
-    if (ts.image == ai.image_name && ts.x == r.x && ts.y == r.y && ts.w == r.w && ts.h == r.h &&
+    if (ts.image == image && ts.x == r.x && ts.y == r.y && ts.w == r.w && ts.h == r.h &&
         ts.trans == ai.trans && ts.cell == cell) return 0;
-    ts.image = ai.image_name;
+    ts.image = image;
     ts.x = r.x; ts.y = r.y; ts.w = r.w; ts.h = r.h;
     ts.trans = ai.trans;
     ts.cell = cell;
@@ -1955,6 +1957,10 @@ void ONScripter::tracePage( bool dump )
     traceAt( r, script_h.getCurrent( true ) );
     r += ",\"text\":";
     traceString( r, current_page->text, current_page->text_count );
+    if (current_page->tag){ // the text's [...] tag (a speaker's name, a voice)
+        r += ",\"tag\":";
+        traceString( r, current_page->tag );
+    }
     r += ",\"bg\":";
     traceString( r, bg_info.file_name );
     r += ",\"bgm\":";
@@ -2646,8 +2652,9 @@ void ONScripter::traceVarsSetup()
             utils::printError( "--trace-vars: can't read [%s]\n", p );
             break;
         }
-        for (int i=first ; i<=last && i-first < 100000 ; i++){
-            if (i < 0) continue;
+        if (first < 0 || last >= script_h.variable_range)
+            utils::printError( "--trace-vars: only variables 0-%d can be watched\n", script_h.variable_range-1 );
+        for (int i=std::max( first, 0 ) ; i<=last && i<script_h.variable_range ; i++){
             if (str) trace_str_vars.push_back( i );
             else     trace_num_vars.push_back( i );
         }

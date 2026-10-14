@@ -142,5 +142,10 @@ possible.
   - `onsyuriSprites(text, boxes)` whenever the game waits for input: the
     visible `strsp` sprites' text and character boxes, like `onsyuriText`
     (all sprites in one `text`), for menus and backlogs a script draws itself.
+  - `onsyuriVoice(channel, file)` when `dwave`, `dwaveloop`, `dwaveplay`,
+    `wave` or `waveloop` starts a sound: the channel (0 is the usual
+    voice channel) and the file as the script names it, as a UTF-8
+    string (`voice\v300002.ogg`), so the page can keep the voice of the
+    page being read. It is called before the next `onsyuriText`.
 - **Save files** end with an extra block (`CONS`, a version, then the
   state above) after the NScripter data. Saves without it load as before.
