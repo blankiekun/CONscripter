@@ -282,6 +282,60 @@ quit). `reason` says why `--auto-play` stopped it: `auto-play page
 limit`, or `stuck: ...`. A trace that doesn't end with it stopped in a crash or was killed
 with SIGKILL; the last records show where.
 
+## Checking a trace
+
+`tools/cons_trace_check.py` (Python 3, nothing to install) reads a trace
+and prints what looks wrong, ranked by kind, each at the script line to
+look at:
+
+```sh
+python3 tools/cons_trace_check.py trace.jsonl --script 0.txt
+```
+
+```
+trace.jsonl: 49302 pages, 97649 commands, 230 choices; ended
+
+== linger (66)
+  *conv_link37_1:54515     lsp 61 bg\frame01.png stayed up when the background changed bg\img_0064.png -> bg\bg01d.png (shown at *s62_l1:219303: lsp %180,$180,0,0)
+  ...
+```
+
+| Kind | What it finds |
+|---|---|
+| `error` | Script errors (with the gosub chain), a trace without `end` (a crash), an auto-play run that got stuck |
+| `missing` | Files that couldn't be loaded, grouped by file, and sprites shown without their image |
+| `linger` | A tall picture (a character or CG) still up after the background changed, or up for more than `--linger` pages |
+| `float` | A picture at least `--float-h` of the screen tall whose bottom edge stops up to `--float-gap` pixels above the screen's |
+| `offscreen` | A sprite entirely off the screen |
+| `invisible` | A sprite shown at alpha 0 |
+| `crowd` | More than `--crowd` tall pictures at once, or two at the same place |
+| `overlay` | A screen filter or effect still on after the background changed, and with `--cg REGEX` any filter or effect over a background whose name matches (an eye-close left over a CG) |
+| `loop` | A looping sound playing for more than `--loop` pages |
+| `coverage` | With `--script`, the labels the run never reached (`--coverage-skip REGEX` leaves some out) |
+
+Each sprite finding ends with the command that showed it, so the bug can
+be traced from the page back to the line that put the sprite up. A
+finding is reported once (the first page it is seen), not on every page.
+
+"Tall" means at least `--tall` (0.4) of the screen height, which leaves
+out name plates and buttons. The other limits, with their defaults, are
+in `--help`. `--max N` sets how many findings of each kind are shown, and
+`--json` prints them all as JSON.
+
+To check a fix, compare a trace from before it with one from after, made
+the same way (the same `--auto-play`, `--auto-choice` and `--seed`):
+
+```sh
+python3 tools/cons_trace_check.py --diff before.jsonl after.jsonl
+```
+
+This prints each page whose background, music, screen state or sprites
+differ (once for a run of pages with the same difference), and where the
+two runs part if they took different routes.
+
+The report ends with the pages its findings are on, as a `--shot-pages`
+option for taking their pictures.
+
 ## Reading a trace
 
 ```sh
