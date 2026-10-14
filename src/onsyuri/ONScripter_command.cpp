@@ -1754,6 +1754,7 @@ int ONScripter::loopbgmCommand()
 
 int ONScripter::lookbackflushCommand()
 {
+    if (!current_page) return RET_CONTINUE; // CONscripter: setwindow in the define section, before game makes the pages
     current_page = current_page->next;
     for ( int i=0 ; i<max_page_list-1 ; i++ ){
         current_page->text_count = 0;

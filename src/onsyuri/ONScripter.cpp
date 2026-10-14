@@ -369,6 +369,7 @@ ONScripter::ONScripter()
     trace_vars_spec = NULL;
     trace_vars_flag = false;
     trace_long_wait = 10000;
+    trace_overflow = false;
     ruby_hidden = false;
     text_speed_override = -1;
     web_mode_sent = -1;
@@ -1310,6 +1311,7 @@ void ONScripter::clearCurrentPage()
         current_page->tag = NULL;
     }
     setStr( &current_page->voice, NULL );
+    trace_overflow = false;
 
     num_chars_in_sentence = 0;
     internal_saveon_flag = true;

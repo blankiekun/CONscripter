@@ -262,6 +262,11 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
     info->old_xy[0] = info->x(false);
     info->old_xy[1] = info->y(false);
 
+    // CONscripter: the trace notes text drawn past the window's last line
+    if (trace_fp && lookback_flag && info == &sentence_font &&
+        (info->getTateyokoMode() == FontInfo::YOKO_MODE ? info->xy[1]/2 >= info->num_xy[1] : info->xy[0] < 0))
+        trace_overflow = true;
+
     // CONscripter: drawn at the size of a "!z" tag, on the line's baseline
     FontInfo scaled_font;
     FontInfo *glyph_info = textSizeFont(info, scaled_font);

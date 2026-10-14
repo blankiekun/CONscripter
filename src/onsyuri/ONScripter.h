@@ -808,6 +808,7 @@ private:
     void traceVarsSetup();
     void traceVarChanges( char *at );
     int trace_long_wait;             // --trace-long-wait ms
+    bool trace_overflow;             // the page's text went past the window's last line
     void traceLongWait( int ms );
     static void traceErrorHook( const char *message );
     static void traceExitHook();

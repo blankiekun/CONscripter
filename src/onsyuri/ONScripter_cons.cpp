@@ -2028,6 +2028,7 @@ void ONScripter::tracePage( bool dump )
     }
     if (listed) r += ']';
 
+    if (trace_overflow) r += ",\"overflow\":true";
     if (dump) traceVars( r );
     if (all_sprite_hide_flag) r += ",\"sprites_hidden\":true";
     if (all_sprite2_hide_flag) r += ",\"sprites2_hidden\":true";
