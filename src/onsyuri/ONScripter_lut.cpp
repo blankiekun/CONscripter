@@ -82,6 +82,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"spi",				&ONScripter::soundpressplginCommand},
     {"spfilter",		&ONScripter::spfilterCommand},
     {"spzoom",			&ONScripter::spzoomCommand},
+    {"spmotion",		&ONScripter::spmotionCommand},
     {"screenfilter",	&ONScripter::screenfilterCommand},
     {"screenshake",		&ONScripter::screenshakeCommand},
     {"screenripple",	&ONScripter::screenrippleCommand},

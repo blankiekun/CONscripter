@@ -434,6 +434,7 @@ Each sprite in `sp`:
 | `off` | `true` when the box is entirely off the screen |
 | `filters` | The number of `spfilter` filters on it |
 | `zoom` | `[x,y]`, its `spzoom` in percent (omitted at 100) |
+| `motion` | `"loop"` or `"once"` while an `spmotion` moves it (the box is its place, without the motion) |
 | `since` | The page where it last appeared, or changed its image, position, size, opacity or cell (an animation stepping its own cells doesn't count) |
 
 `since` makes lingering sprites easy to spot: a character still up with

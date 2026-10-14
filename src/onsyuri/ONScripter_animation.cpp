@@ -66,6 +66,9 @@ int ONScripter::calcDurationToNextAnimation()
     int effect_time = nextScreenEffectTime(); // CONscripter
     if (effect_time > 0 && (min == 0 || min > effect_time))
         min = effect_time;
+    int motion_time = nextSpriteMotionTime();
+    if (motion_time > 0 && (min == 0 || min > motion_time))
+        min = motion_time;
     int fade_time = nextSoundFadeTime(); // CONscripter: bgmvolfade
     if (fade_time > 0 && (min == 0 || min > fade_time))
         min = fade_time;
@@ -91,6 +94,7 @@ void ONScripter::proceedAnimation(int current_time)
             flushDirect(sprite_info[i].pos, refreshMode() | (draw_cursor_flag?REFRESH_CURSOR_MODE:0));
 
     proceedScreenEffects(current_time); // CONscripter
+    proceedSpriteMotions(current_time);
     proceedSoundFades(current_time);
 
 #ifdef USE_LUA
@@ -452,6 +456,8 @@ void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
   }
 #endif
     SDL_Rect poly_rect = anim->pos;
+    poly_rect.x += anim->motion_dx; // CONscripter: spmotion
+    poly_rect.y += anim->motion_dy;
     if ( !anim->abs_flag ){
         poly_rect.x += sentence_font.x() * screen_ratio1 / screen_ratio2;
         poly_rect.y += sentence_font.y() * screen_ratio1 / screen_ratio2;

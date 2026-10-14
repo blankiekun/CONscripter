@@ -38,6 +38,19 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   `spzoom` redraws the whole screen at the next `print`, so call it again
   after moving a zoomed sprite: `amsp 10,x,y:spzoom 10,150:print 1` (a
   camera zoom on a background, step by step).
+- **`spmotion num[,loop,t1,x1,y1,t2,x2,y2,...]`**: moves `lsp` sprite
+  `num` by itself along offsets from its place: `x,y` pixels at `t` ms
+  from now, straight from key to key, stepped about every 16 ms by the
+  timer (during text and click waits too, like the sprite animations).
+  `loop` 1 starts again after the last key (give the last key the first
+  one's offset for a smooth loop); `loop` 0 ends at the last key and the
+  sprite is back at its place. `spmotion num` stops it there. Up to 32
+  keys. `amsp`, `msp` and `spzoom` act on the place as usual; the motion
+  stays when `lsp` changes the image, is removed by `csp` and is kept in
+  save files (restarted on load). `spmotion 10,1,0,0,0,250,0,-12,500,0,0`
+  bobs sprite 10 twice a second; a one-shot list of shrinking offsets
+  shakes it. While a sprite is zoomed or moving, each refresh redraws the
+  whole screen, and `csp` redraws where it was drawn.
 - **`screenfilter slot,kind[,blend[,strength[,p1,p2,p3]]]`**: the same
   filters on the whole picture: the background and the sprites behind the
   text window (numbers above `humanz`), where `monocro` applies; not the

@@ -199,6 +199,7 @@ public:
     int spclclkCommand();
     int spfilterCommand();
     int spzoomCommand();
+    int spmotionCommand();
     int screenfilterCommand();
     int screenshakeCommand();
     int screenrippleCommand();
@@ -537,6 +538,11 @@ private:
     void drawTaggedSurface(SDL_Surface *dst_surface, AnimationInfo *anim, SDL_Rect &clip);
     void drawZoomedSurface(SDL_Surface *dst_surface, AnimationInfo *anim, SDL_Rect &poly_rect, SDL_Rect &clip);
     SDL_Rect zoomedRect(const AnimationInfo &ai);
+    SDL_Rect drawnRect(const AnimationInfo &ai);
+    bool spriteZoomOrMotion();
+    void stepSpriteMotion(AnimationInfo &ai, int current_time);
+    void proceedSpriteMotions(int current_time);
+    int nextSpriteMotionTime();
     void stopAnimation(int click);
     void loadCursor(int no, const char *str, int x, int y, bool abs_flag = false);
 

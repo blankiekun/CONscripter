@@ -3175,7 +3175,7 @@ int ONScripter::cspCommand()
                 if (csp2_flag)
                     dirty_rect.add( si[i].bounding_rect );
                 else
-                    dirty_rect.add( si[i].pos );
+                    dirty_rect.add( drawnRect( si[i] ) ); // CONscripter: zoomed, moving
             }
             if ( si[i].image_name ){
                 si[i].orig_pos.x = -1000;
@@ -3190,7 +3190,7 @@ int ONScripter::cspCommand()
             if (csp2_flag)
                 dirty_rect.add( si[no].bounding_rect );
             else
-                dirty_rect.add( si[no].pos );
+                dirty_rect.add( drawnRect( si[no] ) ); // CONscripter: zoomed, moving
         }
         if (!csp2_flag) root_button_link.removeSprite(no);
         si[no].remove();

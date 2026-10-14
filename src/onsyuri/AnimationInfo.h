@@ -137,6 +137,17 @@ public:
        remove(). */
     int zoom_x, zoom_y;
 
+    /* CONscripter: a motion (spmotion): offsets the sprite is drawn at,
+       stepped along keys (ms from the start, x, y) by the timer, looping
+       or once. Stays across lsp; reset by remove(). */
+    enum { MAX_MOTION_KEYS = 32 };
+    int motion_keys;           // 0: no motion
+    int motion_key[MAX_MOTION_KEYS][3];
+    bool motion_loop;
+    int motion_start;          // ticks when it started
+    int motion_next;           // ticks of the next step
+    int motion_dx, motion_dy;  // the offset drawn now
+
     int font_size_xy[2]; // used by prnum and lsp string
     int font_pitch[2]; // used by lsp string
     int next_time;

@@ -64,6 +64,10 @@ AnimationInfo::AnimationInfo()
     num_of_filters = 0;
     filter_changed = false;
     zoom_x = zoom_y = 100;
+    motion_keys = 0;
+    motion_loop = false;
+    motion_start = motion_next = 0;
+    motion_dx = motion_dy = 0;
 
     if (!is_inv_alpha_lut_initialized){
         inv_alpha_lut[0] = 255;
@@ -193,6 +197,8 @@ void AnimationInfo::remove()
     removeTag();
     clearFilters();
     zoom_x = zoom_y = 100;
+    motion_keys = 0;
+    motion_dx = motion_dy = 0;
 }
 
 void AnimationInfo::clearFilters()
