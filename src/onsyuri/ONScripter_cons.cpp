@@ -323,6 +323,40 @@ int ONScripter::screenrippleCommand()
  *   Kept across setwindow and loading a save (not saved itself: a game
  *   sets it again from its settings at startup); reset puts it back to
  *   255. "windowtrans 128" halves the window's opacity. */
+/* dwavefadein ms
+ *   The next dwave, dwaveloop, dwaveplay or dwaveplayloop fades its sound
+ *   in over ms milliseconds (0: at once, as before).
+ *       dwavefadein 2000:dwaveloop 1,"se\rain.ogg"
+ * dwavefadeout ch,ms
+ *   Fades the sound of dwave channel ch out over ms milliseconds, then
+ *   stops it; the script goes on at once. A looping sound fading out isn't
+ *   kept in a save. 0 ms stops it as dwavestop does. */
+int ONScripter::dwavefadeinCommand()
+{
+    dwave_fade_in_ms = script_h.readInt();
+    if (dwave_fade_in_ms < 0) dwave_fade_in_ms = 0;
+    return RET_CONTINUE;
+}
+
+int ONScripter::dwavefadeoutCommand()
+{
+    int ch = script_h.readInt();
+    int ms = script_h.readInt();
+    if      (ch < 0) ch = 0;
+    else if (ch >= ONS_MIX_CHANNELS) ch = ONS_MIX_CHANNELS-1;
+    if (!wave_sample[ch]) return RET_CONTINUE;
+
+    trace_se_loop[ch] = false; // stopping: not for the save
+    // SDL_mixer won't fade a sound at volume 0 (a fade-in just started):
+    // nothing is heard yet, so stop it as dwavestop does
+    if (ms <= 0 || !audio_open_flag || Mix_Paused( ch ) || Mix_FadeOutChannel( ch, ms ) == 0){
+        cutChannel( ch );
+        Mix_FreeChunk( wave_sample[ch] );
+        wave_sample[ch] = NULL;
+    }
+    return RET_CONTINUE;
+}
+
 int ONScripter::windowtransCommand()
 {
     int n = script_h.readInt();
@@ -1109,7 +1143,10 @@ static void cutTrackEffect( int channel, void *stream, int len, void *udata )
 
 void ONScripter::playChannel( int channel, Mix_Chunk *chunk, int loops )
 {
-    Mix_PlayChannel( channel, chunk, loops );
+    if (channel_fade_in_ms > 0)
+        Mix_FadeInChannel( channel, chunk, loops, channel_fade_in_ms );
+    else
+        Mix_PlayChannel( channel, chunk, loops );
     if (channel < 0 || channel >= ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS) return;
     cut_track[channel].chunk = chunk;
     cut_track[channel].pos = 0;
@@ -2277,7 +2314,7 @@ static const struct { const char *name; int kind; } trace_commands[] = {
     {"playonce",2}, {"playstop",2}, {"stop",2}, {"mp3stop",2}, {"bgmstop",2},
     {"mp3fadeout",2}, {"bgmfadeout",2}, {"loopbgm",2}, {"loopbgmstop",2},
     {"wave",2}, {"waveloop",2}, {"wavestop",2}, {"dwave",2}, {"dwaveloop",2},
-    {"dwavestop",2}, {"dwaveplay",2}, {"dwaveplayloop",2},
+    {"dwavestop",2}, {"dwaveplay",2}, {"dwaveplayloop",2}, {"dwavefadeout",2},
     {"mpegplay",2}, {"movie",2}, {"avi",2},
     {"screenfilter",5}, {"screenshake",5}, {"screenripple",5}, {"screenpulse",5},
     {"pushscreen",5}, {"monocro",5}, {"nega",5}, {"quake",5}, {"quakex",5}, {"quakey",5},

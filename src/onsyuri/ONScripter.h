@@ -313,6 +313,8 @@ public:
     int erasetextwindowCommand();
     int endCommand();
     int dwavestopCommand();
+    int dwavefadeoutCommand();
+    int dwavefadeinCommand();
     int dwaveCommand();
     int dvCommand();
     int drawtextCommand();
@@ -770,6 +772,8 @@ private:
     void dropStoppedSoundEvents();
     // CONscripter: a sound cut off fades out instead of stopping mid-wave (a pop)
     void playChannel( int channel, Mix_Chunk *chunk, int loops );
+    int dwave_fade_in_ms = 0;   // CONscripter: dwavefadein, for the next dwave
+    int channel_fade_in_ms = 0; // the fade-in of the sound playChannel starts
     void cutChannel( int channel );
     std::string trace_sound;         // the sound the command being run plays, as JSON fields
 

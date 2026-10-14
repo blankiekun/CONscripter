@@ -318,6 +318,8 @@ static ONScripter::FuncLUT func_lut[] = {
     {"dwaveplay",		&ONScripter::dwaveCommand},
     {"dwaveloop",		&ONScripter::dwaveCommand},
     {"dwaveload",		&ONScripter::dwaveCommand},
+    {"dwavefadeout",	&ONScripter::dwavefadeoutCommand},
+    {"dwavefadein",		&ONScripter::dwavefadeinCommand},
     {"dwave",			&ONScripter::dwaveCommand},
     {"drawtext",		&ONScripter::drawtextCommand},
     {"drawsp3",			&ONScripter::drawsp3Command},

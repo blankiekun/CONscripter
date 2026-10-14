@@ -78,6 +78,14 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   "window opacity" setting. Kept across `setwindow` and loading a save
   (not saved: set it again from the game's settings at startup); `reset`
   puts it back to 255. `windowtrans 128`.
+- **`dwavefadein ms`** / **`dwavefadeout ch,ms`**: fade a `dwave`
+  channel in or out. `dwavefadein` makes the next `dwave`, `dwaveloop`,
+  `dwaveplay` or `dwaveplayloop` fade its sound in over `ms`
+  milliseconds (once; 0 = at once). `dwavefadeout` fades channel `ch`'s
+  sound out over `ms`, then stops it, while the script goes on; a looping
+  sound fading out isn't kept in a save, and 0 ms (or a sound not heard
+  yet, at the start of a fade-in) stops it at once, as `dwavestop`.
+  `dwavefadein 2000:dwaveloop 1,"se\rain.ogg"` … `dwavefadeout 1,1500`.
 - **`pushscreen first,last`** / **`popscreen`**: save the background,
   sprites `first`..`last` (image, position, visibility, cell, filters;
   a `strsp` sprite's text, font and colours),

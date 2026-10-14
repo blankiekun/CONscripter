@@ -2933,6 +2933,11 @@ int ONScripter::dwaveCommand()
     if      (ch < 0) ch = 0;
     else if (ch >= ONS_MIX_CHANNELS) ch = ONS_MIX_CHANNELS-1;
 
+    // CONscripter: a dwavefadein before it fades the sound in
+    if (play_mode != WAVE_PRELOAD){
+        channel_fade_in_ms = dwave_fade_in_ms;
+        dwave_fade_in_ms = 0;
+    }
     if (play_mode == WAVE_PLAY_LOADED){
         soundCommand( ch, NULL, true ); // CONscripter: for the trace and the web page
         trace_se_loop[ch] = loop_flag; // and the save
@@ -2945,6 +2950,7 @@ int ONScripter::dwaveCommand()
         if (play_mode == WAVE_PRELOAD) fmt |= SOUND_PRELOAD;
         playSound(buf, fmt, loop_flag, ch);
     }
+    channel_fade_in_ms = 0;
         
     return RET_CONTINUE;
 }
