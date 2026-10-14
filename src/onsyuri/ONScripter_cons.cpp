@@ -1385,7 +1385,10 @@ void ONScripter::setTraceFile( const char *path )
 
 void ONScripter::traceErrorHook( const char *message )
 {
-    if (trace_ons && trace_ons->trace_fp) trace_ons->traceError( message );
+    if (trace_ons && trace_ons->trace_fp){
+        trace_ons->traceError( message );
+        trace_ons->traceEnd(); // the engine exits next, and the web build runs no atexit handlers
+    }
 }
 
 void ONScripter::traceExitHook()
@@ -1395,6 +1398,10 @@ void ONScripter::traceExitHook()
 
 void ONScripter::traceWrite( std::string &record )
 {
+#if defined(WEB)
+    // the web page keeps the records, to download them
+    EM_ASM({ if (self.onsyuriTrace) self.onsyuriTrace(UTF8ToString($0)); }, record.c_str());
+#endif
     record += '\n';
     fputs( record.c_str(), trace_fp );
     fflush( trace_fp ); // so a crash keeps everything before it
@@ -1798,15 +1805,19 @@ void ONScripter::traceButtons( int result )
 }
 
 // The state at a click wait or a new page: where the script is, the text,
-// the background, the music and sounds, and every visible sprite.
-void ONScripter::tracePage()
+// the background, the music and sounds, and every visible sprite. With
+// dump (F8), the same state at any moment, as a "dump" record that isn't
+// counted as a page (a change it shows counts from the next page).
+void ONScripter::tracePage( bool dump )
 {
     if (!trace_sprite) return;
-    trace_page++;
+    if (!dump) trace_page++;
+    int since = dump ? trace_page + 1 : trace_page;
 
     char buf[64];
     traceLabel( script_h.getCurrent( true ) );
-    snprintf( buf, sizeof(buf), "{\"t\":\"page\",\"pg\":%d,\"ms\":%u,\"at\":", trace_page, SDL_GetTicks() );
+    snprintf( buf, sizeof(buf), "{\"t\":\"%s\",\"pg\":%d,\"ms\":%u,\"at\":",
+              dump ? "dump" : "page", trace_page, SDL_GetTicks() );
     std::string r = buf;
     traceAt( r, script_h.getCurrent( true ) );
     r += ",\"text\":";
@@ -1880,11 +1891,11 @@ void ONScripter::tracePage()
 
     if (all_sprite_hide_flag) r += ",\"sprites_hidden\":true";
     if (all_sprite2_hide_flag) r += ",\"sprites2_hidden\":true";
-    traceShot( r );
+    traceShot( r, dump );
     r += ",\"sp\":[";
     for (int i=0 ; i<TRACE_SPRITES ; i++){
         if (trace_ignore[i]) continue;
-        traceSpriteUpdate( i, trace_page ); // a change no command recorded
+        traceSpriteUpdate( i, since ); // a change no command recorded
         if (!trace_sprite[i].image.empty()) traceSprite( r, i );
     }
     r += "]}";
@@ -1919,12 +1930,16 @@ void ONScripter::setTraceShotDir( const char *dir )
 }
 
 // On a page --shot-pages or --shot-every asks for, saves the screen as
-// <shot dir>/page<pg>.png and appends ,"shot":"<file>".
-void ONScripter::traceShot( std::string &out )
+// <shot dir>/page<pg>.png and appends ,"shot":"<file>"; on a dump, always,
+// as dump<pg>-<ms>.png (not in the web build, which has nowhere to put it).
+void ONScripter::traceShot( std::string &out, bool dump )
 {
-    bool wanted = trace_shot_every > 0 && trace_page % trace_shot_every == 0;
+    bool wanted = dump || (trace_shot_every > 0 && trace_page % trace_shot_every == 0);
     for (size_t i=0 ; i<trace_shot_pages.size() && !wanted ; i++)
         wanted = trace_page >= trace_shot_pages[i].first && trace_page <= trace_shot_pages[i].second;
+#if defined(WEB)
+    if (dump) wanted = false;
+#endif
     if (!wanted) return;
 
 #if defined(_WIN32)
@@ -1932,8 +1947,9 @@ void ONScripter::traceShot( std::string &out )
 #else
     mkdir( trace_shot_dir.c_str(), 0755 );
 #endif
-    char name[32];
-    snprintf( name, sizeof(name), "/page%06d.png", trace_page );
+    char name[48];
+    if (dump) snprintf( name, sizeof(name), "/dump%06d-%u.png", trace_page, SDL_GetTicks() );
+    else      snprintf( name, sizeof(name), "/page%06d.png", trace_page );
     std::string path = trace_shot_dir + name;
     // the screen as shown, without the alpha channel the picture doesn't use
     SDL_Surface *rgb = SDL_ConvertSurfaceFormat( accumulation_surface, SDL_PIXELFORMAT_RGB24, 0 );
@@ -2108,6 +2124,7 @@ void ONScripter::autoPlayStuck( const char *what )
         traceVia( r );
         r += '}';
         traceWrite( r );
+        traceEnd();
     }
     exit(1);
 }
@@ -2129,6 +2146,7 @@ void ONScripter::autoPlayPage()
     if (auto_play_limit > 0 && ++auto_play_pages >= auto_play_limit){
         utils::printInfo( "auto-play: stopped after %d pages\n", auto_play_pages );
         trace_end_reason = "auto-play page limit";
+        if (trace_fp) traceEnd();
         exit(0);
     }
 }

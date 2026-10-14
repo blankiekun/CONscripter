@@ -2865,6 +2865,7 @@ int ONScripter::erasetextwindowCommand()
 
 int ONScripter::endCommand()
 {
+    if (trace_fp) traceEnd(); // CONscripter: the web build's exit() runs no atexit handlers
     quit();
     stopSMPEG();
     exit(0);

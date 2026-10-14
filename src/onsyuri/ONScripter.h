@@ -707,7 +707,7 @@ private:
     std::vector<std::pair<int, int> > trace_shot_pages; // ranges of pages to take a picture of
     int trace_shot_every;
     std::string trace_shot_dir;
-    void traceShot( std::string &out );
+    void traceShot( std::string &out, bool dump=false );
     void traceLabel( char *address );
     char *trace_se_name[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS]; // the sound each channel last played
     bool trace_se_loop[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS];
@@ -722,7 +722,7 @@ private:
     int traceCommand( const char *name, FuncList method );
     void traceSelect( int picked );
     void traceButtons( int result );
-    void tracePage();
+    void tracePage( bool dump=false );
     void traceSound( int channel, const char *name, bool loop );
     void traceWarn( const char *what, const char *file );
     void traceError( const char *message );

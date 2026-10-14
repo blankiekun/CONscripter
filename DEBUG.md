@@ -88,6 +88,32 @@ CONS_TRACE=/tmp/trace.jsonl CONS_TRACE_IGNORE=22-48,lsp2:12-23 \
     python3 -I research/xuse/smoke.py out/<game>-cons /tmp/work 1,0,0,0,... --goto <label>
 ```
 
+## The state at any moment
+
+With a trace on, **F8** writes a `dump` record: the state right now, in
+the same form as a page, wherever the game is (a menu, a `btnwait`, the
+middle of a scene). Natively it also saves a picture of the screen as
+`<shot-dir>/dump<pg>-<ms>.png`. Press it when something looks wrong while
+playing, then look for `"t":"dump"` in the trace.
+
+## In the web build
+
+The web build writes the same records, and passes each one to the page
+as `self.onsyuriTrace(line)` when the page defines it. The engine's own
+page (`src/onsyuri_web/conscripter.html`) does this when its URL has
+`?trace`. It keeps the records, and its menu (F9) gets a **trace** button
+(**F7**) that downloads them as `trace.jsonl`. The other options can go
+in the URL too:
+
+```
+conscripter.html?trace&trace-ignore=22-48,lsp2:12-23&auto-play=0&auto-choice=random&seed=3
+```
+
+F8 works as above, without the picture (the web build has nowhere to
+save it). A page of your own can do the same: add `--trace`, `"/trace.jsonl"`
+to the arguments given to `callMain`, and define `self.onsyuriTrace`
+before the game starts.
+
 ## Pictures of pages
 
 A trace is meant to find a bug without looking. To see a page once the
@@ -183,6 +209,12 @@ Each sprite in `sp`:
 
 `since` makes lingering sprites easy to spot: a character still up with
 a `since` far below the current `pg`, especially across a `bg` change.
+
+### `dump`: the state when F8 was pressed
+
+The same fields as a `page`, with `"t":"dump"`, `pg` the last page (a
+dump isn't counted as one), `at` where the script is waiting, and natively
+a `shot`.
 
 ### `ev`: a command that changed the screen or the sound
 

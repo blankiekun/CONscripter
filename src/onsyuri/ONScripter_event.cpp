@@ -796,6 +796,10 @@ bool ONScripter::keyPressEvent( SDL_KeyboardEvent *event )
     }
     
     if ( event->type == SDL_KEYUP ){
+        if (trace_fp && event->keysym.sym == SDLK_F8){ // CONscripter: the state now, for the trace
+            tracePage( true );
+            return false;
+        }
 #if !defined(WINRT) && !defined(WEB) && (defined(WIN32) || defined(_WIN32) || defined(LINUX) || defined(MACOSX))
       if ((event->keysym.mod & KMOD_ALT) && event->keysym.sym == SDLK_RETURN) {
         setFullScreen(!fullscreen_mode);
