@@ -185,6 +185,10 @@ public:
     // CONscripter: called with the message before a script error exits
     // (the debug trace records it)
     static void (*error_hook)( const char *message );
+    // CONscripter: the label an address is in, by binary search (-1 outside the script)
+    int getLabelIndex( const char *address );
+    const char *getLabelName( int index ){ return label_info[index].name; };
+    int getNumLabels(){ return num_of_labels; };
     bool inScript( const char *address ){ return script_buffer && address >= script_buffer && address < script_buffer + script_buffer_length; };
 
     ArrayVariable *getRootArrayVariable();

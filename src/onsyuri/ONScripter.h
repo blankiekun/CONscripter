@@ -30,6 +30,8 @@
 #include "DirtyRect.h"
 #include "ButtonLink.h"
 #include <string>
+#include <map>
+#include <vector>
 
 #if defined(ANDROID)
 #include "SDL.h"
@@ -112,6 +114,9 @@ public:
     void setKeyEXE(const char *path);
     void setTraceFile(const char *path); // CONscripter: --trace (ONScripter_cons.cpp)
     void setTraceIgnore(const char *spec); // CONscripter: --trace-ignore
+    void setAutoPlay(int pages); // CONscripter: --auto-play, a run that plays itself
+    void setAutoChoice(const char *policy);
+    void setSeed(int seed);
     const char* getArchivePath() { return archive_path; }
     void setWindowWidth(int width);
     void setWindowHeight(int height);
@@ -695,6 +700,8 @@ private:
     std::string trace_bg, trace_bgm; // as last recorded
     bool trace_shown;                // something changed since the last print was recorded
     char *trace_cmd_start;           // the command being run
+    std::vector<bool> trace_label_seen;
+    void traceLabel( char *address );
     char *trace_se_name[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS]; // the sound each channel last played
     bool trace_se_loop[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS];
     void traceStart();
@@ -713,6 +720,27 @@ private:
     void traceWarn( const char *what, const char *file );
     void traceError( const char *message );
     void traceEnd();
+    void traceIgnoreSetup();
+    const char *trace_end_reason;    // why a run that plays itself stopped
+    std::string trace_effect;        // the effect the command being run used, as JSON
+    void traceEffect( std::string &out, EffectLink *effect );
+
+    // CONscripter: --auto-play, a run that plays itself (ONScripter_cons.cpp)
+    enum { AUTO_CHOICE_FIRST = 0, AUTO_CHOICE_CYCLE = 1, AUTO_CHOICE_RANDOM = 2 };
+    bool auto_play_flag;
+    int auto_play_limit;             // pages, 0 for no limit
+    int auto_play_pages;
+    int auto_play_waits;             // since the last page
+    int auto_play_choices;           // since the last page
+    int auto_play_same;              // pages since one in a label not seen before
+    std::vector<bool> auto_label_seen; // labels pages were shown in
+    int auto_choice;
+    int auto_seed;                   // -1 unless --seed
+    std::map<char*, int> auto_choice_visits; // cycle: the times each choice was reached
+    bool autoPlayWait( int &count );
+    int autoPlayButton();
+    void autoPlayPage();
+    void autoPlayStuck( const char *what );
     static void traceErrorHook( const char *message );
     static void traceExitHook();
     

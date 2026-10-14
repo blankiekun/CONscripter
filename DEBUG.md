@@ -33,8 +33,55 @@ aren't logged, and their buttons aren't listed.
 conscripter --root . --trace trace.jsonl --trace-ignore 22-48,lsp2:12-23
 ```
 
-Headless, with conscripter-convert's smoke test (it passes its
-environment on to the engine; the ranges are its button bar):
+## Playing through by itself
+
+`--auto-play pages` makes the game play itself, as fast as it can, so one
+command plays through a game and leaves a trace to read:
+
+```sh
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy conscripter --root . --save-dir /tmp/saves \
+    --trace trace.jsonl --trace-ignore 22-48,lsp2:12-23 --auto-play 0
+```
+
+- Every wait for a click (text, `click`, `delay`, `textbtnwait`) is
+  answered at once.
+- A `btnwait` or `select` takes a button, chosen by `--auto-choice` (below).
+- Effects take 1 ms, as do timed waits (`wait`, `waittimer`) and BGM
+  fades. Vsync is turned off, since otherwise each character drawn would
+  wait for the screen.
+- Movies are skipped, but a missing movie is still reported.
+- Sounds still play, so the pages' `se` lists are real.
+
+It stops after `pages` text pages, or when the script ends if `pages` is
+0. It also stops when it seems to be going round in circles: after 200
+choices or 20000 waits without a new page (a menu), or 3000 pages without
+one in a label it hadn't shown a page in before (a loop of routes, the
+same choice taken at each turn). It then writes a `warn` with `what`
+`auto-play stuck` and where, then an `end` with the `reason`.
+
+The trace isn't needed: `--auto-play` alone checks that a game runs to
+the end without a script error. Give it a `--save-dir` of its own, since
+a game that saves as it goes would otherwise write to the player's save
+files. `--trace-ignore` matters here too: buttons on ignored sprites are
+never pressed, so a button bar's save, load and skip buttons stay
+untouched.
+
+`--auto-choice` decides which button to take. The options are the
+buttons numbered from 1 that aren't on ignored sprites, in order. A
+`btnwait` also has a final option, 0: a click elsewhere, which usually
+goes on past a hyperlink. Each place in the script counts its visits:
+
+| `--auto-choice` | Takes |
+|---|---|
+| `first` (default) | the option matching the visit count, staying on the last: the first button the first time, the next one when the game comes back (a hyperlink, then on; a menu of topics, each in turn) |
+| `cycle` | the same, but going round again after the last |
+| `random` | any option; with `--seed n` the same run every time |
+
+`--seed n` also fixes the numbers `rnd` gives, so a run that worked out a
+route can be repeated exactly.
+
+With conscripter-convert's smoke test instead (scripted clicks; it
+passes its environment on to the engine):
 
 ```sh
 CONS_TRACE=/tmp/trace.jsonl CONS_TRACE_IGNORE=22-48,lsp2:12-23 \
@@ -45,6 +92,9 @@ CONS_TRACE=/tmp/trace.jsonl CONS_TRACE_IGNORE=22-48,lsp2:12-23 \
 
 Every record has `"t"`, its type. `"pg"` is the number of text pages
 recorded so far, so a warning or error can be placed between two pages.
+Pages and `ev` records also have `"ms"`, the milliseconds since the
+engine started, which shows where time goes (a long effect, a slow
+load).
 
 `"at"` is a place in the script, `"*label:line"`. The line is counted
 from 1 through the script files in order, so for a game with only
@@ -56,12 +106,15 @@ Text and file names are converted to UTF-8 from the script's encoding.
 ### `meta`: the first record
 
 ```json
-{"t":"meta","schema":1,"engine":"CONscripter 0.18.0","time":"2026-10-14T11:20:43","w":800,"h":600,"utf8":false,"dir":"./"}
+{"t":"meta","schema":1,"engine":"CONscripter 0.18.0","time":"2026-10-14T11:20:43","w":800,"h":600,"utf8":false,"dir":"./",
+ "ignore":"22-48,lsp2:12-23","auto":{"pages":0,"choice":"first","seed":3}}
 ```
 
 `schema` changes when a record's meaning changes. `w`,`h` are the screen
 size, `utf8` whether the script is UTF-8 (`--enc:utf8`), `dir` the game
-folder (`--root`), and `ignore` the `--trace-ignore` list (or `null`).
+folder (`--root`), `ignore` the `--trace-ignore` list (or `null`), and
+`auto` the `--auto-play` settings (only with `--auto-play`; `seed` only
+with `--seed`).
 
 ### `page`: each click wait and new page
 
@@ -85,6 +138,12 @@ handles the wait.
 | `bgm` | The music last started with `bgm`/`mp3`/`ogg`/`play`/`midi` and not stopped (it may have finished if it doesn't loop); `null` for none |
 | `loopbgm` | `[intro, loop]` when `loopbgm` is playing (omitted otherwise) |
 | `se` | The sound channels still playing (`dwave`, `wave`, voices): channel, file, and `loop` for a looping one (omitted when none) |
+| `window` | Whether the text window is shown |
+| `windowtrans` | The text window picture's opacity (`windowtrans`), when not 255 |
+| `monocro` | The colour of `monocro`, as `"#rrggbb"`, while it is on |
+| `nega` | The `nega` mode, while it is on |
+| `filters` | The `screenfilter` slots in use: `{"slot","kind","blend","strength","p":[p1,p2,p3]}` (see ADDITIONS.md) |
+| `fx` | The `screenshake`/`screenripple`/`screenpulse` slots in use: `{"slot","kind":"shake"\|"ripple"\|"pulse"}`, with the ripple's `map` |
 | `sprites_hidden` | `true` while `allsphide` hides the `lsp` and `ld` sprites (they are still listed); `sprites2_hidden` likewise for `allsp2hide` and `lsp2` |
 | `sp` | Every visible sprite, in the order: `lsp` 0-999, `lsp2` 0-255, `ld` (0 left, 1 centre, 2 right). A lower `lsp` number is drawn in front |
 
@@ -124,6 +183,8 @@ record:
 |---|---|
 | `sp` | Each sprite shown or changed (as in a page's `sp`, its `since` the next page), or `{"n","kind","gone":true}` for one removed or hidden |
 | `bg`, `bgm` | The new background or music (`bgm` `null` when stopped) |
+| `effect` | The effect it showed with (`print`, or `bg`, `ld`, `cl` with an effect number): `{"no","type","ms"}`, with the `mask` image (types 15, 18) or `dll` (99); `no` only for an effect defined with `effect` |
+| `def` | For `effect`: the effect as defined, in the same form |
 | `via` | Inside a `gosub` (a `textgosub` routine, a helper): the line it returns to, which led there |
 
 Which commands are written:
@@ -132,13 +193,15 @@ Which commands are written:
   `csp`, `vsp`, `msp`, `amsp`, `cell`, `spfilter`, `strsp`, `ld`, `cl`,
   `bg`, `popscreen`, ...): only when they changed something, so a `csp`
   of a sprite that isn't there doesn't appear;
-- **sound, movies and screen effects** (`bgm`, `mp3`, `play`, `stop`,
-  `dwave`, `wave`, `loopbgm`, their stops and fades, `mpegplay`,
-  `movie`, `avi`, `screenfilter`, `screenshake`, `screenripple`,
-  `screenpulse`, `pushscreen`, `monocro`, `nega`, `quake`, `allsphide`,
-  ...): always;
-- **`print`**: when something changed since the last `print` written,
-  so it marks when the changes above appear.
+- **sound and movies** (`bgm`, `mp3`, `play`, `stop`, `dwave`, `wave`,
+  `loopbgm`, their stops and fades, `mpegplay`, `movie`, `avi`) and
+  **effect definitions** (`effect`): always;
+- **what is laid over the picture** (`screenfilter`, `screenshake`,
+  `screenripple`, `screenpulse`, `pushscreen`, `monocro`, `nega`,
+  `quake`, `windowtrans`, `allsphide`, ...): always;
+- **`print`**: when something changed since the last `print` written
+  (sprites, the background, or what is laid over the picture), so it
+  marks when those changes appear, and with what effect.
 
 A change no command explains (an animation, a command not in the list)
 still shows in the next page's `sp`.
@@ -156,6 +219,15 @@ the one picked, counted from 1. `btnwait` (and `btnwait2`, not
 offered (a sprite button's number, sprite and image or `str`; an area's
 `x`,`y`,`w`,`h`) and the result: the button's number, 0 for a click
 elsewhere, negative for right-click, keys or a timeout.
+
+### `label`: the first time a label runs
+
+```json
+{"t":"label","pg":12,"name":"s4_l2"}
+```
+
+Written the first time the script runs a command or shows a page in a
+label, so the labels a run reached can be compared with the script's.
 
 ### `warn`: a file that can't be used
 
@@ -182,11 +254,13 @@ each given as the place it returns to.
 
 ```json
 {"t":"end","pg":119}
+{"t":"end","pg":300,"reason":"auto-play page limit"}
 ```
 
 Written when the engine exits: at `end`, after a script error, or when
 the window is closed (`timeout`'s SIGTERM counts, as SDL turns it into a
-quit). A trace that doesn't end with it stopped in a crash or was killed
+quit). `reason` says why `--auto-play` stopped it: `auto-play page
+limit`, or `stuck: ...`. A trace that doesn't end with it stopped in a crash or was killed
 with SIGKILL; the last records show where.
 
 ## Reading a trace
@@ -200,6 +274,10 @@ grep '"t":"page","pg":41,' trace.jsonl | jq .
 jq -c 'select(.t=="ev") | select(any(.sp[]?; .n==64 and .kind=="lsp")) | {pg, at, src}' trace.jsonl
 # the route taken
 grep '"t":"choice"' trace.jsonl
+# an effect or filter over a page (for example an eye-close left over a CG)
+jq -c 'select(.t=="page" and ((.filters // []) + (.fx // []) | length) > 0) | {pg, at, bg, filters, fx}' trace.jsonl
+# the slowest stretches
+jq -r 'select(.ms) | "\(.ms) \(.at)"' trace.jsonl | awk 'p {print $1-p, $2} {p=$1}' | sort -rn | head
 # sprites up for more than 50 pages
 jq -c 'select(.t=="page") | .pg as $p | .sp[] | select($p - .since > 50) | {pg:$p, n, file}' trace.jsonl
 # pictures that end just above the bottom edge

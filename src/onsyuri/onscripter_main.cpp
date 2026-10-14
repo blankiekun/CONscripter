@@ -65,6 +65,9 @@ void optionHelp()
     printf( "      --debug:1\t\tprint debug info\n");
     printf( "      --trace file\twrite a debug trace, one JSON line per text page (or CONS_TRACE=file)\n");
     printf( "      --trace-ignore 22-48,lsp2:12-23\tleave these sprites out of the trace (or CONS_TRACE_IGNORE)\n");
+    printf( "      --auto-play pages\tplay by itself, without waiting, for this many pages (0: to the end)\n");
+    printf( "      --auto-choice first|cycle|random\thow --auto-play picks a button or choice\n");
+    printf( "      --seed n\t\tstart the random numbers (rnd, --auto-choice random) from n\n");
     printf( "      --enc:[gbk|sjis|utf8]\tdefine the encoding of script\n\n");
 
     printf( " render options: \n");
@@ -393,6 +396,21 @@ void parseOption(int argc, char *argv[]) {
                 argc--;
                 argv++;
                 ons.setTraceIgnore(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-auto-play" ) ){
+                argc--;
+                argv++;
+                ons.setAutoPlay(atoi(argv[0]));
+            }
+            else if ( !strcmp( argv[0]+1, "-auto-choice" ) ){
+                argc--;
+                argv++;
+                ons.setAutoChoice(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-seed" ) ){
+                argc--;
+                argv++;
+                ons.setSeed(atoi(argv[0]));
             }
             else if (!strcmp(argv[0]+1, "-enc:sjis")){
                 if(!coding2utf16) coding2utf16 = new SJIS2UTF16();

@@ -47,6 +47,10 @@ void ONScripter::generateEffectDst(int effect_no)
 
 bool ONScripter::setEffect( EffectLink *effect )
 {
+    if (trace_fp){ // CONscripter: the trace records what a print or bg showed with
+        trace_effect.clear();
+        traceEffect( trace_effect, effect );
+    }
     if ( effect->effect == 0 ) return true;
     
     int effect_no = effect->effect;
@@ -102,6 +106,7 @@ bool ONScripter::setEffect( EffectLink *effect )
             effect_duration = 1;
         }
     }
+    if (auto_play_flag) effect_duration = 1; // CONscripter: a run that plays itself
     
     return false;
 }

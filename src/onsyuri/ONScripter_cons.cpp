@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <vector>
 #if defined(WEB)
 #include <emscripten.h>
 #endif
@@ -1402,10 +1403,9 @@ void ONScripter::setTraceIgnore( const char *spec )
     setStr( &trace_ignore_spec, spec );
 }
 
-// Called once the script is read and the screen is set up.
-void ONScripter::traceStart()
+// The sprites --trace-ignore leaves out, for the trace and --auto-play.
+void ONScripter::traceIgnoreSetup()
 {
-    trace_sprite = new TraceSprite[TRACE_SPRITES];
     trace_ignore = new bool[TRACE_SPRITES];
     for (int i=0 ; i<TRACE_SPRITES ; i++) trace_ignore[i] = false;
     for (const char *p = trace_ignore_spec ; p && *p ; ){
@@ -1430,6 +1430,13 @@ void ONScripter::traceStart()
         p = strchr( end, ',' );
         if (p) p++;
     }
+}
+
+// Called once the script is read and the screen is set up.
+void ONScripter::traceStart()
+{
+    trace_sprite = new TraceSprite[TRACE_SPRITES];
+    trace_label_seen.assign( script_h.getNumLabels(), false );
 
     char buf[256];
     time_t now = time( NULL );
@@ -1443,6 +1450,31 @@ void ONScripter::traceStart()
     traceString( r, archive_path );
     r += ",\"ignore\":";
     traceString( r, trace_ignore_spec );
+    if (auto_play_flag){
+        static const char *policy[] = { "first", "cycle", "random" };
+        snprintf( buf, sizeof(buf), ",\"auto\":{\"pages\":%d,\"choice\":\"%s\"", auto_play_limit, policy[auto_choice] );
+        r += buf;
+        if (auto_seed >= 0){
+            snprintf( buf, sizeof(buf), ",\"seed\":%d", auto_seed );
+            r += buf;
+        }
+        r += '}';
+    }
+    r += '}';
+    traceWrite( r );
+}
+
+// The first time the script runs a command in a label: a "label" record,
+// for the labels a run reached.
+void ONScripter::traceLabel( char *address )
+{
+    int i = script_h.getLabelIndex( address );
+    if (i < 0 || i >= (int)trace_label_seen.size() || trace_label_seen[i]) return;
+    trace_label_seen[i] = true;
+    char buf[48];
+    snprintf( buf, sizeof(buf), "{\"t\":\"label\",\"pg\":%d,\"name\":", trace_page );
+    std::string r = buf;
+    traceString( r, script_h.getLabelName( i ) );
     r += '}';
     traceWrite( r );
 }
@@ -1611,8 +1643,9 @@ bool ONScripter::traceChanges( std::string &out )
 }
 
 // Commands recorded as "ev": 1 when they change a sprite or the
-// background, 2 always (sounds, movies, screen effects), 3 print, when
-// something changed since the last one.
+// background, 2 always (sounds, movies), 3 print, when something changed
+// since the last one, 4 an effect definition, 5 always, and the next print
+// too (what is laid over the picture).
 static const struct { const char *name; int kind; } trace_commands[] = {
     {"lsp",1}, {"lsph",1}, {"lsp2",1}, {"lsph2",1}, {"lsp2add",1}, {"lsph2add",1},
     {"lsp2sub",1}, {"lsph2sub",1}, {"csp",1}, {"csp2",1}, {"vsp",1}, {"vsp2",1},
@@ -1625,10 +1658,11 @@ static const struct { const char *name; int kind; } trace_commands[] = {
     {"wave",2}, {"waveloop",2}, {"wavestop",2}, {"dwave",2}, {"dwaveloop",2},
     {"dwavestop",2}, {"dwaveplay",2}, {"dwaveplayloop",2},
     {"mpegplay",2}, {"movie",2}, {"avi",2},
-    {"screenfilter",2}, {"screenshake",2}, {"screenripple",2}, {"screenpulse",2},
-    {"pushscreen",2}, {"monocro",2}, {"nega",2}, {"quake",2}, {"quakex",2}, {"quakey",2},
-    {"allsphide",2}, {"allspresume",2}, {"allsp2hide",2}, {"allsp2resume",2},
+    {"screenfilter",5}, {"screenshake",5}, {"screenripple",5}, {"screenpulse",5},
+    {"pushscreen",5}, {"monocro",5}, {"nega",5}, {"quake",5}, {"quakex",5}, {"quakey",5},
+    {"allsphide",5}, {"allspresume",5}, {"allsp2hide",5}, {"allsp2resume",5}, {"windowtrans",5},
     {"print",3},
+    {"effect",4},
 };
 
 // Runs a command and records it if it is one of trace_commands: where it
@@ -1636,6 +1670,8 @@ static const struct { const char *name; int kind; } trace_commands[] = {
 int ONScripter::traceCommand( const char *name, FuncList method )
 {
     char *start = trace_cmd_start = script_h.getCurrent();
+    trace_effect.clear();
+    traceLabel( start );
     int kind = 0;
     for (size_t i=0 ; i<sizeof(trace_commands)/sizeof(trace_commands[0]) ; i++)
         if (!strcmp( name, trace_commands[i].name )){
@@ -1647,7 +1683,7 @@ int ONScripter::traceCommand( const char *name, FuncList method )
     if (kind == 0 || !trace_sprite) return ret;
 
     char buf[64];
-    snprintf( buf, sizeof(buf), "{\"t\":\"ev\",\"pg\":%d,\"cmd\":\"%s\",\"at\":", trace_page, name );
+    snprintf( buf, sizeof(buf), "{\"t\":\"ev\",\"pg\":%d,\"ms\":%u,\"cmd\":\"%s\",\"at\":", trace_page, SDL_GetTicks(), name );
     std::string r = buf;
     traceAt( r, start );
     traceVia( r );
@@ -1665,15 +1701,38 @@ int ONScripter::traceCommand( const char *name, FuncList method )
     traceString( r, start, len );
 
     bool changed = traceChanges( r );
+    if (kind == 4){ // the effect as defined
+        r += ",\"def\":";
+        traceEffect( r, last_effect_link );
+    }
+    else if (!trace_effect.empty())
+        r += ",\"effect\":" + trace_effect;
     if (kind == 1 && !changed) return ret;
     if (kind == 3){
         if (!trace_shown) return ret;
         trace_shown = false;
     }
-    else if (changed) trace_shown = true;
+    else if (changed || kind == 5) trace_shown = true;
     r += '}';
     traceWrite( r );
     return ret;
+}
+
+// An effect as {"no","type","ms"} with its "mask" (types 15, 18) or
+// "dll" (99); "no" for one defined with the effect command.
+void ONScripter::traceEffect( std::string &out, EffectLink *effect )
+{
+    char buf[96];
+    if (effect != &tmp_effect && effect != &window_effect && effect != &root_effect_link)
+        snprintf( buf, sizeof(buf), "{\"no\":%d,\"type\":%d,\"ms\":%d", effect->no, effect->effect, effect->duration );
+    else
+        snprintf( buf, sizeof(buf), "{\"type\":%d,\"ms\":%d", effect->effect, effect->duration );
+    out += buf;
+    if (effect->anim.image_name && (effect->effect == 15 || effect->effect == 18 || effect->effect == 99)){
+        out += effect->effect == 99 ? ",\"dll\":" : ",\"mask\":";
+        traceString( out, effect->anim.image_name );
+    }
+    out += '}';
 }
 
 // A select, selgosub or selnum choice: the options and the one taken
@@ -1742,7 +1801,8 @@ void ONScripter::tracePage()
     trace_page++;
 
     char buf[64];
-    snprintf( buf, sizeof(buf), "{\"t\":\"page\",\"pg\":%d,\"at\":", trace_page );
+    traceLabel( script_h.getCurrent( true ) );
+    snprintf( buf, sizeof(buf), "{\"t\":\"page\",\"pg\":%d,\"ms\":%u,\"at\":", trace_page, SDL_GetTicks() );
     std::string r = buf;
     traceAt( r, script_h.getCurrent( true ) );
     r += ",\"text\":";
@@ -1770,6 +1830,49 @@ void ONScripter::tracePage()
         r += trace_se_loop[ch] ? ",\"loop\":true}" : "}";
     }
     if (se) r += ']';
+
+    // what is laid over the picture
+    r += (display_mode & DISPLAY_MODE_TEXT) ? ",\"window\":true" : ",\"window\":false";
+    if (window_trans != 255){
+        snprintf( buf, sizeof(buf), ",\"windowtrans\":%d", window_trans );
+        r += buf;
+    }
+    if (monocro_flag){
+        snprintf( buf, sizeof(buf), ",\"monocro\":\"#%02x%02x%02x\"", monocro_color[0], monocro_color[1], monocro_color[2] );
+        r += buf;
+    }
+    if (nega_mode){
+        snprintf( buf, sizeof(buf), ",\"nega\":%d", nega_mode );
+        r += buf;
+    }
+    bool listed = false;
+    for (int i=0 ; i<MAX_SCREEN_FILTER ; i++){
+        AnimationInfo::Filter &f = screen_filter[i];
+        if (f.kind == AnimationInfo::FILTER_NONE) continue;
+        r += listed ? "," : ",\"filters\":[";
+        listed = true;
+        char fb[128];
+        snprintf( fb, sizeof(fb), "{\"slot\":%d,\"kind\":%d,\"blend\":%d,\"strength\":%d,\"p\":[%d,%d,%d]}",
+                  i+1, f.kind, f.blend, f.strength, f.param[0], f.param[1], f.param[2] );
+        r += fb;
+    }
+    if (listed) r += ']';
+    listed = false;
+    for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
+        ScreenEffect &e = screen_effect[i];
+        if (e.kind == SCREEN_EFFECT_NONE) continue;
+        static const char *names[] = { "", "shake", "ripple", "pulse" };
+        r += listed ? "," : ",\"fx\":[";
+        listed = true;
+        snprintf( buf, sizeof(buf), "{\"slot\":%d,\"kind\":\"%s\"", i+1, names[e.kind] );
+        r += buf;
+        if (e.map_name){
+            r += ",\"map\":";
+            traceString( r, e.map_name );
+        }
+        r += '}';
+    }
+    if (listed) r += ']';
 
     if (all_sprite_hide_flag) r += ",\"sprites_hidden\":true";
     if (all_sprite2_hide_flag) r += ",\"sprites2_hidden\":true";
@@ -1835,9 +1938,136 @@ void ONScripter::traceError( const char *message )
 void ONScripter::traceEnd()
 {
     char buf[64];
-    snprintf( buf, sizeof(buf), "{\"t\":\"end\",\"pg\":%d}", trace_page );
+    snprintf( buf, sizeof(buf), "{\"t\":\"end\",\"pg\":%d", trace_page );
     std::string r = buf;
+    if (trace_end_reason){
+        r += ",\"reason\":";
+        traceString( r, trace_end_reason );
+    }
+    r += '}';
     traceWrite( r );
     fclose( trace_fp );
     trace_fp = NULL;
+}
+
+/* --auto-play pages: the game plays itself, for finding bugs with the
+ * trace. Every wait for a click is answered at once, a btnwait or select
+ * picks a button (--auto-choice), effects take 1 ms, timed waits and BGM
+ * fades 1 ms, vsync is off and movies are skipped; sounds still play. It stops after the given number of pages
+ * (0: when the script ends), or when it goes round in circles: 20000 waits
+ * or 200 choices without a new page, or 3000 pages without a new label. */
+void ONScripter::setAutoPlay( int pages )
+{
+    auto_play_flag = true;
+    auto_play_limit = pages > 0 ? pages : 0;
+    setVsyncOff(); // each drawn character would wait for the screen
+}
+
+void ONScripter::setAutoChoice( const char *policy )
+{
+    if      (!strcmp( policy, "first" ))  auto_choice = AUTO_CHOICE_FIRST;
+    else if (!strcmp( policy, "cycle" ))  auto_choice = AUTO_CHOICE_CYCLE;
+    else if (!strcmp( policy, "random" )) auto_choice = AUTO_CHOICE_RANDOM;
+    else utils::printError( "--auto-choice: first, cycle or random, not %s\n", policy );
+}
+
+// The same seed gives the same rnd numbers, and the same random choices.
+void ONScripter::setSeed( int seed )
+{
+    auto_seed = seed;
+    srand( seed );
+}
+
+// Called by waitEvent: true when the wait is answered (a click, or the
+// button pressed); otherwise a timed wait is shortened.
+bool ONScripter::autoPlayWait( int &count )
+{
+    if (++auto_play_waits > 20000) autoPlayStuck( "20000 waits without a new page" );
+    if (!(event_mode & (WAIT_INPUT_MODE | WAIT_BUTTON_MODE))){
+        if (count > 1) count = 1;
+        return false;
+    }
+
+    // let the events waiting be handled (timers, sounds that ended), as a
+    // skipped click wait does
+    int mode = event_mode;
+    event_mode = IDLE_EVENT_MODE;
+    waitEventSub( 0 );
+    event_mode = mode;
+
+    // textbtnwait waits on a text page: a click
+    int button = (event_mode & WAIT_BUTTON_MODE && !(event_mode & WAIT_INPUT_MODE)) ? autoPlayButton() : 0;
+    current_button_state.button = button;
+    if (button > 0) sprintf( current_button_state.str, "S%d", button );
+    else            sprintf( current_button_state.str, "LCLICK" );
+    current_button_state.down_flag = false;
+    return true;
+}
+
+// The button a btnwait or select takes. The options are the buttons
+// numbered from 1 whose sprites --trace-ignore doesn't leave out, in order,
+// then for a btnwait 0 (a click elsewhere, which often goes on past a
+// hyperlink). Each place counts its visits: "first" takes the option of
+// that number, staying on the last (a hyperlink, then on), "cycle" goes
+// round, "random" takes any.
+int ONScripter::autoPlayButton()
+{
+    if (++auto_play_choices > 200) autoPlayStuck( "200 choices without a new page" );
+
+    std::vector<int> nos;
+    for (ButtonLink *bl = root_button_link.next ; bl ; bl = bl->next){
+        if (bl->no < 1) continue;
+        if ((bl->button_type == ButtonLink::SPRITE_BUTTON || bl->button_type == ButtonLink::TMP_SPRITE_BUTTON) &&
+            bl->sprite_no >= 0 && bl->sprite_no < MAX_SPRITE_NUM && trace_ignore && trace_ignore[bl->sprite_no]) continue;
+        nos.push_back( bl->no );
+    }
+    std::sort( nos.begin(), nos.end() );
+    nos.erase( std::unique( nos.begin(), nos.end() ), nos.end() );
+    if (!(event_mode & WAIT_TEXT_MODE)) nos.push_back( 0 ); // a btnwait, not a select
+    if (nos.empty()) return 0;
+
+    if (auto_choice == AUTO_CHOICE_RANDOM) return nos[ rand() % nos.size() ];
+    size_t visit = auto_choice_visits[ script_h.getCurrent() ]++;
+    if (auto_choice == AUTO_CHOICE_CYCLE) return nos[ visit % nos.size() ];
+    return nos[ std::min( visit, nos.size() - 1 ) ];
+}
+
+// Stops a run going round in circles.
+void ONScripter::autoPlayStuck( const char *what )
+{
+    utils::printError( "auto-play: %s, stopping\n", what );
+    static char reason[64];
+    snprintf( reason, sizeof(reason), "stuck: %s", what );
+    trace_end_reason = reason;
+    if (trace_fp){
+        std::string r = "{\"t\":\"warn\",\"pg\":";
+        r += std::to_string( trace_page );
+        r += ",\"what\":\"auto-play stuck\",\"at\":";
+        traceAt( r, script_h.getCurrent( true ) );
+        traceVia( r );
+        r += '}';
+        traceWrite( r );
+    }
+    exit(1);
+}
+
+// After each page: stop at the page limit, or when 3000 pages have passed
+// without one in a label not seen before (the game going round a loop of
+// routes, the same choice taken at each turn).
+void ONScripter::autoPlayPage()
+{
+    auto_play_waits = 0;
+    auto_play_choices = 0;
+    int label = script_h.getLabelIndex( script_h.getCurrent( true ) );
+    if (auto_label_seen.empty()) auto_label_seen.assign( script_h.getNumLabels(), false );
+    if (label >= 0 && !auto_label_seen[label]){
+        auto_label_seen[label] = true;
+        auto_play_same = 0;
+    }
+    else if (++auto_play_same >= 3000) autoPlayStuck( "3000 pages without a new label" );
+    if (auto_play_limit > 0 && ++auto_play_pages >= auto_play_limit){
+        utils::printInfo( "auto-play: stopped after %d pages\n", auto_play_pages );
+        trace_end_reason = "auto-play page limit";
+        exit(0);
+    }
 }

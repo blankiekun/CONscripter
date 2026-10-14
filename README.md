@@ -59,8 +59,9 @@ ONScripter-Yuri for games converted by
 All are opt-in. See [ADDITIONS.md](ADDITIONS.md).
 
 To find bugs in a converted game, `--trace file` writes what is on screen at
-every text page, missing files and script errors as JSON lines. See
-[DEBUG.md](DEBUG.md).
+every text page, the commands that changed it, the choices made, missing
+files and script errors as JSON lines, and `--auto-play` plays a game through
+by itself. See [DEBUG.md](DEBUG.md).
 
 ## 1. Usage
 

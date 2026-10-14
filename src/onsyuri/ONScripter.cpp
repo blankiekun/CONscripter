@@ -367,6 +367,15 @@ ONScripter::ONScripter()
     trace_ignore_spec = NULL;
     trace_shown = false;
     trace_cmd_start = NULL;
+    trace_end_reason = NULL;
+    auto_play_flag = false;
+    auto_play_limit = 0;
+    auto_play_pages = 0;
+    auto_play_waits = 0;
+    auto_play_choices = 0;
+    auto_play_same = 0;
+    auto_choice = AUTO_CHOICE_FIRST;
+    auto_seed = -1;
     memset( trace_se_name, 0, sizeof(trace_se_name) );
     clearScreenFilters();
     memset( screen_effect, 0, sizeof(screen_effect) );
@@ -697,6 +706,7 @@ int ONScripter::init()
 
     if ( !trace_fp && getenv("CONS_TRACE") ) setTraceFile( getenv("CONS_TRACE") );
     if ( !trace_ignore_spec && getenv("CONS_TRACE_IGNORE") ) setTraceIgnore( getenv("CONS_TRACE_IGNORE") );
+    if ( trace_fp || auto_play_flag ) traceIgnoreSetup();
     if ( trace_fp ) traceStart();
     
     return 0;

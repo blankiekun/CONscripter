@@ -184,7 +184,7 @@ void ONScripter::flushEventSub( SDL_Event &event )
              (event.user.code == BGM_FADEOUT)){
         Uint32 cur_fade_duration = mp3fadeout_duration_internal;
         if (skip_mode & (SKIP_NORMAL | SKIP_TO_EOP) ||
-            ctrl_pressed_status) {
+            ctrl_pressed_status || auto_play_flag) {
             cur_fade_duration = 0;
             Mix_VolumeMusic( 0 );
         }
@@ -212,7 +212,7 @@ void ONScripter::flushEventSub( SDL_Event &event )
              (event.user.code == BGM_FADEIN)){
         Uint32 cur_fade_duration = mp3fadein_duration_internal;
         if (skip_mode & (SKIP_NORMAL | SKIP_TO_EOP) ||
-            ctrl_pressed_status) {
+            ctrl_pressed_status || auto_play_flag) {
             cur_fade_duration = 0;
             Mix_VolumeMusic( music_volume * MIX_MAX_VOLUME / 100 );
         }
@@ -294,6 +294,7 @@ void ONScripter::waitEventSub(int count)
 
 bool ONScripter::waitEvent( int count )
 {
+    if (auto_play_flag && autoPlayWait( count )) return false;
     if (count > 0) count += SDL_GetTicks();
     // chimimouryou: the reader may look up sprite text while the game waits for input.
     // shortcut: timed waits (btntime, automode) don't send it; add them if games need it.

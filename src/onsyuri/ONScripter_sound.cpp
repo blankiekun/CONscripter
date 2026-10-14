@@ -263,6 +263,10 @@ static void smpeg_filter_destroy( struct SMPEG_Filter * filter )
 
 int ONScripter::playMPEG(const char *filename, bool click_flag, bool loop_flag)
 {
+    if (auto_play_flag){ // CONscripter: a run that plays itself skips movies, but finds missing ones
+        if (trace_fp && script_h.cBR->getFileLength( filename ) == 0) traceWarn("missing movie", filename);
+        return 0;
+    }
     if(!video) {
         utils::printInfo( "playMPEG: skip %s with --no-video option \n", filename);
         return 0;
@@ -398,6 +402,10 @@ int ONScripter::playMPEG(const char *filename, bool click_flag, bool loop_flag)
 
 int ONScripter::playAVI( const char *filename, bool click_flag )
 {
+    if (auto_play_flag){ // CONscripter: a run that plays itself skips movies, but finds missing ones
+        if (trace_fp && script_h.cBR->getFileLength( filename ) == 0) traceWarn("missing movie", filename);
+        return 0;
+    }
     if(!video) {
         utils::printInfo( "playAVI: skip %s with --no-video option \n", filename);
         return 0;

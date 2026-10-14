@@ -545,6 +545,18 @@ ScriptHandler::LabelInfo ScriptHandler::getLabelByAddress( char *address )
     return label_info[i];
 }
 
+int ScriptHandler::getLabelIndex( const char *address )
+{
+    if (!inScript( address ) || num_of_labels == 0 || address < label_info[0].label_header) return -1;
+    int lo = 0, hi = num_of_labels - 1;
+    while (lo < hi){ // the last label starting at or before address
+        int mid = (lo + hi + 1) / 2;
+        if (label_info[mid].label_header <= address) lo = mid;
+        else hi = mid - 1;
+    }
+    return lo;
+}
+
 ScriptHandler::LabelInfo ScriptHandler::getLabelByLine( int line )
 {
     int i;
