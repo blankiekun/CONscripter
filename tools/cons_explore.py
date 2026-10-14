@@ -6,8 +6,10 @@ usage: cons_explore.py GAME_DIR [--out DIR] [--runs N] [--pages N] [--seed N]
                        [--engine PATH] [--engine-args "ARGS"] [--script 0.txt]
 
 Each run is an --auto-play run of the engine with --auto-choice untaken and
---taken FILE, the file listing every choice the earlier runs made (built
-from their traces' choice records, as lines "*label:line<TAB>option"). It
+--taken FILE, the file listing every choice the earlier runs made and how
+many times (built from their traces' choice records, as lines
+"*label:line<TAB>option<TAB>count"), so each run takes the options taken
+least. It
 stops when --patience runs in a row reach no label the earlier ones hadn't,
 or after --runs runs, then lists the labels of the script no run reached and the traces it
 wrote. Each run gets its own trace and save folder in --out, so the game's
@@ -18,6 +20,7 @@ settings screens to --skip-choices, so each run starts the story.
   cons_explore.py out/game-cons --out /tmp/explore --engine-args "--trace-ignore 22-48,lsp2:12-23"
 """
 import argparse
+import collections
 import os
 import re
 import shlex
@@ -85,15 +88,15 @@ def main():
     env.setdefault('SDL_VIDEODRIVER', 'dummy')
     env.setdefault('SDL_AUDIODRIVER', 'dummy')
 
-    reached, made, traces = set(), [], []
+    reached, made, traces = set(), collections.Counter(), []
     skip = re.compile(args.skip_choices) if args.skip_choices else None
     idle = 0
     meta = {}
     def write_taken():
         with open(taken, 'w', encoding='utf-8') as f:
             f.write('# choices made by the earlier runs\n')
-            for at, opt in sorted(set(made)):
-                f.write('%s\t%d\n' % (at, opt))
+            for (at, opt), n in sorted(made.items()):
+                f.write('%s\t%d\t%d\n' % (at, opt, n))
 
     for run in range(1, args.runs + 1):
         write_taken()
@@ -121,7 +124,7 @@ def main():
         reached |= labels
         mine = choices(trace, skip)
         fresh = set(mine) - set(made)
-        made.extend(mine)
+        made.update(mine)
         end = end or {}
         how = end.get('reason') or {'crash': 'crashed (%s)' % end.get('signal'),
                                     'error': 'error at %s: %s' % (end.get('at'), end.get('msg'))}.get(end.get('t'), 'ended')

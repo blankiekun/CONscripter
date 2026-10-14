@@ -85,20 +85,25 @@ goes on past a hyperlink. Each place in the script counts its visits:
 | `first` (default) | the option matching the visit count, staying on the last: the first button the first time, the next one when the game comes back (a hyperlink, then on; a menu of topics, each in turn) |
 | `cycle` | the same, but going round again after the last |
 | `random` | any option; with `--seed n` the same run every time |
-| `untaken` | the first option not listed for that place in `--taken FILE`, nor taken there earlier in this run; `first` when all are |
+| `untaken` | the option taken the fewest times at that place, counting the choices in `--taken FILE` and those made there earlier in this run: one never taken while there is one, the first in order of those |
 
 `--seed n` also fixes the numbers `rnd` gives, so a run that worked out a
 route can be repeated exactly.
 
-The `--taken` file has a line for each choice to avoid: the choice
-record's `at`, a tab, and the option (a `select`'s `picked`, a `btnwait`'s
-`result`). Lines starting with `#` are left out. `tools/cons_explore.py`
+The `--taken` file has a line for each choice made before: the choice
+record's `at`, a tab, the option (a `select`'s `picked`, a `btnwait`'s
+`result`), a tab, and how many times it was made. A line without the
+count (as older files have) counts once, and lines for the same choice
+add up. Lines starting with `#` are left out. `tools/cons_explore.py`
 (below) writes it from earlier runs.
 
 ```
-*s4_l2:5467	1
-*conv_link1_wait:5994	0
+*s4_l2:5467	1	3
+*conv_link1_wait:5994	0	1
 ```
+
+Ties go to the first option in order, so runs with the same `--taken`
+file and `--seed` make the same choices.
 
 ### Without a screen
 
@@ -139,8 +144,8 @@ choices run out, a `replay ended` warning.
 ### Exploring routes
 
 `tools/cons_explore.py` plays a game again and again, each run taking the
-choices the earlier ones didn't (`--auto-choice untaken`, with a
-`--taken` file made from all the earlier traces), until two runs in a row
+choices the earlier ones took least (`--auto-choice untaken`, with a
+`--taken` file counting the choices in all the earlier traces), until two runs in a row
 reach no new label (`--patience`) or after `--runs`. It then lists the
 script's labels no run reached, and the traces it wrote, to check each
 with the checker:
@@ -161,9 +166,9 @@ run 4: 32268 pages, 114 choices (0 new), 0 new labels, 1224 in all; stuck: 3000 
   *s0_l0:203, *s0_l3:207, *s1_l0:278, *s1_l1:282, *s2_l0:288 ...
 ```
 
-Once every option at each place a run reaches has been taken, `untaken`
-falls back to `first` and the runs repeat a route, so the exploration
-stops. A run that ends in a script error never reaches the choices after
+Once every option at a place has been taken, `untaken` takes the one
+taken least, so later runs still go down the routes the earlier ones took
+only once. A run that ends in a script error never reaches the choices after
 it: fix the error (here a `?` the converter left in the text) and explore
 again.
 

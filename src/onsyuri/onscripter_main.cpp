@@ -72,7 +72,7 @@ void optionHelp()
     printf( "      --auto-play pages\tplay by itself, without waiting, for this many pages (0: to the end)\n");
     printf( "      --auto-choice first|cycle|random|untaken\thow --auto-play picks a button or choice\n");
     printf( "      --replay trace.jsonl\twith --auto-play, make the choices a trace recorded, then --auto-choice\n");
-    printf( "      --taken file\twith --auto-choice untaken, the choices (\"*label:line<TAB>option\" lines) to avoid\n");
+    printf( "      --taken file\twith --auto-choice untaken, the choices made before (\"*label:line<TAB>option<TAB>count\" lines), to take least\n");
     printf( "      --seed n\t\tstart the random numbers (rnd, --auto-choice random) from n\n");
     printf( "      --shot-pages 412,980-990\twith --trace, save a picture of these pages (--shot-dir, default shots)\n");
     printf( "      --shot-every n\twith --trace, save a picture of every n-th page\n");

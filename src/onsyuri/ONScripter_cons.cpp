@@ -2576,8 +2576,10 @@ void ONScripter::setReplay( const char *path )
     fclose( fp );
 }
 
-// --taken file: lines "*label:line<TAB>option", the choices --auto-choice
-// untaken avoids (option as in the choice record: picked or result).
+// --taken file: lines "*label:line<TAB>option<TAB>count", the choices
+// --auto-choice untaken avoids (option as in the choice record: picked or
+// result) and the times earlier runs made them. A line without a count
+// counts 1; lines for the same choice add up.
 void ONScripter::setTaken( const char *path )
 {
     setStr( &taken_path, path );
@@ -2593,9 +2595,10 @@ void ONScripter::setTaken( const char *path )
         char *tab = strchr( buf, '\t' );
         if (buf[0] == '#' || !tab) continue;
         *tab = 0;
+        char *count = strchr( tab+1, '\t' );
         char key[1100];
         snprintf( key, sizeof(key), "%s\t%d", buf, atoi( tab+1 ) );
-        auto_taken.insert( key );
+        auto_taken[key] += count ? atoi( count+1 ) : 1;
     }
     fclose( fp );
 }
@@ -2615,13 +2618,13 @@ void ONScripter::autoPlayWarn( const char *what, const char *extra )
 }
 
 // After a choice was made: the next recorded one is due, and the choice
-// counts as taken for "untaken".
+// counts once more as taken for "untaken".
 void ONScripter::autoPlayChosen( int value )
 {
     if (replay_next < replay_answers.size()) replay_next++;
     char buf[16];
     snprintf( buf, sizeof(buf), "\t%d", value );
-    auto_taken.insert( traceAtText( trace_cmd_start ) + buf );
+    auto_taken[ traceAtText( trace_cmd_start ) + buf ]++;
 }
 
 // The same seed gives the same rnd numbers, and the same random choices.
@@ -2662,7 +2665,8 @@ bool ONScripter::autoPlayWait( int &count )
 // then for a btnwait 0 (a click elsewhere, which often goes on past a
 // hyperlink). Each place counts its visits: "first" takes the option of
 // that number, staying on the last (a hyperlink, then on), "cycle" goes
-// round, "random" takes any.
+// round, "random" takes any, "untaken" the one taken the fewest times
+// (--taken and this run), the first in order of those.
 int ONScripter::autoPlayButton()
 {
     if (++auto_play_choices > 200) autoPlayStuck( "200 choices without a new page" );
@@ -2700,10 +2704,15 @@ int ONScripter::autoPlayButton()
     }
 
     if (auto_choice == AUTO_CHOICE_RANDOM) return nos[ random % nos.size() ];
-    if (auto_choice == AUTO_CHOICE_UNTAKEN){
+    if (auto_choice == AUTO_CHOICE_UNTAKEN){ // the least taken, the first of those
         std::string at = traceAtText( trace_cmd_start ) + "\t";
-        for (size_t i=0 ; i<nos.size() ; i++)
-            if (!auto_taken.count( at + std::to_string( nos[i] ) )) return nos[i];
+        int best = nos[0], fewest = -1;
+        for (size_t i=0 ; i<nos.size() ; i++){
+            auto it = auto_taken.find( at + std::to_string( nos[i] ) );
+            int n = it == auto_taken.end() ? 0 : it->second;
+            if (fewest < 0 || n < fewest){ best = nos[i]; fewest = n; }
+        }
+        return best;
     }
     size_t visit = auto_choice_visits[ script_h.getCurrent() ]++;
     if (auto_choice == AUTO_CHOICE_CYCLE) return nos[ visit % nos.size() ];
