@@ -305,11 +305,12 @@ int ScriptParser::setkinsokuCommand()
 
 int ScriptParser::selectvoiceCommand()
 {
-    if ( current_mode != DEFINE_MODE )
-        errorAndExit( "selectvoice: not in the define section" );
-
-    for ( int i=0 ; i<SELECTVOICE_NUM ; i++ )
-        setStr( &selectvoice_file_name[i], script_h.readStr() );
+    // CONscripter: also outside the define section (a title screen's own
+    // hover sound); an empty name is no sound.
+    for ( int i=0 ; i<SELECTVOICE_NUM ; i++ ){
+        const char *buf = script_h.readStr();
+        setStr( &selectvoice_file_name[i], buf[0] ? buf : NULL );
+    }
 
     return RET_CONTINUE;
 }

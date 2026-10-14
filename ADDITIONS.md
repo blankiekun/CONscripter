@@ -109,6 +109,11 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   pressed cell again if the pointer comes back with the button still
   held. Without the argument, buttons work as before. (Nitroplus menus
   draw a pressed picture for every button.)
+- **`selectvoice open,over,select` anywhere**: it was refused outside the
+  define section; now a script can set the sounds for one screen (the
+  `over` sound plays when the pointer enters any button) and clear them
+  after it with `selectvoice "","",""`. An empty name is no sound (it
+  used to try to play a file named "").
 - **`pushscreen first,last`** / **`popscreen`**: save the background,
   sprites `first`..`last` (image, position, visibility, cell, filters;
   a `strsp` sprite's text, font and colours),
