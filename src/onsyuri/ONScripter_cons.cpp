@@ -270,8 +270,21 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
 
     int slot = script_h.readInt();
     bool set = (script_h.getEndStatus() & ScriptHandler::END_COMMA) != 0;
+    // Read the whole command before checking it: arguments left unread
+    // would be shown as text.
+    char *map_name = NULL;
+    int param[SCREEN_EFFECT_PARAMS] = {0};
+    if (set){
+        if (kind == SCREEN_EFFECT_RIPPLE) setStr( &map_name, script_h.readStr() );
+        // Nine numbers, then optional ones (screenripple's blend).
+        for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++){
+            if (i >= 9 && !(script_h.getEndStatus() & ScriptHandler::END_COMMA)) break;
+            param[i] = script_h.readInt();
+        }
+    }
     if (slot < 0 || slot > MAX_SCREEN_EFFECT || (slot == 0 && set)){
         utils::printError("%s: slot %d out of range\n", name, slot);
+        delete[] map_name;
         return RET_CONTINUE;
     }
     if (!set){
@@ -283,12 +296,8 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
 
     ScreenEffect &e = screen_effect[slot-1];
     clearScreenEffect( e );
-    if (kind == SCREEN_EFFECT_RIPPLE) setStr( &e.map_name, script_h.readStr() );
-    // Nine numbers, then optional ones (screenripple's blend).
-    for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++){
-        if (i >= 9 && !(script_h.getEndStatus() & ScriptHandler::END_COMMA)) break;
-        e.param[i] = script_h.readInt();
-    }
+    e.map_name = map_name;
+    for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++) e.param[i] = param[i];
     e.kind = kind;
     startScreenEffect( e );
     dirty_rect.fill( screen_width, screen_height );
