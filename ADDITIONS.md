@@ -180,3 +180,6 @@ possible.
   (their text, font and colours; the NScripter data has only their place)
   and sounds looping on `dwave` channels (`dwaveloop`, `dwaveplayloop`),
   which a load starts again.
+  A load no longer cuts the looping sounds it starts again (`waveloop`,
+  `loopbgm`, looping `dwave`): stopping the old ones used to queue events
+  that freed the new ones at once.

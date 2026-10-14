@@ -753,6 +753,7 @@ private:
     void traceEffect( std::string &out, EffectLink *effect );
     bool isStrsp( int no );
     bool isLoopPlaying( int channel );
+    void dropStoppedSoundEvents();
     std::string trace_sound;         // the sound the command being run plays, as JSON fields
 
     // CONscripter: what the web page can change (ONS_WEB_EVENT, from its

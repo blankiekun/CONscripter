@@ -204,6 +204,7 @@ int ONScripter::loadSaveFile2( int file_version )
     stopCommand();
     loopbgmstopCommand();
     stopAllDWAVE();
+    dropStoppedSoundEvents(); // CONscripter
 
     readStr( &midi_file_name ); // MIDI file
     readStr( &wave_file_name ); // wave, waveloop

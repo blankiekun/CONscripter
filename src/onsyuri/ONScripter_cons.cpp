@@ -854,6 +854,16 @@ bool ONScripter::isStrsp( int no )
     return ai.trans_mode == AnimationInfo::TRANS_STRING && !ai.image_name && ai.file_name && ai.num_of_cells > 0;
 }
 
+// Stopping a sound queues an event saying its channel finished
+// (ONS_CHUNK_EVENT), which frees whatever that channel plays when the event
+// comes. A load stops every sound and starts the saved ones again at once
+// (waveloop, loopbgm, looping dwave), so those events would cut the new
+// ones: drop them.
+void ONScripter::dropStoppedSoundEvents()
+{
+    removeEvent( SDL_USEREVENT+4 ); // ONS_CHUNK_EVENT
+}
+
 // A dwave channel playing a sound with dwaveloop or dwaveplayloop.
 bool ONScripter::isLoopPlaying( int channel )
 {
@@ -1036,15 +1046,8 @@ void ONScripter::loadSaveFileCons()
         int ch = readInt();
         char *name = NULL;
         readStr( &name );
-        if (ch >= 0 && ch < ONS_MIX_CHANNELS && name){
-            // the event saying the sound stopped by the load has finished
-            // (ONS_CHUNK_EVENT) would free the new one
-            SDL_Event events[64];
-            int count = SDL_PeepEvents( events, 64, SDL_GETEVENT, SDL_USEREVENT+4, SDL_USEREVENT+4 );
-            for (int i=0 ; i<count ; i++)
-                if (events[i].user.code != ch) SDL_PushEvent( &events[i] );
+        if (ch >= 0 && ch < ONS_MIX_CHANNELS && name)
             playSound( name, SOUND_CHUNK, true, ch );
-        }
         delete[] name;
     }
 }
@@ -3027,6 +3030,11 @@ void ONScripter::roundtripState( std::map<std::string, std::string> &state )
     if (loop_bgm_name[0]){
         traceString( state["loopbgm"], loop_bgm_name[0] );
         traceString( state["loopbgm"], loop_bgm_name[1] );
+        // it plays until stopped: the intro with the loop ready to follow,
+        // or the loop, so anything else is a sound the load lost
+        bool playing = Mix_Playing( MIX_LOOPBGM_CHANNEL1 ) ||
+            (Mix_Playing( MIX_LOOPBGM_CHANNEL0 ) && (!loop_bgm_name[1] || wave_sample[MIX_LOOPBGM_CHANNEL1]));
+        if (audio_open_flag && !playing) state["loopbgm"] += " (stopped)";
     }
     for (int ch=0 ; audio_open_flag && ch<=MIX_WAVE_CHANNEL ; ch++){
         if (!trace_se_name[ch] || !trace_se_loop[ch] || !Mix_Playing( ch )) continue; // a voice isn't saved
