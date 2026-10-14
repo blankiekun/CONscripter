@@ -901,6 +901,16 @@ bool ONScripter::keyPressEvent( SDL_KeyboardEvent *event )
     }
 
     if ( event->type == SDL_KEYDOWN ) return false;
+
+    // CONscripter: getkey: a letter key ends the button wait with
+    // -1000 minus its upper-case code, before the keys' own meanings
+    if ( getkey_flag && event_mode & WAIT_BUTTON_MODE &&
+         event->keysym.sym >= SDLK_a && event->keysym.sym <= SDLK_z ){
+        current_button_state.button = -1000 - ('A' + event->keysym.sym - SDLK_a);
+        sprintf(current_button_state.str, "%c", 'A' + event->keysym.sym - SDLK_a);
+        stopAnimation( clickstr_state );
+        return true;
+    }
     
     if ( ( event_mode & (WAIT_INPUT_MODE | WAIT_BUTTON_MODE) ) &&
          ( autoclick_time == 0 || (event_mode & WAIT_BUTTON_MODE)) ){

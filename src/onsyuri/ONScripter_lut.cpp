@@ -32,6 +32,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"windoweffect",	&ONScripter::effectCommand},
     {"windowchip",		&ONScripter::windowchipCommand},
     {"windowtrans",		&ONScripter::windowtransCommand},
+    {"getkey",			&ONScripter::getkeyCommand},
     {"windowback",		&ONScripter::windowbackCommand},
     {"wavestop",		&ONScripter::wavestopCommand},
     {"waveloop",		&ONScripter::waveCommand},

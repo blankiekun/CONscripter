@@ -205,6 +205,7 @@ public:
     int screenrippleCommand();
     int screenpulseCommand();
     int windowtransCommand();
+    int getkeyCommand();
     int spbtnCommand();
     int skipoffCommand();
     int sevolCommand();
@@ -444,6 +445,7 @@ private:
     bool spclclk_flag;
 
     bool getmouseover_flag;
+    bool getkey_flag; // CONscripter: getkey
     int  getmouseover_lower;
     int  getmouseover_upper;
 

@@ -4008,3 +4008,13 @@ void ONScripter::consPressCell( bool down )
     dirty_rect.add( bl->image_rect );
     flush( refreshMode() );
 }
+
+// getkey: the next btnwait or textbtnwait also ends on a letter key, with
+// -1000 minus the letter's upper-case code (A = -1065, M = -1077), before
+// the key's own meaning (skip, auto, cursor keys). Like getfunction, it
+// lasts for one wait.
+int ONScripter::getkeyCommand()
+{
+    getkey_flag = true;
+    return RET_CONTINUE;
+}

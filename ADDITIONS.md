@@ -115,6 +115,12 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   `chvolfade 3,30:dwaveloop 3,"se\rain.ogg"` … `chvolfade 3,100,2000`;
   `bgmvolfade 20,500` ducks the music, `bgmvolfade 100,1000` brings it
   back.
+- **`getkey`**: the next `btnwait` or `textbtnwait` also ends when a
+  letter key is pressed, returning -1000 minus the letter's upper-case
+  code (A is -1065, M -1077, Z -1090), before the key's own meaning
+  (S skip, A auto, H/J/K/L cursor). It lasts for one wait, like
+  `getfunction`. A game whose keys open its menus
+  (`getkey:textbtnwait %9` … `if %9 == -1077 gosub *menu`).
 - **`spbtn num,no,pressed_cell`**: a third argument to `spbtn` names the
   cell sprite `num` shows while the left mouse button is held on it (the
   hover cell is 1, as before). It goes back to the hover cell when the
