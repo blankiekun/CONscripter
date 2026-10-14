@@ -3,9 +3,12 @@
 When a game converted by
 [conscripter-convert](https://github.com/blankiekun/conscripter-convert)
 needs something the NScripter command set can't do, it is added here.
-Every addition is opt-in: scripts that don't use it behave exactly as in
-ONScripter-Yuri. The code is in `src/onsyuri/ONScripter_cons.cpp` where
-possible.
+Every new command, tag or option is opt-in: scripts that don't use it
+behave exactly as in ONScripter-Yuri. Fixes to behaviour that is wrong
+(text drawn in the wrong place, characters dropped, a click in the
+sound) are not: they apply to every script, and are listed here too
+(half-width characters, cut sounds, spaces, vertical marks). The code
+is in `src/onsyuri/ONScripter_cons.cpp` where possible.
 
 - **`spfilter num,kind[,blend[,strength[,p1,p2,p3]]]`**: colour filters
   on an `lsp` sprite, applied when its image is loaded (no cost per
@@ -133,7 +136,22 @@ possible.
   ran on instead of giving the "'new line' must follow '/'" script error,
   ruby on a half-width body (`(a/えい)`) was shown as text, and the
   Shift-JIS bytes after it came out garbled. A single half-width character
-  at the end of a line is no longer dropped.
+  at the end of a line is no longer dropped. Sprite text (`strsp`,
+  `select` choices) and the page redrawn for the backlog follow the same
+  rule: `1あ` no longer comes out garbled there.
+- **Spaces inside text are kept.** ONScripter draws half-width
+  characters two at a time and skipped the spaces before each pair, so
+  English lost every space that started a pair: “Tell me the tales” came
+  out “Tellmethe tales”. A space that follows other text on the line is
+  now drawn; spaces before the text itself are still skipped. The same
+  holds for sprite text (`strsp`), which dropped every space unless the
+  text started with a backquote.
+- **Marks turned for vertical text are centred in their cell.** In
+  `tateyoko 1`, ONScripter turns brackets, dashes and similar marks
+  (《》「」『』（）【】〈〉 ― ～ …) a quarter turn, but placed the turned
+  glyph as if it weren't turned: 《 sat high and left of the column, 「
+  left, ― right. The glyph now turns about the centre of its cell, so ︽
+  sits on the text it opens and ﹁ at the top right, as in print.
 - **Cut sounds fade out instead of popping.** A sound stopped while it
   plays (a voice cut by the next one, `dwavestop`, `wavestop`, `stop`,
   `loopbgmstop`, a load) used to stop mid-wave, a step in the output

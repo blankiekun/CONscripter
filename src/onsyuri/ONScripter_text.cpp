@@ -363,8 +363,11 @@ void ONScripter::drawString( const char *str, uchar3 color, FontInfo *info, bool
 
     bool skip_whitespace_flag = true;
     char text[5] = { '\0', '\0', '\0', '\0', '\0' };
+    // CONscripter: only the spaces before the text are skipped; a space
+    // after other text is drawn ("Tell me", not "Tellme")
+    const char *text_start = str;
     while( *str ){
-        while (*str == ' ' && skip_whitespace_flag) str++;
+        while (*str == ' ' && skip_whitespace_flag && str == text_start){ str++; text_start++; }
 
 #ifdef ENABLE_1BYTE_CHAR
         if ( *str == '`' ){
@@ -435,7 +438,9 @@ void ONScripter::drawString( const char *str, uchar3 color, FontInfo *info, bool
         }
         else if (*str){
             text[0] = *str++;
-            if (*str && *str != 0x0a && pack_hankaku) text[1] = *str++;
+            // CONscripter: not paired with a character that starts a
+            // full-width one, which then came out garbled ("1あ")
+            if (*str && *str != 0x0a && pack_hankaku && !IS_TWO_BYTE(*str)) text[1] = *str++;
             else                                      text[1] = 0;
             drawChar( text, info, false, false, surface, cache_info );
         }
@@ -582,8 +587,10 @@ void ONScripter::restoreTextBuffer(SDL_Surface *surface)
             else{
                 out_text[1] = 0;
                 
+                // CONscripter: as when it was drawn, not paired with a
+                // character that starts a full-width one ("1あ", "い う")
                 if (i+1 != current_page->text_count &&
-                    current_page->text[i+1] != 0x0a){
+                    current_page->text[i+1] != 0x0a && !IS_TWO_BYTE(current_page->text[i+1])){
                     out_text[1] = current_page->text[i+1];
                     i++;
                 }
@@ -1006,9 +1013,17 @@ bool ONScripter::processText()
 
     //utils::printInfo("*** textCommand %d (%d,%d)\n", string_buffer_offset, sentence_font.xy[0], sentence_font.xy[1]);
 
-    while( (!(script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) &&
-            script_h.getStringBuffer()[ string_buffer_offset ] == ' ') ||
-           script_h.getStringBuffer()[ string_buffer_offset ] == '\t' ) string_buffer_offset ++;
+    // CONscripter: a space that follows other text on the line is kept.
+    // Half-width characters are drawn two at a time and the spaces before
+    // each pair were skipped, so "Tell me the tales" came out "Tellmethe
+    // tales". Spaces before the text itself are still skipped.
+    const char *buf = script_h.getStringBuffer();
+    bool keep_space = string_buffer_offset > 0 && buf[string_buffer_offset] == ' ' &&
+        buf[string_buffer_offset-1] != ' ' && buf[string_buffer_offset-1] != '\t';
+    while( !keep_space &&
+           ((!(script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) &&
+             script_h.getStringBuffer()[ string_buffer_offset ] == ' ') ||
+            script_h.getStringBuffer()[ string_buffer_offset ] == '\t') ) string_buffer_offset ++;
 
     if (script_h.getStringBuffer()[string_buffer_offset] == 0x00){
         processEOT();
