@@ -1247,16 +1247,16 @@ bool ONScripter::processText()
         bool flush_flag = true;
         if ( skip_mode || ctrl_pressed_status )
             flush_flag = false;
-        if ( script_h.getStringBuffer()[ string_buffer_offset + 1 ] &&
-             !(script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR)){
-            out_text[1] = script_h.getStringBuffer()[ string_buffer_offset + 1 ];
-            drawChar( out_text, &sentence_font, flush_flag, true, accumulation_surface, &text_info );
-            num_chars_in_sentence++;
-        }
-        else if (script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR){
-            drawChar( out_text, &sentence_font, flush_flag, true, accumulation_surface, &text_info );
-            num_chars_in_sentence++;
-        }
+        // Two half-width characters are drawn together. CONscripter: not
+        // with a character that starts a full-width one, or with '/', '@'
+        // or '\', which would then be shown as text (an odd number of
+        // half-width characters before them: "1/2", "abc\")
+        char next = script_h.getStringBuffer()[ string_buffer_offset + 1 ];
+        bool pair = next && !(script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) &&
+            !IS_TWO_BYTE(next) && next != '/' && next != '@' && next != '\\';
+        if (pair) out_text[1] = next;
+        drawChar( out_text, &sentence_font, flush_flag, true, accumulation_surface, &text_info );
+        num_chars_in_sentence++;
 
         int wait_time = sentence_font.wait_time == -1 ? default_text_speed[text_speed_no] : sentence_font.wait_time;
         if (text_speed_override >= 0) wait_time = text_speed_override; // CONscripter: set by the web page
@@ -1265,9 +1265,7 @@ bool ONScripter::processText()
             waitEvent( wait_time );
         }
 
-        if ( script_h.getStringBuffer()[ string_buffer_offset + 1 ] &&
-             !(script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR))
-            string_buffer_offset++;
+        if (pair) string_buffer_offset++;
         string_buffer_offset++;
 
         return true;

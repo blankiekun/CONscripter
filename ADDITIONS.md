@@ -116,6 +116,14 @@ possible.
   The window's column count still counts characters, so a script with
   larger text breaks its lines itself. The backlog shows the text at the
   normal size. `!z150「ぎゃーっ！！」!z100` (other engines print the tag).
+- **Half-width characters in text** are still drawn two to a cell, but
+  not paired with a following full-width character, `/`, `@` or `\`.
+  Stock ONScripter paired them, so after an odd number of half-width
+  characters a `\` or `@` was shown instead of waiting, `あ1/2い\`
+  ran on instead of giving the "'new line' must follow '/'" script error,
+  ruby on a half-width body (`(a/えい)`) was shown as text, and the
+  Shift-JIS bytes after it came out garbled. A single half-width character
+  at the end of a line is no longer dropped.
 - **WebP images in the web build**: emscripten's SDL_image port has no
   WebP decoder, so the web build links libwebp (`script/cross_web.sh`
   builds it) and decodes WebP itself, lossy and lossless, with alpha. The
