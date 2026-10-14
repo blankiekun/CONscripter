@@ -276,7 +276,7 @@ int DirectReader::getRegisteredCompressionType( const char *file_name )
     while( *ext_buf != '.' && ext_buf != file_name ) ext_buf--;
     ext_buf++;
     
-    strcpy( capital_name, ext_buf );
+    memmove( capital_name, ext_buf, strlen(ext_buf)+1 ); // CONscripter: file_name may be capital_name
     for ( unsigned int i=0 ; i<strlen(ext_buf)+1 ; i++ )
         if ( capital_name[i] >= 'a' && capital_name[i] <= 'z' )
             capital_name[i] += 'A' - 'a';
