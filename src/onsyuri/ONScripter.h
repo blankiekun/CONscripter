@@ -110,6 +110,7 @@ public:
     void renderFontOutline();
     void enableEdit();
     void setKeyEXE(const char *path);
+    void setTraceFile(const char *path); // CONscripter: --trace (ONScripter_cons.cpp)
     const char* getArchivePath() { return archive_path; }
     void setWindowWidth(int width);
     void setWindowHeight(int height);
@@ -676,6 +677,30 @@ private:
     // CONscripter: text size tag "!zNNN" (percent of the window's font size)
     int text_size_percent;
     FontInfo *textSizeFont( FontInfo *info, FontInfo &scaled );
+
+    // CONscripter: debug trace (--trace or CONS_TRACE), one JSON record per
+    // line: the state at every text page, missing files and script errors
+    struct TraceSprite {
+        std::string image;           // what was shown, to tell when it changed
+        int x, y, w, h, trans, cell;
+        int since;                   // the page it last changed
+    };
+    FILE *trace_fp;
+    int trace_page;
+    TraceSprite *trace_sprite;       // sprites, then lsp2 sprites, then ld (3)
+    char *trace_se_name[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS]; // the sound each channel last played
+    bool trace_se_loop[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS];
+    void traceStart();
+    void traceWrite( std::string &record );
+    void traceAt( std::string &out, char *address );
+    void traceSprite( std::string &out, AnimationInfo &ai, const char *kind, int no, TraceSprite &ts );
+    void tracePage();
+    void traceSound( int channel, const char *name, bool loop );
+    void traceWarn( const char *what, const char *file );
+    void traceError( const char *message );
+    void traceEnd();
+    static void traceErrorHook( const char *message );
+    static void traceExitHook();
     
     // ----------------------------------------
     // variables and methods relevant to image

@@ -360,6 +360,10 @@ ONScripter::ONScripter()
     screen_stack_num = 0;
     window_trans = 255;
     text_size_percent = 100;
+    trace_fp = NULL;
+    trace_page = 0;
+    trace_sprite = NULL;
+    memset( trace_se_name, 0, sizeof(trace_se_name) );
     clearScreenFilters();
     memset( screen_effect, 0, sizeof(screen_effect) );
 
@@ -686,6 +690,9 @@ int ONScripter::init()
         utils::printError("can't open font file: %s\n", font_file);
         return -1;
     }
+
+    if ( !trace_fp && getenv("CONS_TRACE") ) setTraceFile( getenv("CONS_TRACE") );
+    if ( trace_fp ) traceStart();
     
     return 0;
 }

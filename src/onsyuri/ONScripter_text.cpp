@@ -675,6 +675,7 @@ bool ONScripter::clickWait( char *out_text )
             flush(refreshMode());
         }
         textHook(current_page->text, current_page->text_count, 1);
+        if (trace_fp) tracePage();
         num_chars_in_sentence = 0;
 
         event_mode = IDLE_EVENT_MODE;
@@ -686,6 +687,7 @@ bool ONScripter::clickWait( char *out_text )
             num_chars_in_sentence++;
         }
         textHook(current_page->text, current_page->text_count, 0);
+        if (trace_fp) tracePage();
 
         while( (!(script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) &&
                 script_h.getStringBuffer()[ string_buffer_offset ] == ' ') ||
@@ -729,6 +731,7 @@ bool ONScripter::clickNewPage( char *out_text )
     }
     textHook(current_page->text, current_page->text_count,
              (skip_mode & SKIP_NORMAL || ctrl_pressed_status) ? 1 : 0);
+    if (trace_fp) tracePage();
 
     flush( REFRESH_NONE_MODE );
     skip_mode &= ~SKIP_TO_EOL;

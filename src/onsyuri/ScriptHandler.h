@@ -182,6 +182,10 @@ public:
     LabelInfo lookupLabel( const char* label );
     LabelInfo lookupLabelNext( const char* label );
     void errorAndExit( const char *str );
+    // CONscripter: called with the message before a script error exits
+    // (the debug trace records it)
+    static void (*error_hook)( const char *message );
+    bool inScript( const char *address ){ return script_buffer && address >= script_buffer && address < script_buffer + script_buffer_length; };
 
     ArrayVariable *getRootArrayVariable();
     void loadArrayVariable( FILE *fp );

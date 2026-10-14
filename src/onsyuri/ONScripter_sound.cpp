@@ -74,7 +74,11 @@ int ONScripter::playSound(const char *filename, int format, bool loop_flag, int 
     if ( !audio_open_flag ) return SOUND_NONE;
 
     long length = script_h.cBR->getFileLength( filename );
-    if (length == 0) return SOUND_NONE;
+    if (length == 0){
+        // playCDAudio tries each extension in turn
+        if (trace_fp && strncmp(filename, "cd\\track", 8)) traceWarn("missing sound", filename);
+        return SOUND_NONE;
+    }
     if (!mode_wave_demo_flag &&
         ((skip_mode & SKIP_NORMAL) || ctrl_pressed_status) && (format & SOUND_CHUNK) &&
         ((channel < ONS_MIX_CHANNELS) || (channel == MIX_WAVE_CHANNEL))) {
@@ -92,6 +96,7 @@ int ONScripter::playSound(const char *filename, int format, bool loop_flag, int 
         buffer = new(std::nothrow) unsigned char[length];
         if (buffer == NULL){
             utils::printError("failed to load [%s] because file size [%lu] is too large.\n", filename, length);
+            if (trace_fp) traceWarn("sound too large", filename);
             return SOUND_NONE;
         }
         script_h.cBR->getFile( filename, buffer );
@@ -105,6 +110,7 @@ int ONScripter::playSound(const char *filename, int format, bool loop_flag, int 
 #endif
         if (music_info == NULL) {
             utils::printError("can't load music \"%s\": %s\n", filename, Mix_GetError());
+            if (trace_fp) traceWarn("broken music", filename);
         }
         Mix_VolumeMusic( music_volume );
         if ( music_info && Mix_PlayMusic( music_info, (music_play_loop_flag&&music_loopback_offset==0.0)?-1:0 ) == 0 ){
@@ -119,8 +125,10 @@ int ONScripter::playSound(const char *filename, int format, bool loop_flag, int 
         Mix_Chunk *chunk = Mix_LoadWAV_RW(SDL_RWFromMem(buffer, length), 1);
         if (chunk == NULL) {
             utils::printError("can't load chunk \"%s\": %s\n", filename, Mix_GetError());
+            if (trace_fp) traceWarn("broken sound", filename);
         }
         if (chunk && playWave(chunk, format, loop_flag, channel) == 0){
+            if (trace_fp) traceSound(channel, filename, loop_flag);
             delete[] buffer;
             return SOUND_CHUNK;
         }
@@ -263,6 +271,7 @@ int ONScripter::playMPEG(const char *filename, bool click_flag, bool loop_flag)
     unsigned long length = script_h.cBR->getFileLength( filename );
     if (length == 0){
         utils::printError(" *** can't find file [%s] ***\n", filename );
+        if (trace_fp) traceWarn("missing movie", filename);
         return 0;
     }
 
@@ -397,6 +406,7 @@ int ONScripter::playAVI( const char *filename, bool click_flag )
     unsigned long length = script_h.cBR->getFileLength( filename );
     if (length == 0){
         utils::printError( " *** can't find file [%s] ***\n", filename );
+        if (trace_fp) traceWarn("missing movie", filename);
         return 0;
     }
 

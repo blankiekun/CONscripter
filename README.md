@@ -58,6 +58,10 @@ ONScripter-Yuri for games converted by
 [conscripter-convert](https://github.com/blankiekun/conscripter-convert).
 All are opt-in. See [ADDITIONS.md](ADDITIONS.md).
 
+To find bugs in a converted game, `--trace file` writes what is on screen at
+every text page, missing files and script errors as JSON lines. See
+[DEBUG.md](DEBUG.md).
+
 ## 1. Usage
 
 ### (1) Command line

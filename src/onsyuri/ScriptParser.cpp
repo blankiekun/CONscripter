@@ -599,6 +599,12 @@ void ScriptParser::errorAndExit( const char *str, const char *reason )
                  current_label_info.name,
                  current_line,
                  str );
+    if (ScriptHandler::error_hook){
+        char message[256];
+        if ( reason ) snprintf( message, sizeof(message), "%s; %s", str, reason );
+        else          snprintf( message, sizeof(message), "%s", str );
+        ScriptHandler::error_hook( message );
+    }
     exit(-1);
 }
 

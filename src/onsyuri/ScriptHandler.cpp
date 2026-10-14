@@ -38,6 +38,8 @@ extern Coding2UTF16 *coding2utf16;
 
 #define SKIP_SPACE(p) while ( *(p) == ' ' || *(p) == '\t' ) (p)++
 
+void (*ScriptHandler::error_hook)( const char *message ) = NULL;
+
 ScriptHandler::ScriptHandler()
 {
     save_dir = NULL;
@@ -949,6 +951,11 @@ void ScriptHandler::addStrAlias( const char *str1, const char *str2 )
 void ScriptHandler::errorAndExit( const char *str )
 {
     utils::printError( " **** Script error, %s [%s] ***\n", str, string_buffer);
+    if (error_hook){
+        char message[256];
+        snprintf( message, sizeof(message), "%s [%s]", str, string_buffer );
+        error_hook( message );
+    }
     exit(-1);
 }
 

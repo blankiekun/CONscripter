@@ -19,12 +19,15 @@
 
 #include "ONScripter.h"
 #include "Utils.h"
+#include "coding2utf16.h"
+#include "version.h"
 #include <algorithm>
 #include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #if defined(WEB)
 #include <emscripten.h>
 #endif
@@ -1304,4 +1307,297 @@ SDL_Surface *ONScripter::loadWebP(const unsigned char *data, size_t length)
     (void)length;
     return NULL;
 #endif
+}
+
+/* Debug trace (--trace file, or CONS_TRACE=file): one JSON object per line,
+ * flushed as it is written, for finding bugs in a converted game without
+ * screenshots. DEBUG.md describes the records. "at" is "*label:line", the
+ * line counted from 1 through the script files in order (with 0.txt alone,
+ * its own line number). Text and file names are converted to UTF-8. */
+
+extern Coding2UTF16 *coding2utf16;
+static ONScripter *trace_ons = NULL;
+
+// Script bytes (in the script's encoding) as a JSON string in UTF-8;
+// two-byte characters are told apart as the engine draws them.
+static void traceString( std::string &out, const char *text, int len=-1 )
+{
+    if (!text){
+        out += "null";
+        return;
+    }
+    if (len < 0) len = strlen(text);
+    out += '"';
+    for (int i=0 ; i<len ; i++){
+        unsigned char c = text[i];
+        uint16_t u = c;
+        if (IS_TWO_BYTE(c) && !coding2utf16->force_utf8 && i+1 < len){
+            u = coding2utf16->conv2UTF16( c << 8 | (unsigned char)text[++i] );
+            if (u == 0) u = 0xfffd; // not in the table
+        }
+        else if (c >= 0x80){
+            if (!coding2utf16->force_utf8) u = 0xfffd; // a stray byte
+            else{ // part of a UTF-8 character
+                out += c;
+                continue;
+            }
+        }
+
+        if (u == '"' || u == '\\'){
+            out += '\\';
+            out += (char)u;
+        }
+        else if (u == '\n') out += "\\n";
+        else if (u < 0x20){
+            char buf[8];
+            snprintf( buf, sizeof(buf), "\\u%04x", u );
+            out += buf;
+        }
+        else if (u < 0x80) out += (char)u;
+        else{
+            unsigned char u8[4];
+            out.append( (char*)u8, coding2utf16->convUTF16ToUTF8( u8, u ) );
+        }
+    }
+    out += '"';
+}
+
+void ONScripter::setTraceFile( const char *path )
+{
+    static bool exit_hooked = false;
+
+    if (trace_fp) fclose( trace_fp );
+    trace_fp = ::fopen( path, "w" ); // not ScriptParser::fopen, which looks in the game folder
+    if (!trace_fp){
+        utils::printError( "can't open the trace file %s\n", path );
+        return;
+    }
+    trace_ons = this;
+    ScriptHandler::error_hook = traceErrorHook;
+    if (!exit_hooked) atexit( traceExitHook );
+    exit_hooked = true;
+}
+
+void ONScripter::traceErrorHook( const char *message )
+{
+    if (trace_ons && trace_ons->trace_fp) trace_ons->traceError( message );
+}
+
+void ONScripter::traceExitHook()
+{
+    if (trace_ons && trace_ons->trace_fp) trace_ons->traceEnd();
+}
+
+void ONScripter::traceWrite( std::string &record )
+{
+    record += '\n';
+    fputs( record.c_str(), trace_fp );
+    fflush( trace_fp ); // so a crash keeps everything before it
+}
+
+// Called once the script is read and the screen is set up.
+void ONScripter::traceStart()
+{
+    trace_sprite = new TraceSprite[MAX_SPRITE_NUM + MAX_SPRITE2_NUM + 3];
+
+    char buf[256];
+    time_t now = time( NULL );
+    char date[32];
+    strftime( date, sizeof(date), "%Y-%m-%dT%H:%M:%S", localtime( &now ) );
+    snprintf( buf, sizeof(buf),
+              "{\"t\":\"meta\",\"schema\":1,\"engine\":\"CONscripter %s\",\"time\":\"%s\",\"w\":%d,\"h\":%d,\"utf8\":%s,\"dir\":",
+              CONSCRIPTER_VERSION, date, screen_width, screen_height,
+              coding2utf16->force_utf8 ? "true" : "false" );
+    std::string r = buf;
+    traceString( r, archive_path );
+    r += '}';
+    traceWrite( r );
+}
+
+// Appends "*label:line" for a place in the script, or null outside it (or
+// before the script is labelled).
+void ONScripter::traceAt( std::string &out, char *address )
+{
+    if (!trace_sprite || !script_h.inScript( address )){
+        out += "null";
+        return;
+    }
+    ScriptHandler::LabelInfo label = script_h.getLabelByAddress( address );
+    std::string at = "*";
+    at += label.name;
+    char buf[16];
+    snprintf( buf, sizeof(buf), ":%d", label.start_line + script_h.getLineByAddress( address ) + 1 );
+    at += buf;
+    traceString( out, at.c_str() );
+}
+
+// Appends a visible sprite to the page's list, and notes when it changed.
+void ONScripter::traceSprite( std::string &out, AnimationInfo &ai, const char *kind, int no, TraceSprite &ts )
+{
+    if (!ai.visible || !ai.image_name){
+        ts.image.clear();
+        return;
+    }
+    SDL_Rect r = ai.pos;
+    if (!strcmp( kind, "lsp2" )) r = ai.bounding_rect; // its box on the screen after scaling and turning
+
+    if (ts.image != ai.image_name || ts.x != r.x || ts.y != r.y || ts.w != r.w || ts.h != r.h ||
+        ts.trans != ai.trans || ts.cell != ai.current_cell){
+        ts.image = ai.image_name;
+        ts.x = r.x; ts.y = r.y; ts.w = r.w; ts.h = r.h;
+        ts.trans = ai.trans;
+        ts.cell = ai.current_cell;
+        ts.since = trace_page;
+    }
+
+    char buf[160];
+    if (out[out.size()-1] != '[') out += ',';
+    snprintf( buf, sizeof(buf), "{\"n\":%d,\"kind\":\"%s\",\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"alpha\":%d",
+              no, kind, r.x, r.y, r.w, r.h, ai.trans < 0 ? 255 : ai.trans );
+    out += buf;
+    bool missing = false;
+    if (ai.trans_mode == AnimationInfo::TRANS_STRING){
+        out += ",\"str\":";
+        traceString( out, ai.file_name );
+    }
+    else if (ai.file_name){
+        out += ",\"file\":";
+        traceString( out, ai.file_name );
+        missing = !ai.image_surface;
+        if (missing) out += ",\"missing\":true";
+    }
+    else{
+        out += ",\"tag\":"; // a colour or other sprite without a file
+        traceString( out, ai.image_name );
+    }
+    if (ai.num_of_cells > 1){
+        snprintf( buf, sizeof(buf), ",\"cell\":%d,\"cells\":%d", ai.current_cell, ai.num_of_cells );
+        out += buf;
+    }
+    if (missing) ; // no size to place
+    else if (r.x >= screen_width || r.y >= screen_height || r.x + r.w <= 0 || r.y + r.h <= 0)
+        out += ",\"off\":true";
+    else{
+        std::string edges;
+        if (r.y <= 0) edges += 'T';
+        if (r.y + r.h >= screen_height) edges += 'B';
+        if (r.x <= 0) edges += 'L';
+        if (r.x + r.w >= screen_width) edges += 'R';
+        if (!edges.empty()) out += ",\"edges\":\"" + edges + "\"";
+    }
+    if (ai.num_of_filters > 0){
+        snprintf( buf, sizeof(buf), ",\"filters\":%d", ai.num_of_filters );
+        out += buf;
+    }
+    snprintf( buf, sizeof(buf), ",\"since\":%d}", ts.since );
+    out += buf;
+}
+
+// The state at a click wait or a new page: where the script is, the text,
+// the background, the music and sounds, and every visible sprite.
+void ONScripter::tracePage()
+{
+    if (!trace_sprite) return;
+    trace_page++;
+
+    char buf[64];
+    snprintf( buf, sizeof(buf), "{\"t\":\"page\",\"pg\":%d,\"at\":", trace_page );
+    std::string r = buf;
+    traceAt( r, script_h.getCurrent( true ) );
+    r += ",\"text\":";
+    traceString( r, current_page->text, current_page->text_count );
+    r += ",\"bg\":";
+    traceString( r, bg_info.file_name );
+    r += ",\"bgm\":";
+    traceString( r, music_file_name ? music_file_name : midi_file_name );
+    if (loop_bgm_name[0]){
+        r += ",\"loopbgm\":[";
+        traceString( r, loop_bgm_name[0] );
+        r += ',';
+        traceString( r, loop_bgm_name[1] );
+        r += ']';
+    }
+
+    bool se = false;
+    for (int ch=0 ; audio_open_flag && ch<=MIX_WAVE_CHANNEL ; ch++){
+        if (!trace_se_name[ch] || !Mix_Playing( ch )) continue;
+        r += se ? "," : ",\"se\":[";
+        se = true;
+        snprintf( buf, sizeof(buf), "{\"ch\":%d,\"file\":", ch );
+        r += buf;
+        traceString( r, trace_se_name[ch] );
+        r += trace_se_loop[ch] ? ",\"loop\":true}" : "}";
+    }
+    if (se) r += ']';
+
+    if (all_sprite_hide_flag) r += ",\"sprites_hidden\":true";
+    if (all_sprite2_hide_flag) r += ",\"sprites2_hidden\":true";
+    r += ",\"sp\":[";
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        traceSprite( r, sprite_info[i], "lsp", i, trace_sprite[i] );
+    for (int i=0 ; i<MAX_SPRITE2_NUM ; i++)
+        traceSprite( r, sprite2_info[i], "lsp2", i, trace_sprite[MAX_SPRITE_NUM + i] );
+    for (int i=0 ; i<3 ; i++) // ld: 0 left, 1 centre, 2 right
+        traceSprite( r, tachi_info[i], "ld", i, trace_sprite[MAX_SPRITE_NUM + MAX_SPRITE2_NUM + i] );
+    r += "]}";
+    traceWrite( r );
+}
+
+// Notes the sound a channel plays, for the pages' "se" lists.
+void ONScripter::traceSound( int channel, const char *name, bool loop )
+{
+    if (channel < 0 || channel >= ONS_MIX_CHANNELS + ONS_MIX_EXTRA_CHANNELS) return;
+    setStr( &trace_se_name[channel], name );
+    trace_se_loop[channel] = loop;
+}
+
+// A file the script asked for that is missing or can't be read.
+void ONScripter::traceWarn( const char *what, const char *file )
+{
+    // the engine's own defaults, tried whether or not the game has them
+    static const char *defaults[] = { DEFAULT_LOOKBACK_NAME0, DEFAULT_LOOKBACK_NAME1, DEFAULT_LOOKBACK_NAME2,
+                                      DEFAULT_LOOKBACK_NAME3, "cursor0.bmp", "cursor1.bmp" };
+    for (size_t i=0 ; i<sizeof(defaults)/sizeof(defaults[0]) ; i++)
+        if (!strcmp( file, defaults[i] )) return;
+
+    char buf[64];
+    snprintf( buf, sizeof(buf), "{\"t\":\"warn\",\"pg\":%d,\"what\":\"%s\",\"file\":", trace_page, what );
+    std::string r = buf;
+    traceString( r, file );
+    r += ",\"at\":";
+    traceAt( r, script_h.getCurrent( true ) );
+    r += '}';
+    traceWrite( r );
+}
+
+// A script error, just before the engine exits, with the gosub calls that
+// led to it (innermost first: where each returns to).
+void ONScripter::traceError( const char *message )
+{
+    char buf[64];
+    snprintf( buf, sizeof(buf), "{\"t\":\"error\",\"pg\":%d,\"msg\":", trace_page );
+    std::string r = buf;
+    traceString( r, message );
+    r += ",\"at\":";
+    traceAt( r, script_h.getCurrent( true ) );
+    r += ",\"stack\":[";
+    for (NestInfo *info = last_nest_info ; info && info != &root_nest_info ; info = info->previous){
+        if (info->nest_mode != NestInfo::LABEL) continue;
+        if (r[r.size()-1] != '[') r += ',';
+        traceAt( r, info->next_script );
+    }
+    r += "]}";
+    traceWrite( r );
+}
+
+// The last record, written as the engine exits normally or after a script
+// error; a trace without it ended in a crash.
+void ONScripter::traceEnd()
+{
+    char buf[64];
+    snprintf( buf, sizeof(buf), "{\"t\":\"end\",\"pg\":%d}", trace_page );
+    std::string r = buf;
+    traceWrite( r );
+    fclose( trace_fp );
+    trace_fp = NULL;
 }

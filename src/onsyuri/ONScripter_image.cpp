@@ -158,6 +158,7 @@ SDL_Surface *ONScripter::createSurfaceFromFile(char *filename, bool *has_alpha, 
             }
         }
         utils::printError(" *** can't find file [%s] ***\n", filename);
+        if (trace_fp) traceWarn("missing image", filename);
         return NULL;
     }
 
@@ -178,6 +179,7 @@ SDL_Surface *ONScripter::createSurfaceFromFile(char *filename, bool *has_alpha, 
         buffer = new(std::nothrow) unsigned char[length];
         if (buffer == NULL){
             utils::printError("failed to load [%s] because file size [%lu] is too large.\n", filename, length);
+            if (trace_fp) traceWarn("image too large", filename);
             return NULL;
         }
     }
@@ -197,6 +199,7 @@ SDL_Surface *ONScripter::createSurfaceFromFile(char *filename, bool *has_alpha, 
     if (!tmp) tmp = IMG_Load_RW(src, 0);
     if (!tmp && ext && (!strcmp(ext+1, "JPG") || !strcmp(ext+1, "jpg"))){
         utils::printError(" *** force-loading a JPG image [%s]\n", filename);
+        if (trace_fp) traceWarn("force-loaded JPG", filename);
         tmp = IMG_LoadJPG_RW(src);
     }
 
@@ -211,8 +214,10 @@ SDL_Surface *ONScripter::createSurfaceFromFile(char *filename, bool *has_alpha, 
 
     if (buffer != tmp_image_buf) delete[] buffer;
 
-    if (!tmp)
+    if (!tmp){
         utils::printError(" *** can't load file [%s] %s ***\n", filename, IMG_GetError());
+        if (trace_fp) traceWarn("broken image", filename);
+    }
 
     return tmp;
 }
