@@ -3,7 +3,7 @@
 the earlier runs didn't, until a run reaches no new label.
 
 usage: cons_explore.py GAME_DIR [--out DIR] [--runs N] [--pages N] [--seed N]
-                       [--engine PATH] [--engine-args "ARGS"] [--script 0.txt]
+                       [--route FILE] [--engine PATH] [--engine-args "ARGS"] [--script 0.txt]
 
 Each run is an --auto-play run of the engine with --auto-choice untaken and
 --taken FILE, the file listing every choice the earlier runs made and how
@@ -12,7 +12,9 @@ many times (built from their traces' choice records, as lines
 least. A run that ends in a script error marks the last choice it made
 before the error (one not marked already) "avoid" in the file, so later
 runs make another there; when there is none to mark, every run would end
-at that error, so the exploration stops. It
+at that error, so the exploration stops. --route FILE gives every run
+the engine's --choices FILE, the choices leading to a route, made in order
+before the run goes its own way; those are never marked avoid. It
 stops when --patience runs in a row reach no label the earlier ones hadn't,
 or after --runs runs, then lists the labels of the script no run reached and the traces it
 wrote. Each run gets its own trace and save folder in --out, so the game's
@@ -52,6 +54,31 @@ def choices(trace, skip=None):
     return out
 
 
+def route_of(path):
+    """(at, option) for each line of a --choices file, in order."""
+    out = []
+    with open(path, encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            at, _, opt = line.partition('\t') if '\t' in line else line.rpartition('=')
+            at = at.strip()
+            out.append((at if at.startswith('*') else '*' + at, int(opt.split('\t')[0])))
+    return out
+
+
+def by_route(made, route):
+    """The indexes of the choices in made that the route made: as the
+    engine uses up --choices, each line when a choice comes up at its place."""
+    out, i = set(), 0
+    for k, (at, _) in enumerate(made):
+        if i < len(route) and route[i][0] == at:
+            out.add(k)
+            i += 1
+    return out
+
+
 def end_of(trace):
     meta, end = {}, None
     pages = 0
@@ -74,6 +101,8 @@ def main():
     ap.add_argument('--pages', type=int, default=0, help='pages per run, 0 for to the end (default 0)')
     ap.add_argument('--patience', type=int, default=2, help='stop after this many runs in a row reach no new label (default 2)')
     ap.add_argument('--skip-choices', metavar='REGEX', help='places ("*label:line") whose choices are left out of the taken file, so every run makes them as the first did: a title menu, a settings screen')
+    ap.add_argument('--route', metavar='FILE', help='a --choices file every run gives the engine: the choices that lead to a route, '
+                    'made in order before each run goes its own way; they are never marked avoid')
     ap.add_argument('--seed', type=int, help='--seed for every run, so the exploration can be repeated')
     ap.add_argument('--engine', default=ENGINE, help='the engine (default build_native/conscripter)')
     ap.add_argument('--engine-args', default='', metavar='"ARGS"', help='more engine options, such as "--trace-ignore 22-48"')
@@ -101,6 +130,7 @@ def main():
     skip = re.compile(args.skip_choices) if args.skip_choices else None
     idle = 0
     meta = {}
+    route = route_of(args.route) if args.route else []
     def write_taken():
         with open(taken, 'w', encoding='utf-8') as f:
             f.write('# choices made by the earlier runs\n')
@@ -125,6 +155,8 @@ def main():
             cmd += ['--seed', str(args.seed)]
         if args.stop_known > 0:
             cmd += ['--known-labels', known, '--stop-known', str(args.stop_known)]
+        if args.route:
+            cmd += ['--choices', os.path.abspath(args.route)]
         cmd += shlex.split(args.engine_args)
         start = time.time()
         try:
@@ -154,7 +186,11 @@ def main():
             # avoided one is made only when its place has nothing else)
             err = errors.setdefault((end.get('at'), end.get('msg')), [0, []])
             err[0] += 1
-            blame = next((c for c in reversed(mine) if c not in avoid), None)
+            # (not one the --route made: every run makes those)
+            every = choices(trace)
+            routed = by_route(every, route)
+            free = [c for k, c in enumerate(every) if k not in routed and not (skip and skip.search(c[0]))]
+            blame = next((c for c in reversed(free) if c not in avoid), None)
             if blame:
                 avoid.add(blame)
                 err[1].append(blame)

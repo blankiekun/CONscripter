@@ -53,7 +53,8 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy conscripter --root . --save-dir /tmp
 
 - Every wait for a click (text, `click`, `delay`, `textbtnwait`) is
   answered at once.
-- A `btnwait` or `select` takes a button, chosen by `--auto-choice` (below).
+- A `btnwait` or `select` takes a button, chosen by `--auto-choice` (below),
+  or by `--choose` and `--choices` ("Following a route").
 - Effects take 1 ms, as do timed waits (`wait`, `waittimer`) and BGM
   fades. Vsync is turned off, since otherwise each character drawn would
   wait for the screen.
@@ -167,6 +168,52 @@ script changed), it writes a `replay diverged` warning and uses the
 recorded answer if it is still one of the options; when the recorded
 choices run out, a `replay ended` warning.
 
+### Following a route
+
+A heroine's route often needs its choices made in a set order, which
+`--auto-choice` can't do. `--choose` and `--choices` (with `--auto-play`)
+give the answers. An answer is the option as `--auto-choice` numbers it
+and the choice record gives it: a `select`'s `picked`, counted from 1, or
+a `btnwait`'s `result`, 0 for a click elsewhere.
+
+`--choose '*label:line=N'` takes option N at every choice at that place
+(the choice record's `at`; the `*` can be left out). `=N,M,K` gives the
+answers for the first, second and third visits there, then stays on the
+last. It can be given more than once, for more places.
+
+```sh
+conscripter --root . --trace t.jsonl --auto-play 0 --choose '*s4_l2:5467=2' --choose '*conv_link1_wait:5994=1,1,0'
+```
+
+`--choices FILE` gives a list of answers, made in order. Each line is a
+place, a tab (or `=`) and the answer; `#` lines and blank lines are left
+out, as is anything after a second tab, so a `--taken` file's lines can
+be copied in. Each line is used up when a choice comes up at its place.
+A choice somewhere else doesn't use one up: it is made as if there were
+no list (a hyperlink or menu the list doesn't mention is left to
+`--auto-choice`). Once every line is used up, the next choice writes a
+`choices ended` warning, and `--replay` or `--auto-choice` goes on from there.
+
+```
+# Azusa's route
+*s4_l2:5467	2
+*s6_l1:9120	1
+*s9_l36:62510	3
+```
+
+Each choice takes the first of these that has an answer for it:
+
+1. `--choose` for that place;
+2. the next `--choices` line, if it is for that place (used up even when
+   `--choose` answered);
+3. `--replay`'s next recorded choice;
+4. `--auto-choice` (`untaken` with `--taken` as usual).
+
+An answer that isn't one of the options offered (a button that isn't
+there, a select with fewer options) writes a `choice not offered` warning
+and goes on down the list. A choice made by `--choose` or `--choices`
+still counts for `untaken` as made in this run.
+
 ### Exploring routes
 
 `tools/cons_explore.py` plays a game again and again, each run taking the
@@ -228,7 +275,10 @@ run to its end. On saiima a run that found nothing new stopped after
 10,000 pages (130 s) instead of playing its whole 68,700 (900 s).
 `--skip-choices` names the places, as a regex on `*label:line`, whose
 choices every run should make the same way: a title menu or a settings
-screen, which would otherwise take a run off to load or quit. `--pages`
+screen, which would otherwise take a run off to load or quit. `--route FILE`
+gives every run the engine's `--choices FILE` (see "Following a route"),
+so the exploration starts down a route and explores what lies past it;
+the choices the route makes are never marked `avoid`. `--pages`
 limits each run, `--seed` makes the exploration repeatable, and
 `--engine` and `--engine-args` choose the engine and add options.
 
@@ -368,6 +418,38 @@ the folder the engine was started from). The page's record gives the
 file as `shot`. Both need `--trace`, which counts the pages. An
 auto-play run with the same options and `--seed` reaches the same pages.
 
+A menu, a dialog or an effect between two lines has no click wait of
+its own. Two more options take a picture at other moments, each with a
+`dump` record of the state then (as F8 writes, with `why` saying which
+option took it):
+
+```sh
+conscripter --root . --trace trace.jsonl --auto-play 0 --shot-at '*conv_menu:812,*s4_l2:5470' --shot-after 12000
+```
+
+- `--shot-at '*label:line'` takes one once the script has run that line
+  and goes on to another: after every command on it, before the next
+  line runs (or wherever a `goto` or `gosub` on it led). Each time the
+  line runs, so a menu shown three times gives three pictures, saved as
+  `<shot-dir>/at000412-conv_menu-812-1.png`: the page (`pg`), the label,
+  the line and the visit, counted from 1. The `dump`'s `at` is where the
+  script goes on, the line after it.
+- `--shot-after ms` takes one that many milliseconds after the engine
+  started (the trace's `ms`), at the next point the engine gets to: the
+  next line of the script, or, while it waits for a click or a button,
+  the moment itself. It is saved as `<shot-dir>/ms0012000.png`.
+
+Both take a comma-separated list and can be given more than once, and
+both work in an `--auto-play` run and while playing by hand. Under
+`--auto-play` time runs much faster than in play, so a time there
+matches a different place than it would by hand. A picture is the screen
+as shown at that moment. A command that changes a sprite but doesn't
+show it (`lsp` without `print`) leaves the screen as it was, so a
+picture after its line doesn't have the new sprite yet; the `dump`'s
+`sp` already lists it. After a text line that ends with `\`, the page is
+already cleared; take the page itself with `--shot-pages`. The web build
+writes the `dump` records without the pictures.
+
 ## Records
 
 Every record has `"t"`, its type. `"pg"` is the number of text pages
@@ -398,10 +480,11 @@ folder (`--root`), `ignore` the `--trace-ignore` list (or `null`), `start`
 how the run started when not from the beginning (`goto` and `vars`, or
 `load` with the slot), and
 `auto` the `--auto-play` settings (only with `--auto-play`; `seed` only
-with `--seed`, `replay` and `taken` with those files, `stop_known` and
-`known` with `--stop-known`), and `stop` what ends the run early
-(`until` the `--until` label, `max_pages` the `--max-pages`; only with
-them). A run that can't
+with `--seed`, `replay` and `taken` with those files, `choose` the
+`--choose` options as given, in a list, `choices` the `--choices` file,
+`stop_known` and `known` with `--stop-known`), and `stop` what ends the
+run early (`until` the `--until` label, `max_pages` the `--max-pages`;
+only with them). A run that can't
 start still writes a `meta` record (`w`,`h` may be 0) before its `error`.
 
 ### `page`: each click wait and new page
@@ -459,12 +542,14 @@ Each sprite in `sp`:
 `since` makes lingering sprites easy to spot: a character still up with
 a `since` far below the current `pg`, especially across a `bg` change.
 
-### `dump`: the state when F8 was pressed
+### `dump`: the state when F8 was pressed, or at a picture
 
 The same fields as a `page`, with `"t":"dump"`, `pg` the last page (a
 dump isn't counted as one), `at` where the script is waiting, natively
 a `shot`, and `vars`: every numbered variable that isn't 0 or empty
-(schema 2), `{"%312":876,"$5":"text"}`.
+(schema 2), `{"%312":876,"$5":"text"}`. `why` says what wrote it: `F8`,
+or `shot-at` and `shot-after` for a picture those options took (see
+"Pictures of pages").
 
 ### `ev`: a command that changed the screen or the sound
 
@@ -583,6 +668,8 @@ Schema 2 adds these, with their own fields:
 | `save/load mismatch` | `diff` | `--roundtrip-every` found the state changed by saving and loading; `at` is the page compared, `pg` the page after the round trip. `diff` has up to 40 strings `"field: before -> after"` (`none` when absent; a long value is cut to 100 bytes around where the two differ, with `...`): `at`, `text`, `tag`, `bg`, `bgm`, `loopbgm` (` (stopped)` after the names when it no longer plays, or its intro plays with the loop gone), `se <ch>` (looping sounds), `window`, `windowtrans`, `monocro`, `nega`, `filter <slot>`, `fx <slot>`, `sprites_hidden`, `sprites2_hidden`, `pushscreen`, `sp <kind> <n>` (the image, then `x,y wxh alpha a cell c filters f`), `%n`, `$n`; `["can't save or load"]` if that failed |
 | `replay diverged` | `expected` | `--replay` reached a choice at `at`, where the recorded run's was at `expected` |
 | `replay ended` | | `--replay` ran out of recorded choices |
+| `choice not offered` | `option`, `from`, `options` | the answer `--choose` or `--choices` (`from`) gave isn't one of the `options` offered; the choice goes on to the next way of choosing ("Following a route") |
+| `choices ended` | | every `--choices` line was used up; written at the next choice |
 | `auto-play stuck` | | `--auto-play` stopped going round in circles (above) |
 
 ### `error`: a script error, just before the engine exits
@@ -675,7 +762,7 @@ image memory: 12 to 340 MB (the most at page 4120, *s9_l36:62672), 54 MB at the 
 | `duration` | A wait or effect the script asks to last very long (the `long wait` warnings: `print 10,270000` is 4.5 minutes) |
 | `slow` | Where the time went: the `--slow` (10) places with the most time, `--slow-ms` (1000) or more, between one record and the next, added up over every visit (a slow load, a long effect, a wait auto-play didn't shorten) |
 | `save` | A `save/load mismatch` from `--roundtrip-every`, once for each set of fields that differed, with how many round trips gave the same. `--save-ignore REGEX` leaves fields out, such as a variable the game's `loadgosub` sets on every load (`'^%190$'`) |
-| `replay` | Where a `--replay` run went another way, or ran out of choices |
+| `replay` | Where a `--replay` run went another way, or ran out of choices; a `--choose` or `--choices` answer that wasn't offered; where the `--choices` list ran out |
 | `memory` | Image memory (the pages' `mem`) that jumps by `--mem-jump` MB (64) from one page to the next, or grows steadily by `--mem-leak` MB (128) or more over the run (a leak); a single picture taking more than `--trace-max-image` (the `large image` warnings). The report's head gives the least and most, and where it grew |
 | `coverage` | With `--script`, the labels the run never reached (`--coverage-skip REGEX` leaves some out) |
 

@@ -1152,6 +1152,8 @@ void ONScripter::executeLabel()
             continue;
         }
         char *line_start = script_h.getCurrent();
+        if (!trace_shot_at.empty()) traceShotAt( line_start ); // CONscripter: --shot-at, --shot-after
+        if (trace_shot_after_next < trace_shot_after.size()) traceShotAfter();
         if (until_index >= 0 && script_h.getLabelIndex( line_start ) == until_index){ // CONscripter: --until
             if (trace_fp) traceLabel( line_start );
             stopRun( "until label" );

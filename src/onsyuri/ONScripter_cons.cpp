@@ -2464,6 +2464,7 @@ void ONScripter::traceStart()
     trace_label_seen.assign( script_h.getNumLabels(), false );
     AnimationInfo::large_hook = traceLargeImage;
     if (!trace_meta_written) traceMeta();
+    traceShotAtSetup();
 }
 
 // The first record: the engine, the game and the options.
@@ -2477,7 +2478,7 @@ void ONScripter::traceMeta()
     snprintf( buf, sizeof(buf),
               "{\"t\":\"meta\",\"schema\":2,\"engine\":\"CONscripter %s\",\"time\":\"%s\",\"w\":%d,\"h\":%d,\"utf8\":%s,\"dir\":",
               CONSCRIPTER_VERSION, date, screen_width, screen_height,
-              coding2utf16->force_utf8 ? "true" : "false" );
+              coding2utf16 && coding2utf16->force_utf8 ? "true" : "false" ); // none yet while the options are read
     std::string r = buf;
     traceString( r, archive_path );
     r += ",\"ignore\":";
@@ -2508,6 +2509,15 @@ void ONScripter::traceMeta()
         if (taken_path){
             r += ",\"taken\":";
             traceString( r, taken_path );
+        }
+        for (size_t i=0 ; i<choose_specs.size() ; i++){
+            r += i ? "," : ",\"choose\":[";
+            traceString( r, coding2utf16 ? fromUTF8( choose_specs[i].c_str() ).c_str() : choose_specs[i].c_str() );
+            if (i+1 == choose_specs.size()) r += ']';
+        }
+        if (choices_path){
+            r += ",\"choices\":";
+            traceString( r, choices_path );
         }
         if (known_path){
             snprintf( buf, sizeof(buf), ",\"stop_known\":%d,\"known\":", stop_known );
@@ -2908,6 +2918,11 @@ void ONScripter::tracePage( bool dump )
               dump ? "dump" : "page", trace_page, SDL_GetTicks() );
     std::string r = buf;
     traceAt( r, script_h.getCurrent( true ) );
+    if (dump){
+        r += ",\"why\":\"";
+        r += trace_dump_why;
+        r += '"';
+    }
     r += ",\"text\":";
     traceString( r, current_page->text, current_page->text_count );
     if (current_page->tag){ // the text's [...] tag (a speaker's name, a voice)
@@ -3015,6 +3030,18 @@ void ONScripter::tracePage( bool dump )
     }
 }
 
+// "label:line" or "*label:line" as a choice record's "at": with the "*",
+// in lower case, as the script's labels are kept.
+static std::string choicePlace( const char *text, size_t len )
+{
+    while (len > 0 && (*text == ' ' || *text == '\t')){ text++; len--; }
+    while (len > 0 && (text[len-1] == ' ' || text[len-1] == '\t')) len--;
+    std::string at( text, len );
+    for (size_t i=0 ; i<at.size() ; i++) if (at[i] >= 'A' && at[i] <= 'Z') at[i] += 'a' - 'A';
+    if (!at.empty() && at[0] != '*') at = "*" + at;
+    return at;
+}
+
 // "412,980-990": the pages --shot-pages takes a picture of.
 void ONScripter::setTraceShots( const char *pages )
 {
@@ -3042,6 +3069,131 @@ void ONScripter::setTraceShotDir( const char *dir )
     trace_shot_dir = dir;
 }
 
+// "*s4_l2:5467,*conv_wait:120": the lines --shot-at takes a picture after.
+void ONScripter::setTraceShotAt( const char *places )
+{
+    for (const char *p = places ; p && *p ; ){
+        const char *comma = strchr( p, ',' );
+        size_t len = comma ? (size_t)(comma - p) : strlen( p );
+        ShotAt s;
+        s.at = choicePlace( p, len );
+        size_t colon = s.at.rfind( ':' );
+        s.line = colon == std::string::npos ? 0 : atoi( s.at.c_str() + colon + 1 );
+        if (s.line < 1){
+            utils::printError( "--shot-at: give '*label:line', not [%s]\n", s.at.c_str() );
+            startupFailed();
+        }
+        s.begin = s.end = NULL;
+        s.visits = 0;
+        s.pending = false;
+        trace_shot_at.push_back( s );
+        p = comma ? comma+1 : NULL;
+    }
+}
+
+// "5000,12000": the times (ms since the engine started) --shot-after
+// takes a picture at.
+void ONScripter::setTraceShotAfter( const char *times )
+{
+    for (const char *p = times ; p && *p ; ){
+        char *end;
+        long ms = strtol( p, &end, 10 );
+        if (end == p || ms < 0){
+            utils::printError( "--shot-after: can't read [%s]\n", p );
+            startupFailed();
+        }
+        trace_shot_after.push_back( (unsigned int)ms );
+        p = *end == ',' ? end+1 : NULL;
+    }
+    std::sort( trace_shot_after.begin(), trace_shot_after.end() );
+}
+
+// Wakes the event loop when a --shot-after time comes, so a game waiting
+// for a click (a menu, a btnwait) is shot then.
+static Uint32 shotTimerCallback( Uint32 interval, void *param )
+{
+    SDL_Event event;
+    SDL_zero( event );
+    event.type = ONS_SHOT_EVENT;
+    SDL_PushEvent( &event );
+    return 0;
+}
+
+// Finds the --shot-at lines in the script, and starts the --shot-after
+// timers.
+void ONScripter::traceShotAtSetup()
+{
+    int lines = 0; // the script's last line, counted from 1
+    for (int i=0 ; i<script_h.getScriptLength() ; i++)
+        if (*script_h.getAddress( i ) == 0x0a) lines++;
+    for (size_t i=0 ; i<trace_shot_at.size() ; ){
+        ShotAt &s = trace_shot_at[i];
+        char *addr = s.line <= lines ? script_h.getAddressByLine( s.line - 1 ) : NULL;
+        if (!addr || traceAtText( addr ) != s.at){
+            utils::printError( "--shot-at: no line %s in the script%s%s\n", s.at.c_str(),
+                               addr ? "; that line is " : "", addr ? traceAtText( addr ).c_str() : "" );
+            trace_shot_at.erase( trace_shot_at.begin() + i );
+            continue;
+        }
+        s.begin = s.end = addr;
+        while (script_h.inScript( s.end + 1 ) && *s.end != 0x0a) s.end++;
+        i++;
+    }
+    Uint32 now = SDL_GetTicks();
+    for (size_t i=0 ; i<trace_shot_after.size() ; i++)
+        SDL_AddTimer( trace_shot_after[i] > now ? trace_shot_after[i] - now : 1, shotTimerCallback, NULL );
+}
+
+// Called before each line or command is run (executeLabel): once the
+// script has left a --shot-at line, every command on it having run, a
+// picture and a dump record, at<pg>-<label>-<line>-<visit>.png.
+void ONScripter::traceShotAt( char *line_start )
+{
+    for (size_t i=0 ; i<trace_shot_at.size() ; i++){
+        ShotAt &s = trace_shot_at[i];
+        bool inside = line_start >= s.begin && line_start <= s.end;
+        if (s.pending && !inside){
+            s.pending = false;
+            std::string label;
+            for (size_t c=1 ; c<s.at.size() && s.at[c] != ':' ; c++){
+                char ch = s.at[c];
+                label += (isalnum( (unsigned char)ch ) || ch == '_') ? ch : '_';
+            }
+            char name[64];
+            snprintf( name, sizeof(name), "-%d-%d.png", s.line, ++s.visits );
+            char pg[16];
+            snprintf( pg, sizeof(pg), "at%06d-", trace_page );
+            traceShotDump( "shot-at", pg + label + name );
+        }
+        if (inside) s.pending = true;
+    }
+}
+
+// At a --shot-after time, or as soon after as the engine gets to it: a
+// picture and a dump record, ms<time>.png. Not in the define section,
+// before there is a screen to take.
+void ONScripter::traceShotAfter()
+{
+    if (current_mode == DEFINE_MODE) return;
+    while (trace_shot_after_next < trace_shot_after.size() &&
+           SDL_GetTicks() >= trace_shot_after[trace_shot_after_next]){
+        char name[32];
+        snprintf( name, sizeof(name), "ms%07u.png", trace_shot_after[trace_shot_after_next++] );
+        traceShotDump( "shot-after", name );
+    }
+}
+
+// A dump record, as F8 writes, with its "why" and its picture's name.
+void ONScripter::traceShotDump( const char *why, const std::string &name )
+{
+    if (!trace_sprite || current_mode == DEFINE_MODE) return;
+    trace_dump_why = why;
+    trace_shot_name = name;
+    tracePage( true );
+    trace_dump_why = "F8";
+    trace_shot_name.clear();
+}
+
 // On a page --shot-pages or --shot-every asks for, saves the screen as
 // <shot dir>/page<pg>.png and appends ,"shot":"<file>"; on a dump, always,
 // as dump<pg>-<ms>.png (not in the web build, which has nowhere to put it).
@@ -3060,8 +3212,9 @@ void ONScripter::traceShot( std::string &out, bool dump )
 #else
     mkdir( trace_shot_dir.c_str(), 0755 );
 #endif
-    char name[48];
-    if (dump) snprintf( name, sizeof(name), "/dump%06d-%u.png", trace_page, SDL_GetTicks() );
+    char name[300];
+    if (dump && !trace_shot_name.empty()) snprintf( name, sizeof(name), "/%s", trace_shot_name.c_str() );
+    else if (dump) snprintf( name, sizeof(name), "/dump%06d-%u.png", trace_page, SDL_GetTicks() );
     else      snprintf( name, sizeof(name), "/page%06d.png", trace_page );
     std::string path = trace_shot_dir + name;
     // the screen as shown, without the alpha channel the picture doesn't use
@@ -3293,6 +3446,84 @@ void ONScripter::setTaken( const char *path )
     fclose( fp );
 }
 
+// --choose '*label:line=N': --auto-play takes option N (as in the choice
+// record: picked or result) at every choice there; "=N,M,K" gives the
+// answers for the visits in turn, staying on the last. It comes before
+// --choices, --replay and --auto-choice.
+void ONScripter::setChoose( const char *spec )
+{
+    const char *eq = strrchr( spec, '=' );
+    std::string at = eq ? choicePlace( spec, eq - spec ) : "";
+    std::vector<int> answers;
+    for (const char *p = eq ? eq+1 : NULL ; p && *p ; ){
+        char *end;
+        int n = strtol( p, &end, 10 );
+        if (end == p || n < 0){ answers.clear(); break; }
+        answers.push_back( n );
+        p = *end == ',' ? end+1 : NULL;
+    }
+    if (at.size() < 4 || at.find( ':' ) == std::string::npos || answers.empty()){
+        utils::printError( "--choose: give '*label:line=N' (or =N,M,...), not [%s]\n", spec );
+        startupFailed();
+    }
+    choose_answers[at] = answers;
+    choose_specs.push_back( spec );
+}
+
+// --choices file: lines "*label:line<TAB>option" (or "=option"), "#"
+// comments and blank lines left out; a second tab and what follows (a
+// --taken file's count) is left out too. --auto-play makes them in order:
+// each is used up when a choice comes up at its place; a choice somewhere
+// else is left to --replay and --auto-choice, without using one up.
+void ONScripter::setChoices( const char *path )
+{
+    setStr( &choices_path, path );
+    FILE *fp = ::fopen( path, "rb" );
+    if (!fp){
+        utils::printError( "--choices: can't open %s\n", path );
+        startupFailed();
+    }
+    char buf[1024];
+    int line = 0;
+    while (fgets( buf, sizeof(buf), fp )){
+        line++;
+        size_t len = strlen( buf );
+        while (len > 0 && (buf[len-1] == '\n' || buf[len-1] == '\r' || buf[len-1] == ' ')) buf[--len] = 0;
+        const char *p = buf;
+        while (*p == ' ' || *p == '\t') p++;
+        if (!*p || *p == '#') continue;
+        const char *sep = strchr( p, '\t' );
+        if (!sep) sep = strrchr( p, '=' );
+        char *end = NULL;
+        AutoAnswer a;
+        if (sep){
+            a.at = choicePlace( p, sep - p );
+            a.value = strtol( sep+1, &end, 10 );
+        }
+        if (!sep || end == sep+1 || a.value < 0 || a.at.find( ':' ) == std::string::npos){
+            utils::printError( "--choices: %s line %d: give \"*label:line<TAB>option\", not [%s]\n", path, line, p );
+            startupFailed();
+        }
+        choices_list.push_back( a );
+    }
+    fclose( fp );
+}
+
+// Whether an answer --choose or --choices gives is one of the options;
+// if not, a "choice not offered" warning.
+bool ONScripter::autoPlayOffered( const std::vector<int> &nos, int value, const char *from )
+{
+    if (std::find( nos.begin(), nos.end(), value ) != nos.end()) return true;
+    std::string extra = ",\"option\":" + std::to_string( value ) + ",\"from\":\"" + from + "\",\"options\":[";
+    for (size_t i=0 ; i<nos.size() ; i++){
+        if (i) extra += ',';
+        extra += std::to_string( nos[i] );
+    }
+    extra += ']';
+    autoPlayWarn( "choice not offered", extra.c_str() );
+    return false;
+}
+
 // A warn record about the choices --auto-play makes, at the command being
 // run; extra is more fields, starting with a comma.
 void ONScripter::autoPlayWarn( const char *what, const char *extra )
@@ -3410,6 +3641,28 @@ int ONScripter::autoPlayButton()
     // random takes a number each time, even when replaying, so that rnd
     // gives the numbers it gave in the run recorded
     int random = auto_choice == AUTO_CHOICE_RANDOM ? rand() : 0;
+
+    // --choose for this place, then the next --choices line if it is for
+    // this place (used up even when --choose answers), then --replay; an
+    // answer that isn't offered goes on to the next
+    if (!choose_answers.empty() || !choices_list.empty()){
+        std::string at = traceAtText( trace_cmd_start );
+        int listed = -1;
+        if (choices_next < choices_list.size()){
+            if (choices_list[choices_next].at == at) listed = choices_list[choices_next++].value;
+        }
+        else if (!choices_list.empty() && !choices_ended){
+            choices_ended = true;
+            autoPlayWarn( "choices ended" );
+        }
+        auto ch = choose_answers.find( at );
+        if (ch != choose_answers.end()){
+            size_t visit = choose_visits[at]++;
+            int value = ch->second[ std::min( visit, ch->second.size() - 1 ) ];
+            if (autoPlayOffered( nos, value, "choose" )) return value;
+        }
+        if (listed >= 0 && autoPlayOffered( nos, listed, "choices" )) return listed;
+    }
 
     if (replay_next < replay_answers.size()){
         const AutoAnswer &a = replay_answers[replay_next];

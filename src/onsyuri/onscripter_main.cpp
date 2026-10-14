@@ -77,9 +77,13 @@ void optionHelp()
     printf( "      --known-labels file\twith --stop-known, the labels earlier runs reached (one name a line)\n");
     printf( "      --stop-known n\twith --auto-play, stop after n pages without a label or choice earlier runs hadn't reached\n");
     printf( "      --taken file\twith --auto-choice untaken, the choices made before (\"*label:line<TAB>option<TAB>count\" lines), to take least\n");
+    printf( "      --choose '*label:line=N'\twith --auto-play, take option N at that choice (N,M,...: on each visit in turn); repeatable\n");
+    printf( "      --choices file\twith --auto-play, take these choices in order (\"*label:line<TAB>option\" lines), then --replay, --auto-choice\n");
     printf( "      --seed n\t\tstart the random numbers (rnd, --auto-choice random) from n\n");
     printf( "      --shot-pages 412,980-990\twith --trace, save a picture of these pages (--shot-dir, default shots)\n");
     printf( "      --shot-every n\twith --trace, save a picture of every n-th page\n");
+    printf( "      --shot-at '*label:line'\twith --trace, a picture and a dump record each time that line has run (comma-separated, repeatable)\n");
+    printf( "      --shot-after ms\twith --trace, a picture and a dump record that many ms after the start (comma-separated, repeatable)\n");
     printf( "      --goto label\tstart at this label, once the define section has run\n");
     printf( "      --vars file\tset these variables at the start (lines %%312=876, $5=text; UTF-8)\n");
     printf( "      --load n\t\tstart by loading save slot n\n");
@@ -443,6 +447,16 @@ void parseOption(int argc, char *argv[]) {
                 argv++;
                 ons.setTraceShotDir(argv[0]);
             }
+            else if ( !strcmp( argv[0]+1, "-shot-at" ) ){
+                argc--;
+                argv++;
+                ons.setTraceShotAt(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-shot-after" ) ){
+                argc--;
+                argv++;
+                ons.setTraceShotAfter(argv[0]);
+            }
             else if ( !strcmp( argv[0]+1, "-replay" ) ){
                 argc--;
                 argv++;
@@ -452,6 +466,16 @@ void parseOption(int argc, char *argv[]) {
                 argc--;
                 argv++;
                 ons.setTaken(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-choose" ) ){
+                argc--;
+                argv++;
+                ons.setChoose(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-choices" ) ){
+                argc--;
+                argv++;
+                ons.setChoices(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-known-labels" ) ){
                 argc--;

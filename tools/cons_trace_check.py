@@ -29,7 +29,8 @@ by kind, each finding at the script line ("*label:line") to look at:
   duration     a wait or effect the script asks to last very long
   slow         where the time went: the slowest stretches between records
   save         a state that changed after a save and load (--roundtrip-every)
-  replay       a --replay run that went another way, or ran out of choices
+  replay       a --replay run that went another way, or ran out of choices;
+               a --choose or --choices answer not offered, a --choices list run out
   memory       image memory that grows steadily or jumps; a single picture
                taking a lot of it (--trace-max-image)
   coverage     (--script) labels the run never reached
@@ -333,6 +334,11 @@ class Checker:
             self.add('replay', None, at, 'the run reached a choice here, the recorded run at %s' % r.get('expected'))
         elif what == 'replay ended':
             self.add('replay', None, at, 'the recorded choices ran out here; --auto-choice picks from here on')
+        elif what == 'choice not offered':
+            self.add('replay', None, at, '--%s asks for option %s here, but the options are %s' % (
+                r.get('from'), r.get('option'), ', '.join(str(o) for o in r.get('options') or [])))
+        elif what == 'choices ended':
+            self.add('replay', None, at, 'the --choices list ran out here; --replay or --auto-choice picks from here on')
         elif self.reloading:
             pass  # the load of a --roundtrip-every repeats the scene's warnings
         else:

@@ -122,6 +122,8 @@ public:
     void setSeed(int seed);
     void setReplay(const char *path); // CONscripter: --replay, --taken
     void setTaken(const char *path);
+    void setChoose(const char *spec); // CONscripter: --choose, --choices
+    void setChoices(const char *path);
     void setKnownLabels(const char *path); // CONscripter: --known-labels
     void setStopKnown(int pages) { stop_known = pages; } // CONscripter: --stop-known
     void setUntil(const char *label); // CONscripter: --until, --max-pages
@@ -129,9 +131,12 @@ public:
     void setTraceShots(const char *pages); // CONscripter: --shot-pages, --shot-every, --shot-dir
     void setTraceShotEvery(int pages);
     void setTraceShotDir(const char *dir);
+    void setTraceShotAt(const char *places); // CONscripter: --shot-at, --shot-after
+    void setTraceShotAfter(const char *times);
     void startupFailed(); // CONscripter: records the error just printed, exits with 3
     // CONscripter: calls from the web page, as ONS_WEB_EVENT events (ONScripter_cons.cpp)
 #define ONS_WEB_EVENT (SDL_USEREVENT+7)
+#define ONS_SHOT_EVENT (SDL_USEREVENT+8) // CONscripter: a --shot-after time came
     enum { WEB_SET_AUTO = 1, WEB_SET_SKIP = 2, WEB_SET_RUBY = 3, WEB_SET_TEXT_SPEED = 4 };
     void setStartGoto(const char *label); // CONscripter: --goto, --vars, --dump-vars
     void setStartVars(const char *path);
@@ -754,6 +759,16 @@ private:
     int trace_shot_every;
     std::string trace_shot_dir;
     void traceShot( std::string &out, bool dump=false );
+    struct ShotAt { std::string at; int line; char *begin, *end; int visits; bool pending; };
+    std::vector<ShotAt> trace_shot_at; // --shot-at: the lines, found in traceStart
+    std::vector<unsigned int> trace_shot_after; // --shot-after: the times, in order
+    size_t trace_shot_after_next = 0;
+    std::string trace_shot_name;     // the next dump's picture, when not dump<pg>-<ms>.png
+    const char *trace_dump_why = "F8"; // why the next dump is written
+    void traceShotAtSetup();
+    void traceShotAt( char *line_start );
+    void traceShotAfter();
+    void traceShotDump( const char *why, const std::string &name );
     void traceLabel( char *address );
     char *trace_se_name[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS]; // the sound each channel last played
     bool trace_se_loop[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS];
@@ -842,6 +857,14 @@ private:
     int auto_play_known = 0;         // pages since one in a label no run had reached, or a choice no run had made
     bool auto_play_diverged = false; // this run has made such a choice or reached such a label
     std::set<std::string> auto_avoid; // --taken: "at<TAB>option" marked avoid
+    std::map<std::string, std::vector<int> > choose_answers; // --choose: "at" and its answers, by visit
+    std::map<std::string, size_t> choose_visits;
+    std::vector<std::string> choose_specs; // as given, for the meta record
+    std::vector<AutoAnswer> choices_list; // --choices: the answers, in order
+    size_t choices_next = 0;
+    bool choices_ended = false;
+    char *choices_path = NULL;
+    bool autoPlayOffered( const std::vector<int> &nos, int value, const char *from );
     std::string traceAtText( char *address );
     void autoPlayChosen( int value );
     void autoPlayWarn( const char *what, const char *extra=NULL );

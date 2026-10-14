@@ -1376,6 +1376,10 @@ void ONScripter::runEventLoop()
             if (webEvent( event.user.code, (int)(intptr_t)event.user.data1 )) return;
             break;
 
+          case ONS_SHOT_EVENT: // CONscripter: a --shot-after time came
+            traceShotAfter();
+            break;
+
           case ONS_MUSIC_EVENT:
           case ONS_BGMFADE_EVENT:
           case ONS_CDAUDIO_EVENT:
