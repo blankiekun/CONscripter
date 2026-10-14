@@ -1,0 +1,61 @@
+name: update site
+on:
+  # after a tag's web build has made its release
+  workflow_run:
+    workflows: ['build web']
+    types: [completed]
+  # or by hand, for any released version
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'release tag to put on the site, i.e. v0.18.0'
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  SITE_REPO: blankiekun/blankiekun.github.io
+
+jobs:
+  update_site:
+    # for a tag push, workflow_run's head_branch is the tag
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       startsWith(github.event.workflow_run.head_branch, 'v'))
+    runs-on: ubuntu-24.04
+    steps:
+    - name: get the web release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ inputs.version || github.event.workflow_run.head_branch }}
+      run: |
+        echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+        gh release download "$VERSION" -R ${{ github.repository }} -p "conscripter_${VERSION}_web.7z"
+        7z x "conscripter_${VERSION}_web.7z"
+
+    # SITE_TOKEN: a fine-grained token with Contents read and write on the site repo
+    - uses: actions/checkout@v4
+      with:
+        repository: ${{ env.SITE_REPO }}
+        token: ${{ secrets.SITE_TOKEN }}
+        path: site
+
+    # cons/player.html is the site's own host page; only the engine and the
+    # version it names are replaced, so host page changes in a release
+    # (conscripter.html) still need porting by hand
+    - name: put the engine on the site
+      run: |
+        cp conscripter_web/conscripter{.js,.wasm} site/cons/
+        sed -i -E "s/are the v[0-9.]+ web release/are the ${VERSION} web release/" site/cons/player.html
+        cd site
+        if git diff --quiet; then
+          echo "the site already has $VERSION"
+          exit 0
+        fi
+        git config user.name 'github-actions[bot]'
+        git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+        git commit -am "CONscripter: engine $VERSION"
+        git push
