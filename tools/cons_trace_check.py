@@ -61,7 +61,7 @@ DEFAULTS = {
     'max': 20, 'tall': 0.4, 'linger': 150, 'float_h': 0.75, 'float_gap': 40, 'crowd': 4,
     'loop': 100, 'voice_ch': '0', 'voice': r'(^|[\\/])voices?[\\/]',
     'dialogue': '^[\\s\u3000]*[\u300c\u300e\u201c]', 'voice_window': 3, 'voice_share': 0.8,
-    'voice_min': 5, 'line_chars': None, 'slow': 10, 'slow_ms': 1000, 'mem_jump': 64, 'mem_leak': 128,
+    'voice_min': 5, 'line_chars': None, 'save_ignore': None, 'slow': 10, 'slow_ms': 1000, 'mem_jump': 64, 'mem_leak': 128,
 }
 
 SOUND_CMDS = ('dwave', 'dwaveloop', 'wave', 'waveloop', 'dwaveplay', 'dwaveplayloop')
@@ -200,6 +200,7 @@ class Checker:
         self.lines = None                  # the script's lines (--script)
         self.voice_ch = {int(c) for c in str(args.voice_ch).split(',') if c.strip()}
         self.voice_re = re.compile(args.voice, re.I)
+        self.save_ignore = re.compile(args.save_ignore) if args.save_ignore else None
         self.dialogue_re = re.compile(args.dialogue)
         self.started = {}                  # channel -> page when its sound started
         self.voiced = False                # a voice started since the last page
@@ -315,7 +316,10 @@ class Checker:
             self.add('web', r.get('file') or at, at, '%s is %sx%s, too large for the web build' % (
                 r.get('file') or 'a scaled picture', r.get('w'), r.get('h')))
         elif what == 'save/load mismatch':
-            diff = r.get('diff') or []
+            diff = [d for d in r.get('diff') or []
+                    if not (self.save_ignore and self.save_ignore.search(d.split(':')[0]))]
+            if not diff:
+                return
             fields = tuple(sorted({d.split(':')[0] for d in diff}))
             s = self.mismatch.setdefault(fields, [0, at, self.pg, diff])
             s[0] += 1
@@ -763,6 +767,7 @@ def main():
     ap.add_argument('--voice-share', type=float, help='part of a speaker\'s lines with a voice for one without to be reported (default 0.8)')
     ap.add_argument('--voice-min', type=int, help='lines with a voice a speaker needs first (default 5)')
     ap.add_argument('--line-chars', type=int, help='full-width characters a line may hold, for traces without "overflow" (default: off)')
+    ap.add_argument('--save-ignore', metavar='REGEX', help='save/load mismatch fields to leave out, such as variables the game\'s loadgosub sets (^%%190$)')
     ap.add_argument('--slow', type=int, help='slowest stretches shown (default 10)')
     ap.add_argument('--slow-ms', type=int, help='least total ms for a stretch to be shown (default 1000)')
     ap.add_argument('--mem-jump', type=int, help='MB image memory may grow from one page to the next (default 64)')
