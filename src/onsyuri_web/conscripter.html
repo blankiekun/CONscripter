@@ -475,15 +475,27 @@
         <script type="text/javascript"> // onsyuri video 
             const video=document.getElementById("video");
 
+            // a skipped movie must stop: hiding it and clearing src leaves
+            // its sound playing in some browsers
+            var g_video_skippable=false;
             function videoEnded(){
+                g_video_skippable=false;
+                video.onclick=null;
+                video.pause();
                 g_onsyuri_module.canvas.style.display="block";
                 video.style.display="none";
                 if (video.src && video.src.startsWith('blob:')) {
                     URL.revokeObjectURL(video.src);
-                    video.src='';
                 }
+                video.removeAttribute('src');
+                video.load();
                 g_onsyuri_module.wait_video=false;
             }
+
+            // Enter, Space and Escape skip it, as in the native player
+            window.addEventListener('keyup', function(event) {
+                if (g_video_skippable && (event.key=="Enter" || event.key==" " || event.key=="Escape")) videoEnded();
+            });
 
             function playVideo(path, click_flag, loop_flag){
                 g_onsyuri_module.wait_video=true;
@@ -500,6 +512,7 @@
                 video.style.display="block";
 
                 video.onclick=click_flag?videoEnded:null;
+                g_video_skippable=!!click_flag;
                 video.loop=loop_flag;
 
                 // browsers block autoplay with sound until the page was clicked;
