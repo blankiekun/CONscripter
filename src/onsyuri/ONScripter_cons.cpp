@@ -45,8 +45,8 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 5 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
-                            // 5: + strsp sprites, looping dwave sounds
+#define CONS_SAVE_VERSION 6 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
+                            // 5: + strsp sprites, looping dwave sounds; 6: + strsp sprites in the screen stack
 
 /* spfilter num, kind[, blend[, strength[, param...]]]
  *   kind 0 clears every filter on sprite num. Other kinds add a filter
@@ -593,8 +593,8 @@ static char *copyStr( const char *s )
 
 /* pushscreen first,last
  *   Saves the background, sprites first..last (image, position,
- *   visibility, cell, transparency, filters), the screen filters and the
- *   BGM on a stack.
+ *   visibility, cell, transparency, filters; a strsp sprite's text, font
+ *   and colours), the screen filters and the BGM on a stack.
  *   popscreen puts the newest saved state back and removes it from the
  *   stack. Neither draws anything: show the result with print. Sprites
  *   and the background that didn't change in between aren't reloaded, and
@@ -623,6 +623,17 @@ int ONScripter::pushscreenCommand()
         AnimationInfo *ai = &sprite_info[i];
         ScreenSprite &sp = st.sprite[i - first];
         sp.image_name = copyStr(ai->image_name);
+        sp.str = NULL;
+        sp.colors = NULL;
+        sp.cells = 0;
+        if (isStrsp( i )){
+            sp.str = copyStr(ai->file_name);
+            sp.font = strsp_font[i];
+            sp.cells = ai->num_of_cells;
+            sp.colors = new uchar3[sp.cells];
+            for (int c=0 ; c<sp.cells ; c++)
+                for (int k=0 ; k<3 ; k++) sp.colors[c][k] = ai->color_list ? ai->color_list[c][k] : 0xff;
+        }
         sp.x = ai->orig_pos.x;
         sp.y = ai->orig_pos.y;
         sp.visible = ai->visible;
@@ -668,27 +679,40 @@ void ONScripter::popScreenState()
         bool same = sameStr(ai->image_name, sp.image_name) &&
             ai->num_of_filters == sp.num_of_filters &&
             memcmp(ai->filter, sp.filter, sizeof(AnimationInfo::Filter)*sp.num_of_filters) == 0;
+        if (same && (sp.str || isStrsp( i ))) // the same strsp sprite: text, font and colours
+            same = sp.str && isStrsp( i ) && sameStr(ai->file_name, sp.str) &&
+                memcmp(&strsp_font[i], &sp.font, sizeof(StrspFont)) == 0 &&
+                ai->num_of_cells == sp.cells && ai->color_list &&
+                memcmp(ai->color_list, sp.colors, sizeof(uchar3)*sp.cells) == 0;
         if (!same){
-            if (sp.image_name == NULL && ai->image_name) root_button_link.removeSprite(i);
+            if (sp.image_name == NULL && sp.str == NULL && (ai->image_name || isStrsp( i ))) root_button_link.removeSprite(i);
             ai->remove();
-            if (sp.image_name){
-                ai->setImageName(sp.image_name);
+            if (sp.image_name || sp.str){
                 ai->trans = sp.trans;
-                parseTaggedString( ai );
                 ai->num_of_filters = sp.num_of_filters;
                 memcpy(ai->filter, sp.filter, sizeof(sp.filter));
                 ai->filter_changed = true;
+            }
+            if (sp.image_name){
+                ai->setImageName(sp.image_name);
+                parseTaggedString( ai );
                 setupAnimationInfo( ai );
+            }
+            else if (sp.str){
+                setStrsp( i, sp.str, sp.font, sp.cells, sp.colors );
+                sp.colors = NULL; // the sprite's now
             }
         }
         ai->orig_pos.x = sp.x;
         ai->orig_pos.y = sp.y;
         ai->scalePosXY( screen_ratio1, screen_ratio2 );
-        ai->visible = sp.visible && sp.image_name;
+        ai->visible = sp.visible && (sp.image_name || sp.str);
         ai->trans = sp.trans;
         if (ai->num_of_cells > 0) ai->setCell(sp.cell);
         if (ai->image_surface && ai->visible) dirty_rect.add( ai->pos );
         delete[] sp.image_name;
+        delete[] sp.str;
+        delete[] sp.colors;
     }
     delete[] st.sprite;
 
@@ -716,8 +740,11 @@ void ONScripter::clearScreenStack()
 {
     while (screen_stack_num > 0){
         ScreenState &st = screen_stack[--screen_stack_num];
-        for (int i=st.first ; i<=st.last ; i++)
+        for (int i=st.first ; i<=st.last ; i++){
             delete[] st.sprite[i - st.first].image_name;
+            delete[] st.sprite[i - st.first].str;
+            delete[] st.sprite[i - st.first].colors;
+        }
         delete[] st.sprite;
         delete[] st.bg_name;
         delete[] st.bgm_name;
@@ -821,20 +848,8 @@ void ONScripter::saveSaveFileCons( bool output_flag )
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         if (!isStrsp( i )) continue;
         AnimationInfo *ai = &sprite_info[i];
-        StrspFont &sf = strsp_font[i];
         writeInt( i, output_flag );
-        writeStr( ai->file_name, output_flag );
-        for (int k=0 ; k<2 ; k++){
-            writeInt( sf.num_xy[k], output_flag );
-            writeInt( sf.font_size_xy[k], output_flag );
-            writeInt( sf.pitch_xy[k], output_flag );
-        }
-        writeInt( sf.bold ? 1 : 0, output_flag );
-        writeInt( sf.shadow ? 1 : 0, output_flag );
-        writeInt( ai->num_of_cells, output_flag );
-        for (int c=0 ; c<ai->num_of_cells ; c++)
-            for (int k=0 ; k<3 ; k++)
-                writeInt( ai->color_list ? ai->color_list[c][k] : 0xff, output_flag );
+        writeStrsp( ai->file_name, strsp_font[i], ai->num_of_cells, ai->color_list, output_flag );
     }
     num = 0;
     for (int ch=0 ; ch<ONS_MIX_CHANNELS ; ch++)
@@ -845,6 +860,101 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         writeInt( ch, output_flag );
         writeStr( trace_se_name[ch], output_flag );
     }
+
+    // Version 6: the strsp sprites of each pushscreen state, oldest first
+    // (version 2 left them out): the number of states, then per state the
+    // count and per sprite its number, place, visibility, cell,
+    // transparency, filters and strsp data as in version 5.
+    writeInt( screen_stack_num, output_flag );
+    for (int n=0 ; n<screen_stack_num ; n++){
+        ScreenState &st = screen_stack[n];
+        num = 0;
+        for (int i=st.first ; i<=st.last ; i++)
+            if (st.sprite[i - st.first].str) num++;
+        writeInt( num, output_flag );
+        for (int i=st.first ; i<=st.last ; i++){
+            ScreenSprite &sp = st.sprite[i - st.first];
+            if (sp.str == NULL) continue;
+            writeInt( i, output_flag );
+            writeInt( sp.x, output_flag );
+            writeInt( sp.y, output_flag );
+            writeInt( sp.visible ? 1 : 0, output_flag );
+            writeInt( sp.cell, output_flag );
+            writeInt( sp.trans, output_flag );
+            writeInt( sp.num_of_filters, output_flag );
+            for (int j=0 ; j<sp.num_of_filters ; j++){
+                writeInt( sp.filter[j].kind, output_flag );
+                writeInt( sp.filter[j].blend, output_flag );
+                writeInt( sp.filter[j].strength, output_flag );
+                for (int k=0 ; k<3 ; k++)
+                    writeInt( sp.filter[j].param[k], output_flag );
+            }
+            writeStrsp( sp.str, sp.font, sp.cells, sp.colors, output_flag );
+        }
+    }
+}
+
+// strsp's text, font (columns and rows, font size, pitch, bold, shadow)
+// and the colour of each cell, in the save.
+void ONScripter::writeStrsp( char *text, const StrspFont &sf, int cells, uchar3 *colors, bool output_flag )
+{
+    writeStr( text, output_flag );
+    for (int k=0 ; k<2 ; k++){
+        writeInt( sf.num_xy[k], output_flag );
+        writeInt( sf.font_size_xy[k], output_flag );
+        writeInt( sf.pitch_xy[k], output_flag );
+    }
+    writeInt( sf.bold ? 1 : 0, output_flag );
+    writeInt( sf.shadow ? 1 : 0, output_flag );
+    writeInt( cells, output_flag );
+    for (int c=0 ; c<cells ; c++)
+        for (int k=0 ; k<3 ; k++)
+            writeInt( colors ? colors[c][k] : 0xff, output_flag );
+}
+
+void ONScripter::readStrsp( char **text, StrspFont &sf, int &cells, uchar3 *&colors )
+{
+    readStr( text );
+    for (int k=0 ; k<2 ; k++){
+        sf.num_xy[k] = readInt();
+        sf.font_size_xy[k] = readInt();
+        sf.pitch_xy[k] = readInt();
+    }
+    sf.bold = readInt() == 1;
+    sf.shadow = readInt() == 1;
+    cells = readInt();
+    colors = new uchar3[cells > 0 ? cells : 1];
+    for (int c=0 ; c<cells ; c++)
+        for (int k=0 ; k<3 ; k++) colors[c][k] = readInt();
+}
+
+// Makes sprite no a strsp sprite again, as strsp did, keeping its place,
+// visibility, cell and opacity; colors becomes the sprite's.
+void ONScripter::setStrsp( int no, const char *text, const StrspFont &sf, int cells, uchar3 *colors )
+{
+    AnimationInfo *ai = &sprite_info[no];
+    strsp_font[no] = sf;
+    FontInfo fi;
+    fi.is_newline_accepted = true;
+    for (int k=0 ; k<2 ; k++){
+        fi.num_xy[k] = sf.num_xy[k];
+        fi.font_size_xy[k] = sf.font_size_xy[k];
+        fi.pitch_xy[k] = sf.pitch_xy[k];
+    }
+    fi.is_bold = sf.bold;
+    fi.is_shadow = sf.shadow;
+    int cell = ai->current_cell;
+    ai->font_size_xy[0] = -1;
+    ai->removeTag();
+    setStr( &ai->file_name, text );
+    ai->num_of_cells = cells;
+    ai->color_list = colors;
+    ai->trans_mode = AnimationInfo::TRANS_STRING;
+    ai->is_single_line = false;
+    ai->is_tight_region = false;
+    ai->is_ruby_drawable = sentence_font.rubyon_flag;
+    recordSpriteText( no, &fi );
+    if (cell < cells) ai->current_cell = cell;
 }
 
 // A sprite strsp made (its text in file_name, no image tag).
@@ -922,6 +1032,9 @@ void ONScripter::loadSaveFileCons()
         for (int i=st.first ; i<=st.last ; i++){
             ScreenSprite &sp = st.sprite[i - st.first];
             sp.image_name = NULL;
+            sp.str = NULL;
+            sp.colors = NULL;
+            sp.cells = 0;
             sp.x = sp.y = sp.cell = 0;
             sp.trans = -1;
             sp.visible = false;
@@ -997,49 +1110,17 @@ void ONScripter::loadSaveFileCons()
     for (int n=0 ; n<num ; n++){
         int no = readInt();
         char *text = NULL;
-        readStr( &text );
-        FontInfo fi;
-        fi.is_newline_accepted = true;
-        for (int k=0 ; k<2 ; k++){
-            fi.num_xy[k] = readInt();
-            fi.font_size_xy[k] = readInt();
-            fi.pitch_xy[k] = readInt();
-        }
-        fi.is_bold = readInt() == 1;
-        fi.is_shadow = readInt() == 1;
-        int cells = readInt();
-        uchar3 *colors = new uchar3[cells > 0 ? cells : 1];
-        for (int c=0 ; c<cells ; c++)
-            for (int k=0 ; k<3 ; k++) colors[c][k] = readInt();
-        if (no < 0 || no >= MAX_SPRITE_NUM || cells < 1 || !text){
-            delete[] colors;
-            delete[] text;
-            continue;
-        }
+        StrspFont sf;
+        int cells;
+        uchar3 *colors;
+        readStrsp( &text, sf, cells, colors );
         // as strsp makes it; the place, visibility, cell and opacity are
         // already loaded
-        AnimationInfo *ai = &sprite_info[no];
-        StrspFont &sf = strsp_font[no];
-        for (int k=0 ; k<2 ; k++){
-            sf.num_xy[k] = fi.num_xy[k];
-            sf.font_size_xy[k] = fi.font_size_xy[k];
-            sf.pitch_xy[k] = fi.pitch_xy[k];
-        }
-        sf.bold = fi.is_bold;
-        sf.shadow = fi.is_shadow;
-        int cell = ai->current_cell;
-        ai->font_size_xy[0] = -1;
-        ai->removeTag();
-        setStr( &ai->file_name, text );
+        if (no >= 0 && no < MAX_SPRITE_NUM && cells > 0 && text)
+            setStrsp( no, text, sf, cells, colors );
+        else
+            delete[] colors;
         delete[] text;
-        ai->num_of_cells = cells;
-        ai->color_list = colors;
-        ai->trans_mode = AnimationInfo::TRANS_STRING;
-        ai->is_single_line = false;
-        ai->is_tight_region = false;
-        ai->is_ruby_drawable = sentence_font.rubyon_flag;
-        recordSpriteText( no, &fi );
-        if (cell < cells) ai->current_cell = cell;
     }
     num = readInt();
     for (int n=0 ; n<num ; n++){
@@ -1049,6 +1130,46 @@ void ONScripter::loadSaveFileCons()
         if (ch >= 0 && ch < ONS_MIX_CHANNELS && name)
             playSound( name, SOUND_CHUNK, true, ch );
         delete[] name;
+    }
+
+    if (version < 6) return;
+    depth = readInt();
+    for (int n=0 ; n<depth ; n++){
+        num = readInt();
+        for (int m=0 ; m<num ; m++){
+            int i = readInt();
+            ScreenSprite sp;
+            sp.image_name = NULL;
+            sp.x = readInt();
+            sp.y = readInt();
+            sp.visible = readInt() == 1;
+            sp.cell = readInt();
+            sp.trans = readInt();
+            int count = readInt();
+            sp.num_of_filters = 0;
+            for (int j=0 ; j<count ; j++){
+                AnimationInfo::Filter f;
+                f.kind = readInt();
+                f.blend = readInt();
+                f.strength = readInt();
+                for (int k=0 ; k<3 ; k++) f.param[k] = readInt();
+                if (j < AnimationInfo::MAX_FILTER_NUM) sp.filter[sp.num_of_filters++] = f;
+            }
+            sp.str = NULL;
+            readStrsp( &sp.str, sp.font, sp.cells, sp.colors );
+            ScreenState *st = (n < screen_stack_num) ? &screen_stack[n] : NULL;
+            if (st && i >= st->first && i <= st->last && sp.str && sp.cells > 0){
+                ScreenSprite &dst = st->sprite[i - st->first];
+                delete[] dst.image_name;
+                delete[] dst.str;
+                delete[] dst.colors;
+                dst = sp;
+            }
+            else{
+                delete[] sp.str;
+                delete[] sp.colors;
+            }
+        }
     }
 }
 

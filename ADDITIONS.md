@@ -66,7 +66,8 @@ possible.
   (not saved: set it again from the game's settings at startup); `reset`
   puts it back to 255. `windowtrans 128`.
 - **`pushscreen first,last`** / **`popscreen`**: save the background,
-  sprites `first`..`last` (image, position, visibility, cell, filters),
+  sprites `first`..`last` (image, position, visibility, cell, filters;
+  a `strsp` sprite's text, font and colours),
   the screen filters and the BGM on a stack (32 deep), and put the newest back. Neither
   draws: follow `popscreen` with `print`. Unchanged sprites aren't
   reloaded and a BGM that is still playing keeps playing. For a scene run
@@ -177,7 +178,8 @@ possible.
 - **Save files** end with an extra block (`CONS`, a version, then the
   state above) after the NScripter data. Saves without it load as before.
   The block also keeps what the NScripter data loses: `strsp` sprites
-  (their text, font and colours; the NScripter data has only their place)
+  (their text, font and colours; the NScripter data has only their place),
+  also those in the `pushscreen` stack,
   and sounds looping on `dwave` channels (`dwaveloop`, `dwaveplayloop`),
   which a load starts again.
   A load no longer cuts the looping sounds it starts again (`waveloop`,

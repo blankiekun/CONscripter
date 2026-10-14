@@ -677,9 +677,15 @@ private:
     void proceedScreenEffects( int current_time );
     void applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip );
 
+    // CONscripter: strsp's font settings, per sprite and in saved screens
+    struct StrspFont { int num_xy[2], font_size_xy[2], pitch_xy[2]; bool bold, shadow; };
     // CONscripter: screen states saved by pushscreen, restored by popscreen
     struct ScreenSprite {
         char *image_name;
+        char *str; // a strsp sprite: its text (no image_name), font and cell colours
+        StrspFont font;
+        int cells;
+        uchar3 *colors;
         int x, y, cell, trans;
         bool visible;
         int num_of_filters;
@@ -1053,9 +1059,11 @@ private:
     void drawString( const char *str, uchar3 color, FontInfo *info, bool flush_flag, SDL_Surface *surface, SDL_Rect *rect = NULL, AnimationInfo *cache_info=NULL, bool pack_hankaku=true );
     void restoreTextBuffer(SDL_Surface *surface = NULL);
     void recordSpriteText(int no, FontInfo *fi);
-    // CONscripter: strsp's font settings per sprite, for the save (CONS block 5)
-    struct StrspFont { int num_xy[2], font_size_xy[2], pitch_xy[2]; bool bold, shadow; };
+    // CONscripter: strsp's font settings per sprite, for pushscreen and the save (CONS block 5)
     StrspFont strsp_font[MAX_SPRITE_NUM];
+    void setStrsp( int no, const char *text, const StrspFont &sf, int cells, uchar3 *colors );
+    void writeStrsp( char *text, const StrspFont &sf, int cells, uchar3 *colors, bool output_flag );
+    void readStrsp( char **text, StrspFont &sf, int &cells, uchar3 *&colors );
     void sendSpriteTexts();
     void enterTextDisplayMode(bool text_flag = true);
     void leaveTextDisplayMode(bool force_leave_flag = false);
