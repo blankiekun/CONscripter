@@ -45,7 +45,8 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 4 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects
+#define CONS_SAVE_VERSION 5 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
+                            // 5: + strsp sprites, looping dwave sounds
 
 /* spfilter num, kind[, blend[, strength[, param...]]]
  *   kind 0 clears every filter on sprite num. Other kinds add a filter
@@ -808,6 +809,55 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         for (int k=0 ; k<SCREEN_EFFECT_PARAMS ; k++)
             writeInt( e.param[k], output_flag );
     }
+
+    // Version 5: strsp sprites, which the NScripter data keeps only the
+    // place of (number, text, columns and rows, font size, pitch, bold,
+    // shadow, then the colour of each cell), and the dwave channels playing
+    // a looping sound (channel, file).
+    num = 0;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (isStrsp( i )) num++;
+    writeInt( num, output_flag );
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        if (!isStrsp( i )) continue;
+        AnimationInfo *ai = &sprite_info[i];
+        StrspFont &sf = strsp_font[i];
+        writeInt( i, output_flag );
+        writeStr( ai->file_name, output_flag );
+        for (int k=0 ; k<2 ; k++){
+            writeInt( sf.num_xy[k], output_flag );
+            writeInt( sf.font_size_xy[k], output_flag );
+            writeInt( sf.pitch_xy[k], output_flag );
+        }
+        writeInt( sf.bold ? 1 : 0, output_flag );
+        writeInt( sf.shadow ? 1 : 0, output_flag );
+        writeInt( ai->num_of_cells, output_flag );
+        for (int c=0 ; c<ai->num_of_cells ; c++)
+            for (int k=0 ; k<3 ; k++)
+                writeInt( ai->color_list ? ai->color_list[c][k] : 0xff, output_flag );
+    }
+    num = 0;
+    for (int ch=0 ; ch<ONS_MIX_CHANNELS ; ch++)
+        if (isLoopPlaying( ch )) num++;
+    writeInt( num, output_flag );
+    for (int ch=0 ; ch<ONS_MIX_CHANNELS ; ch++){
+        if (!isLoopPlaying( ch )) continue;
+        writeInt( ch, output_flag );
+        writeStr( trace_se_name[ch], output_flag );
+    }
+}
+
+// A sprite strsp made (its text in file_name, no image tag).
+bool ONScripter::isStrsp( int no )
+{
+    AnimationInfo &ai = sprite_info[no];
+    return ai.trans_mode == AnimationInfo::TRANS_STRING && !ai.image_name && ai.file_name && ai.num_of_cells > 0;
+}
+
+// A dwave channel playing a sound with dwaveloop or dwaveplayloop.
+bool ONScripter::isLoopPlaying( int channel )
+{
+    return audio_open_flag && trace_se_name[channel] && trace_se_loop[channel] && Mix_Playing( channel );
 }
 
 void ONScripter::loadSaveFileCons()
@@ -930,6 +980,72 @@ void ONScripter::loadSaveFileCons()
         e.kind = kind;
         if (kind != SCREEN_EFFECT_NONE) startScreenEffect( e );
         if (&e == &dummy) clearScreenEffect( dummy );
+    }
+
+    if (version < 5) return;
+    num = readInt();
+    for (int n=0 ; n<num ; n++){
+        int no = readInt();
+        char *text = NULL;
+        readStr( &text );
+        FontInfo fi;
+        fi.is_newline_accepted = true;
+        for (int k=0 ; k<2 ; k++){
+            fi.num_xy[k] = readInt();
+            fi.font_size_xy[k] = readInt();
+            fi.pitch_xy[k] = readInt();
+        }
+        fi.is_bold = readInt() == 1;
+        fi.is_shadow = readInt() == 1;
+        int cells = readInt();
+        uchar3 *colors = new uchar3[cells > 0 ? cells : 1];
+        for (int c=0 ; c<cells ; c++)
+            for (int k=0 ; k<3 ; k++) colors[c][k] = readInt();
+        if (no < 0 || no >= MAX_SPRITE_NUM || cells < 1 || !text){
+            delete[] colors;
+            delete[] text;
+            continue;
+        }
+        // as strsp makes it; the place, visibility, cell and opacity are
+        // already loaded
+        AnimationInfo *ai = &sprite_info[no];
+        StrspFont &sf = strsp_font[no];
+        for (int k=0 ; k<2 ; k++){
+            sf.num_xy[k] = fi.num_xy[k];
+            sf.font_size_xy[k] = fi.font_size_xy[k];
+            sf.pitch_xy[k] = fi.pitch_xy[k];
+        }
+        sf.bold = fi.is_bold;
+        sf.shadow = fi.is_shadow;
+        int cell = ai->current_cell;
+        ai->font_size_xy[0] = -1;
+        ai->removeTag();
+        setStr( &ai->file_name, text );
+        delete[] text;
+        ai->num_of_cells = cells;
+        ai->color_list = colors;
+        ai->trans_mode = AnimationInfo::TRANS_STRING;
+        ai->is_single_line = false;
+        ai->is_tight_region = false;
+        ai->is_ruby_drawable = sentence_font.rubyon_flag;
+        recordSpriteText( no, &fi );
+        if (cell < cells) ai->current_cell = cell;
+    }
+    num = readInt();
+    for (int n=0 ; n<num ; n++){
+        int ch = readInt();
+        char *name = NULL;
+        readStr( &name );
+        if (ch >= 0 && ch < ONS_MIX_CHANNELS && name){
+            // the event saying the sound stopped by the load has finished
+            // (ONS_CHUNK_EVENT) would free the new one
+            SDL_Event events[64];
+            int count = SDL_PeepEvents( events, 64, SDL_GETEVENT, SDL_USEREVENT+4, SDL_USEREVENT+4 );
+            for (int i=0 ; i<count ; i++)
+                if (events[i].user.code != ch) SDL_PushEvent( &events[i] );
+            playSound( name, SOUND_CHUNK, true, ch );
+        }
+        delete[] name;
     }
 }
 

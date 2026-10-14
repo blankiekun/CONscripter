@@ -395,6 +395,14 @@ int ONScripter::strspCommand()
     fi.pitch_xy[1] = script_h.readInt() + fi.font_size_xy[1];
     fi.is_bold = script_h.readInt()?true:false;
     fi.is_shadow = script_h.readInt()?true:false;
+    StrspFont &sf = strsp_font[sprite_no]; // CONscripter: kept for the save
+    for (int i=0 ; i<2 ; i++){
+        sf.num_xy[i] = fi.num_xy[i];
+        sf.font_size_xy[i] = fi.font_size_xy[i];
+        sf.pitch_xy[i] = fi.pitch_xy[i];
+    }
+    sf.bold = fi.is_bold;
+    sf.shadow = fi.is_shadow;
 
     char *buffer = script_h.getNext();
     while(script_h.getEndStatus() & ScriptHandler::END_COMMA){
@@ -2927,6 +2935,7 @@ int ONScripter::dwaveCommand()
 
     if (play_mode == WAVE_PLAY_LOADED){
         soundCommand( ch, NULL, true ); // CONscripter: for the trace and the web page
+        trace_se_loop[ch] = loop_flag; // and the save
         Mix_PlayChannel(ch, wave_sample[ch], loop_flag?-1:0);
     }
     else{

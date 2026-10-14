@@ -176,3 +176,7 @@ possible.
     whole text at once, -1 for the game's own speed again.
 - **Save files** end with an extra block (`CONS`, a version, then the
   state above) after the NScripter data. Saves without it load as before.
+  The block also keeps what the NScripter data loses: `strsp` sprites
+  (their text, font and colours; the NScripter data has only their place)
+  and sounds looping on `dwave` channels (`dwaveloop`, `dwaveplayloop`),
+  which a load starts again.

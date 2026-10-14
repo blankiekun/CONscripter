@@ -751,6 +751,8 @@ private:
     const char *trace_end_reason;    // why a run that plays itself stopped
     std::string trace_effect;        // the effect the command being run used, as JSON
     void traceEffect( std::string &out, EffectLink *effect );
+    bool isStrsp( int no );
+    bool isLoopPlaying( int channel );
     std::string trace_sound;         // the sound the command being run plays, as JSON fields
 
     // CONscripter: what the web page can change (ONS_WEB_EVENT, from its
@@ -1050,6 +1052,9 @@ private:
     void drawString( const char *str, uchar3 color, FontInfo *info, bool flush_flag, SDL_Surface *surface, SDL_Rect *rect = NULL, AnimationInfo *cache_info=NULL, bool pack_hankaku=true );
     void restoreTextBuffer(SDL_Surface *surface = NULL);
     void recordSpriteText(int no, FontInfo *fi);
+    // CONscripter: strsp's font settings per sprite, for the save (CONS block 5)
+    struct StrspFont { int num_xy[2], font_size_xy[2], pitch_xy[2]; bool bold, shadow; };
+    StrspFont strsp_font[MAX_SPRITE_NUM];
     void sendSpriteTexts();
     void enterTextDisplayMode(bool text_flag = true);
     void leaveTextDisplayMode(bool force_leave_flag = false);
