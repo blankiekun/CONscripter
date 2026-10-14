@@ -169,20 +169,27 @@ script's labels no run reached, and the traces it wrote, to check each
 with the checker:
 
 ```sh
-python3 tools/cons_explore.py out/saiima-cons --out /tmp/explore --runs 20 \
-    --engine-args "--trace-ignore 22-48,lsp2:12-23" --skip-choices '^\*conv_(title|sl_|settings|confirm)'
+python3 tools/cons_explore.py out/saiima-cons --out /tmp/explore --runs 6 --seed 1 --stop-known 0 \
+    --engine-args "--trace-ignore 22-48,lsp2:12-23" --skip-choices '^\*conv_(title|sl_|settings|confirm|extras)'
 ```
 
 ```
-run 1: 62185 pages, 293 choices (180 new), 1220 new labels, 1220 in all; error at *conv_link19:24036: Array No. is not declared. [嘘ー！], exit 2, 615 s
-run 2: 32268 pages, 114 choices (0 new), 4 new labels, 1224 in all; stuck: 3000 pages without a new label, exit 1, 326 s
-run 3: 32268 pages, 114 choices (0 new), 0 new labels, 1224 in all; stuck: 3000 pages without a new label, exit 1, 326 s
-run 4: 32268 pages, 114 choices (0 new), 0 new labels, 1224 in all; stuck: 3000 pages without a new label, exit 1, 318 s
-2 runs in a row reached no new label: done
+run 1: 45208 pages, 93 choices (51 new), 868 new labels, 868 in all; stuck: 3000 pages without a new label, exit 1, 587 s
+run 2: 66233 pages, 206 choices (83 new), 386 new labels, 1254 in all; stuck: 200 choices without a new page, exit 1, 882 s
+run 3: 68251 pages, 261 choices (55 new), 100 new labels, 1354 in all; stuck: 200 choices without a new page, exit 1, 878 s
+run 4: 12134 pages, 54 choices (0 new), 0 new labels, 1354 in all; crashed (SIGSEGV), exit -11, 176 s
+run 5: 68681 pages, 356 choices (40 new), 59 new labels, 1413 in all; stuck: 200 choices without a new page, exit 1, 1050 s
+run 6: 68739 pages, 360 choices (3 new), 1 new labels, 1414 in all; stuck: 200 choices without a new page, exit 1, 856 s
+stopped after 6 runs (--runs)
 
-851 of 1664 labels reached; 813 never:
-  *s0_l0:203, *s0_l3:207, *s1_l0:278, *s1_l1:282, *s2_l0:288 ...
+1414 of 3178 labels reached; 1764 never:
+  *conv_title_exit:195, *s0_l0:203, *s0_l3:207, *s1_l0:278, *s1_l1:282 ...
 ```
+
+Run 1 goes on past every hyperlink (0 comes first), run 2 opens them,
+and the later runs mix the two. With the buttons before 0, run 1 reached
+1410 labels, and runs 2 and 3 played the same route again and found
+nothing new. Run 4 hit an engine bug since fixed.
 
 Once every option at a place has been taken, `untaken` takes the one
 taken least, so later runs still go down the routes the earlier ones took
