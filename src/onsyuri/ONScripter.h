@@ -315,6 +315,8 @@ public:
     int dwavestopCommand();
     int dwavefadeoutCommand();
     int dwavefadeinCommand();
+    int chvolfadeCommand();
+    int bgmvolfadeCommand();
     int dwaveCommand();
     int dvCommand();
     int drawtextCommand();
@@ -774,6 +776,15 @@ private:
     void playChannel( int channel, Mix_Chunk *chunk, int loops );
     int dwave_fade_in_ms = 0;   // CONscripter: dwavefadein, for the next dwave
     int channel_fade_in_ms = 0; // the fade-in of the sound playChannel starts
+    // CONscripter: bgmvolfade, the script's BGM volume (percent) on top of the setting
+    int bgm_script_from = 100, bgm_script_to = 100, bgm_script_ms = 0;
+    Uint32 bgm_script_start = 0;
+    void resetScriptVolumes();
+    int bgmScriptVolume();
+    int musicVolume();
+    void applyMusicVolume();
+    int nextSoundFadeTime();
+    void proceedSoundFades( int current_time );
     void cutChannel( int channel );
     std::string trace_sound;         // the sound the command being run plays, as JSON fields
 

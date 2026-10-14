@@ -45,9 +45,35 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 7 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
+#define CONS_SAVE_VERSION 8 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
                             // 5: + strsp sprites, looping dwave sounds; 6: + strsp sprites in the screen stack;
-                            // 7: + sprite zooms
+                            // 7: + sprite zooms; 8: + script volumes (chvolfade, bgmvolfade)
+
+extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
+
+/* chvolfade: each dwave channel's script volume, a percentage of the
+ * setting's, ramped linearly from `from` to `to` over `ms` from `start`.
+ * The track effect below scales the samples by it (in 1/4096, from the
+ * last mix's gain to this one's across the buffer, so a ramp has no
+ * steps); SDL_mixer's channel volume, which the settings and dwavefadein
+ * use, stays theirs. It stays with the channel, for the next sounds too,
+ * so a script can set it before the sound starts; reset sets 100. */
+static struct { volatile int from, to, ms; volatile Uint32 start; int last; } track_gain[ONS_MIX_CHANNELS];
+static bool track_gain_s16 = false;
+
+static int scriptVolumeAt( int from, int to, int ms, Uint32 start, Uint32 now )
+{
+    Uint32 t = now - start;
+    if (ms <= 0 || t >= (Uint32)ms) return to;
+    return from + (to - from) * (int)t / ms;
+}
+
+static int trackGain( int channel ) // 0-4096
+{
+    if (channel < 0 || channel >= ONS_MIX_CHANNELS) return 4096;
+    return scriptVolumeAt( track_gain[channel].from, track_gain[channel].to, track_gain[channel].ms,
+                           track_gain[channel].start, SDL_GetTicks() ) * 4096 / 100;
+}
 
 /* spfilter num, kind[, blend[, strength[, param...]]]
  *   kind 0 clears every filter on sprite num. Other kinds add a filter
@@ -355,6 +381,103 @@ int ONScripter::dwavefadeoutCommand()
         wave_sample[ch] = NULL;
     }
     return RET_CONTINUE;
+}
+
+/* chvolfade ch,vol[,ms]
+ *   Sets the volume of dwave channel ch's sound to vol percent (0-100)
+ *   of the sound effect or voice setting, over ms milliseconds (default
+ *   0, at once) while the script goes on: a fade from where it is now.
+ *   The sound keeps playing at 0. The volume stays with the channel for
+ *   the sounds played on it next, so set it before dwave to start a sound
+ *   quieter; reset puts every channel back to 100. Kept in a save.
+ *       chvolfade 3,30:dwaveloop 3,"se\rain.ogg"   (at 30 %)
+ *       chvolfade 3,100,2000                       (back up in 2 s)
+ * bgmvolfade vol[,ms]
+ *   The same for the music (bgm, mp3): vol percent of the music setting,
+ *   for the next bgm too. bgmfadein and bgmfadeout fade to and from it.
+ *   Kept in a save. */
+int ONScripter::chvolfadeCommand()
+{
+    int ch = script_h.readInt();
+    int vol = script_h.readInt();
+    int ms = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
+    if      (ch < 0) ch = 0;
+    else if (ch >= ONS_MIX_CHANNELS) ch = ONS_MIX_CHANNELS-1;
+    if (vol < 0) vol = 0; else if (vol > 100) vol = 100;
+    Uint32 now = SDL_GetTicks();
+    int from = scriptVolumeAt( track_gain[ch].from, track_gain[ch].to, track_gain[ch].ms, track_gain[ch].start, now );
+    // The mixer reads these as they change: no ramp until the last one
+    track_gain[ch].ms = 0;
+    track_gain[ch].from = from;
+    track_gain[ch].start = now;
+    track_gain[ch].to = vol;
+    track_gain[ch].ms = ms > 0 ? ms : 0;
+    return RET_CONTINUE;
+}
+
+int ONScripter::bgmvolfadeCommand()
+{
+    int vol = script_h.readInt();
+    int ms = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
+    if (vol < 0) vol = 0; else if (vol > 100) vol = 100;
+    bgm_script_from = bgmScriptVolume();
+    bgm_script_start = SDL_GetTicks();
+    bgm_script_to = vol;
+    bgm_script_ms = ms > 0 ? ms : 0;
+    applyMusicVolume();
+    return RET_CONTINUE;
+}
+
+// chvolfade and bgmvolfade back to 100, at once (reset, startup).
+void ONScripter::resetScriptVolumes()
+{
+    for (int i=0 ; i<ONS_MIX_CHANNELS ; i++){
+        track_gain[i].ms = 0;
+        track_gain[i].from = track_gain[i].to = 100;
+        track_gain[i].last = 4096;
+    }
+    bgm_script_from = bgm_script_to = 100;
+    bgm_script_ms = 0;
+}
+
+// bgmvolfade's volume now, percent.
+int ONScripter::bgmScriptVolume()
+{
+    return scriptVolumeAt( bgm_script_from, bgm_script_to, bgm_script_ms, bgm_script_start, SDL_GetTicks() );
+}
+
+// The music's volume, percent: the setting times bgmvolfade's.
+int ONScripter::musicVolume()
+{
+    return music_volume * bgmScriptVolume() / 100;
+}
+
+// Sets the music's volume, unless bgmfadein or bgmfadeout is fading it
+// (their steps use musicVolume()).
+void ONScripter::applyMusicVolume()
+{
+    if (timer_bgmfade_id) return;
+    Mix_VolumeMusic( musicVolume() * MIX_MAX_VOLUME / 100 );
+    if (wave_sample[MIX_BGM_CHANNEL]) Mix_Volume( MIX_BGM_CHANNEL, musicVolume() * MIX_MAX_VOLUME / 100 );
+}
+
+// The ticks of the next step of bgmvolfade's ramp, 0 when none runs.
+// (chvolfade's ramps are stepped by the mixer.)
+int ONScripter::nextSoundFadeTime()
+{
+    if (bgm_script_ms <= 0) return 0;
+    if (SDL_GetTicks() - bgm_script_start >= (Uint32)bgm_script_ms + 20) return 0;
+    return SDL_GetTicks() + 20;
+}
+
+void ONScripter::proceedSoundFades( int current_time )
+{
+    if (bgm_script_ms <= 0) return;
+    applyMusicVolume();
+    if (SDL_GetTicks() - bgm_script_start >= (Uint32)bgm_script_ms){
+        bgm_script_from = bgm_script_to;
+        bgm_script_ms = 0;
+    }
 }
 
 int ONScripter::windowtransCommand()
@@ -1036,6 +1159,14 @@ void ONScripter::saveSaveFileCons( bool output_flag )
             writeInt( sp.zoom_y, output_flag );
         }
     }
+
+    // Version 8: the script volumes, where their ramps go: the BGM's
+    // (bgmvolfade), then the number of dwave channels and each one's
+    // (chvolfade; it matters for the looping sounds version 5 restarts).
+    writeInt( bgm_script_to, output_flag );
+    writeInt( ONS_MIX_CHANNELS, output_flag );
+    for (int i=0 ; i<ONS_MIX_CHANNELS ; i++)
+        writeInt( track_gain[i].to, output_flag );
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -1134,6 +1265,18 @@ static int cut_fade_next = 0;
 static void cutTrackEffect( int channel, void *stream, int len, void *udata )
 {
     if (channel < 0 || channel >= ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS) return;
+    if (channel < ONS_MIX_CHANNELS && track_gain_s16){
+        int last = track_gain[channel].last, gain = trackGain( channel );
+        track_gain[channel].last = gain;
+        if (last != 4096 || gain != 4096){
+            Sint16 *s = (Sint16*)stream;
+            int n = len / 2;
+            for (int i=0 ; i<n ; i++){
+                int g = last + (int)((long long)(gain - last) * i / n);
+                s[i] = (Sint16)(s[i] * g / 4096);
+            }
+        }
+    }
     Mix_Chunk *chunk = cut_track[channel].chunk;
     if (!chunk || chunk->alen == 0) return;
     Uint32 pos = cut_track[channel].pos + len;
@@ -1151,6 +1294,9 @@ void ONScripter::playChannel( int channel, Mix_Chunk *chunk, int loops )
     cut_track[channel].chunk = chunk;
     cut_track[channel].pos = 0;
     cut_track[channel].loop = loops != 0;
+    if (channel < ONS_MIX_CHANNELS) // the ramp from where it is
+        track_gain[channel].last = trackGain( channel );
+    track_gain_s16 = audio_format.format == AUDIO_S16SYS;
     Mix_RegisterEffect( channel, cutTrackEffect, NULL, NULL ); // reset when a sound ends
 }
 
@@ -1174,10 +1320,11 @@ void ONScripter::cutChannel( int channel )
     Sint16 *buf = (Sint16*)raw;
     const Sint16 *src = (const Sint16*)chunk->abuf;
     Uint32 total = chunk->alen / frame;
+    Sint32 gain = trackGain( channel ); // chvolfade's, at the cut
     for (Uint32 f=0, at=pos/frame ; f<frames ; f++, at++){
         if (at >= total) at = 0; // a looping sound goes round
         for (int c=0 ; c<chans ; c++)
-            buf[f*chans + c] = (Sint16)((Sint32)src[at*chans + c] * (Sint32)(frames - f) / (Sint32)frames);
+            buf[f*chans + c] = (Sint16)((Sint32)src[at*chans + c] * gain / 4096 * (Sint32)(frames - f) / (Sint32)frames);
     }
 
     int n = cut_fade_next++ % ONS_MIX_FADE_CHANNELS;
@@ -1203,6 +1350,8 @@ void ONScripter::loadSaveFileCons()
     clearScreenStack();
     clearScreenFilters();
     clearScreenEffects();
+    resetScriptVolumes(); // older saves have none: 100
+    applyMusicVolume();
     dirty_rect.fill( screen_width, screen_height );
     if (readInt() != CONS_SAVE_MAGIC) return;
     int version = readInt();
@@ -1414,6 +1563,18 @@ void ONScripter::loadSaveFileCons()
                 st->sprite[i - st->first].zoom_y = zy;
             }
         }
+    }
+
+    if (version < 8) return;
+    bgm_script_from = bgm_script_to = readInt();
+    bgm_script_ms = 0;
+    applyMusicVolume();
+    num = readInt();
+    for (int i=0 ; i<num ; i++){
+        int vol = readInt();
+        if (i >= ONS_MIX_CHANNELS) continue;
+        track_gain[i].ms = 0;
+        track_gain[i].from = track_gain[i].to = vol;
     }
 }
 

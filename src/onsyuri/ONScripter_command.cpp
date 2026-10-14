@@ -1393,7 +1393,7 @@ int ONScripter::mpegplayCommand()
 int ONScripter::mp3volCommand()
 {
     music_volume = script_h.readInt();
-    Mix_VolumeMusic( music_volume * MIX_MAX_VOLUME / 100 );
+    Mix_VolumeMusic( musicVolume() * MIX_MAX_VOLUME / 100 ); // CONscripter: bgmvolfade
 
     return RET_CONTINUE;
 }

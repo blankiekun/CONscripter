@@ -87,6 +87,21 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   sound fading out isn't kept in a save, and 0 ms (or a sound not heard
   yet, at the start of a fade-in) stops it at once, as `dwavestop`.
   `dwavefadein 2000:dwaveloop 1,"se\rain.ogg"` … `dwavefadeout 1,1500`.
+- **`chvolfade ch,vol[,ms]`** / **`bgmvolfade vol[,ms]`**: the script's
+  own volume for `dwave` channel `ch`'s sound, or for the music (`bgm`,
+  `mp3`), in percent of the player's setting (sound effects or voice
+  for a channel, music for the BGM), changed over `ms` milliseconds
+  (default 0, at once) while the script goes on, linearly from where it
+  is. `chvol` and `bgmvol` set the setting itself; these go on top of
+  it, so the setting still applies. The sound keeps playing at 0. The
+  volume stays with the channel, or the music, for the sounds played
+  next, so setting it before `dwave` or `bgm` starts a sound quieter;
+  `reset` puts it back to 100. `bgmfadein` and `bgmfadeout` fade to and
+  from the script's volume, and `dwavefadein` and `dwavefadeout` work
+  with it. Kept in save files (where a ramp goes).
+  `chvolfade 3,30:dwaveloop 3,"se\rain.ogg"` … `chvolfade 3,100,2000`;
+  `bgmvolfade 20,500` ducks the music, `bgmvolfade 100,1000` brings it
+  back.
 - **`pushscreen first,last`** / **`popscreen`**: save the background,
   sprites `first`..`last` (image, position, visibility, cell, filters;
   a `strsp` sprite's text, font and colours),

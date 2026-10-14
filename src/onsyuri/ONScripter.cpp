@@ -845,6 +845,7 @@ void ONScripter::resetSub()
     stopCommand();
     loopbgmstopCommand();
     stopAllDWAVE();
+    resetScriptVolumes(); // CONscripter: chvolfade, bgmvolfade
     setStr(&loop_bgm_name[1], NULL);
 
     stopSMPEG();
