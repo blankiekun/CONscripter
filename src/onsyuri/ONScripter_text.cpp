@@ -943,7 +943,10 @@ bool ONScripter::checkLineBreak(const char *buf, FontInfo *fi)
         if (buf2[2] == '_') buf2++;
         int i = 2;
         while (!fi->isEndOfLine(i)){
-            if      ( buf2[i+2] == 0x0a || buf2[i+2] == 0 ) break;
+            // CONscripter: the string may end at buf2[i] (a strsp text is
+            // allocated to its length): stop before reading past it
+            if      ( buf2[i] == 0x0a || buf2[i] == 0 || buf2[i+1] == 0x0a || buf2[i+1] == 0 ) break;
+            else if ( buf2[i+2] == 0x0a || buf2[i+2] == 0 ) break;
             else if ( !IS_TWO_BYTE( buf2[i+2] ) ) buf2++;
             else if ( isStartKinsoku( buf2+i+2 ) ) i += 2;
             else break;
@@ -957,7 +960,10 @@ bool ONScripter::checkLineBreak(const char *buf, FontInfo *fi)
         const char *buf2 = buf;
         int i = 2;
         while (!fi->isEndOfLine(i)){
-            if      ( buf2[i+2] == 0x0a || buf2[i+2] == 0 ) break;
+            // CONscripter: the string may end at buf2[i] (a strsp text is
+            // allocated to its length): stop before reading past it
+            if      ( buf2[i] == 0x0a || buf2[i] == 0 || buf2[i+1] == 0x0a || buf2[i+1] == 0 ) break;
+            else if ( buf2[i+2] == 0x0a || buf2[i+2] == 0 ) break;
             else if ( !IS_TWO_BYTE( buf2[i+2] ) ) buf2++;
             else if ( isEndKinsoku( buf2+i ) ) i += 2;
             else break;
