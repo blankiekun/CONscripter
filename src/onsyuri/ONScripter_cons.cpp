@@ -1395,10 +1395,41 @@ void ONScripter::traceWrite( std::string &record )
     fflush( trace_fp ); // so a crash keeps everything before it
 }
 
+// "22-48,lsp2:12-23,ld:1": sprites left out of the trace (a game's own
+// menus and button bar), applied when the trace starts.
+void ONScripter::setTraceIgnore( const char *spec )
+{
+    setStr( &trace_ignore_spec, spec );
+}
+
 // Called once the script is read and the screen is set up.
 void ONScripter::traceStart()
 {
-    trace_sprite = new TraceSprite[MAX_SPRITE_NUM + MAX_SPRITE2_NUM + 3];
+    trace_sprite = new TraceSprite[TRACE_SPRITES];
+    trace_ignore = new bool[TRACE_SPRITES];
+    for (int i=0 ; i<TRACE_SPRITES ; i++) trace_ignore[i] = false;
+    for (const char *p = trace_ignore_spec ; p && *p ; ){
+        int base = 0, num = MAX_SPRITE_NUM;
+        if (!strncmp( p, "lsp2:", 5 )){
+            base = MAX_SPRITE_NUM;
+            num = MAX_SPRITE2_NUM;
+            p += 5;
+        }
+        else if (!strncmp( p, "ld:", 3 )){
+            base = MAX_SPRITE_NUM + MAX_SPRITE2_NUM;
+            num = 3;
+            p += 3;
+        }
+        else if (!strncmp( p, "lsp:", 4 )) p += 4;
+        char *end;
+        int first = strtol( p, &end, 10 ), last = first;
+        if (*end == '-') last = strtol( end+1, &end, 10 );
+        if (end == p) utils::printError( "--trace-ignore: can't read [%s]\n", p );
+        for (int i=first ; i<=last ; i++)
+            if (i >= 0 && i < num) trace_ignore[base + i] = true;
+        p = strchr( end, ',' );
+        if (p) p++;
+    }
 
     char buf[256];
     time_t now = time( NULL );
@@ -1410,6 +1441,8 @@ void ONScripter::traceStart()
               coding2utf16->force_utf8 ? "true" : "false" );
     std::string r = buf;
     traceString( r, archive_path );
+    r += ",\"ignore\":";
+    traceString( r, trace_ignore_spec );
     r += '}';
     traceWrite( r );
 }
@@ -1431,29 +1464,73 @@ void ONScripter::traceAt( std::string &out, char *address )
     traceString( out, at.c_str() );
 }
 
-// Appends a visible sprite to the page's list, and notes when it changed.
-void ONScripter::traceSprite( std::string &out, AnimationInfo &ai, const char *kind, int no, TraceSprite &ts )
+// Inside a gosub (a textgosub routine, a helper), appends ,"via": where it
+// returns to, the line that led there.
+void ONScripter::traceVia( std::string &out )
 {
-    if (!ai.visible || !ai.image_name){
-        ts.image.clear();
+    for (NestInfo *info = last_nest_info ; info && info != &root_nest_info ; info = info->previous){
+        if (info->nest_mode != NestInfo::LABEL) continue;
+        out += ",\"via\":";
+        traceAt( out, info->next_script );
         return;
     }
-    SDL_Rect r = ai.pos;
-    if (!strcmp( kind, "lsp2" )) r = ai.bounding_rect; // its box on the screen after scaling and turning
+}
 
-    if (ts.image != ai.image_name || ts.x != r.x || ts.y != r.y || ts.w != r.w || ts.h != r.h ||
-        ts.trans != ai.trans || ts.cell != ai.current_cell){
-        ts.image = ai.image_name;
-        ts.x = r.x; ts.y = r.y; ts.w = r.w; ts.h = r.h;
-        ts.trans = ai.trans;
-        ts.cell = ai.current_cell;
-        ts.since = trace_page;
+AnimationInfo &ONScripter::traceSpriteInfo( int i, const char *&kind, int &no )
+{
+    if (i < MAX_SPRITE_NUM){
+        kind = "lsp";
+        no = i;
+        return sprite_info[i];
     }
+    if (i < MAX_SPRITE_NUM + MAX_SPRITE2_NUM){
+        kind = "lsp2";
+        no = i - MAX_SPRITE_NUM;
+        return sprite2_info[no];
+    }
+    kind = "ld"; // 0 left, 1 centre, 2 right
+    no = i - MAX_SPRITE_NUM - MAX_SPRITE2_NUM;
+    return tachi_info[no];
+}
+
+// Compares sprite i with how it was last recorded: 0 the same, 1 shown or
+// changed (its "since" becomes since), 2 gone.
+int ONScripter::traceSpriteUpdate( int i, int since )
+{
+    const char *kind;
+    int no;
+    AnimationInfo &ai = traceSpriteInfo( i, kind, no );
+    TraceSprite &ts = trace_sprite[i];
+    if (!ai.visible || !ai.image_name){
+        if (ts.image.empty()) return 0;
+        ts.image.clear();
+        return 2;
+    }
+    SDL_Rect r = (kind[3] == '2') ? ai.bounding_rect : ai.pos; // lsp2: its box after scaling and turning
+    // an animation steps its cells by itself
+    int cell = ai.is_animatable ? -1 : ai.current_cell;
+    if (ts.image == ai.image_name && ts.x == r.x && ts.y == r.y && ts.w == r.w && ts.h == r.h &&
+        ts.trans == ai.trans && ts.cell == cell) return 0;
+    ts.image = ai.image_name;
+    ts.x = r.x; ts.y = r.y; ts.w = r.w; ts.h = r.h;
+    ts.trans = ai.trans;
+    ts.cell = cell;
+    ts.since = since;
+    return 1;
+}
+
+// Appends visible sprite i to a list.
+void ONScripter::traceSprite( std::string &out, int i )
+{
+    const char *kind;
+    int no;
+    AnimationInfo &ai = traceSpriteInfo( i, kind, no );
+    TraceSprite &ts = trace_sprite[i];
 
     char buf[160];
     if (out[out.size()-1] != '[') out += ',';
     snprintf( buf, sizeof(buf), "{\"n\":%d,\"kind\":\"%s\",\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"alpha\":%d",
-              no, kind, r.x, r.y, r.w, r.h, ai.trans < 0 ? 255 : ai.trans );
+              no, kind, ts.x, ts.y, ts.w, ts.h, ai.trans < 0 ? 255 : ai.trans );
     out += buf;
     bool missing = false;
     if (ai.trans_mode == AnimationInfo::TRANS_STRING){
@@ -1475,14 +1552,14 @@ void ONScripter::traceSprite( std::string &out, AnimationInfo &ai, const char *k
         out += buf;
     }
     if (missing) ; // no size to place
-    else if (r.x >= screen_width || r.y >= screen_height || r.x + r.w <= 0 || r.y + r.h <= 0)
+    else if (ts.x >= screen_width || ts.y >= screen_height || ts.x + ts.w <= 0 || ts.y + ts.h <= 0)
         out += ",\"off\":true";
     else{
         std::string edges;
-        if (r.y <= 0) edges += 'T';
-        if (r.y + r.h >= screen_height) edges += 'B';
-        if (r.x <= 0) edges += 'L';
-        if (r.x + r.w >= screen_width) edges += 'R';
+        if (ts.y <= 0) edges += 'T';
+        if (ts.y + ts.h >= screen_height) edges += 'B';
+        if (ts.x <= 0) edges += 'L';
+        if (ts.x + ts.w >= screen_width) edges += 'R';
         if (!edges.empty()) out += ",\"edges\":\"" + edges + "\"";
     }
     if (ai.num_of_filters > 0){
@@ -1491,6 +1568,170 @@ void ONScripter::traceSprite( std::string &out, AnimationInfo &ai, const char *k
     }
     snprintf( buf, sizeof(buf), ",\"since\":%d}", ts.since );
     out += buf;
+}
+
+// Appends what changed since it was last recorded: ,"sp":[...] (a sprite
+// shown or changed, or {"n","kind","gone":true}), ,"bg" and ,"bgm".
+// Returns false when nothing did.
+bool ONScripter::traceChanges( std::string &out )
+{
+    size_t length = out.size();
+    std::string sp;
+    for (int i=0 ; i<TRACE_SPRITES ; i++){
+        if (trace_ignore[i]) continue;
+        int change = traceSpriteUpdate( i, trace_page + 1 ); // seen first on the next page
+        if (change == 0) continue;
+        if (sp.empty()) sp = ",\"sp\":[";
+        if (change == 1){
+            traceSprite( sp, i );
+            continue;
+        }
+        const char *kind;
+        int no;
+        traceSpriteInfo( i, kind, no );
+        char buf[64];
+        if (sp[sp.size()-1] != '[') sp += ',';
+        snprintf( buf, sizeof(buf), "{\"n\":%d,\"kind\":\"%s\",\"gone\":true}", no, kind );
+        sp += buf;
+    }
+    if (!sp.empty()) out += sp + "]";
+
+    const char *bgm = music_file_name ? music_file_name : midi_file_name;
+    if (trace_bg != (bg_info.file_name ? bg_info.file_name : "")){
+        trace_bg = bg_info.file_name ? bg_info.file_name : "";
+        out += ",\"bg\":";
+        traceString( out, bg_info.file_name );
+    }
+    if (trace_bgm != (bgm ? bgm : "")){
+        trace_bgm = bgm ? bgm : "";
+        out += ",\"bgm\":";
+        traceString( out, bgm );
+    }
+    return out.size() > length;
+}
+
+// Commands recorded as "ev": 1 when they change a sprite or the
+// background, 2 always (sounds, movies, screen effects), 3 print, when
+// something changed since the last one.
+static const struct { const char *name; int kind; } trace_commands[] = {
+    {"lsp",1}, {"lsph",1}, {"lsp2",1}, {"lsph2",1}, {"lsp2add",1}, {"lsph2add",1},
+    {"lsp2sub",1}, {"lsph2sub",1}, {"csp",1}, {"csp2",1}, {"vsp",1}, {"vsp2",1},
+    {"msp",1}, {"msp2",1}, {"amsp",1}, {"amsp2",1}, {"cell",1}, {"spfilter",1},
+    {"strsp",1}, {"strsph",1}, {"spstr",1}, {"spreload",1}, {"ld",1}, {"cl",1},
+    {"bg",1}, {"bgcopy",1}, {"bgcpy",1}, {"popscreen",1},
+    {"bgm",2}, {"bgmonce",2}, {"mp3",2}, {"mp3loop",2}, {"mp3save",2}, {"play",2},
+    {"playonce",2}, {"playstop",2}, {"stop",2}, {"mp3stop",2}, {"bgmstop",2},
+    {"mp3fadeout",2}, {"bgmfadeout",2}, {"loopbgm",2}, {"loopbgmstop",2},
+    {"wave",2}, {"waveloop",2}, {"wavestop",2}, {"dwave",2}, {"dwaveloop",2},
+    {"dwavestop",2}, {"dwaveplay",2}, {"dwaveplayloop",2},
+    {"mpegplay",2}, {"movie",2}, {"avi",2},
+    {"screenfilter",2}, {"screenshake",2}, {"screenripple",2}, {"screenpulse",2},
+    {"pushscreen",2}, {"monocro",2}, {"nega",2}, {"quake",2}, {"quakex",2}, {"quakey",2},
+    {"allsphide",2}, {"allspresume",2}, {"allsp2hide",2}, {"allsp2resume",2},
+    {"print",3},
+};
+
+// Runs a command and records it if it is one of trace_commands: where it
+// is, its source text (arguments as written), and what it changed.
+int ONScripter::traceCommand( const char *name, FuncList method )
+{
+    char *start = trace_cmd_start = script_h.getCurrent();
+    int kind = 0;
+    for (size_t i=0 ; i<sizeof(trace_commands)/sizeof(trace_commands[0]) ; i++)
+        if (!strcmp( name, trace_commands[i].name )){
+            kind = trace_commands[i].kind;
+            break;
+        }
+
+    int ret = (this->*method)();
+    if (kind == 0 || !trace_sprite) return ret;
+
+    char buf[64];
+    snprintf( buf, sizeof(buf), "{\"t\":\"ev\",\"pg\":%d,\"cmd\":\"%s\",\"at\":", trace_page, name );
+    std::string r = buf;
+    traceAt( r, start );
+    traceVia( r );
+    r += ",\"src\":";
+    // to the end of the command: ':' or ';' outside a string, or the line's end
+    int len = 0;
+    bool quoted = false;
+    while (len < 300 && start[len] && start[len] != '\n' &&
+           (quoted || (start[len] != ':' && start[len] != ';'))){
+        if (start[len] == '"') quoted = !quoted;
+        if (IS_TWO_BYTE(start[len]) && start[len+1] && start[len+1] != '\n') len++;
+        len++;
+    }
+    while (len > 0 && (start[len-1] == ' ' || start[len-1] == '\t')) len--;
+    traceString( r, start, len );
+
+    bool changed = traceChanges( r );
+    if (kind == 1 && !changed) return ret;
+    if (kind == 3){
+        if (!trace_shown) return ret;
+        trace_shown = false;
+    }
+    else if (changed) trace_shown = true;
+    r += '}';
+    traceWrite( r );
+    return ret;
+}
+
+// A select, selgosub or selnum choice: the options and the one taken
+// (counted from 1).
+void ONScripter::traceSelect( int picked )
+{
+    char buf[64];
+    snprintf( buf, sizeof(buf), "{\"t\":\"choice\",\"pg\":%d,\"kind\":\"select\",\"at\":", trace_page );
+    std::string r = buf;
+    traceAt( r, trace_cmd_start );
+    r += ",\"options\":[";
+    for (SelectLink *link = root_select_link.next ; link ; link = link->next){
+        if (r[r.size()-1] != '[') r += ',';
+        r += "{\"text\":";
+        traceString( r, link->text );
+        r += ",\"label\":";
+        traceString( r, link->label );
+        r += '}';
+    }
+    snprintf( buf, sizeof(buf), "],\"picked\":%d}", picked );
+    r += buf;
+    traceWrite( r );
+}
+
+// A btnwait: the buttons offered (with their sprites) and the result.
+void ONScripter::traceButtons( int result )
+{
+    char buf[96];
+    snprintf( buf, sizeof(buf), "{\"t\":\"choice\",\"pg\":%d,\"kind\":\"btnwait\",\"at\":", trace_page );
+    std::string r = buf;
+    traceAt( r, trace_cmd_start );
+    traceVia( r );
+    r += ",\"buttons\":[";
+    for (ButtonLink *bl = root_button_link.next ; bl ; bl = bl->next){
+        bool sprite = bl->button_type == ButtonLink::SPRITE_BUTTON || bl->button_type == ButtonLink::TMP_SPRITE_BUTTON;
+        if (sprite && bl->sprite_no >= 0 && bl->sprite_no < MAX_SPRITE_NUM && trace_ignore[bl->sprite_no]) continue;
+        if (r[r.size()-1] != '[') r += ',';
+        snprintf( buf, sizeof(buf), "{\"no\":%d", bl->no );
+        r += buf;
+        if (sprite && bl->sprite_no >= 0 && bl->sprite_no < MAX_SPRITE_NUM){
+            AnimationInfo &ai = sprite_info[bl->sprite_no];
+            snprintf( buf, sizeof(buf), ",\"sp\":%d", bl->sprite_no );
+            r += buf;
+            if (ai.file_name){
+                r += (ai.trans_mode == AnimationInfo::TRANS_STRING) ? ",\"str\":" : ",\"file\":";
+                traceString( r, ai.file_name );
+            }
+        }
+        else{
+            snprintf( buf, sizeof(buf), ",\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d",
+                      bl->select_rect.x, bl->select_rect.y, bl->select_rect.w, bl->select_rect.h );
+            r += buf;
+        }
+        r += '}';
+    }
+    snprintf( buf, sizeof(buf), "],\"result\":%d}", result );
+    r += buf;
+    traceWrite( r );
 }
 
 // The state at a click wait or a new page: where the script is, the text,
@@ -1533,12 +1774,11 @@ void ONScripter::tracePage()
     if (all_sprite_hide_flag) r += ",\"sprites_hidden\":true";
     if (all_sprite2_hide_flag) r += ",\"sprites2_hidden\":true";
     r += ",\"sp\":[";
-    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
-        traceSprite( r, sprite_info[i], "lsp", i, trace_sprite[i] );
-    for (int i=0 ; i<MAX_SPRITE2_NUM ; i++)
-        traceSprite( r, sprite2_info[i], "lsp2", i, trace_sprite[MAX_SPRITE_NUM + i] );
-    for (int i=0 ; i<3 ; i++) // ld: 0 left, 1 centre, 2 right
-        traceSprite( r, tachi_info[i], "ld", i, trace_sprite[MAX_SPRITE_NUM + MAX_SPRITE2_NUM + i] );
+    for (int i=0 ; i<TRACE_SPRITES ; i++){
+        if (trace_ignore[i]) continue;
+        traceSpriteUpdate( i, trace_page ); // a change no command recorded
+        if (!trace_sprite[i].image.empty()) traceSprite( r, i );
+    }
     r += "]}";
     traceWrite( r );
 }

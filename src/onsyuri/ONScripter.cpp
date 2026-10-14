@@ -363,6 +363,10 @@ ONScripter::ONScripter()
     trace_fp = NULL;
     trace_page = 0;
     trace_sprite = NULL;
+    trace_ignore = NULL;
+    trace_ignore_spec = NULL;
+    trace_shown = false;
+    trace_cmd_start = NULL;
     memset( trace_se_name, 0, sizeof(trace_se_name) );
     clearScreenFilters();
     memset( screen_effect, 0, sizeof(screen_effect) );
@@ -692,6 +696,7 @@ int ONScripter::init()
     }
 
     if ( !trace_fp && getenv("CONS_TRACE") ) setTraceFile( getenv("CONS_TRACE") );
+    if ( !trace_ignore_spec && getenv("CONS_TRACE_IGNORE") ) setTraceIgnore( getenv("CONS_TRACE_IGNORE") );
     if ( trace_fp ) traceStart();
     
     return 0;
@@ -1170,6 +1175,7 @@ int ONScripter::parseLine( )
         for (int i=0 ; i<fh.num ; i++){
             if ( !strcmp( fh.func[i].command, cmd ) ){
                 //if (saveon_flag) saveSaveFile(false);
+                if (trace_fp) return traceCommand( fh.func[i].command, fh.func[i].method );
                 return (this->*fh.func[i].method)();
             }
         }

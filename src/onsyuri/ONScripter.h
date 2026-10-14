@@ -111,6 +111,7 @@ public:
     void enableEdit();
     void setKeyEXE(const char *path);
     void setTraceFile(const char *path); // CONscripter: --trace (ONScripter_cons.cpp)
+    void setTraceIgnore(const char *spec); // CONscripter: --trace-ignore
     const char* getArchivePath() { return archive_path; }
     void setWindowWidth(int width);
     void setWindowHeight(int height);
@@ -685,15 +686,28 @@ private:
         int x, y, w, h, trans, cell;
         int since;                   // the page it last changed
     };
+    enum { TRACE_SPRITES = MAX_SPRITE_NUM + MAX_SPRITE2_NUM + 3 }; // lsp, then lsp2, then ld
     FILE *trace_fp;
     int trace_page;
-    TraceSprite *trace_sprite;       // sprites, then lsp2 sprites, then ld (3)
+    TraceSprite *trace_sprite;       // by TRACE_SPRITES index
+    bool *trace_ignore;              // sprites left out (--trace-ignore), by the same index
+    char *trace_ignore_spec;
+    std::string trace_bg, trace_bgm; // as last recorded
+    bool trace_shown;                // something changed since the last print was recorded
+    char *trace_cmd_start;           // the command being run
     char *trace_se_name[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS]; // the sound each channel last played
     bool trace_se_loop[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS];
     void traceStart();
     void traceWrite( std::string &record );
     void traceAt( std::string &out, char *address );
-    void traceSprite( std::string &out, AnimationInfo &ai, const char *kind, int no, TraceSprite &ts );
+    void traceVia( std::string &out );
+    AnimationInfo &traceSpriteInfo( int i, const char *&kind, int &no );
+    int traceSpriteUpdate( int i, int since );
+    void traceSprite( std::string &out, int i );
+    bool traceChanges( std::string &out );
+    int traceCommand( const char *name, FuncList method );
+    void traceSelect( int picked );
+    void traceButtons( int result );
     void tracePage();
     void traceSound( int channel, const char *name, bool loop );
     void traceWarn( const char *what, const char *file );
