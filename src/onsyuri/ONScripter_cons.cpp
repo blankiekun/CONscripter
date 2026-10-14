@@ -2579,7 +2579,9 @@ void ONScripter::setReplay( const char *path )
 // --taken file: lines "*label:line<TAB>option<TAB>count", the choices
 // --auto-choice untaken avoids (option as in the choice record: picked or
 // result) and the times earlier runs made them. A line without a count
-// counts 1; lines for the same choice add up.
+// counts 1; lines for the same choice add up. "avoid" for the count marks
+// a choice never to make while the place has another (one that led to a
+// script error).
 void ONScripter::setTaken( const char *path )
 {
     setStr( &taken_path, path );
@@ -2598,7 +2600,8 @@ void ONScripter::setTaken( const char *path )
         char *count = strchr( tab+1, '\t' );
         char key[1100];
         snprintf( key, sizeof(key), "%s\t%d", buf, atoi( tab+1 ) );
-        auto_taken[key] += count ? atoi( count+1 ) : 1;
+        if (count && !strcmp( count+1, "avoid" )) auto_avoid.insert( key );
+        else auto_taken[key] += count ? atoi( count+1 ) : 1;
     }
     fclose( fp );
 }
@@ -2666,7 +2669,8 @@ bool ONScripter::autoPlayWait( int &count )
 // hyperlink). Each place counts its visits: "first" takes the option of
 // that number, staying on the last (a hyperlink, then on), "cycle" goes
 // round, "random" takes any, "untaken" the one taken the fewest times
-// (--taken and this run), the first in order of those.
+// (--taken and this run), the first in order of those, leaving out those
+// --taken says to avoid unless all are.
 int ONScripter::autoPlayButton()
 {
     if (++auto_play_choices > 200) autoPlayStuck( "200 choices without a new page" );
@@ -2704,13 +2708,15 @@ int ONScripter::autoPlayButton()
     }
 
     if (auto_choice == AUTO_CHOICE_RANDOM) return nos[ random % nos.size() ];
-    if (auto_choice == AUTO_CHOICE_UNTAKEN){ // the least taken, the first of those
+    if (auto_choice == AUTO_CHOICE_UNTAKEN){ // the least taken, the first of those, not one to avoid
         std::string at = traceAtText( trace_cmd_start ) + "\t";
-        int best = nos[0], fewest = -1;
+        int best = nos[0];
+        std::pair<bool, int> fewest( true, -1 );
         for (size_t i=0 ; i<nos.size() ; i++){
-            auto it = auto_taken.find( at + std::to_string( nos[i] ) );
-            int n = it == auto_taken.end() ? 0 : it->second;
-            if (fewest < 0 || n < fewest){ best = nos[i]; fewest = n; }
+            std::string key = at + std::to_string( nos[i] );
+            auto it = auto_taken.find( key );
+            std::pair<bool, int> n( auto_avoid.count( key ) > 0, it == auto_taken.end() ? 0 : it->second );
+            if (fewest.second < 0 || n < fewest){ best = nos[i]; fewest = n; }
         }
         return best;
     }

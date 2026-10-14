@@ -103,7 +103,13 @@ add up. Lines starting with `#` are left out. `tools/cons_explore.py`
 ```
 
 Ties go to the first option in order, so runs with the same `--taken`
-file and `--seed` make the same choices.
+file and `--seed` make the same choices. `avoid` in place of the count
+marks a choice that led to a script error: `untaken` doesn't make it
+while the place has another option that isn't marked.
+
+```
+*conv_link118_wait:232891	2	avoid
+```
 
 ### Without a screen
 
@@ -168,9 +174,25 @@ run 4: 32268 pages, 114 choices (0 new), 0 new labels, 1224 in all; stuck: 3000 
 
 Once every option at a place has been taken, `untaken` takes the one
 taken least, so later runs still go down the routes the earlier ones took
-only once. A run that ends in a script error never reaches the choices after
-it: fix the error (here a `?` the converter left in the text) and explore
-again.
+only once.
+
+A run that ends in a script error never reaches the choices after it, so
+the explorer marks the last choice the run made before the error `avoid`
+in the `--taken` file, and later runs go another way there. If every
+option at that place leads to the error, each one gets marked in turn,
+and then the choice before it. When there is no choice left to mark (the
+error comes before the first one, or all of them are marked), every run
+would end there, so it stops. A run that marks a choice doesn't count
+toward `--patience`, even when it reached no new label. The errors are listed at the end, each once,
+with how many runs ended there and the choices marked for it:
+
+```
+script errors:
+  *conv_link118_1:232962: pushscreen: too many saved screens (popscreen missing?): 1 run; avoided *conv_link118_wait:232891 2
+```
+
+Fix the error (in the converter or the game) and explore again to reach
+what lies past it.
 
 Each run has its own trace (`runNN.jsonl`) and save folder in `--out`.
 `--skip-choices` names the places, as a regex on `*label:line`, whose

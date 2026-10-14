@@ -9,7 +9,10 @@ Each run is an --auto-play run of the engine with --auto-choice untaken and
 --taken FILE, the file listing every choice the earlier runs made and how
 many times (built from their traces' choice records, as lines
 "*label:line<TAB>option<TAB>count"), so each run takes the options taken
-least. It
+least. A run that ends in a script error marks the last choice it made
+before the error (one not marked already) "avoid" in the file, so later
+runs make another there; when there is none to mark, every run would end
+at that error, so the exploration stops. It
 stops when --patience runs in a row reach no label the earlier ones hadn't,
 or after --runs runs, then lists the labels of the script no run reached and the traces it
 wrote. Each run gets its own trace and save folder in --out, so the game's
@@ -89,6 +92,8 @@ def main():
     env.setdefault('SDL_AUDIODRIVER', 'dummy')
 
     reached, made, traces = set(), collections.Counter(), []
+    avoid = set()  # (at, option) choices that led to a script error
+    errors = {}  # (at, msg) -> [runs that ended there, choices avoided for it]
     skip = re.compile(args.skip_choices) if args.skip_choices else None
     idle = 0
     meta = {}
@@ -97,6 +102,8 @@ def main():
             f.write('# choices made by the earlier runs\n')
             for (at, opt), n in sorted(made.items()):
                 f.write('%s\t%d\t%d\n' % (at, opt, n))
+            for at, opt in sorted(avoid):
+                f.write('%s\t%d\tavoid\n' % (at, opt))
 
     for run in range(1, args.runs + 1):
         write_taken()
@@ -128,16 +135,38 @@ def main():
         end = end or {}
         how = end.get('reason') or {'crash': 'crashed (%s)' % end.get('signal'),
                                     'error': 'error at %s: %s' % (end.get('at'), end.get('msg'))}.get(end.get('t'), 'ended')
+        stop = blame = None
+        if end.get('t') == 'error':
+            # the last choice before the error not avoided already (an
+            # avoided one is made only when its place has nothing else)
+            err = errors.setdefault((end.get('at'), end.get('msg')), [0, []])
+            err[0] += 1
+            blame = next((c for c in reversed(mine) if c not in avoid), None)
+            if blame:
+                avoid.add(blame)
+                err[1].append(blame)
+                how += '; avoiding %s %d' % blame
+            else:
+                stop = 'no choice left to avoid before the error: every run would end there'
         print('run %d: %d pages, %d choices (%d new), %d new labels, %d in all; %s, exit %s, %.0f s'
               % (run, pages, len(mine), len(fresh), len(new), len(reached), how, code, time.time() - start))
         sys.stdout.flush()
-        idle = 0 if new else idle + 1
+        if stop:
+            print(stop)
+            break
+        idle = 0 if new or blame else idle + 1
         if idle >= args.patience:
             print('%d run%s in a row reached no new label: done' % (idle, 's' if idle > 1 else ''))
             break
     else:
         print('stopped after %d runs (--runs)' % args.runs)
     write_taken()
+
+    if errors:
+        print('\nscript errors:')
+        for (at, msg), (n, blamed) in sorted(errors.items(), key=lambda e: -e[1][0]):
+            print('  %s: %s: %d run%s%s' % (at, msg, n, 's' if n > 1 else '',
+                  '; avoided ' + ', '.join('%s %d' % c for c in blamed) if blamed else ''))
 
     script = args.script or os.path.join(args.game, '0.txt')
     if os.path.exists(script):
