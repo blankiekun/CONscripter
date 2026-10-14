@@ -784,6 +784,8 @@ private:
     // CONscripter: a sound cut off fades out instead of stopping mid-wave (a pop)
     void playChannel( int channel, Mix_Chunk *chunk, int loops );
     int dwave_fade_in_ms = 0;   // CONscripter: dwavefadein, for the next dwave
+    int automode_char_time = 0; // CONscripter: automode_time's ms per character
+    int automodeWait();
     int channel_fade_in_ms = 0; // the fade-in of the sound playChannel starts
     // CONscripter: bgmvolfade, the script's BGM volume (percent) on top of the setting
     int bgm_script_from = 100, bgm_script_to = 100, bgm_script_ms = 0;

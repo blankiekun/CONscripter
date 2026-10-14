@@ -100,6 +100,12 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   sound fading out isn't kept in a save, and 0 ms (or a sound not heard
   yet, at the start of a fade-in) stops it at once, as `dwavestop`.
   `dwavefadein 2000:dwaveloop 1,"se\rain.ogg"` … `dwavefadeout 1,1500`.
+- **`automode_time ms,char_ms`**: with a second number, auto mode waits
+  `ms` plus `char_ms` for each character of the page, as games with a
+  "per page" and a "per character" auto wait do. `automode_time 1500,30`
+  waits 1.8 s after a page of 10 characters. With one number it works
+  as in NScripter (a negative `ms` is a time per character) and the time
+  per character is 0. Only the first number is kept in `envdata`.
 - **`chvolfade ch,vol[,ms]`** / **`bgmvolfade vol[,ms]`**: the script's
   own volume for `dwave` channel `ch`'s sound, or for the music (`bgm`,
   `mp3`), in percent of the player's setting (sound effects or voice

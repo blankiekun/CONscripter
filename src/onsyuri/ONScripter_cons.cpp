@@ -503,6 +503,18 @@ int ONScripter::dwavefadeinCommand()
     return RET_CONTINUE;
 }
 
+/* automode_time ms[,char_ms]
+ *   With a second number, auto mode waits ms plus char_ms for each
+ *   character of the page (as some games' "page" and "character" auto
+ *   waits do). Without it, as in NScripter: a negative ms is a time per
+ *   character, otherwise a time per page. */
+int ONScripter::automodeWait()
+{
+    if (automode_time < 0)
+        return -automode_time * num_chars_in_sentence;
+    return automode_time + automode_char_time * num_chars_in_sentence;
+}
+
 int ONScripter::dwavefadeoutCommand()
 {
     int ch = script_h.readInt();

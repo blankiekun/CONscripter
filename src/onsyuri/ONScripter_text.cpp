@@ -659,10 +659,7 @@ bool ONScripter::doClickEnd()
 
     if ( automode_flag ){
         event_mode =  WAIT_TEXT_MODE | WAIT_INPUT_MODE | WAIT_VOICE_MODE | WAIT_TIMER_MODE;
-        if ( automode_time < 0 )
-            ret = waitEvent( -automode_time * num_chars_in_sentence );
-        else
-            ret = waitEvent( automode_time );
+        ret = waitEvent( automodeWait() );
     }
     else if ( autoclick_time > 0 ){
         event_mode = WAIT_TIMER_MODE;

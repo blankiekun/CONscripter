@@ -3478,14 +3478,8 @@ int ONScripter::btnwaitCommand()
             if ( btntime_value == -1 ){
                 if ( automode_flag ){
                     event_mode |= WAIT_VOICE_MODE;
-                    if ( automode_time < 0 ){
-                        if (t == -1 || t > -automode_time * num_chars_in_sentence)
-                            t = -automode_time * num_chars_in_sentence;
-                    }
-                    else{
-                        if (t == -1 || t > automode_time)
-                            t = automode_time;
-                    }
+                    if (t == -1 || t > automodeWait())
+                        t = automodeWait();
                     //current_button_state.button = 0;
                 }
                 else if (autoclick_time > 0 &&
@@ -3898,6 +3892,9 @@ int ONScripter::aviCommand()
 int ONScripter::automode_timeCommand()
 {
     automode_time = script_h.readInt();
+    automode_char_time = 0;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA)
+        automode_char_time = script_h.readInt();
     
     return RET_CONTINUE;
 }
