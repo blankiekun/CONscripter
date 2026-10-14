@@ -48,6 +48,7 @@ jobs:
       with:
         artifacts: ${{github.workspace}}/conscripter_${{github.ref_name}}_x86_win.exe
         allowUpdates: "true"
+        omitBodyDuringUpdate: "true" # keep the release notes written by hand
         token: ${{secrets.GITHUB_TOKEN}}
 
   build_amd64:
@@ -93,6 +94,7 @@ jobs:
       with:
         artifacts: ${{github.workspace}}/conscripter_${{github.ref_name}}_amd64_win.exe
         allowUpdates: "true"
+        omitBodyDuringUpdate: "true" # keep the release notes written by hand
         token: ${{secrets.GITHUB_TOKEN}}
 
   build_arm64:
@@ -138,4 +140,5 @@ jobs:
       with:
         artifacts: ${{github.workspace}}/conscripter_${{github.ref_name}}_arm64_win.exe
         allowUpdates: "true"
+        omitBodyDuringUpdate: "true" # keep the release notes written by hand
         token: ${{secrets.GITHUB_TOKEN}}

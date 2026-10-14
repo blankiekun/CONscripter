@@ -68,4 +68,5 @@ jobs:
       with:
         artifacts: "./build_web/conscripter_${{  github.ref_name }}_web.7z"
         allowUpdates: "true"
+        omitBodyDuringUpdate: "true" # keep the release notes written by hand
         token: ${{ secrets.GITHUB_TOKEN }}

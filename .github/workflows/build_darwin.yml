@@ -33,4 +33,5 @@ jobs:
         with:
           artifacts: "./build_darwin/conscripter_${{  github.ref_name }}_aarch64_darwin"
           allowUpdates: "true"
+          omitBodyDuringUpdate: "true" # keep the release notes written by hand
           token: ${{ secrets.GITHUB_TOKEN }}
