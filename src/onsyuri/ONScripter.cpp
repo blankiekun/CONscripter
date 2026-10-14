@@ -362,6 +362,9 @@ ONScripter::ONScripter()
     text_size_percent = 100;
     trace_fp = NULL;
     trace_meta_written = false;
+    start_goto = NULL;
+    start_vars = NULL;
+    dump_vars_path = NULL;
     trace_page = 0;
     trace_sprite = NULL;
     trace_ignore = NULL;

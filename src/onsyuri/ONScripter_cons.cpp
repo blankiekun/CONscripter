@@ -1331,15 +1331,17 @@ static struct { char *at; const char *cmd; } trace_recent[TRACE_RECENT];
 static int trace_recent_count = 0; // ever run; the next goes in count % TRACE_RECENT
 
 // Script bytes (in the script's encoding) as a JSON string in UTF-8;
-// two-byte characters are told apart as the engine draws them.
-static void traceString( std::string &out, const char *text, int len=-1 )
+// two-byte characters are told apart as the engine draws them. With json
+// false, the text alone, without quotes or escapes (a newline becomes a
+// space).
+static void traceString( std::string &out, const char *text, int len=-1, bool json=true )
 {
     if (!text){
-        out += "null";
+        if (json) out += "null";
         return;
     }
     if (len < 0) len = strlen(text);
-    out += '"';
+    if (json) out += '"';
     for (int i=0 ; i<len ; i++){
         unsigned char c = text[i];
         uint16_t u = c;
@@ -1355,7 +1357,9 @@ static void traceString( std::string &out, const char *text, int len=-1 )
             }
         }
 
-        if (u == '"' || u == '\\'){
+        if (!json && u < 0x20) out += ' ';
+        else if (!json && u < 0x80) out += (char)u;
+        else if (u == '"' || u == '\\'){
             out += '\\';
             out += (char)u;
         }
@@ -1371,7 +1375,24 @@ static void traceString( std::string &out, const char *text, int len=-1 )
             out.append( (char*)u8, coding2utf16->convUTF16ToUTF8( u8, u ) );
         }
     }
-    out += '"';
+    if (json) out += '"';
+}
+
+// UTF-8 text in the script's encoding (as a script would have it).
+static std::string fromUTF8( const char *text )
+{
+    if (coding2utf16->force_utf8) return text;
+    std::string out;
+    while (*text){
+        if (!(*text & 0x80)){
+            out += *text++;
+            continue;
+        }
+        uint16_t c = coding2utf16->convUTF162Coding( coding2utf16->convUTF8ToUTF16( &text ) );
+        if (c >= 0x100) out += (char)(c >> 8);
+        out += c ? (char)(c & 0xff) : '?'; // '?' for a character the encoding lacks
+    }
+    return out;
 }
 
 void ONScripter::setTraceFile( const char *path )
@@ -1456,7 +1477,9 @@ void ONScripter::traceErrorHook( const char *message )
 
 void ONScripter::traceExitHook()
 {
-    if (trace_ons && trace_ons->trace_fp) trace_ons->traceEnd();
+    if (!trace_ons) return;
+    if (trace_ons->dump_vars_path) trace_ons->writeVarsFile();
+    if (trace_ons->trace_fp) trace_ons->traceEnd();
 }
 
 void ONScripter::traceWrite( std::string &record )
@@ -1531,6 +1554,13 @@ void ONScripter::traceMeta()
     traceString( r, archive_path );
     r += ",\"ignore\":";
     traceString( r, trace_ignore_spec );
+    if (start_goto || start_vars){
+        r += ",\"start\":{\"goto\":";
+        traceString( r, start_goto );
+        r += ",\"vars\":";
+        traceString( r, start_vars );
+        r += '}';
+    }
     if (auto_play_flag){
         static const char *policy[] = { "first", "cycle", "random" };
         snprintf( buf, sizeof(buf), ",\"auto\":{\"pages\":%d,\"choice\":\"%s\"", auto_play_limit, policy[auto_choice] );
@@ -1962,6 +1992,7 @@ void ONScripter::tracePage( bool dump )
     }
     if (listed) r += ']';
 
+    if (dump) traceVars( r );
     if (all_sprite_hide_flag) r += ",\"sprites_hidden\":true";
     if (all_sprite2_hide_flag) r += ",\"sprites2_hidden\":true";
     traceShot( r, dump );
@@ -2233,4 +2264,127 @@ void ONScripter::autoPlayPage()
         if (trace_fp) traceEnd();
         exit(0);
     }
+}
+
+/* --goto label and --vars file: a run starts at a label, with variables
+ * set, as if "goto *label" were the first line of *start (the define
+ * section has run). The vars file is UTF-8: lines "%312=876" and
+ * "$5=text to the end of the line", "#" comments. --dump-vars file writes
+ * one, at F8 and when the engine exits. */
+void ONScripter::setStartGoto( const char *label )
+{
+    if (label[0] == '*') label++;
+    setStr( &start_goto, label );
+    for (char *p = start_goto ; *p ; p++) // labels are kept in lower case
+        if (*p >= 'A' && *p <= 'Z') *p += 'a' - 'A';
+}
+
+void ONScripter::setStartVars( const char *path )
+{
+    setStr( &start_vars, path );
+}
+
+void ONScripter::setDumpVars( const char *path )
+{
+    static bool exit_hooked = false;
+    setStr( &dump_vars_path, path );
+    if (!exit_hooked){
+        trace_ons = this;
+        atexit( traceExitHook );
+    }
+    exit_hooked = true;
+}
+
+// Called by game, after *start's variables are cleared.
+void ONScripter::startAt()
+{
+    if (start_vars) readVarsFile( start_vars );
+    if (!start_goto) return;
+    bool found = false;
+    for (int i=0 ; i<script_h.getNumLabels() && !found ; i++)
+        found = !strcmp( script_h.getLabelName( i ), start_goto );
+    if (!found){
+        utils::printError( "--goto: no label *%s\n", start_goto );
+        startupFailed();
+    }
+    setCurrentLabel( start_goto );
+}
+
+void ONScripter::readVarsFile( const char *path )
+{
+    FILE *fp = ::fopen( path, "rb" ); // not ScriptParser::fopen, which looks in the game folder
+    if (!fp){
+        utils::printError( "--vars: can't open %s\n", path );
+        startupFailed();
+    }
+    char line[4096];
+    int line_no = 0;
+    while (fgets( line, sizeof(line), fp )){
+        line_no++;
+        size_t len = strlen( line );
+        while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) line[--len] = 0;
+        char *p = line;
+        if (line_no == 1 && !strncmp( p, "\xef\xbb\xbf", 3 )) p += 3; // a BOM
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == 0 || *p == '#') continue;
+        char *end;
+        long no = (*p == '%' || *p == '$') ? strtol( p+1, &end, 10 ) : -1;
+        if (no < 0 || end == p+1 || *end != '='){
+            utils::printError( "--vars: %s:%d: not %%n=number or $n=text: %s\n", path, line_no, line );
+            fclose( fp );
+            startupFailed();
+        }
+        if (*p == '%') script_h.setNumVariable( no, atoi( end+1 ) );
+        else           setStr( &script_h.getVariableData( no ).str, fromUTF8( end+1 ).c_str() );
+    }
+    fclose( fp );
+}
+
+// The numbered variables that aren't 0 or empty, as "%n=number" and
+// "$n=text" lines (UTF-8) in the --dump-vars file.
+void ONScripter::writeVarsFile()
+{
+    FILE *fp = ::fopen( dump_vars_path, "wb" );
+    if (!fp){
+        utils::printError( "--dump-vars: can't write %s\n", dump_vars_path );
+        return;
+    }
+    fprintf( fp, "# CONscripter variables, page %d\n", trace_page );
+    for (int i=0 ; i<script_h.variable_range ; i++){
+        ScriptHandler::VariableData &vd = script_h.getVariableData( i );
+        if (vd.num) fprintf( fp, "%%%d=%d\n", i, vd.num );
+    }
+    for (int i=0 ; i<script_h.variable_range ; i++){
+        ScriptHandler::VariableData &vd = script_h.getVariableData( i );
+        if (!vd.str || !vd.str[0]) continue;
+        std::string text;
+        traceString( text, vd.str, -1, false );
+        fprintf( fp, "$%d=%s\n", i, text.c_str() );
+    }
+    fclose( fp );
+}
+
+// Appends ,"vars":{"%1":5,"$2":"text"}: the numbered variables that
+// aren't 0 or empty.
+void ONScripter::traceVars( std::string &out )
+{
+    out += ",\"vars\":{";
+    bool first = true;
+    char buf[32];
+    for (int i=0 ; i<script_h.variable_range ; i++){
+        ScriptHandler::VariableData &vd = script_h.getVariableData( i );
+        if (!vd.num) continue;
+        snprintf( buf, sizeof(buf), "%s\"%%%d\":%d", first ? "" : ",", i, vd.num );
+        out += buf;
+        first = false;
+    }
+    for (int i=0 ; i<script_h.variable_range ; i++){
+        ScriptHandler::VariableData &vd = script_h.getVariableData( i );
+        if (!vd.str || !vd.str[0]) continue;
+        snprintf( buf, sizeof(buf), "%s\"$%d\":", first ? "" : ",", i );
+        out += buf;
+        traceString( out, vd.str );
+        first = false;
+    }
+    out += '}';
 }

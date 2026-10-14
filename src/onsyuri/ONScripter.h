@@ -121,6 +121,9 @@ public:
     void setTraceShotEvery(int pages);
     void setTraceShotDir(const char *dir);
     void startupFailed(); // CONscripter: records the error just printed, exits with 3
+    void setStartGoto(const char *label); // CONscripter: --goto, --vars, --dump-vars
+    void setStartVars(const char *path);
+    void setDumpVars(const char *path);
     const char* getArchivePath() { return archive_path; }
     void setWindowWidth(int width);
     void setWindowHeight(int height);
@@ -753,6 +756,13 @@ private:
     int autoPlayButton();
     void autoPlayPage();
     void autoPlayStuck( const char *what );
+    char *start_goto;                // --goto label (without '*')
+    char *start_vars;                // --vars file
+    char *dump_vars_path;            // --dump-vars file
+    void startAt();
+    void readVarsFile( const char *path );
+    void writeVarsFile();
+    void traceVars( std::string &out );
     static void traceErrorHook( const char *message );
     static void traceExitHook();
     

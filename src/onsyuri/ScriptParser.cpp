@@ -711,8 +711,6 @@ ScriptParser::EffectLink *ScriptParser::parseEffect(bool init_flag)
     snprintf( message, sizeof(message), "Effect No. %d is not found.", tmp_effect.effect );
     errorAndExit( message );
     return NULL;
-
-    return NULL;
 }
 
 FILE *ScriptParser::fopen(const char *path, const char *mode, bool use_save_dir)

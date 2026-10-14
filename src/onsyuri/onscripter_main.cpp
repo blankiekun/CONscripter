@@ -70,6 +70,9 @@ void optionHelp()
     printf( "      --seed n\t\tstart the random numbers (rnd, --auto-choice random) from n\n");
     printf( "      --shot-pages 412,980-990\twith --trace, save a picture of these pages (--shot-dir, default shots)\n");
     printf( "      --shot-every n\twith --trace, save a picture of every n-th page\n");
+    printf( "      --goto label\tstart at this label, once the define section has run\n");
+    printf( "      --vars file\tset these variables at the start (lines %%312=876, $5=text; UTF-8)\n");
+    printf( "      --dump-vars file\twrite the variables in that form at F8 and at exit\n");
     printf( "      --enc:[gbk|sjis|utf8]\tdefine the encoding of script\n");
     printf( "      (exit codes: 0 ok, 1 --auto-play stuck, 2 script error, 3 startup failure)\n\n");
 
@@ -424,6 +427,21 @@ void parseOption(int argc, char *argv[]) {
                 argc--;
                 argv++;
                 ons.setTraceShotDir(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-goto" ) ){
+                argc--;
+                argv++;
+                ons.setStartGoto(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-vars" ) ){
+                argc--;
+                argv++;
+                ons.setStartVars(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-dump-vars" ) ){
+                argc--;
+                argv++;
+                ons.setDumpVars(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-seed" ) ){
                 argc--;

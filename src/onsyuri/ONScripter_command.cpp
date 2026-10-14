@@ -2689,6 +2689,7 @@ int ONScripter::gameCommand()
             errorAndExit( lua_handler.error_str );
     }
 #endif
+    startAt(); // CONscripter: --goto, --vars
 
     return RET_CONTINUE;
 }
