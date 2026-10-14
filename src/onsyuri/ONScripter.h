@@ -31,6 +31,7 @@
 #include "ButtonLink.h"
 #include <string>
 #include <map>
+#include <set>
 #include <vector>
 
 #if defined(ANDROID)
@@ -117,6 +118,8 @@ public:
     void setAutoPlay(int pages); // CONscripter: --auto-play, a run that plays itself
     void setAutoChoice(const char *policy);
     void setSeed(int seed);
+    void setReplay(const char *path); // CONscripter: --replay, --taken
+    void setTaken(const char *path);
     void setTraceShots(const char *pages); // CONscripter: --shot-pages, --shot-every, --shot-dir
     void setTraceShotEvery(int pages);
     void setTraceShotDir(const char *dir);
@@ -741,7 +744,7 @@ private:
     void traceEffect( std::string &out, EffectLink *effect );
 
     // CONscripter: --auto-play, a run that plays itself (ONScripter_cons.cpp)
-    enum { AUTO_CHOICE_FIRST = 0, AUTO_CHOICE_CYCLE = 1, AUTO_CHOICE_RANDOM = 2 };
+    enum { AUTO_CHOICE_FIRST = 0, AUTO_CHOICE_CYCLE = 1, AUTO_CHOICE_RANDOM = 2, AUTO_CHOICE_UNTAKEN = 3 };
     bool auto_play_flag;
     int auto_play_limit;             // pages, 0 for no limit
     int auto_play_pages;
@@ -752,6 +755,17 @@ private:
     int auto_choice;
     int auto_seed;                   // -1 unless --seed
     std::map<char*, int> auto_choice_visits; // cycle: the times each choice was reached
+    bool auto_choice_given;          // --auto-choice was given
+    struct AutoAnswer { std::string at; int value; };
+    std::vector<AutoAnswer> replay_answers; // --replay: the choices recorded, in order
+    size_t replay_next;              // the next one to give
+    size_t replay_warned;            // 1 + the answer a divergence was written for
+    int replay_seed;                 // the recorded run's seed, -1 for none
+    char *replay_path, *taken_path;
+    std::set<std::string> auto_taken; // --taken: "at<TAB>option", and those taken in this run
+    std::string traceAtText( char *address );
+    void autoPlayChosen( int value );
+    void autoPlayWarn( const char *what, const char *extra=NULL );
     bool autoPlayWait( int &count );
     int autoPlayButton();
     void autoPlayPage();

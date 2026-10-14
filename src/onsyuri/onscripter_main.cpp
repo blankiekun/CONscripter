@@ -66,7 +66,9 @@ void optionHelp()
     printf( "      --trace file\twrite a debug trace, one JSON line per text page (or CONS_TRACE=file)\n");
     printf( "      --trace-ignore 22-48,lsp2:12-23\tleave these sprites out of the trace (or CONS_TRACE_IGNORE)\n");
     printf( "      --auto-play pages\tplay by itself, without waiting, for this many pages (0: to the end)\n");
-    printf( "      --auto-choice first|cycle|random\thow --auto-play picks a button or choice\n");
+    printf( "      --auto-choice first|cycle|random|untaken\thow --auto-play picks a button or choice\n");
+    printf( "      --replay trace.jsonl\twith --auto-play, make the choices a trace recorded, then --auto-choice\n");
+    printf( "      --taken file\twith --auto-choice untaken, the choices (\"*label:line<TAB>option\" lines) to avoid\n");
     printf( "      --seed n\t\tstart the random numbers (rnd, --auto-choice random) from n\n");
     printf( "      --shot-pages 412,980-990\twith --trace, save a picture of these pages (--shot-dir, default shots)\n");
     printf( "      --shot-every n\twith --trace, save a picture of every n-th page\n");
@@ -427,6 +429,16 @@ void parseOption(int argc, char *argv[]) {
                 argc--;
                 argv++;
                 ons.setTraceShotDir(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-replay" ) ){
+                argc--;
+                argv++;
+                ons.setReplay(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-taken" ) ){
+                argc--;
+                argv++;
+                ons.setTaken(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-goto" ) ){
                 argc--;

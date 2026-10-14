@@ -382,6 +382,10 @@ ONScripter::ONScripter()
     auto_play_same = 0;
     auto_choice = AUTO_CHOICE_FIRST;
     auto_seed = -1;
+    auto_choice_given = false;
+    replay_next = replay_warned = 0;
+    replay_seed = -1;
+    replay_path = taken_path = NULL;
     memset( trace_se_name, 0, sizeof(trace_se_name) );
     clearScreenFilters();
     memset( screen_effect, 0, sizeof(screen_effect) );
@@ -712,6 +716,7 @@ int ONScripter::init()
 
     if ( !trace_fp && getenv("CONS_TRACE") ) setTraceFile( getenv("CONS_TRACE") );
     if ( !trace_ignore_spec && getenv("CONS_TRACE_IGNORE") ) setTraceIgnore( getenv("CONS_TRACE_IGNORE") );
+    if ( replay_seed >= 0 && auto_seed < 0 ) setSeed( replay_seed ); // --replay: the recorded run's
     if ( trace_fp || auto_play_flag ) traceIgnoreSetup();
     if ( trace_fp ) traceStart();
     
@@ -1191,6 +1196,7 @@ int ONScripter::parseLine( )
         for (int i=0 ; i<fh.num ; i++){
             if ( !strcmp( fh.func[i].command, cmd ) ){
                 //if (saveon_flag) saveSaveFile(false);
+                trace_cmd_start = script_h.getCurrent(); // CONscripter: where a choice is, for --auto-play
                 if (trace_fp) return traceCommand( fh.func[i].command, fh.func[i].method );
                 return (this->*fh.func[i].method)();
             }

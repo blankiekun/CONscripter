@@ -907,6 +907,7 @@ int ONScripter::selectCommand()
     }
     while(current_button_state.button <= 0 || skip_mode & SKIP_NORMAL);
     if (trace_fp) traceSelect( current_button_state.button );
+    if (auto_play_flag) autoPlayChosen( current_button_state.button );
         
     if ( selectvoice_file_name[SELECTVOICE_SELECT] )
         playSound(selectvoice_file_name[SELECTVOICE_SELECT], 
@@ -3481,6 +3482,7 @@ int ONScripter::btnwaitCommand()
         script_h.setInt( &script_h.current_variable, current_button_state.button );
     }
     if (trace_fp && !textbtn_flag && !bexec_flag) traceButtons( current_button_state.button );
+    if (auto_play_flag && !textbtn_flag && !bexec_flag) autoPlayChosen( current_button_state.button );
 
     if ( current_button_state.button >= 1 && del_flag ){
         deleteButtonLink();

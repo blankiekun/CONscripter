@@ -1562,12 +1562,20 @@ void ONScripter::traceMeta()
         r += '}';
     }
     if (auto_play_flag){
-        static const char *policy[] = { "first", "cycle", "random" };
+        static const char *policy[] = { "first", "cycle", "random", "untaken" };
         snprintf( buf, sizeof(buf), ",\"auto\":{\"pages\":%d,\"choice\":\"%s\"", auto_play_limit, policy[auto_choice] );
         r += buf;
         if (auto_seed >= 0){
             snprintf( buf, sizeof(buf), ",\"seed\":%d", auto_seed );
             r += buf;
+        }
+        if (replay_path){
+            r += ",\"replay\":";
+            traceString( r, replay_path );
+        }
+        if (taken_path){
+            r += ",\"taken\":";
+            traceString( r, taken_path );
         }
         r += '}';
     }
@@ -1605,6 +1613,22 @@ void ONScripter::traceAt( std::string &out, char *address )
     snprintf( buf, sizeof(buf), ":%d", label.start_line + script_h.getLineByAddress( address ) + 1 );
     at += buf;
     traceString( out, at.c_str() );
+}
+
+// "*label:line" in UTF-8 without quotes (as in a choice record's "at"), or
+// "" outside the script.
+std::string ONScripter::traceAtText( char *address )
+{
+    if (!script_h.inScript( address ) || script_h.getNumLabels() == 0) return "";
+    ScriptHandler::LabelInfo label = script_h.getLabelByAddress( address );
+    std::string at = "*";
+    at += label.name;
+    char buf[16];
+    snprintf( buf, sizeof(buf), ":%d", label.start_line + script_h.getLineByAddress( address ) + 1 );
+    at += buf;
+    std::string text;
+    traceString( text, at.c_str(), -1, false );
+    return text;
 }
 
 // Inside a gosub (a textgosub routine, a helper), appends ,"via": where it
@@ -2160,7 +2184,117 @@ void ONScripter::setAutoChoice( const char *policy )
     if      (!strcmp( policy, "first" ))  auto_choice = AUTO_CHOICE_FIRST;
     else if (!strcmp( policy, "cycle" ))  auto_choice = AUTO_CHOICE_CYCLE;
     else if (!strcmp( policy, "random" )) auto_choice = AUTO_CHOICE_RANDOM;
-    else utils::printError( "--auto-choice: first, cycle or random, not %s\n", policy );
+    else if (!strcmp( policy, "untaken" )) auto_choice = AUTO_CHOICE_UNTAKEN;
+    else{
+        utils::printError( "--auto-choice: first, cycle, random or untaken, not %s\n", policy );
+        return;
+    }
+    auto_choice_given = true;
+}
+
+// A string or number field of a trace record, found by its name; enough
+// for the records the engine writes. Returns false when it isn't there.
+static bool traceField( const std::string &line, const char *name, std::string *text, int *num, bool last=false )
+{
+    std::string key = std::string( "\"" ) + name + "\":";
+    size_t i = last ? line.rfind( key ) : line.find( key );
+    if (i == std::string::npos) return false;
+    i += key.size();
+    if (text){
+        if (line[i] != '"') return false;
+        text->clear();
+        for (i++ ; i < line.size() && line[i] != '"' ; i++){
+            if (line[i] == '\\' && i+1 < line.size()) i++;
+            *text += line[i];
+        }
+        return true;
+    }
+    if (line[i] != '-' && (line[i] < '0' || line[i] > '9')) return false;
+    *num = atoi( line.c_str() + i );
+    return true;
+}
+
+// --replay trace.jsonl: --auto-play makes the choices that trace recorded,
+// in order, and takes its seed and --auto-choice unless they are given.
+void ONScripter::setReplay( const char *path )
+{
+    setStr( &replay_path, path );
+    FILE *fp = ::fopen( path, "rb" );
+    if (!fp){
+        utils::printError( "--replay: can't open %s\n", path );
+        startupFailed();
+    }
+    std::string line;
+    char buf[4096];
+    while (fgets( buf, sizeof(buf), fp )){
+        line += buf;
+        if (line[line.size()-1] != '\n' && !feof( fp )) continue; // a long line
+        std::string t;
+        if (traceField( line, "t", &t, NULL )){
+            AutoAnswer a;
+            if (t == "meta"){
+                traceField( line, "seed", NULL, &replay_seed );
+                std::string policy;
+                if (!auto_choice_given && traceField( line, "choice", &policy, NULL )){
+                    setAutoChoice( policy.c_str() );
+                    auto_choice_given = false;
+                }
+            }
+            else if (t == "choice" && traceField( line, "at", &a.at, NULL ) &&
+                     (traceField( line, "picked", NULL, &a.value, true ) || traceField( line, "result", NULL, &a.value, true )))
+                replay_answers.push_back( a );
+        }
+        line.clear();
+    }
+    fclose( fp );
+}
+
+// --taken file: lines "*label:line<TAB>option", the choices --auto-choice
+// untaken avoids (option as in the choice record: picked or result).
+void ONScripter::setTaken( const char *path )
+{
+    setStr( &taken_path, path );
+    FILE *fp = ::fopen( path, "rb" );
+    if (!fp){
+        utils::printError( "--taken: can't open %s\n", path );
+        startupFailed();
+    }
+    char buf[1024];
+    while (fgets( buf, sizeof(buf), fp )){
+        size_t len = strlen( buf );
+        while (len > 0 && (buf[len-1] == '\n' || buf[len-1] == '\r')) buf[--len] = 0;
+        char *tab = strchr( buf, '\t' );
+        if (buf[0] == '#' || !tab) continue;
+        *tab = 0;
+        char key[1100];
+        snprintf( key, sizeof(key), "%s\t%d", buf, atoi( tab+1 ) );
+        auto_taken.insert( key );
+    }
+    fclose( fp );
+}
+
+// A warn record about the choices --auto-play makes, at the command being
+// run; extra is more fields, starting with a comma.
+void ONScripter::autoPlayWarn( const char *what, const char *extra )
+{
+    if (!trace_fp) return;
+    char buf[96];
+    snprintf( buf, sizeof(buf), "{\"t\":\"warn\",\"pg\":%d,\"what\":\"%s\",\"at\":", trace_page, what );
+    std::string r = buf;
+    traceAt( r, trace_cmd_start );
+    if (extra) r += extra;
+    r += '}';
+    traceWrite( r );
+}
+
+// After a choice was made: the next recorded one is due, and the choice
+// counts as taken for "untaken".
+void ONScripter::autoPlayChosen( int value )
+{
+    if (replay_next < replay_answers.size()) replay_next++;
+    char buf[16];
+    snprintf( buf, sizeof(buf), "\t%d", value );
+    auto_taken.insert( traceAtText( trace_cmd_start ) + buf );
 }
 
 // The same seed gives the same rnd numbers, and the same random choices.
@@ -2218,7 +2352,32 @@ int ONScripter::autoPlayButton()
     if (!(event_mode & WAIT_TEXT_MODE)) nos.push_back( 0 ); // a btnwait, not a select
     if (nos.empty()) return 0;
 
-    if (auto_choice == AUTO_CHOICE_RANDOM) return nos[ rand() % nos.size() ];
+    // random takes a number each time, even when replaying, so that rnd
+    // gives the numbers it gave in the run recorded
+    int random = auto_choice == AUTO_CHOICE_RANDOM ? rand() : 0;
+
+    if (replay_next < replay_answers.size()){
+        const AutoAnswer &a = replay_answers[replay_next];
+        std::string at = traceAtText( trace_cmd_start );
+        if (a.at != at && replay_warned != replay_next + 1){
+            replay_warned = replay_next + 1;
+            std::string extra = ",\"expected\":";
+            traceString( extra, a.at.c_str() ); // already UTF-8
+            autoPlayWarn( "replay diverged", extra.c_str() );
+        }
+        if (std::find( nos.begin(), nos.end(), a.value ) != nos.end()) return a.value;
+    }
+    else if (!replay_answers.empty() && replay_warned != (size_t)-1){
+        replay_warned = (size_t)-1;
+        autoPlayWarn( "replay ended" );
+    }
+
+    if (auto_choice == AUTO_CHOICE_RANDOM) return nos[ random % nos.size() ];
+    if (auto_choice == AUTO_CHOICE_UNTAKEN){
+        std::string at = traceAtText( trace_cmd_start ) + "\t";
+        for (size_t i=0 ; i<nos.size() ; i++)
+            if (!auto_taken.count( at + std::to_string( nos[i] ) )) return nos[i];
+    }
     size_t visit = auto_choice_visits[ script_h.getCurrent() ]++;
     if (auto_choice == AUTO_CHOICE_CYCLE) return nos[ visit % nos.size() ];
     return nos[ std::min( visit, nos.size() - 1 ) ];
@@ -2349,7 +2508,8 @@ void ONScripter::writeVarsFile()
         utils::printError( "--dump-vars: can't write %s\n", dump_vars_path );
         return;
     }
-    fprintf( fp, "# CONscripter variables, page %d\n", trace_page );
+    if (trace_fp) fprintf( fp, "# CONscripter variables, page %d\n", trace_page );
+    else          fprintf( fp, "# CONscripter variables\n" );
     for (int i=0 ; i<script_h.variable_range ; i++){
         ScriptHandler::VariableData &vd = script_h.getVariableData( i );
         if (vd.num) fprintf( fp, "%%%d=%d\n", i, vd.num );
