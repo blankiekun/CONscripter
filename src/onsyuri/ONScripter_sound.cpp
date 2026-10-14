@@ -112,7 +112,7 @@ int ONScripter::playSound(const char *filename, int format, bool loop_flag, int 
             utils::printError("can't load music \"%s\": %s\n", filename, Mix_GetError());
             if (trace_fp) traceWarn("broken music", filename);
         }
-        Mix_VolumeMusic( music_volume );
+        Mix_VolumeMusic( music_volume * MIX_MAX_VOLUME / 100 ); // CONscripter: was out of 128
         if ( music_info && Mix_PlayMusic( music_info, (music_play_loop_flag&&music_loopback_offset==0.0)?-1:0 ) == 0 ){
             music_buffer = buffer;
             music_buffer_length = length;
@@ -229,7 +229,7 @@ int ONScripter::playMIDI(bool loop_flag)
     if (midi_cmd) midi_looping = 0;
 #endif
     
-    Mix_VolumeMusic(music_volume);
+    Mix_VolumeMusic( music_volume * MIX_MAX_VOLUME / 100 ); // CONscripter: was out of 128
     Mix_PlayMusic(midi_info, midi_looping);
     current_cd_track = -2; 
     

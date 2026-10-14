@@ -7,7 +7,8 @@ Every new command, tag or option is opt-in: scripts that don't use it
 behave exactly as in ONScripter-Yuri. Fixes to behaviour that is wrong
 (text drawn in the wrong place, characters dropped, a click in the
 sound) are not: they apply to every script, and are listed here too
-(half-width characters, cut sounds, spaces, vertical marks). The code
+(half-width characters, cut sounds, spaces, vertical marks, music
+volume). The code
 is in `src/onsyuri/ONScripter_cons.cpp` where possible.
 
 - **`spfilter num,kind[,blend[,strength[,p1,p2,p3]]]`**: colour filters
@@ -167,6 +168,10 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   (8 are kept for this, after the game's), so the next sound still starts
   at once. Music played with `bgm`/`mp3` as a stream still stops at once:
   SDL_mixer gives no way to read it ahead.
+- **Music played with `bgm` or `mp3` starts at the music setting.**
+  The setting (0-100) was given to SDL_mixer as is, on its 0-128 scale,
+  so music at 100 % played at 78 % (−2 dB) until something changed its
+  volume (a `bgmfadein`, `bgmvol`); MIDI music too.
 - **WebP images in the web build**: emscripten's SDL_image port has no
   WebP decoder, so the web build links libwebp (`script/cross_web.sh`
   builds it) and decodes WebP itself, lossy and lossless, with alpha. The
