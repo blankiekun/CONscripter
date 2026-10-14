@@ -3,7 +3,7 @@
 CONscripter can write a **trace** while a game runs: one JSON object per
 line, recording what is on screen at every text page, the commands that
 changed it, the choices made, every file the script asks for that can't
-be loaded, and any script error. A trace is
+be loaded, and any script error or crash. A trace is
 small, easy to search with `grep` or `jq`, and readable by people and
 tools, so you can find bugs such as a sprite that never goes away, a
 picture placed a few pixels off, or a missing voice without taking
@@ -32,6 +32,14 @@ aren't logged, and their buttons aren't listed.
 ```sh
 conscripter --root . --trace trace.jsonl --trace-ignore 22-48,lsp2:12-23
 ```
+
+Other options add to what the trace holds:
+
+| Option | Adds |
+|---|---|
+| `--trace-vars 300-899,$10-20` | a `var` record for each change of these variables: numbers alone are `%` variables, `$` before the strings; numbers and ranges, comma-separated (0 to the script's `numalias` range, 4096 by default) |
+| `--trace-long-wait ms` | a `long wait` warning for each wait, effect or fade the script asks to last longer than this (default 10000) |
+| `--trace-max-image px` | an `image too large for the web` warning for each picture with a side longer than this (default 4096) |
 
 ## Playing through by itself
 
@@ -76,9 +84,172 @@ goes on past a hyperlink. Each place in the script counts its visits:
 | `first` (default) | the option matching the visit count, staying on the last: the first button the first time, the next one when the game comes back (a hyperlink, then on; a menu of topics, each in turn) |
 | `cycle` | the same, but going round again after the last |
 | `random` | any option; with `--seed n` the same run every time |
+| `untaken` | the first option not listed for that place in `--taken FILE`, nor taken there earlier in this run; `first` when all are |
 
 `--seed n` also fixes the numbers `rnd` gives, so a run that worked out a
 route can be repeated exactly.
+
+The `--taken` file has a line for each choice to avoid: the choice
+record's `at`, a tab, and the option (a `select`'s `picked`, a `btnwait`'s
+`result`). Lines starting with `#` are left out. `tools/cons_explore.py`
+(below) writes it from earlier runs.
+
+```
+*s4_l2:5467	1
+*conv_link1_wait:5994	0
+```
+
+### Without a screen
+
+`SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy` run the engine with no
+window and no sound device, so no X server or Xvfb is needed. Several
+runs can go at once (one per core), each with its own `--save-dir` and
+trace, since a game's global variables and saves live in the save folder:
+
+```sh
+for s in 1 2 3 4; do
+  SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy conscripter --root . --save-dir /tmp/saves$s \
+      --trace /tmp/trace$s.jsonl --auto-play 0 --auto-choice random --seed $s &
+done; wait
+```
+
+The exit code says how a run ended, so a script can check it without
+reading the trace:
+
+| Code | Meaning |
+|---|---|
+| 0 | the script ended, the `--auto-play` page limit was reached, or the window was closed |
+| 1 | `--auto-play` got stuck |
+| 2 | a script error |
+| 3 | it couldn't start: no script or font, SDL failed, a `--goto` label or `--vars` file it can't use, a save `--load` can't load |
+| 128+n | killed by signal n (139 a segmentation fault, 134 an abort); the trace ends with a `crash` record |
+
+### Replaying a run
+
+`--replay trace.jsonl` (with `--auto-play`) makes the choices a trace
+recorded, in order, then goes on with `--auto-choice`. It takes the
+trace's `--seed` and `--auto-choice` too, unless given. This repeats a
+run on a newer build or a fixed script, even when it was played by hand.
+If a choice comes up somewhere other than where the recorded one did (the
+script changed), it writes a `replay diverged` warning and uses the
+recorded answer if it is still one of the options; when the recorded
+choices run out, a `replay ended` warning.
+
+### Exploring routes
+
+`tools/cons_explore.py` plays a game again and again, each run taking the
+choices the earlier ones didn't (`--auto-choice untaken`, with a
+`--taken` file made from all the earlier traces), until two runs in a row
+reach no new label (`--patience`) or after `--runs`. It then lists the
+script's labels no run reached, and the traces it wrote, to check each
+with the checker:
+
+```sh
+python3 tools/cons_explore.py out/saiima-cons --out /tmp/explore --runs 20 \
+    --engine-args "--trace-ignore 22-48,lsp2:12-23" --skip-choices '^\*conv_(title|sl_|settings|confirm)'
+```
+
+```
+run 1: 62185 pages, 293 choices (180 new), 1220 new labels, 1220 in all; error at *conv_link19:24036: Array No. is not declared. [嘘ー！], exit 2, 615 s
+run 2: 32268 pages, 114 choices (0 new), 4 new labels, 1224 in all; stuck: 3000 pages without a new label, exit 1, 326 s
+run 3: 32268 pages, 114 choices (0 new), 0 new labels, 1224 in all; stuck: 3000 pages without a new label, exit 1, 326 s
+run 4: 32268 pages, 114 choices (0 new), 0 new labels, 1224 in all; stuck: 3000 pages without a new label, exit 1, 318 s
+2 runs in a row reached no new label: done
+
+851 of 1664 labels reached; 813 never:
+  *s0_l0:203, *s0_l3:207, *s1_l0:278, *s1_l1:282, *s2_l0:288 ...
+```
+
+Once every option at each place a run reaches has been taken, `untaken`
+falls back to `first` and the runs repeat a route, so the exploration
+stops. A run that ends in a script error never reaches the choices after
+it: fix the error (here a `?` the converter left in the text) and explore
+again.
+
+Each run has its own trace (`runNN.jsonl`) and save folder in `--out`.
+`--skip-choices` names the places, as a regex on `*label:line`, whose
+choices every run should make the same way: a title menu or a settings
+screen, which would otherwise take a run off to load or quit. `--pages`
+limits each run, `--seed` makes the exploration repeatable, and
+`--engine` and `--engine-args` choose the engine and add options.
+
+## Starting anywhere
+
+A bug far into a game can be reached directly instead of playing up to
+it. `--goto label` starts at that label once the `*define` section has
+run, and `--vars file` sets variables first, so the scene runs as it
+would on its route:
+
+```sh
+python3 tools/cons_trace_vars.py trace.jsonl --page 4120 -o vars.txt
+conscripter --root . --goto s9_l36 --vars vars.txt --trace scene.jsonl
+```
+
+The file is UTF-8 (the engine converts it to the script's encoding), one
+variable a line; `#` lines and blank lines are left out. A string runs to
+the end of the line, so it can't hold a line break:
+
+```
+# CONscripter variables, page 4120
+%312=876
+$5=text to the end of the line
+```
+
+`--dump-vars file` writes every variable that isn't 0 or empty in this
+form when F8 is pressed and when the engine exits. `tools/cons_trace_vars.py`
+writes one from a trace: the variables at the start of a page (`--page`),
+when the run first reached a place (`--at "*label:line"` or `--at "*label"`),
+or at the end. It takes them from the last F8 `dump` before then, brought
+up to date with the `var` records after it, or, without one, plays back the
+`var` records, so the trace needs `--trace-vars` for every variable the
+game uses (`--trace-vars '0-4095,$0-4095'`). Global variables loaded from
+the save folder at start have no `var` record; for a game that uses them,
+press F8 early in the run, or take the file `--dump-vars` writes.
+
+`--diff` compares the `var` records of two traces and prints the first
+change that differs, for example the engine's against a converter's own
+tracer, or two runs of a route that should have set the same flags.
+`--only 300-899,$10-20` looks at those variables only:
+
+```
+$ python3 tools/cons_trace_vars.py --diff before.jsonl after.jsonl
+change 3 differs:
+  before.jsonl: %904=10 at *start:172 (page 0)
+  after.jsonl: %905=7 at *start:172 (page 0)
+  the change before, the same in both: %903=8 at *start:172
+```
+
+### Checkpoints and saves
+
+`--checkpoint-every n` (with `--auto-play`) saves the game every n pages,
+in save slots 900, 901, 902, ... (`--checkpoint-slot s` starts at
+another), and writes a `checkpoint` record each time. `--load n` starts a
+run by loading save slot n, so a long run can be picked up near a bug:
+
+```sh
+conscripter --root . --save-dir /tmp/saves --trace t.jsonl --auto-play 0 --checkpoint-every 1000
+grep '"t":"checkpoint"' t.jsonl        # {"t":"checkpoint","pg":4000,"slot":903,"at":"*s9_l36:62510"}
+conscripter --root . --save-dir /tmp/saves --trace from4000.jsonl --load 903
+```
+
+A checkpoint is the state at that page's click wait, as a player's save
+there would be, so the loaded run shows that page's text again as its
+page 1. Some games keep their own data in high save slots (saiima uses 900
+and up): give such a game another `--checkpoint-slot`. Give the game's
+button bar to `--trace-ignore` too, or once saves exist an auto-play run
+may press its load button and go round in circles.
+
+`--roundtrip-every n` (with `--trace` and `--auto-play`) checks saving
+itself: every n pages it saves to a spare slot (`--roundtrip-slot`, 999),
+loads it again, and when the same page shows again compares the state
+with the first time: the text, the background, the sprites, the music and
+looping sounds, the filters, the variables, ... Any difference is written
+as a `save/load mismatch` warning, which points at something the save file
+leaves out or the game's `loadgosub` gets wrong:
+
+```json
+{"t":"warn","pg":51,"what":"save/load mismatch","at":"*s4_l2:5387","diff":["sp lsp 49: \"忍\" 58,424 316x20 alpha 255 cell 0 filters 0 -> none"]}
+```
 
 With conscripter-convert's smoke test instead (scripted clicks; it
 passes its environment on to the engine):
@@ -94,7 +265,10 @@ With a trace on, **F8** writes a `dump` record: the state right now, in
 the same form as a page, wherever the game is (a menu, a `btnwait`, the
 middle of a scene). Natively it also saves a picture of the screen as
 `<shot-dir>/dump<pg>-<ms>.png`. Press it when something looks wrong while
-playing, then look for `"t":"dump"` in the trace.
+playing, then look for `"t":"dump"` in the trace. The dump also holds the
+variables, so the moment can be started again with `--goto` and `--vars`
+(see "Starting anywhere"); with `--dump-vars file`, F8 writes them to that
+file too.
 
 ## In the web build
 
@@ -150,15 +324,19 @@ Text and file names are converted to UTF-8 from the script's encoding.
 ### `meta`: the first record
 
 ```json
-{"t":"meta","schema":1,"engine":"CONscripter 0.18.0","time":"2026-10-14T11:20:43","w":800,"h":600,"utf8":false,"dir":"./",
- "ignore":"22-48,lsp2:12-23","auto":{"pages":0,"choice":"first","seed":3}}
+{"t":"meta","schema":2,"engine":"CONscripter 0.18.0","time":"2026-10-14T11:20:43","w":800,"h":600,"utf8":false,"dir":"./",
+ "ignore":"22-48,lsp2:12-23","start":{"goto":"s9_l36","vars":"vars.txt"},"auto":{"pages":0,"choice":"first","seed":3}}
 ```
 
-`schema` changes when a record's meaning changes. `w`,`h` are the screen
+`schema` changes when a record's meaning changes (2 added the records and
+fields marked "schema 2" below). `w`,`h` are the screen
 size, `utf8` whether the script is UTF-8 (`--enc:utf8`), `dir` the game
-folder (`--root`), `ignore` the `--trace-ignore` list (or `null`), and
+folder (`--root`), `ignore` the `--trace-ignore` list (or `null`), `start`
+how the run started when not from the beginning (`goto` and `vars`, or
+`load` with the slot), and
 `auto` the `--auto-play` settings (only with `--auto-play`; `seed` only
-with `--seed`).
+with `--seed`, `replay` and `taken` with those files). A run that can't
+start still writes a `meta` record (`w`,`h` may be 0) before its `error`.
 
 ### `page`: each click wait and new page
 
@@ -177,7 +355,10 @@ handles the wait.
 | Field | Meaning |
 |---|---|
 | `at` | The text line being shown |
-| `text` | The page's text so far, as written in the script (tags and all); `\n` between lines |
+| `text` | The page's text so far, as shown; `\n` between lines. Ruby is written `(body/ruby)` and a text button `<n...>`; the tags the engine ran (`!w`, `#rrggbb`, `@`, ...) aren't there, so one that is was shown as text |
+| `tag` | The `[...]` tag before the text, as written (`"あずさ\|voice/v300002.ogg"`), when it has one (schema 2) |
+| `overflow` | `true` when the text ran past the text window's last line (its last column in vertical text), so some of it wasn't seen; it stays on for the page's later click waits (schema 2) |
+| `mem` | The most image memory in use since the last page: `{"surf","bytes"}`, the number of pictures the engine held (sprites, backgrounds, the text window, buttons, cursors) and their bytes, without the screen's own buffers or sound (schema 2) |
 | `bg` | The `bg` argument: a file, `black`, `white` or `#rrggbb` |
 | `bgm` | The music last started with `bgm`/`mp3`/`ogg`/`play`/`midi` and not stopped (it may have finished if it doesn't loop); `null` for none |
 | `loopbgm` | `[intro, loop]` when `loopbgm` is playing (omitted otherwise) |
@@ -213,8 +394,9 @@ a `since` far below the current `pg`, especially across a `bg` change.
 ### `dump`: the state when F8 was pressed
 
 The same fields as a `page`, with `"t":"dump"`, `pg` the last page (a
-dump isn't counted as one), `at` where the script is waiting, and natively
-a `shot`.
+dump isn't counted as one), `at` where the script is waiting, natively
+a `shot`, and `vars`: every numbered variable that isn't 0 or empty
+(schema 2), `{"%312":876,"$5":"text"}`.
 
 ### `ev`: a command that changed the screen or the sound
 
@@ -236,6 +418,8 @@ record:
 | `bg`, `bgm` | The new background or music (`bgm` `null` when stopped) |
 | `effect` | The effect it showed with (`print`, or `bg`, `ld`, `cl` with an effect number): `{"no","type","ms"}`, with the `mask` image (types 15, 18) or `dll` (99); `no` only for an effect defined with `effect` |
 | `def` | For `effect`: the effect as defined, in the same form |
+| `ch`, `file` | For `dwave`, `wave` and their variants: the channel and the file played, variables filled in (schema 2) |
+| `cut` | The sound that channel was still playing, which this one stopped (schema 2). Under `--auto-play` every voice is cut by the next, since clicks come at once |
 | `via` | Inside a `gosub` (a `textgosub` routine, a helper): the line it returns to, which led there |
 
 Which commands are written:
@@ -280,7 +464,37 @@ elsewhere, negative for right-click, keys or a timeout.
 Written the first time the script runs a command or shows a page in a
 label, so the labels a run reached can be compared with the script's.
 
-### `warn`: a file that can't be used
+### `var`: a variable changed (`--trace-vars`, schema 2)
+
+```json
+{"t":"var","pg":7,"at":"*start:172","n":"%902","v":8}
+{"t":"var","pg":7,"at":"*s4_l2:5150","n":"$5","v":"text"}
+```
+
+Written each time the script sets one of the variables `--trace-vars`
+lists, to a new value or the same one.
+
+### `checkpoint`: a save made by `--checkpoint-every` (schema 2)
+
+```json
+{"t":"checkpoint","pg":200,"slot":901,"at":"*conv_link1_1:6147"}
+```
+
+Written after that page's record; `--load 901` starts there.
+
+### `roundtrip`: a save and load made by `--roundtrip-every` (schema 2)
+
+```json
+{"t":"roundtrip","pg":50,"slot":999,"at":"*conv_wait:243429"}
+```
+
+Written when it saves and loads, at the next command after page `pg`.
+The records that follow up to the next page come from the load and the
+game's `loadgosub` (a scene set up again, a `missing image` warning
+repeated); the checker leaves those warnings out. The page shown again is
+not written, so `pg` goes on as before.
+
+### `warn`: a file that can't be used, and other things to look at
 
 ```json
 {"t":"warn","pg":0,"what":"missing image","file":"nothere.png","at":"*start:7"}
@@ -292,14 +506,41 @@ decoded), `image too large`, `force-loaded JPG`, `missing sound`,
 The engine's own default files (`cursor0.bmp`, `uoncur.bmp`, ...), which
 it tries whether or not a game has them, aren't reported.
 
+Schema 2 adds these, with their own fields:
+
+| `what` | Fields | Written when |
+|---|---|---|
+| `long wait` | `cmd`, `ms` | a command asks to wait longer than `--trace-long-wait` (10000 ms): an effect (`print 10,270000`), `wait`, `delay`, `waittimer` (the time left), a fade, a `quake`, or a `btnwait` with a long `btntime`. `ms` is what the script asked for, even when auto-play shortened it |
+| `image too large for the web` | `file`, `w`, `h` | a picture, as kept after scaling to the screen, has a side longer than `--trace-max-image` (4096), which browsers may not draw; once per file. `file` is the tag for a picture without a file (a colour), `null` if none |
+| `save/load mismatch` | `diff` | `--roundtrip-every` found the state changed by saving and loading; `at` is the page compared, `pg` the page after the round trip. `diff` has up to 40 strings `"field: before -> after"` (`none` when absent): `at`, `text`, `tag`, `bg`, `bgm`, `loopbgm`, `se <ch>` (looping sounds), `window`, `windowtrans`, `monocro`, `nega`, `filter <slot>`, `fx <slot>`, `sprites_hidden`, `sprites2_hidden`, `pushscreen`, `sp <kind> <n>` (the image, then `x,y wxh alpha a cell c filters f`), `%n`, `$n`; `["can't save or load"]` if that failed |
+| `replay diverged` | `expected` | `--replay` reached a choice at `at`, where the recorded run's was at `expected` |
+| `replay ended` | | `--replay` ran out of recorded choices |
+| `auto-play stuck` | | `--auto-play` stopped going round in circles (above) |
+
 ### `error`: a script error, just before the engine exits
 
 ```json
-{"t":"error","pg":3,"msg":"Label \"nosuchlabel\" is not found. [*nosuchlabel]","at":"*sub:19","stack":["*start:12"]}
+{"t":"error","pg":3,"kind":"script","msg":"Label \"nosuchlabel\" is not found. [*nosuchlabel]","at":"*sub:19","stack":["*start:12"]}
 ```
 
 `stack` is the chain of `gosub` calls that led there, innermost first,
-each given as the place it returns to.
+each given as the place it returns to. `kind` (schema 2) is `script`, or
+`startup` when the engine couldn't start (no script or font, a bad
+`--goto` label, `--vars` file or `--load` slot); `at` is then `null` and
+`stack` empty if the script wasn't running yet.
+
+### `crash`: the engine crashed (schema 2)
+
+```json
+{"t":"crash","pg":5,"signal":"SIGSEGV","at":"*x:12","stack":["*a:3"],
+ "recent":[{"at":"*x:10","cmd":"lsp"},{"at":"*x:12","cmd":"print"}]}
+```
+
+Written from the signal handler when the engine crashes (`SIGSEGV`,
+`SIGABRT`, `SIGFPE`, ...), as the last record: `at` the command being
+run, `stack` as for `error`, and `recent` the last 50 commands run
+(any command, oldest first), which usually show what led to it. No `end`
+follows, and the exit code is 128 plus the signal's number.
 
 ### `end`: the last record
 
@@ -311,8 +552,9 @@ each given as the place it returns to.
 Written when the engine exits: at `end`, after a script error, or when
 the window is closed (`timeout`'s SIGTERM counts, as SDL turns it into a
 quit). `reason` says why `--auto-play` stopped it: `auto-play page
-limit`, or `stuck: ...`. A trace that doesn't end with it stopped in a crash or was killed
-with SIGKILL; the last records show where.
+limit`, or `stuck: ...`. A trace that ends with neither `end` nor `crash`
+was killed with SIGKILL (or crashed too hard to write); the last records
+show where.
 
 ## Checking a trace
 
@@ -325,17 +567,26 @@ python3 tools/cons_trace_check.py trace.jsonl --script 0.txt
 ```
 
 ```
-trace.jsonl: 49302 pages, 97649 commands, 230 choices; ended
+trace.jsonl: 32268 pages, 59104 commands, 115 choices; stuck: 3000 pages without a new label
+config cons_trace_check.json: 21 known findings left out (crowd 4, linger 16, sound 1)
+image memory: 12 to 340 MB (the most at page 4120, *s9_l36:62672), 54 MB at the end
 
-== linger (66)
-  *conv_link37_1:54515     lsp 61 bg\frame01.png stayed up when the background changed bg\img_0064.png -> bg\bg01d.png (shown at *s62_l1:219303: lsp %180,$180,0,0)
+== sound (2)
+  *s13_l147:194699         se\se088.ogg plays on two channels at once (2, 4), on 1 page
+  ...
+== linger (4)
+  *s4_l2:5970              lsp 60 system\noise.png has been up since page 29311 (150 pages) (shown at *s4_l2:5239: lsp 60,$116,0,0,%116)
   ...
 ```
 
 | Kind | What it finds |
 |---|---|
-| `error` | Script errors (with the gosub chain), a trace without `end` (a crash), an auto-play run that got stuck |
+| `error` | Script and startup errors (with the gosub chain), a crash (its signal and the last commands run), a trace without `end` (killed), an auto-play run that got stuck |
 | `missing` | Files that couldn't be loaded, grouped by file, and sprites shown without their image |
+| `web` | Pictures too large for the web build |
+| `text` | A page's text with garbled characters (U+FFFD, control or private-use characters, mojibake such as UTF-8 read as Shift-JIS, which mixes kanji and half-width katakana); text past the window (`overflow`, or a line longer than `--line-chars`); an empty page; a text tag shown as text (`!w100`, `!s`, `!d`, `#rrggbb`, `~...~`, a `\` or `@`); with `--script`, a `%`, `$` or `?` in a text line, which prints a variable or reads an array (a converter that left them in) |
+| `sound` | The same sound started on two channels before one click wait, or a looping one doubled (in a trace without `--auto-play`, any overlap); a voice cut off by the next sound before a click wait, so it was never heard |
+| `voice` | A spoken line with no voice: the speaker's (the `tag`'s name) other lines have one on at least `--voice-share` (0.8) of them and `--voice-min` (5); for lines without a tag, the `--voice-window` (3) spoken lines before and after it in the same label all have one. A line of only "……" or "！？" needs none |
 | `linger` | A tall picture (a character or CG) still up after the background changed, or up for more than `--linger` pages |
 | `float` | A picture at least `--float-h` of the screen tall whose bottom edge stops up to `--float-gap` pixels above the screen's |
 | `offscreen` | A sprite entirely off the screen |
@@ -343,7 +594,19 @@ trace.jsonl: 49302 pages, 97649 commands, 230 choices; ended
 | `crowd` | More than `--crowd` tall pictures at once, or two at the same place |
 | `overlay` | A screen filter or effect still on after the background changed, and with `--cg REGEX` any filter or effect over a background whose name matches (an eye-close left over a CG) |
 | `loop` | A looping sound playing for more than `--loop` pages |
+| `duration` | A wait or effect the script asks to last very long (the `long wait` warnings: `print 10,270000` is 4.5 minutes) |
+| `slow` | Where the time went: the `--slow` (10) places with the most time, `--slow-ms` (1000) or more, between one record and the next, added up over every visit (a slow load, a long effect, a wait auto-play didn't shorten) |
+| `save` | A `save/load mismatch` from `--roundtrip-every`, once for each set of fields that differed, with how many round trips gave the same. `--save-ignore REGEX` leaves fields out, such as a variable the game's `loadgosub` sets on every load (`'^%190$'`) |
+| `replay` | Where a `--replay` run went another way, or ran out of choices |
+| `memory` | Image memory (the pages' `mem`) that jumps by `--mem-jump` MB (64) from one page to the next, or grows steadily by `--mem-leak` MB (128) or more over the run (a leak). The report's head gives the least and most, and where it grew |
 | `coverage` | With `--script`, the labels the run never reached (`--coverage-skip REGEX` leaves some out) |
+
+Voices are the sounds on the `--voice-ch` channels (0) or whose file
+matches `--voice` (a `voice` folder); spoken lines are those with a tag
+naming a speaker, or whose text matches `--dialogue` (starting with
+「, 『 or “). `--script` takes the game's script file, or a folder whose
+numbered `.txt` files are read in order. `--skip slow,coverage` leaves
+rules out.
 
 Each sprite finding ends with the command that showed it, so the bug can
 be traced from the page back to the line that put the sprite up. A
@@ -352,7 +615,8 @@ finding is reported once (the first page it is seen), not on every page.
 "Tall" means at least `--tall` (0.4) of the screen height, which leaves
 out name plates and buttons. The other limits, with their defaults, are
 in `--help`. `--max N` sets how many findings of each kind are shown, and
-`--json` prints them all as JSON.
+`--json` prints them all as JSON (with the counts, the `end` or `crash`
+record, the memory summary and how many findings the config left out).
 
 To check a fix, compare a trace from before it with one from after, made
 the same way (the same `--auto-play`, `--auto-choice` and `--seed`):
@@ -368,6 +632,40 @@ two runs part if they took different routes.
 The report ends with the pages its findings are on, as a `--shot-pages`
 option for taking their pictures.
 
+### Settings for a game
+
+A game's settings can go in `cons_trace_check.json`, beside the trace or
+the script (or given with `--config FILE`), so each check needs no long
+command line. Any option goes in by its name (`coverage_skip` or
+`coverage-skip`), with these too:
+
+| Key | Meaning |
+|---|---|
+| `ignore` | Sprites to leave out of every check, written as for `--trace-ignore`: the game's own interface, when the trace was made without it |
+| `known` | Findings to leave out: each `{"rule": ..., "match": REGEX}` (a regex on the message), `{"rule", "file"}` (a file named in it) or `{"rule", "sprite": "lsp:61"}`, with an optional `"at"` regex on the place. `"rule": "*"` matches every rule |
+| `skip` | Rules to leave out, a list |
+| `script` | The script, relative to the config file |
+| `_comment` | Anything; keys starting with `_` are left out |
+
+```json
+{
+ "_comment": "saiima: lsp 61 is the game's frame; se068 is played twice on purpose",
+ "script": "0.txt",
+ "coverage_skip": "^conv_",
+ "linger": 300,
+ "known": [
+  {"rule": "linger", "sprite": "lsp:61"},
+  {"rule": "crowd", "file": "bg\\frame01.png"},
+  {"rule": "sound", "match": "se068", "at": "^\\*s30_l1:"},
+  {"rule": "duration", "match": "^btnwait"}
+ ]
+}
+```
+
+Options given on the command line win over the file. The report says
+which config it used and how many findings it left out, by rule, so a
+pattern that hides too much shows.
+
 ## Reading a trace
 
 ```sh
@@ -381,8 +679,10 @@ jq -c 'select(.t=="ev") | select(any(.sp[]?; .n==64 and .kind=="lsp")) | {pg, at
 grep '"t":"choice"' trace.jsonl
 # an effect or filter over a page (for example an eye-close left over a CG)
 jq -c 'select(.t=="page" and ((.filters // []) + (.fx // []) | length) > 0) | {pg, at, bg, filters, fx}' trace.jsonl
-# the slowest stretches
-jq -r 'select(.ms) | "\(.ms) \(.at)"' trace.jsonl | awk 'p {print $1-p, $2} {p=$1}' | sort -rn | head
+# the slowest stretches (the checker's "slow" adds them up by place)
+jq -r 'select(.t=="page" or .t=="ev") | "\(.ms) \(.at)"' trace.jsonl | awk 'p {print $1-p, $2} {p=$1}' | sort -rn | head
+# every change of variable %312 (--trace-vars)
+jq -c 'select(.t=="var" and .n=="%312") | {pg, at, v}' trace.jsonl
 # sprites up for more than 50 pages
 jq -c 'select(.t=="page") | .pg as $p | .sp[] | select($p - .since > 50) | {pg:$p, n, file}' trace.jsonl
 # pictures that end just above the bottom edge
