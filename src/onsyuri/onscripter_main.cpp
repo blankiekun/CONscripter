@@ -61,7 +61,7 @@ void optionHelp()
     printf( " load options: \n");
     printf( "  -f, --font file\tset a TTF font file\n");
     printf( "  -r, --root path\tset the root path to the archives\n");
-    printf( "      --save-dir\tset save dir\n");
+    printf( "      --save-dir\tset save dir (made if it doesn't exist)\n");
     printf( "      --debug:1\t\tprint debug info\n");
     printf( "      --trace file\twrite a debug trace, one JSON line per text page (or CONS_TRACE=file)\n");
     printf( "      --trace-ignore 22-48,lsp2:12-23\tleave these sprites out of the trace (or CONS_TRACE_IGNORE)\n");
@@ -396,6 +396,7 @@ void parseOption(int argc, char *argv[]) {
             else if ( !strcmp(argv[0]+1, "-save-dir") ){
                 argc--;
                 argv++;
+                ons.makeSaveDir(argv[0]); // CONscripter
                 ons.setSaveDir(argv[0]);
             }
             else if (!strcmp(argv[0]+1, "-debug:1")){

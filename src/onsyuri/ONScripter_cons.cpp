@@ -1173,6 +1173,27 @@ void ONScripter::loadSaveFileCons()
     }
 }
 
+/* --save-dir path: makes the folder, and the folders it is in, if they
+ * don't exist yet, so the game's first save doesn't fail. Not in the web
+ * build, whose save folder is the page's. */
+void ONScripter::makeSaveDir( const char *path )
+{
+#if !defined(WEB)
+    std::string dir( path );
+    for (size_t i=1 ; i<=dir.size() ; i++){
+        if (i < dir.size() && dir[i] != '/' && dir[i] != '\\') continue;
+        std::string part = dir.substr( 0, i );
+        struct stat st;
+        if (stat( part.c_str(), &st ) == 0) continue;
+#if defined(_WIN32)
+        _mkdir( part.c_str() );
+#else
+        mkdir( part.c_str(), 0755 );
+#endif
+    }
+#endif
+}
+
 /* Where savescreenshot writes name: in the save directory (without name's
  * folders) when one is set, else in the game folder. The save files are
  * in the same place, so thumbnails sit next to their saves. */

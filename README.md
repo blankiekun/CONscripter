@@ -84,7 +84,7 @@ Usage: conscripter [option ...]
  load options:
   -f, --font file       set a TTF font file
   -r, --root path       set the root path to the archives
-      --save-dir        set save dir
+      --save-dir        set save dir (made if it doesn't exist)
       --debug:1         print debug info
       --enc:[gbk|sjis|utf8]  define the encoding of script
 

@@ -101,6 +101,7 @@ public:
     void setDLLFile(const char *filename);
     void setArchivePath(const char *path);
     void setSaveDir(const char *path);
+    void makeSaveDir(const char *path); // CONscripter
     void setFullscreenMode(int mode=0);
     void setVideoOff();
     void setWindowMode();

@@ -70,9 +70,8 @@ same choice taken at each turn). It then writes a `warn` with `what`
 The trace isn't needed: `--auto-play` alone checks that a game runs to
 the end without a script error. Give it a `--save-dir` of its own, since
 a game that saves as it goes would otherwise write to the player's save
-files. The folder must exist: the engine doesn't make it, and the
-game's first save (often its global variables, `gloval.sav`) then stops
-the run with a script error. `--trace-ignore` matters here too: buttons on ignored sprites are
+files. The engine makes the folder if it doesn't exist (not in the web
+build). `--trace-ignore` matters here too: buttons on ignored sprites are
 never pressed, so a button bar's save, load and skip buttons stay
 untouched.
 
