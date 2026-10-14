@@ -192,13 +192,13 @@ int ONScripter::playWave(Mix_Chunk *chunk, int format, bool loop_flag, int chann
 {
     if (!chunk) return -1;
 
-    Mix_Pause( channel );
+    cutChannel( channel ); // CONscripter: was Mix_Pause
     if      (channel == 0)               Mix_Volume( channel, voice_volume * MIX_MAX_VOLUME / 100 );
     else if (channel == MIX_BGM_CHANNEL) Mix_Volume( channel, music_volume * MIX_MAX_VOLUME / 100 );
     else                                 Mix_Volume( channel, se_volume * MIX_MAX_VOLUME / 100 );
 
     if ( !(format & SOUND_PRELOAD) )
-        Mix_PlayChannel( channel, chunk, loop_flag?-1:0 );
+        playChannel( channel, chunk, loop_flag?-1:0 );
 
     if ( wave_sample[channel] ) Mix_FreeChunk( wave_sample[channel] );
     wave_sample[channel] = chunk;
@@ -459,7 +459,7 @@ void ONScripter::stopBGM( bool continue_flag )
 #endif
 
     if ( wave_sample[MIX_BGM_CHANNEL] ){
-        Mix_Pause( MIX_BGM_CHANNEL );
+        cutChannel( MIX_BGM_CHANNEL );
         Mix_FreeChunk( wave_sample[MIX_BGM_CHANNEL] );
         wave_sample[MIX_BGM_CHANNEL] = NULL;
     }
@@ -497,7 +497,7 @@ void ONScripter::stopAllDWAVE()
 {
     for (int ch=0; ch<ONS_MIX_CHANNELS ; ch++)
         if ( wave_sample[ch] ){
-            Mix_Pause( ch );
+            cutChannel( ch );
             Mix_FreeChunk( wave_sample[ch] );
             wave_sample[ch] = NULL;
         }

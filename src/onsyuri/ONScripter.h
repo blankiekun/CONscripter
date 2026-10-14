@@ -68,6 +68,7 @@
 #define DEFAULT_VOLUME 100
 #define ONS_MIX_CHANNELS 50
 #define ONS_MIX_EXTRA_CHANNELS 4
+#define ONS_MIX_FADE_CHANNELS 8 // CONscripter: after the others, for the fade of a cut sound
 #define MIX_WAVE_CHANNEL (ONS_MIX_CHANNELS+0)
 #define MIX_BGM_CHANNEL (ONS_MIX_CHANNELS+1)
 #define MIX_LOOPBGM_CHANNEL0 (ONS_MIX_CHANNELS+2)
@@ -761,6 +762,9 @@ private:
     bool isStrsp( int no );
     bool isLoopPlaying( int channel );
     void dropStoppedSoundEvents();
+    // CONscripter: a sound cut off fades out instead of stopping mid-wave (a pop)
+    void playChannel( int channel, Mix_Chunk *chunk, int loops );
+    void cutChannel( int channel );
     std::string trace_sound;         // the sound the command being run plays, as JSON fields
 
     // CONscripter: what the web page can change (ONS_WEB_EVENT, from its

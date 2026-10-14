@@ -258,8 +258,8 @@ void ONScripter::flushEventSub( SDL_Event &event )
             if (event.user.code == MIX_LOOPBGM_CHANNEL0 && 
                 loop_bgm_name[1] &&
                 wave_sample[MIX_LOOPBGM_CHANNEL1])
-                Mix_PlayChannel(MIX_LOOPBGM_CHANNEL1, 
-                                wave_sample[MIX_LOOPBGM_CHANNEL1], -1);
+                playChannel(MIX_LOOPBGM_CHANNEL1, 
+                            wave_sample[MIX_LOOPBGM_CHANNEL1], -1);
         }
     }
 }
@@ -329,6 +329,7 @@ void midiCallback( int sig )
 
 extern "C" void waveCallback( int channel )
 {
+    if (channel >= ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS) return; // CONscripter: a cut sound's fade
     if (!Mix_Playing(channel)) {
         SDL_Event event;
         event.type = ONS_CHUNK_EVENT;

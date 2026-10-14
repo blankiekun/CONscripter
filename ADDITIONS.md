@@ -124,6 +124,13 @@ possible.
   ruby on a half-width body (`(a/えい)`) was shown as text, and the
   Shift-JIS bytes after it came out garbled. A single half-width character
   at the end of a line is no longer dropped.
+- **Cut sounds fade out instead of popping.** A sound stopped while it
+  plays (a voice cut by the next one, `dwavestop`, `wavestop`, `stop`,
+  `loopbgmstop`, a load) used to stop mid-wave, a step in the output
+  heard as a click. Its next 10 ms now fade out on a channel of their own
+  (8 are kept for this, after the game's), so the next sound still starts
+  at once. Music played with `bgm`/`mp3` as a stream still stops at once:
+  SDL_mixer gives no way to read it ahead.
 - **WebP images in the web build**: emscripten's SDL_image port has no
   WebP decoder, so the web build links libwebp (`script/cross_web.sh`
   builds it) and decodes WebP itself, lossy and lossless, with alpha. The

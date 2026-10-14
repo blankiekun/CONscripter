@@ -93,7 +93,7 @@ int ONScripter::yesnoboxCommand()
 int ONScripter::wavestopCommand()
 {
     if ( wave_sample[MIX_WAVE_CHANNEL] ){
-        Mix_Pause( MIX_WAVE_CHANNEL );
+        cutChannel( MIX_WAVE_CHANNEL );
         Mix_FreeChunk( wave_sample[MIX_WAVE_CHANNEL] );
         wave_sample[MIX_WAVE_CHANNEL] = NULL;
     }
@@ -1731,12 +1731,12 @@ int ONScripter::lspCommand()
 int ONScripter::loopbgmstopCommand()
 {
     if ( wave_sample[MIX_LOOPBGM_CHANNEL0] ){
-        Mix_Pause(MIX_LOOPBGM_CHANNEL0);
+        cutChannel(MIX_LOOPBGM_CHANNEL0);
         Mix_FreeChunk( wave_sample[MIX_LOOPBGM_CHANNEL0] );
         wave_sample[MIX_LOOPBGM_CHANNEL0] = NULL;
     }
     if ( wave_sample[MIX_LOOPBGM_CHANNEL1] ){
-        Mix_Pause(MIX_LOOPBGM_CHANNEL1);
+        cutChannel(MIX_LOOPBGM_CHANNEL1);
         Mix_FreeChunk( wave_sample[MIX_LOOPBGM_CHANNEL1] );
         wave_sample[MIX_LOOPBGM_CHANNEL1] = NULL;
     }
@@ -2901,7 +2901,7 @@ int ONScripter::dwavestopCommand()
     else if (ch >= ONS_MIX_CHANNELS) ch = ONS_MIX_CHANNELS-1;
 
     if ( wave_sample[ch] ){
-        Mix_Pause( ch );
+        cutChannel( ch );
         Mix_FreeChunk( wave_sample[ch] );
         wave_sample[ch] = NULL;
     }
@@ -2936,7 +2936,7 @@ int ONScripter::dwaveCommand()
     if (play_mode == WAVE_PLAY_LOADED){
         soundCommand( ch, NULL, true ); // CONscripter: for the trace and the web page
         trace_se_loop[ch] = loop_flag; // and the save
-        Mix_PlayChannel(ch, wave_sample[ch], loop_flag?-1:0);
+        playChannel(ch, wave_sample[ch], loop_flag?-1:0);
     }
     else{
         const char *buf = script_h.readStr();

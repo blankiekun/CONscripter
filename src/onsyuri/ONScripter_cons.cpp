@@ -974,6 +974,77 @@ void ONScripter::dropStoppedSoundEvents()
     removeEvent( SDL_USEREVENT+4 ); // ONS_CHUNK_EVENT
 }
 
+/* A sound cut off (a voice by the next one, dwavestop, stop, a load) used
+ * to stop at once, mid-wave: a step in the output, heard as a pop. Instead,
+ * the next CUT_FADE_MS of it fade out on a channel of their own, starting
+ * where it was cut, while its channel is free at once for the next sound.
+ * Where a channel is in its sound is counted by an effect that sees what
+ * each mix takes from it (SDL_mixer's own fades change the volume once a
+ * buffer, ~90 ms, too coarse to help). Music (Mix_Music) can't be read
+ * ahead, so it still stops at once. */
+#define CUT_FADE_MS 10
+static struct { Mix_Chunk *chunk; Uint32 pos; bool loop; } cut_track[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS];
+static struct { Mix_Chunk *chunk; Uint8 *buf; } cut_fade[ONS_MIX_FADE_CHANNELS];
+static int cut_fade_next = 0;
+
+static void cutTrackEffect( int channel, void *stream, int len, void *udata )
+{
+    if (channel < 0 || channel >= ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS) return;
+    Mix_Chunk *chunk = cut_track[channel].chunk;
+    if (!chunk || chunk->alen == 0) return;
+    Uint32 pos = cut_track[channel].pos + len;
+    if (pos >= chunk->alen) pos = cut_track[channel].loop ? pos % chunk->alen : chunk->alen;
+    cut_track[channel].pos = pos;
+}
+
+void ONScripter::playChannel( int channel, Mix_Chunk *chunk, int loops )
+{
+    Mix_PlayChannel( channel, chunk, loops );
+    if (channel < 0 || channel >= ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS) return;
+    cut_track[channel].chunk = chunk;
+    cut_track[channel].pos = 0;
+    cut_track[channel].loop = loops != 0;
+    Mix_RegisterEffect( channel, cutTrackEffect, NULL, NULL ); // reset when a sound ends
+}
+
+// Stops channel as Mix_Pause did, fading out what it was playing.
+void ONScripter::cutChannel( int channel )
+{
+    bool playing = audio_open_flag && Mix_Playing( channel ) && !Mix_Paused( channel );
+    Mix_Pause( channel ); // after this no mix takes more from it, so pos is final
+    if (!playing || channel < 0 || channel >= ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS) return;
+    Mix_Chunk *chunk = cut_track[channel].chunk;
+    if (!chunk || chunk != Mix_GetChunk( channel ) || audio_format.format != AUDIO_S16SYS) return;
+
+    int chans = audio_format.channels, frame = 2 * chans;
+    Uint32 frames = (Uint32)audio_format.freq * CUT_FADE_MS / 1000;
+    Uint32 pos = cut_track[channel].pos / frame * frame;
+    Uint32 left = (chunk->alen - pos) / frame;
+    if (!cut_track[channel].loop && left < frames) frames = left;
+    if (frames < 2) return;
+
+    Uint8 *raw = new Uint8[frames * frame];
+    Sint16 *buf = (Sint16*)raw;
+    const Sint16 *src = (const Sint16*)chunk->abuf;
+    Uint32 total = chunk->alen / frame;
+    for (Uint32 f=0, at=pos/frame ; f<frames ; f++, at++){
+        if (at >= total) at = 0; // a looping sound goes round
+        for (int c=0 ; c<chans ; c++)
+            buf[f*chans + c] = (Sint16)((Sint32)src[at*chans + c] * (Sint32)(frames - f) / (Sint32)frames);
+    }
+
+    int n = cut_fade_next++ % ONS_MIX_FADE_CHANNELS;
+    int fade_channel = ONS_MIX_CHANNELS + ONS_MIX_EXTRA_CHANNELS + n;
+    Mix_HaltChannel( fade_channel );
+    if (cut_fade[n].chunk) Mix_FreeChunk( cut_fade[n].chunk );
+    delete[] cut_fade[n].buf;
+    cut_fade[n].buf = raw;
+    cut_fade[n].chunk = Mix_QuickLoad_RAW( cut_fade[n].buf, frames * frame );
+    if (!cut_fade[n].chunk) return;
+    Mix_Volume( fade_channel, Mix_Volume( channel, -1 ) );
+    Mix_PlayChannel( fade_channel, cut_fade[n].chunk, 0 );
+}
+
 // A dwave channel playing a sound with dwaveloop or dwaveplayloop.
 bool ONScripter::isLoopPlaying( int channel )
 {
