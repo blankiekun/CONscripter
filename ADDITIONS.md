@@ -154,7 +154,9 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   larger text breaks its lines itself. The backlog shows the text at the
   normal size. `!z150「ぎゃーっ！！」!z100` (other engines print the tag).
 - **Half-width characters in text** are still drawn two to a cell, but
-  not paired with a following full-width character, `/`, `@` or `\`.
+  not paired with a following full-width character, `/`, `@`, `\` or the
+  start of a tag (`#` colour, `!` wait or size, `(` ruby; after a kept
+  space, `Ghost #FFFFFF` showed the colour tag).
   Stock ONScripter paired them, so after an odd number of half-width
   characters a `\` or `@` was shown instead of waiting, `あ1/2い\`
   ran on instead of giving the "'new line' must follow '/'" script error,

@@ -1277,12 +1277,15 @@ bool ONScripter::processText()
         if ( skip_mode || ctrl_pressed_status )
             flush_flag = false;
         // Two half-width characters are drawn together. CONscripter: not
-        // with a character that starts a full-width one, or with '/', '@'
-        // or '\', which would then be shown as text (an odd number of
-        // half-width characters before them: "1/2", "abc\")
+        // with a character that starts a full-width one, or with '/', '@',
+        // '\\' or the start of a tag ('#' colour, '!' wait or size, '('
+        // ruby), which would then be shown as text (an odd number of
+        // half-width characters before them: "1/2", "abc\\", "Ghost #FFFFFF",
+        // the space being kept)
         char next = script_h.getStringBuffer()[ string_buffer_offset + 1 ];
         bool pair = next && !(script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) &&
-            !IS_TWO_BYTE(next) && next != '/' && next != '@' && next != '\\';
+            !IS_TWO_BYTE(next) && next != '/' && next != '@' && next != '\\' &&
+            next != '#' && next != '!' && next != '(';
         if (pair) out_text[1] = next;
         drawChar( out_text, &sentence_font, flush_flag, true, accumulation_surface, &text_info );
         num_chars_in_sentence++;
