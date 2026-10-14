@@ -56,7 +56,8 @@ CONscripter is the engine behind two companion projects:
 Commands, text tags, web hooks and save data that CONscripter adds to
 ONScripter-Yuri for games converted by
 [conscripter-convert](https://github.com/blankiekun/conscripter-convert).
-All are opt-in. See [ADDITIONS.md](ADDITIONS.md).
+None is opt-in: new behaviour applies to every script. See
+[ADDITIONS.md](ADDITIONS.md).
 
 To find bugs in a converted game, `--trace file` writes what is on screen at
 every text page, the commands that changed it, the choices made, missing

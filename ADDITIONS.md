@@ -3,12 +3,12 @@
 When a game converted by
 [conscripter-convert](https://github.com/blankiekun/conscripter-convert)
 needs something the NScripter command set can't do, it is added here.
-Every new command, tag or option is opt-in: scripts that don't use it
-behave exactly as in ONScripter-Yuri. Fixes to behaviour that is wrong
-(text drawn in the wrong place, characters dropped, a click in the
-sound) are not: they apply to every script, and are listed here too
-(half-width characters, cut sounds, spaces, vertical marks, music
-volume). The code
+Nothing here is opt-in. A new behaviour (a button's pressed picture,
+a setting) applies to every script, with no command or flag to turn it
+on, and so do fixes to behaviour that is wrong (text drawn in the
+wrong place, characters dropped, a click in the sound: half-width
+characters, cut sounds, spaces, vertical marks, music volume). New
+commands and tags take effect where a script uses them. The code
 is in `src/onsyuri/ONScripter_cons.cpp` where possible.
 
 - **`spfilter num,kind[,blend[,strength[,p1,p2,p3]]]`**: colour filters
