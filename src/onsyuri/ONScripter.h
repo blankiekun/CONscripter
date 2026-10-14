@@ -830,6 +830,7 @@ private:
     std::map<std::string, std::string> roundtrip_before; // the state at the page
     void roundtripState( std::map<std::string, std::string> &state );
     void roundtripPage();
+    std::string roundtripExcerpt( const std::string &s, size_t from );
     void roundtripLoad();
     void traceLongWait( int ms );
     static void traceErrorHook( const char *message );

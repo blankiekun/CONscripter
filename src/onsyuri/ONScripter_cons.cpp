@@ -3252,15 +3252,31 @@ void ONScripter::roundtripLoad()
 // A page after the load: the page saved, shown again, is compared and not
 // recorded (an earlier page on the same line, shown again on the way, isn't
 // recorded either); a page elsewhere means the load went somewhere else.
+// Up to 100 bytes of a value from byte from, with "..." where cut.
+std::string ONScripter::roundtripExcerpt( const std::string &s, size_t from )
+{
+    if (s.size() <= 100) return s;
+    while (from > 0 && (s[from] & 0xc0) == 0x80) from--;
+    size_t to = from + 100;
+    if (to >= s.size()) to = s.size();
+    else while (to > from && (s[to] & 0xc0) == 0x80) to--;
+    return (from ? "..." : "") + s.substr( from, to - from ) + (to < s.size() ? "..." : "");
+}
+
 void ONScripter::roundtripPage()
 {
     std::map<std::string, std::string> after;
     roundtripState( after );
     std::map<std::string, std::string> &before = roundtrip_before;
     bool same_place = after["at"] == before["at"];
-    if (same_place && after["text"] != before["text"] &&
-        before["text"].compare( 0, after["text"].size() - 1, after["text"], 0, after["text"].size() - 1 ) == 0){
-        roundtrip_skip_page = true; // the page's text so far: on the way back to it
+    // the page's text so far, at its line or at an earlier click wait in
+    // the same label (a page over several lines): on the way back to it
+    const std::string &at_a = after["at"], &at_b = before["at"];
+    bool same_label = at_a.compare( 0, at_a.rfind( ':' ), at_b, 0, at_b.rfind( ':' ) ) == 0;
+    const std::string &text_a = after["text"], &text_b = before["text"];
+    if ((same_place || (same_label && text_a.size() > 2)) && text_a != text_b &&
+        text_b.compare( 0, text_a.size() - 1, text_a, 0, text_a.size() - 1 ) == 0){
+        roundtrip_skip_page = true;
         return;
     }
     roundtrip_pending = false;
@@ -3280,9 +3296,12 @@ void ONScripter::roundtripPage()
             key = i->first; a = i->second; b = j->second; i++; j++;
         }
         if (a == b) continue;
-        if (a.size() > 100) a = a.substr( 0, 100 ) + "...";
-        if (b.size() > 100) b = b.substr( 0, 100 ) + "...";
-        diff.push_back( key + ": " + a + " -> " + b );
+        // long values: 100 bytes from a little before where they differ,
+        // cut between UTF-8 characters
+        size_t from = 0;
+        while (from < a.size() && from < b.size() && a[from] == b[from]) from++;
+        from = (from > 40) ? from - 40 : 0;
+        diff.push_back( key + ": " + roundtripExcerpt( a, from ) + " -> " + roundtripExcerpt( b, from ) );
     }
     if (diff.empty()) return;
 
