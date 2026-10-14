@@ -87,6 +87,16 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   update redraws the whole screen.
   `screenshake 1,1000,100,0,800,800,0,0,30,30` shakes harder and harder for
   a second, then keeps shaking until `screenshake 1`.
+  **`screenzoom slot,time,interval,zoom,x,y,zoom_time,fade_in,ease,power`**
+  (same slots): a frozen copy of that picture, taken when it first shows,
+  laid over the live one and zoomed: over `zoom_time` ms its scale goes
+  from 1 to `zoom`/1000 and its centre from the screen's centre to `x,y`,
+  eased by `ease` (0 straight, 1 in, 2 out, 3 in and out, with `power`/1000,
+  1000 when 0: the MAGES engine's curves); its opacity rises from 0 to 256
+  over `fade_in` ms. It then stays until the slot is cleared (clear it
+  inside a transition to fade it out); `time` is the longer of the two
+  times. With `zoom` 1000 it is a freeze frame. For the MAGES
+  画面キャプチャースプライト (an impact zooming in on part of the picture).
 - **`windowtrans opacity`**: draws the text window's picture (setwindow's
   image) at `opacity` (0-255), on top of the picture's own alpha, for a
   "window opacity" setting. Kept across `setwindow` and loading a save

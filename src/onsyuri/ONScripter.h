@@ -204,6 +204,7 @@ public:
     int screenshakeCommand();
     int screenrippleCommand();
     int screenpulseCommand();
+    int screenzoomCommand();
     int windowtransCommand();
     int getkeyCommand();
     int spbtnCommand();
@@ -670,7 +671,7 @@ private:
     // CONscripter: animated effects on the same picture (screenshake,
     // screenripple, screenpulse), by slot, stepped like sprite animations
     enum { MAX_SCREEN_EFFECT = 8, SCREEN_EFFECT_PARAMS = 10 };
-    enum { SCREEN_EFFECT_NONE = 0, SCREEN_EFFECT_SHAKE = 1, SCREEN_EFFECT_RIPPLE = 2, SCREEN_EFFECT_PULSE = 3 };
+    enum { SCREEN_EFFECT_NONE = 0, SCREEN_EFFECT_SHAKE = 1, SCREEN_EFFECT_RIPPLE = 2, SCREEN_EFFECT_PULSE = 3, SCREEN_EFFECT_ZOOM = 4 };
     struct ScreenEffect {
         int kind;
         int param[SCREEN_EFFECT_PARAMS]; // the command's numbers after the slot (and map)

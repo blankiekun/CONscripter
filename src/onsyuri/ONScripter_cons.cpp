@@ -656,6 +656,37 @@ int ONScripter::screenpulseCommand()
     return screenEffectCommand( SCREEN_EFFECT_PULSE, "screenpulse" );
 }
 
+/* screenzoom slot, time, interval, zoom, x, y, zoom_time, fade_in, ease, power
+ *   A frozen copy of the picture behind the text window (taken when it
+ *   first shows) laid over the live picture and zoomed: over zoom_time
+ *   ms its scale goes from 1 to zoom/1000 and its centre from the
+ *   screen's centre to (x, y), eased by ease (0 straight, 1 in: (t^2)^p,
+ *   2 out, 3 in and out; p = power/1000, 1000 when 0); its opacity rises
+ *   from 0 to 256 over fade_in ms (0: at once). It then stays as it is
+ *   until the slot is cleared (clear it inside a transition to fade it
+ *   out). time is the longer of the two; every interval ms it takes a
+ *   step. "screenzoom 2,150,16,2000,480,400,150,150,0,0" punches in on
+ *   the bottom half, twice as large. */
+int ONScripter::screenzoomCommand()
+{
+    return screenEffectCommand( SCREEN_EFFECT_ZOOM, "screenzoom" );
+}
+
+// screenzoom's easing (the MAGES engine's): f(t) for t in 0..1.
+static double screenZoomEase( int ease, double power, double t )
+{
+    if (t <= 0) return 0;
+    if (t >= 1) return 1;
+    switch (ease){
+    case 1: return pow( t * t, power );
+    case 2: return 1 - pow( (1 - t) * (1 - t), power );
+    case 3:
+        if (t < 0.5) return pow( 4 * t * t, power ) * 0.5;
+        return 1 - pow( 4 * (1 - t) * (1 - t), power ) * 0.5;
+    default: return t;
+    }
+}
+
 int ONScripter::screenEffectCommand( int kind, const char *name )
 {
     leaveTextDisplayMode();
@@ -868,6 +899,40 @@ void ONScripter::applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip )
                 if (sy < 0 || sy >= h) continue;
                 int x0 = std::max(0, dx), x1 = std::min(w, w + dx);
                 if (x1 > x0) memcpy( buf + y * pitch + x0, copy + sy * w + x0 - dx, (x1 - x0) * sizeof(ONSBuf) );
+            }
+        }
+        else if (e.kind == SCREEN_EFFECT_ZOOM){
+            // param: time, interval, zoom, x, y, zoom time, fade in, ease, power
+            int *p = e.param;
+            if (e.snap == NULL || e.snap_w != w || e.snap_h != h){
+                delete[] e.snap;
+                e.snap = new ONSBuf[w * h];
+                e.snap_w = w;
+                e.snap_h = h;
+                memcpy( e.snap, copy, w * h * sizeof(ONSBuf) );
+            }
+            double power = p[8] > 0 ? p[8] / 1000.0 : 1.0;
+            double f = screenZoomEase( p[7], power, p[5] > 0 ? (double)e.elapsed / p[5] : 1.0 );
+            int opa = p[6] > 0 ? (int)((long long)e.elapsed * 256 / p[6]) : 256;
+            if (opa > 256) opa = 256;
+            double s = 1 + (p[2] / 1000.0 - 1) * f;
+            if (s < 0.01) s = 0.01;
+            double ratio = (double)screen_ratio1 / screen_ratio2;
+            double cx = w / 2.0 + (p[3] * ratio - w / 2.0) * f, cy = h / 2.0 + (p[4] * ratio - h / 2.0) * f;
+            if (opa > 0){
+                for (int y=clip.y ; y<clip.y + clip.h ; y++){
+                    int ty = (int)(h / 2.0 + (y + 0.5 - cy) / s);
+                    if (ty < 0 || ty >= h) continue;
+                    ONSBuf *dst = buf + y * pitch;
+                    for (int x=clip.x ; x<clip.x + clip.w ; x++){
+                        int tx = (int)(w / 2.0 + (x + 0.5 - cx) / s);
+                        if (tx < 0 || tx >= w) continue;
+                        ONSBuf src = e.snap[ty * w + tx], org = dst[x];
+                        ONSBuf rb = (((org & 0xff00ff) * (256 - opa) + (src & 0xff00ff) * opa) >> 8) & 0xff00ff;
+                        ONSBuf g  = (((org & 0x00ff00) * (256 - opa) + (src & 0x00ff00) * opa) >> 8) & 0x00ff00;
+                        dst[x] = (org & 0xff000000) | rb | g;
+                    }
+                }
             }
         }
         else if (e.kind == SCREEN_EFFECT_PULSE){
@@ -2668,7 +2733,7 @@ static const struct { const char *name; int kind; } trace_commands[] = {
     {"wave",2}, {"waveloop",2}, {"wavestop",2}, {"dwave",2}, {"dwaveloop",2},
     {"dwavestop",2}, {"dwaveplay",2}, {"dwaveplayloop",2}, {"dwavefadeout",2},
     {"mpegplay",2}, {"movie",2}, {"avi",2},
-    {"screenfilter",5}, {"screenshake",5}, {"screenripple",5}, {"screenpulse",5},
+    {"screenfilter",5}, {"screenshake",5}, {"screenripple",5}, {"screenpulse",5}, {"screenzoom",5},
     {"pushscreen",5}, {"monocro",5}, {"nega",5}, {"quake",5}, {"quakex",5}, {"quakey",5},
     {"allsphide",5}, {"allspresume",5}, {"allsp2hide",5}, {"allsp2resume",5}, {"windowtrans",5},
     {"print",3},
@@ -2884,7 +2949,7 @@ void ONScripter::tracePage( bool dump )
     for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
         ScreenEffect &e = screen_effect[i];
         if (e.kind == SCREEN_EFFECT_NONE) continue;
-        static const char *names[] = { "", "shake", "ripple", "pulse" };
+        static const char *names[] = { "", "shake", "ripple", "pulse", "zoom" };
         r += listed ? "," : ",\"fx\":[";
         listed = true;
         snprintf( buf, sizeof(buf), "{\"slot\":%d,\"kind\":\"%s\"", i+1, names[e.kind] );
