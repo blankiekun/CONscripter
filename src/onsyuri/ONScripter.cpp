@@ -366,6 +366,8 @@ ONScripter::ONScripter()
     start_vars = NULL;
     dump_vars_path = NULL;
     start_load = -1;
+    trace_vars_spec = NULL;
+    trace_vars_flag = false;
     checkpoint_every = checkpoint_count = checkpoint_pages = 0;
     checkpoint_slot = 900;
     trace_page = 0;
@@ -722,6 +724,7 @@ int ONScripter::init()
     if ( replay_seed >= 0 && auto_seed < 0 ) setSeed( replay_seed ); // --replay: the recorded run's
     if ( trace_fp || auto_play_flag ) traceIgnoreSetup();
     if ( trace_fp ) traceStart();
+    if ( trace_fp && trace_vars_spec ) traceVarsSetup();
     
     return 0;
 }
@@ -1127,7 +1130,9 @@ void ONScripter::executeLabel()
 
         if ( kidokuskip_flag && skip_mode & SKIP_NORMAL && kidokumode_flag && !script_h.isKidoku() ) skip_mode &= ~SKIP_NORMAL;
 
+        char *line_start = script_h.getCurrent();
         int ret = parseLine();
+        if (trace_vars_flag) traceVarChanges( line_start ); // CONscripter: --trace-vars
         if ( ret & (RET_SKIP_LINE | RET_EOL) ){
             if (ret & RET_SKIP_LINE) script_h.skipLine();
             if (++current_line >= current_label_info.num_of_lines) break;

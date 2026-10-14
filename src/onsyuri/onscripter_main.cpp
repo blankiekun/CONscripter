@@ -65,6 +65,7 @@ void optionHelp()
     printf( "      --debug:1\t\tprint debug info\n");
     printf( "      --trace file\twrite a debug trace, one JSON line per text page (or CONS_TRACE=file)\n");
     printf( "      --trace-ignore 22-48,lsp2:12-23\tleave these sprites out of the trace (or CONS_TRACE_IGNORE)\n");
+    printf( "      --trace-vars 300-899,$10-20\twith --trace, a record for each change of these variables\n");
     printf( "      --auto-play pages\tplay by itself, without waiting, for this many pages (0: to the end)\n");
     printf( "      --auto-choice first|cycle|random|untaken\thow --auto-play picks a button or choice\n");
     printf( "      --replay trace.jsonl\twith --auto-play, make the choices a trace recorded, then --auto-choice\n");
@@ -456,6 +457,11 @@ void parseOption(int argc, char *argv[]) {
                 argc--;
                 argv++;
                 ons.setCheckpoints(-1, atoi(argv[0]));
+            }
+            else if ( !strcmp( argv[0]+1, "-trace-vars" ) ){
+                argc--;
+                argv++;
+                ons.setTraceVars(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-goto" ) ){
                 argc--;

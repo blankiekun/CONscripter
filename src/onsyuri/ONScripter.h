@@ -128,6 +128,7 @@ public:
     void setStartVars(const char *path);
     void setStartLoad(int slot); // CONscripter: --load, --checkpoint-every, --checkpoint-slot
     void setCheckpoints(int pages, int slot);
+    void setTraceVars(const char *spec); // CONscripter: --trace-vars
     void setDumpVars(const char *path);
     const char* getArchivePath() { return archive_path; }
     void setWindowWidth(int width);
@@ -744,6 +745,8 @@ private:
     const char *trace_end_reason;    // why a run that plays itself stopped
     std::string trace_effect;        // the effect the command being run used, as JSON
     void traceEffect( std::string &out, EffectLink *effect );
+    std::string trace_sound;         // the sound the command being run plays, as JSON fields
+    void soundCommand( int channel, const char *name, bool play );
 
     // CONscripter: --auto-play, a run that plays itself (ONScripter_cons.cpp)
     enum { AUTO_CHOICE_FIRST = 0, AUTO_CHOICE_CYCLE = 1, AUTO_CHOICE_RANDOM = 2, AUTO_CHOICE_UNTAKEN = 3 };
@@ -783,6 +786,13 @@ private:
     void readVarsFile( const char *path );
     void writeVarsFile();
     void traceVars( std::string &out );
+    char *trace_vars_spec;           // --trace-vars
+    bool trace_vars_flag;            // watching variables
+    std::vector<int> trace_num_vars, trace_str_vars; // the variables watched
+    std::vector<int> trace_num_seen; // their values as last recorded
+    std::vector<std::string> trace_str_seen;
+    void traceVarsSetup();
+    void traceVarChanges( char *at );
     static void traceErrorHook( const char *message );
     static void traceExitHook();
     

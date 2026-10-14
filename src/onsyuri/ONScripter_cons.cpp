@@ -1813,6 +1813,7 @@ int ONScripter::traceCommand( const char *name, FuncList method )
     trace_recent[trace_recent_count % TRACE_RECENT].cmd = name;
     trace_recent_count++;
     trace_effect.clear();
+    trace_sound.clear();
     traceLabel( start );
     int kind = 0;
     for (size_t i=0 ; i<sizeof(trace_commands)/sizeof(trace_commands[0]) ; i++)
@@ -1849,6 +1850,7 @@ int ONScripter::traceCommand( const char *name, FuncList method )
     }
     else if (!trace_effect.empty())
         r += ",\"effect\":" + trace_effect;
+    r += trace_sound;
     if (kind == 1 && !changed) return ret;
     if (kind == 3){
         if (!trace_shown) return ret;
@@ -2093,6 +2095,38 @@ void ONScripter::traceShot( std::string &out, bool dump )
     SDL_FreeSurface( rgb );
     out += ",\"shot\":";
     traceString( out, path.c_str() );
+}
+
+// dwave, wave and the like, before they play a sound (name, or NULL for
+// the one dwaveload loaded) on a channel: the trace's ev gets
+// ,"ch":n,"file":"..." and ,"cut":"..." when it stops another sound still
+// playing there, and the web page's self.onsyuriVoice(channel, file) is
+// called when it plays.
+void ONScripter::soundCommand( int channel, const char *name, bool play )
+{
+    if (channel < 0 || channel >= ONS_MIX_CHANNELS + ONS_MIX_EXTRA_CHANNELS) return;
+    const char *before = trace_se_name[channel];
+    bool playing = audio_open_flag && before && Mix_Playing( channel );
+    if (!name) name = before; // dwaveplay: what dwaveload loaded
+    if (trace_fp){
+        char buf[32];
+        snprintf( buf, sizeof(buf), ",\"ch\":%d,\"file\":", channel );
+        trace_sound = buf;
+        traceString( trace_sound, name );
+        if (playing && name != before){
+            trace_sound += ",\"cut\":";
+            traceString( trace_sound, before );
+        }
+    }
+#if defined(WEB)
+    if (play && name){
+        std::string file;
+        traceString( file, name, -1, false ); // UTF-8
+        EM_ASM({ if (self.onsyuriVoice) self.onsyuriVoice($0, UTF8ToString($1)); }, channel, file.c_str());
+    }
+#else
+    (void)play;
+#endif
 }
 
 // Notes the sound a channel plays, for the pages' "se" lists.
@@ -2589,4 +2623,71 @@ void ONScripter::traceVars( std::string &out )
         first = false;
     }
     out += '}';
+}
+
+/* --trace-vars "300-899,$10-20": a "var" record each time one of these
+ * variables changes (numbers alone are %, $ before a range for strings),
+ * found by comparing them after each command, so nothing is done when the
+ * option isn't given. */
+void ONScripter::setTraceVars( const char *spec )
+{
+    setStr( &trace_vars_spec, spec );
+}
+
+void ONScripter::traceVarsSetup()
+{
+    for (const char *p = trace_vars_spec ; p && *p ; ){
+        bool str = (*p == '$');
+        if (*p == '$' || *p == '%') p++;
+        char *end;
+        int first = strtol( p, &end, 10 ), last = first;
+        if (*end == '-') last = strtol( end+1, &end, 10 );
+        if (end == p){
+            utils::printError( "--trace-vars: can't read [%s]\n", p );
+            break;
+        }
+        for (int i=first ; i<=last && i-first < 100000 ; i++){
+            if (i < 0) continue;
+            if (str) trace_str_vars.push_back( i );
+            else     trace_num_vars.push_back( i );
+        }
+        p = strchr( end, ',' );
+        if (p) p++;
+    }
+    trace_num_seen.assign( trace_num_vars.size(), 0 );
+    trace_str_seen.assign( trace_str_vars.size(), "" );
+    trace_vars_flag = true;
+    traceVarChanges( NULL ); // the values set before the script starts
+}
+
+// After a command: a "var" record for each watched variable that changed,
+// at the command that changed it.
+void ONScripter::traceVarChanges( char *at )
+{
+    char buf[80];
+    for (size_t i=0 ; i<trace_num_vars.size() ; i++){
+        int v = script_h.getVariableData( trace_num_vars[i] ).num;
+        if (v == trace_num_seen[i]) continue;
+        trace_num_seen[i] = v;
+        snprintf( buf, sizeof(buf), "{\"t\":\"var\",\"pg\":%d,\"at\":", trace_page );
+        std::string r = buf;
+        traceAt( r, at );
+        snprintf( buf, sizeof(buf), ",\"n\":\"%%%d\",\"v\":%d}", trace_num_vars[i], v );
+        r += buf;
+        traceWrite( r );
+    }
+    for (size_t i=0 ; i<trace_str_vars.size() ; i++){
+        const char *v = script_h.getVariableData( trace_str_vars[i] ).str;
+        if (!v) v = "";
+        if (trace_str_seen[i] == v) continue;
+        trace_str_seen[i] = v;
+        snprintf( buf, sizeof(buf), "{\"t\":\"var\",\"pg\":%d,\"at\":", trace_page );
+        std::string r = buf;
+        traceAt( r, at );
+        snprintf( buf, sizeof(buf), ",\"n\":\"$%d\",\"v\":", trace_str_vars[i] );
+        r += buf;
+        traceString( r, v );
+        r += '}';
+        traceWrite( r );
+    }
 }
