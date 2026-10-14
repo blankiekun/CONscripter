@@ -175,8 +175,16 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
 
     dst_rect.y -= (TTF_FontHeight((TTF_Font*)info->ttf_font[0]) - info->font_size_xy[1]*screen_ratio1/screen_ratio2)/2;
 
-    if ( rotate_flag ) dst_rect.x += miny - minx;
-        
+    if ( rotate_flag && IS_TWO_BYTE(text[0]) && tmp_surface ){
+        // CONscripter: a full-width mark turned for vertical text (《 「 ―
+        // …) is turned clockwise about the centre of its cell, so it sits
+        // where the font's vertical form would. It used to land too high
+        // and to one side of the column.
+        dst_rect.x = xy[0] + (info->font_size_xy[0]*screen_ratio1/screen_ratio2 - tmp_surface->h)/2;
+        dst_rect.y = xy[1] + (info->font_size_xy[1]*screen_ratio1/screen_ratio2 - tmp_surface->w)/2;
+    }
+    else if ( rotate_flag ) dst_rect.x += miny - minx;
+
     if ( info->getTateyokoMode() == FontInfo::TATE_MODE && IS_TRANSLATION_REQUIRED(text) ){
         dst_rect.x += info->font_size_xy[0]/2;
         dst_rect.y -= info->font_size_xy[0]/2;
