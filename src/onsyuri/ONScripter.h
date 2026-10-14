@@ -122,6 +122,8 @@ public:
     void setSeed(int seed);
     void setReplay(const char *path); // CONscripter: --replay, --taken
     void setTaken(const char *path);
+    void setKnownLabels(const char *path); // CONscripter: --known-labels
+    void setStopKnown(int pages) { stop_known = pages; } // CONscripter: --stop-known
     void setTraceShots(const char *pages); // CONscripter: --shot-pages, --shot-every, --shot-dir
     void setTraceShotEvery(int pages);
     void setTraceShotDir(const char *dir);
@@ -803,6 +805,13 @@ private:
     char *replay_path, *taken_path;
     std::map<std::string, int> auto_taken; // --taken: "at<TAB>option" and its count
     std::set<std::string> auto_taken_run; // "at<TAB>option" made in this run
+    std::set<std::string> auto_taken_places; // the places --taken lists ("at")
+    char *known_path = NULL;         // --known-labels: labels earlier runs reached
+    std::set<std::string> auto_known_names;
+    std::vector<bool> auto_known;    // by label index, made from auto_known_names
+    int stop_known = 0;              // --stop-known: pages on known ground before stopping
+    int auto_play_known = 0;         // pages since one in a label no run had reached, or a choice no run had made
+    bool auto_play_diverged = false; // this run has made such a choice or reached such a label
     std::set<std::string> auto_avoid; // --taken: "at<TAB>option" marked avoid
     std::string traceAtText( char *address );
     void autoPlayChosen( int value );

@@ -111,6 +111,15 @@ while the place has another option that isn't marked.
 *conv_link118_wait:232891	2	avoid
 ```
 
+`--stop-known n` with `--known-labels FILE` (the labels earlier runs
+reached, one name a line) ends a run that has nothing new left to show.
+Once the run has gone its own way (a choice the `--taken` file doesn't
+list, or a page in a label the file doesn't), it stops after `n` pages
+in a row in labels the file lists without such a choice, with the end
+`reason` `known ground` and exit code 0. Before that it may play `10n`
+pages on known ground: every run shares the opening, but one that never
+leaves it repeats an earlier run.
+
 ### Without a screen
 
 `SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy` run the engine with no
@@ -195,6 +204,11 @@ Fix the error (in the converter or the game) and explore again to reach
 what lies past it.
 
 Each run has its own trace (`runNN.jsonl`) and save folder in `--out`.
+Each run after the first stops once it has played `--stop-known` pages
+(1000) back on ground earlier runs reached, after going its own way, so
+it doesn't play the rest of a route again; `--stop-known 0` plays every
+run to its end. On saiima a run that found nothing new stopped after
+10,000 pages (130 s) instead of playing its whole 68,700 (900 s).
 `--skip-choices` names the places, as a regex on `*label:line`, whose
 choices every run should make the same way: a title menu or a settings
 screen, which would otherwise take a run off to load or quit. `--pages`
@@ -363,7 +377,8 @@ folder (`--root`), `ignore` the `--trace-ignore` list (or `null`), `start`
 how the run started when not from the beginning (`goto` and `vars`, or
 `load` with the slot), and
 `auto` the `--auto-play` settings (only with `--auto-play`; `seed` only
-with `--seed`, `replay` and `taken` with those files). A run that can't
+with `--seed`, `replay` and `taken` with those files, `stop_known` and
+`known` with `--stop-known`). A run that can't
 start still writes a `meta` record (`w`,`h` may be 0) before its `error`.
 
 ### `page`: each click wait and new page
@@ -581,7 +596,7 @@ follows, and the exit code is 128 plus the signal's number.
 Written when the engine exits: at `end`, after a script error, or when
 the window is closed (`timeout`'s SIGTERM counts, as SDL turns it into a
 quit). `reason` says why `--auto-play` stopped it: `auto-play page
-limit`, or `stuck: ...`. A trace that ends with neither `end` nor `crash`
+limit`, `known ground` (`--stop-known`), or `stuck: ...`. A trace that ends with neither `end` nor `crash`
 was killed with SIGKILL (or crashed too hard to write); the last records
 show where.
 

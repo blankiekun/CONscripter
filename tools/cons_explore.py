@@ -79,6 +79,9 @@ def main():
     ap.add_argument('--engine-args', default='', metavar='"ARGS"', help='more engine options, such as "--trace-ignore 22-48"')
     ap.add_argument('--script', help="the game's script, for the labels no run reached (default GAME/0.txt)")
     ap.add_argument('--coverage-skip', metavar='REGEX', help='labels to leave out of that list')
+    ap.add_argument('--stop-known', type=int, default=1000, metavar='PAGES',
+                    help='end a run that has gone its own way after this many pages back on ground earlier runs reached '
+                         '(the engine\'s --stop-known; before that it may play ten times as many); 0 plays every run to its end (default 1000)')
     ap.add_argument('--timeout', type=int, default=1800, help='seconds a run may take (default 1800)')
     ap.add_argument('--max', type=int, default=60, help='unreached labels listed (default 60)')
     args = ap.parse_args()
@@ -87,6 +90,7 @@ def main():
     os.makedirs(out, exist_ok=True)
     engine = os.path.abspath(args.engine)
     taken = os.path.join(out, 'taken.txt')
+    known = os.path.join(out, 'known.txt')
     env = dict(os.environ)
     env.setdefault('SDL_VIDEODRIVER', 'dummy')
     env.setdefault('SDL_AUDIODRIVER', 'dummy')
@@ -104,6 +108,10 @@ def main():
                 f.write('%s\t%d\t%d\n' % (at, opt, n))
             for at, opt in sorted(avoid):
                 f.write('%s\t%d\tavoid\n' % (at, opt))
+        with open(known, 'w', encoding='utf-8') as f:
+            f.write('# labels reached by the earlier runs\n')
+            for label in sorted(reached):
+                f.write(label + '\n')
 
     for run in range(1, args.runs + 1):
         write_taken()
@@ -115,6 +123,8 @@ def main():
                '--auto-play', str(args.pages), '--auto-choice', 'untaken', '--taken', taken]
         if args.seed is not None:
             cmd += ['--seed', str(args.seed)]
+        if args.stop_known > 0:
+            cmd += ['--known-labels', known, '--stop-known', str(args.stop_known)]
         cmd += shlex.split(args.engine_args)
         start = time.time()
         try:

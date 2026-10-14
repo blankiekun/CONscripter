@@ -2052,6 +2052,11 @@ void ONScripter::traceMeta()
             r += ",\"taken\":";
             traceString( r, taken_path );
         }
+        if (known_path){
+            snprintf( buf, sizeof(buf), ",\"stop_known\":%d,\"known\":", stop_known );
+            r += buf;
+            traceString( r, known_path );
+        }
         r += '}';
     }
     r += '}';
@@ -2808,6 +2813,7 @@ void ONScripter::setTaken( const char *path )
         char *tab = strchr( buf, '\t' );
         if (buf[0] == '#' || !tab) continue;
         *tab = 0;
+        auto_taken_places.insert( buf );
         char *count = strchr( tab+1, '\t' );
         char key[1100];
         snprintf( key, sizeof(key), "%s\t%d", buf, atoi( tab+1 ) );
@@ -2838,7 +2844,41 @@ void ONScripter::autoPlayChosen( int value )
     if (replay_next < replay_answers.size()) replay_next++;
     char buf[16];
     snprintf( buf, sizeof(buf), "\t%d", value );
-    auto_taken_run.insert( traceAtText( trace_cmd_start ) + buf );
+    std::string at = traceAtText( trace_cmd_start );
+    std::string key = at + buf;
+    auto_taken_run.insert( key );
+    // a choice no run had made, at a place they reached (not one --taken
+    // leaves out, such as a title menu): new ground may follow
+    if (auto_taken_places.count( at ) && !auto_taken.count( key )){
+        auto_play_known = 0;
+        auto_play_diverged = true;
+    }
+}
+
+/* --known-labels file: the labels earlier runs reached, one name a line
+ * (without "*"; "#" lines left out). With --stop-known n, a run that has
+ * gone where no earlier run went (a choice not in --taken, or a label not
+ * in the file) stops (exit 0, end reason "known ground") once it has
+ * played n pages in a row in labels the file lists, without such a choice, so an exploration's runs don't
+ * play through what earlier runs already showed. Before it has gone its
+ * own way it may play 10n pages on known ground: the opening every run
+ * shares comes first, but a run that never leaves it is a repeat. */
+void ONScripter::setKnownLabels( const char *path )
+{
+    setStr( &known_path, path );
+    FILE *fp = ::fopen( path, "rb" );
+    if (!fp){
+        utils::printError( "--known-labels: can't open %s\n", path );
+        startupFailed();
+    }
+    char buf[1024];
+    while (fgets( buf, sizeof(buf), fp )){
+        size_t len = strlen( buf );
+        while (len > 0 && (buf[len-1] == '\n' || buf[len-1] == '\r' || buf[len-1] == ' ')) buf[--len] = 0;
+        char *name = buf[0] == '*' ? buf+1 : buf;
+        if (name[0] && name[0] != '#') auto_known_names.insert( name );
+    }
+    fclose( fp );
 }
 
 // The same seed gives the same rnd numbers, and the same random choices.
@@ -2982,6 +3022,23 @@ void ONScripter::autoPlayPage()
         auto_play_same = 0;
     }
     else if (++auto_play_same >= 3000) autoPlayStuck( "3000 pages without a new label" );
+    if (stop_known > 0){
+        if (auto_known.size() != (size_t)script_h.getNumLabels()){
+            auto_known.assign( script_h.getNumLabels(), false );
+            for (int i=0 ; i<script_h.getNumLabels() ; i++)
+                auto_known[i] = auto_known_names.count( script_h.getLabelName( i ) ) > 0;
+        }
+        if (label >= 0 && !auto_known[label]){ // every page of a label no earlier run reached
+            auto_play_known = 0;
+            auto_play_diverged = true;
+        }
+        else if (++auto_play_known >= (auto_play_diverged ? stop_known : 10 * stop_known)){
+            utils::printInfo( "auto-play: stopped after %d pages on known ground\n", auto_play_known );
+            trace_end_reason = "known ground";
+            if (trace_fp) traceEnd();
+            exit(0);
+        }
+    }
     if (checkpoint_every > 0) autoPlayCheckpoint();
     if (auto_play_limit > 0 && ++auto_play_pages >= auto_play_limit){
         utils::printInfo( "auto-play: stopped after %d pages\n", auto_play_pages );

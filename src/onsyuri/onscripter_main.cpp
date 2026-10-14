@@ -72,6 +72,8 @@ void optionHelp()
     printf( "      --auto-play pages\tplay by itself, without waiting, for this many pages (0: to the end)\n");
     printf( "      --auto-choice first|cycle|random|untaken\thow --auto-play picks a button or choice\n");
     printf( "      --replay trace.jsonl\twith --auto-play, make the choices a trace recorded, then --auto-choice\n");
+    printf( "      --known-labels file\twith --stop-known, the labels earlier runs reached (one name a line)\n");
+    printf( "      --stop-known n\twith --auto-play, stop after n pages without a label or choice earlier runs hadn't reached\n");
     printf( "      --taken file\twith --auto-choice untaken, the choices made before (\"*label:line<TAB>option<TAB>count\" lines), to take least\n");
     printf( "      --seed n\t\tstart the random numbers (rnd, --auto-choice random) from n\n");
     printf( "      --shot-pages 412,980-990\twith --trace, save a picture of these pages (--shot-dir, default shots)\n");
@@ -446,6 +448,16 @@ void parseOption(int argc, char *argv[]) {
                 argc--;
                 argv++;
                 ons.setTaken(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-known-labels" ) ){
+                argc--;
+                argv++;
+                ons.setKnownLabels(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-stop-known" ) ){
+                argc--;
+                argv++;
+                ons.setStopKnown(atoi(argv[0]));
             }
             else if ( !strcmp( argv[0]+1, "-load" ) ){
                 argc--;
