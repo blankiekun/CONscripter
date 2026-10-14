@@ -2621,13 +2621,13 @@ void ONScripter::autoPlayWarn( const char *what, const char *extra )
 }
 
 // After a choice was made: the next recorded one is due, and the choice
-// counts once more as taken for "untaken".
+// counts as made in this run for "untaken".
 void ONScripter::autoPlayChosen( int value )
 {
     if (replay_next < replay_answers.size()) replay_next++;
     char buf[16];
     snprintf( buf, sizeof(buf), "\t%d", value );
-    auto_taken[ traceAtText( trace_cmd_start ) + buf ]++;
+    auto_taken_run.insert( traceAtText( trace_cmd_start ) + buf );
 }
 
 // The same seed gives the same rnd numbers, and the same random choices.
@@ -2668,9 +2668,8 @@ bool ONScripter::autoPlayWait( int &count )
 // then for a btnwait 0 (a click elsewhere, which often goes on past a
 // hyperlink). Each place counts its visits: "first" takes the option of
 // that number, staying on the last (a hyperlink, then on), "cycle" goes
-// round, "random" takes any, "untaken" the one taken the fewest times
-// (--taken and this run), the first in order of those, leaving out those
-// --taken says to avoid unless all are.
+// round, "random" takes any, "untaken" one not made yet in this run that
+// --taken counts least, leaving out those it says to avoid.
 int ONScripter::autoPlayButton()
 {
     if (++auto_play_choices > 200) autoPlayStuck( "200 choices without a new page" );
@@ -2708,17 +2707,26 @@ int ONScripter::autoPlayButton()
     }
 
     if (auto_choice == AUTO_CHOICE_RANDOM) return nos[ random % nos.size() ];
-    if (auto_choice == AUTO_CHOICE_UNTAKEN){ // the least taken, the first of those, not one to avoid
+    if (auto_choice == AUTO_CHOICE_UNTAKEN){
+        // leave out the options to avoid, unless all are; of those not
+        // made yet in this run, the one --taken counts least, the first of
+        // those; when all were made, as "first"
         std::string at = traceAtText( trace_cmd_start ) + "\t";
-        int best = nos[0];
-        std::pair<bool, int> fewest( true, -1 );
-        for (size_t i=0 ; i<nos.size() ; i++){
-            std::string key = at + std::to_string( nos[i] );
+        std::vector<int> ok;
+        for (size_t i=0 ; i<nos.size() ; i++)
+            if (!auto_avoid.count( at + std::to_string( nos[i] ) )) ok.push_back( nos[i] );
+        if (ok.empty()) ok = nos;
+        int best = -1, fewest = 0;
+        for (size_t i=0 ; i<ok.size() ; i++){
+            std::string key = at + std::to_string( ok[i] );
+            if (auto_taken_run.count( key )) continue;
             auto it = auto_taken.find( key );
-            std::pair<bool, int> n( auto_avoid.count( key ) > 0, it == auto_taken.end() ? 0 : it->second );
-            if (fewest.second < 0 || n < fewest){ best = nos[i]; fewest = n; }
+            int n = it == auto_taken.end() ? 0 : it->second;
+            if (best < 0 || n < fewest){ best = ok[i]; fewest = n; }
         }
-        return best;
+        if (best >= 0) return best;
+        size_t visit = auto_choice_visits[ script_h.getCurrent() ]++;
+        return ok[ std::min( visit, ok.size() - 1 ) ];
     }
     size_t visit = auto_choice_visits[ script_h.getCurrent() ]++;
     if (auto_choice == AUTO_CHOICE_CYCLE) return nos[ visit % nos.size() ];

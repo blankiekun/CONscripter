@@ -793,7 +793,8 @@ private:
     size_t replay_warned;            // 1 + the answer a divergence was written for
     int replay_seed;                 // the recorded run's seed, -1 for none
     char *replay_path, *taken_path;
-    std::map<std::string, int> auto_taken; // --taken: "at<TAB>option" and its count, with those taken in this run
+    std::map<std::string, int> auto_taken; // --taken: "at<TAB>option" and its count
+    std::set<std::string> auto_taken_run; // "at<TAB>option" made in this run
     std::set<std::string> auto_avoid; // --taken: "at<TAB>option" marked avoid
     std::string traceAtText( char *address );
     void autoPlayChosen( int value );

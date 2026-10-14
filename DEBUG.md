@@ -85,7 +85,7 @@ goes on past a hyperlink. Each place in the script counts its visits:
 | `first` (default) | the option matching the visit count, staying on the last: the first button the first time, the next one when the game comes back (a hyperlink, then on; a menu of topics, each in turn) |
 | `cycle` | the same, but going round again after the last |
 | `random` | any option; with `--seed n` the same run every time |
-| `untaken` | the option taken the fewest times at that place, counting the choices in `--taken FILE` and those made there earlier in this run: one never taken while there is one, the first in order of those |
+| `untaken` | of the options not taken there earlier in this run, the one `--taken FILE` counts the fewest times (one never taken while there is one), the first in order of those; `first` when this run has taken them all |
 
 `--seed n` also fixes the numbers `rnd` gives, so a run that worked out a
 route can be repeated exactly.
