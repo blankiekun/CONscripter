@@ -123,6 +123,7 @@ AnimationInfo& AnimationInfo::operator =(const AnimationInfo &anim)
         
         if (image_surface){
             image_surface = allocSurface( anim.image_surface->w, anim.image_surface->h, texture_format );
+            countSurface( image_surface, 1 );
             memcpy(image_surface->pixels, anim.image_surface->pixels, anim.image_surface->pitch*anim.image_surface->h);
         }
     }
@@ -176,6 +177,7 @@ void AnimationInfo::deleteSurface(bool delete_surface_name)
         mask_surface_name = NULL;
     }
     SDL_mutexP(mutex);
+    countSurface( image_surface, -1 );
     if ( image_surface ) SDL_FreeSurface( image_surface );
     image_surface = NULL;
     SDL_mutexV(mutex);
@@ -962,6 +964,25 @@ void AnimationInfo::calcAffineMatrix()
     inv_mat[1][1] =  mat[0][0] * 10000 / denom;
 }
 
+int AnimationInfo::live_surfaces = 0;
+int AnimationInfo::peak_surfaces = 0;
+long long AnimationInfo::live_bytes = 0;
+long long AnimationInfo::peak_bytes = 0;
+int AnimationInfo::large_side = 4096;
+void (*AnimationInfo::large_hook)( AnimationInfo *ai, int w, int h ) = NULL;
+
+// CONscripter: counts image_surface as made (sign 1) or freed (-1).
+void AnimationInfo::countSurface( SDL_Surface *surface, int sign )
+{
+    if (!surface) return;
+    live_surfaces += sign;
+    live_bytes += sign * (long long)surface->pitch * surface->h;
+    if (live_surfaces > peak_surfaces) peak_surfaces = live_surfaces;
+    if (live_bytes > peak_bytes) peak_bytes = live_bytes;
+    if (sign > 0 && large_hook && (surface->w > large_side || surface->h > large_side))
+        large_hook( this, surface->w, surface->h );
+}
+
 SDL_Surface *AnimationInfo::allocSurface( int w, int h, Uint32 texture_format )
 {
     SDL_Surface *surface;
@@ -995,6 +1016,7 @@ void AnimationInfo::allocImage( int w, int h, Uint32 texture_format )
         this->texture_format = texture_format;
         SDL_mutexP(mutex);
         image_surface = allocSurface( w, h, texture_format );
+        countSurface( image_surface, 1 );
         SDL_mutexV(mutex);      
     }
 
@@ -1201,6 +1223,7 @@ void AnimationInfo::setImage( SDL_Surface *surface, Uint32 texture_format )
 
     this->texture_format = texture_format;
     image_surface = surface; // deleteSurface() should be called beforehand
+    countSurface( image_surface, 1 );
     allocImage(surface->w, surface->h, texture_format);
 }
 

@@ -1535,6 +1535,7 @@ void ONScripter::traceStart()
 {
     trace_sprite = new TraceSprite[TRACE_SPRITES];
     trace_label_seen.assign( script_h.getNumLabels(), false );
+    AnimationInfo::large_hook = traceLargeImage;
     if (!trace_meta_written) traceMeta();
 }
 
@@ -2029,6 +2030,14 @@ void ONScripter::tracePage( bool dump )
     if (listed) r += ']';
 
     if (trace_overflow) r += ",\"overflow\":true";
+    // the most picture surfaces alive at once since the last page
+    snprintf( buf, sizeof(buf), ",\"mem\":{\"surf\":%d,\"bytes\":%lld}",
+              AnimationInfo::peak_surfaces, AnimationInfo::peak_bytes );
+    r += buf;
+    if (!dump){
+        AnimationInfo::peak_surfaces = AnimationInfo::live_surfaces;
+        AnimationInfo::peak_bytes = AnimationInfo::live_bytes;
+    }
     if (dump) traceVars( r );
     if (all_sprite_hide_flag) r += ",\"sprites_hidden\":true";
     if (all_sprite2_hide_flag) r += ",\"sprites2_hidden\":true";
@@ -2830,4 +2839,29 @@ void ONScripter::traceLongWait( int ms )
     traceVia( r );
     r += '}';
     traceWrite( r );
+}
+
+// --trace-max-image px: a warn when a picture is made wider or taller than
+// this (4096 by default, the most a web browser's graphics are sure to
+// take), once for each file.
+void ONScripter::setTraceMaxImage( int side )
+{
+    AnimationInfo::large_side = side;
+}
+
+void ONScripter::traceLargeImage( AnimationInfo *ai, int w, int h )
+{
+    ONScripter *ons = trace_ons;
+    if (!ons || !ons->trace_fp) return;
+    const char *file = ai->file_name ? ai->file_name : ai->image_name;
+    if (!ons->trace_large_seen.insert( file ? file : "" ).second) return;
+    char buf[96];
+    snprintf( buf, sizeof(buf), "{\"t\":\"warn\",\"pg\":%d,\"what\":\"image too large for the web\",\"file\":", ons->trace_page );
+    std::string r = buf;
+    traceString( r, file );
+    snprintf( buf, sizeof(buf), ",\"w\":%d,\"h\":%d,\"at\":", w, h );
+    r += buf;
+    ons->traceAt( r, ons->script_h.getCurrent( true ) );
+    r += '}';
+    ons->traceWrite( r );
 }

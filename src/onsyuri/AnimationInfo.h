@@ -182,6 +182,14 @@ public:
     void fill( Uint8 r, Uint8 g, Uint8 b, Uint8 a );
     SDL_Surface *setupImageAlpha( SDL_Surface *surface, SDL_Surface *surface_m, bool has_alpha );
     void setImage( SDL_Surface *surface, Uint32 texture_format );
+
+    // CONscripter: the picture surfaces alive (image_surface of every
+    // AnimationInfo), and the most since the debug trace last reset it
+    static int live_surfaces, peak_surfaces;
+    static long long live_bytes, peak_bytes;
+    static int large_side;           // a surface wider or taller calls large_hook
+    static void (*large_hook)( AnimationInfo *ai, int w, int h );
+    void countSurface( SDL_Surface *surface, int sign );
     void clearFilters();
     void applyFilters( SDL_Surface *surface );
     // CONscripter: filters applied to rect of a 32-bit surface (spfilter, screenfilter)

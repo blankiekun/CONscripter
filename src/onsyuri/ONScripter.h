@@ -133,6 +133,7 @@ public:
     void setCheckpoints(int pages, int slot);
     void setTraceVars(const char *spec); // CONscripter: --trace-vars
     void setTraceLongWait(int ms); // CONscripter: --trace-long-wait
+    void setTraceMaxImage(int side); // CONscripter: --trace-max-image
     void setDumpVars(const char *path);
     const char* getArchivePath() { return archive_path; }
     void setWindowWidth(int width);
@@ -809,6 +810,8 @@ private:
     void traceVarChanges( char *at );
     int trace_long_wait;             // --trace-long-wait ms
     bool trace_overflow;             // the page's text went past the window's last line
+    std::set<std::string> trace_large_seen; // pictures warned of as too large for the web
+    static void traceLargeImage( AnimationInfo *ai, int w, int h );
     void traceLongWait( int ms );
     static void traceErrorHook( const char *message );
     static void traceExitHook();
