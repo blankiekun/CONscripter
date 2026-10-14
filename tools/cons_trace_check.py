@@ -10,7 +10,6 @@ by kind, each finding at the script line ("*label:line") to look at:
   error        script and startup errors; a crash (its signal and last
                commands); a run that ended without "end" or got stuck
   missing      files that couldn't be loaded, grouped by file
-  web          pictures too large for the web build
   text         garbled characters, text past the window, empty pages,
                text tags shown as text; with --script, %, $ or ? in a text
                line (they print a variable)
@@ -30,7 +29,8 @@ by kind, each finding at the script line ("*label:line") to look at:
   slow         where the time went: the slowest stretches between records
   save         a state that changed after a save and load (--roundtrip-every)
   replay       a --replay run that went another way, or ran out of choices
-  memory       image memory that grows steadily or jumps
+  memory       image memory that grows steadily or jumps; a single picture
+               taking a lot of it (--trace-max-image)
   coverage     (--script) labels the run never reached
 
 Settings for a game can go in a JSON file, cons_trace_check.json beside the
@@ -51,7 +51,7 @@ from collections import OrderedDict, defaultdict
 FILTER_KINDS = {1: 'colour', 2: 'greyscale', 3: 'negative', 4: 'brightness', 5: 'monotone',
                 6: 'blur', 7: 'hue/saturation', 8: 'lightness invert'}
 
-RULES = ['error', 'missing', 'web', 'text', 'sound', 'voice', 'linger', 'float', 'offscreen',
+RULES = ['error', 'missing', 'text', 'sound', 'voice', 'linger', 'float', 'offscreen',
          'invisible', 'crowd', 'overlay', 'loop', 'duration', 'slow', 'save', 'replay',
          'memory', 'coverage']
 
@@ -312,9 +312,11 @@ class Checker:
             ms = r.get('ms', 0)
             self.add('duration', at, at, '%s asks for %d ms (%s)' % (
                 r.get('cmd'), ms, '%.1f minutes' % (ms / 60000) if ms >= 60000 else '%.1f s' % (ms / 1000)))
-        elif what == 'image too large for the web':
-            self.add('web', r.get('file') or at, at, '%s is %sx%s, too large for the web build' % (
-                r.get('file') or 'a scaled picture', r.get('w'), r.get('h')))
+        elif what == 'large image':
+            self.add('memory', r.get('file') or at, at, '%s is %sx%s, %s MB as one picture' % (
+                r.get('file') or 'a scaled picture', r.get('w'), r.get('h'), r.get('mb')))
+        elif what == 'image too large for the web': # traces before 0.19.0: a px limit the engine doesn't have
+            pass
         elif what == 'save/load mismatch':
             diff = [d for d in r.get('diff') or []
                     if not (self.save_ignore and self.save_ignore.search(d.split(':')[0]))]
@@ -630,7 +632,7 @@ class Checker:
             print('\n== %s (%d)' % (rule, len(items)))
             for at, m, pg in items[:self.args.max]:
                 print('  %-24s %s' % (at, m))
-                if rule not in ('coverage', 'missing', 'web', 'slow') and pg > 0:
+                if rule not in ('coverage', 'missing', 'slow') and pg > 0:
                     pages.add(pg)
             if len(items) > self.args.max:
                 print('  ... %d more (--max)' % (len(items) - self.args.max))

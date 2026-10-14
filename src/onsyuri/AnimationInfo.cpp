@@ -968,7 +968,7 @@ int AnimationInfo::live_surfaces = 0;
 int AnimationInfo::peak_surfaces = 0;
 long long AnimationInfo::live_bytes = 0;
 long long AnimationInfo::peak_bytes = 0;
-int AnimationInfo::large_side = 4096;
+long long AnimationInfo::large_bytes = 64LL << 20;
 void (*AnimationInfo::large_hook)( AnimationInfo *ai, int w, int h ) = NULL;
 
 // CONscripter: counts image_surface as made (sign 1) or freed (-1).
@@ -979,7 +979,7 @@ void AnimationInfo::countSurface( SDL_Surface *surface, int sign )
     live_bytes += sign * (long long)surface->pitch * surface->h;
     if (live_surfaces > peak_surfaces) peak_surfaces = live_surfaces;
     if (live_bytes > peak_bytes) peak_bytes = live_bytes;
-    if (sign > 0 && large_hook && (surface->w > large_side || surface->h > large_side))
+    if (sign > 0 && large_hook && (long long)surface->pitch * surface->h > large_bytes)
         large_hook( this, surface->w, surface->h );
 }
 

@@ -187,7 +187,7 @@ public:
     // AnimationInfo), and the most since the debug trace last reset it
     static int live_surfaces, peak_surfaces;
     static long long live_bytes, peak_bytes;
-    static int large_side;           // a surface wider or taller calls large_hook
+    static long long large_bytes;    // a surface taking more memory calls large_hook
     static void (*large_hook)( AnimationInfo *ai, int w, int h );
     void countSurface( SDL_Surface *surface, int sign );
     void clearFilters();

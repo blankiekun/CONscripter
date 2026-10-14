@@ -39,7 +39,7 @@ Other options add to what the trace holds:
 |---|---|
 | `--trace-vars 300-899,$10-20` | a `var` record for each change of these variables: numbers alone are `%` variables, `$` before the strings; numbers and ranges, comma-separated (0 to the script's `numalias` range, 4096 by default) |
 | `--trace-long-wait ms` | a `long wait` warning for each wait, effect or fade the script asks to last longer than this (default 10000) |
-| `--trace-max-image px` | an `image too large for the web` warning for each picture with a side longer than this (default 4096) |
+| `--trace-max-image mb` | a `large image` warning for each picture that alone takes more memory than this, in MB (default 64, a 4096x4096 picture) |
 
 ## Playing through by itself
 
@@ -512,7 +512,7 @@ Schema 2 adds these, with their own fields:
 | `what` | Fields | Written when |
 |---|---|---|
 | `long wait` | `cmd`, `ms` | a command asks to wait longer than `--trace-long-wait` (10000 ms): an effect (`print 10,270000`), `wait`, `delay`, `waittimer` (the time left), a fade, a `quake`, or a `btnwait` with a long `btntime`. `ms` is what the script asked for, even when auto-play shortened it |
-| `image too large for the web` | `file`, `w`, `h` | a picture, as kept after scaling to the screen, has a side longer than `--trace-max-image` (4096), which browsers may not draw; once per file. `file` is the tag for a picture without a file (a colour), `null` if none |
+| `large image` | `file`, `w`, `h`, `mb` | a picture, as kept after scaling to the screen, takes more memory than `--trace-max-image` (64 MB); once per file. `file` is the tag for a picture without a file (a colour), `null` if none. Every build, the web one too, decodes and draws pictures in software, so a picture's width and height aren't limited (a 24000x600 animation strip works in a browser), only the memory it takes |
 | `save/load mismatch` | `diff` | `--roundtrip-every` found the state changed by saving and loading; `at` is the page compared, `pg` the page after the round trip. `diff` has up to 40 strings `"field: before -> after"` (`none` when absent; a long value is cut to 100 bytes around where the two differ, with `...`): `at`, `text`, `tag`, `bg`, `bgm`, `loopbgm` (` (stopped)` after the names when it no longer plays, or its intro plays with the loop gone), `se <ch>` (looping sounds), `window`, `windowtrans`, `monocro`, `nega`, `filter <slot>`, `fx <slot>`, `sprites_hidden`, `sprites2_hidden`, `pushscreen`, `sp <kind> <n>` (the image, then `x,y wxh alpha a cell c filters f`), `%n`, `$n`; `["can't save or load"]` if that failed |
 | `replay diverged` | `expected` | `--replay` reached a choice at `at`, where the recorded run's was at `expected` |
 | `replay ended` | | `--replay` ran out of recorded choices |
@@ -584,7 +584,6 @@ image memory: 12 to 340 MB (the most at page 4120, *s9_l36:62672), 54 MB at the 
 |---|---|
 | `error` | Script and startup errors (with the gosub chain), a crash (its signal and the last commands run), a trace without `end` (killed), an auto-play run that got stuck |
 | `missing` | Files that couldn't be loaded, grouped by file, and sprites shown without their image |
-| `web` | Pictures too large for the web build |
 | `text` | A page's text with garbled characters (U+FFFD, control or private-use characters, mojibake such as UTF-8 read as Shift-JIS, which mixes kanji and half-width katakana); text past the window (`overflow`, or a line longer than `--line-chars`); an empty page; a text tag shown as text (`!w100`, `!s`, `!d`, `#rrggbb`, `~...~`, a `\` or `@`); with `--script`, a `%`, `$` or `?` in a text line, which prints a variable or reads an array (a converter that left them in) |
 | `sound` | The same sound started on two channels before one click wait, or a looping one doubled (in a trace without `--auto-play`, any overlap); a voice cut off by the next sound before a click wait, so it was never heard |
 | `voice` | A spoken line with no voice: the speaker's (the `tag`'s name) other lines have one on at least `--voice-share` (0.8) of them and `--voice-min` (5); for lines without a tag, the `--voice-window` (3) spoken lines before and after it in the same label all have one. A line of only "……" or "！？" needs none |
@@ -599,7 +598,7 @@ image memory: 12 to 340 MB (the most at page 4120, *s9_l36:62672), 54 MB at the 
 | `slow` | Where the time went: the `--slow` (10) places with the most time, `--slow-ms` (1000) or more, between one record and the next, added up over every visit (a slow load, a long effect, a wait auto-play didn't shorten) |
 | `save` | A `save/load mismatch` from `--roundtrip-every`, once for each set of fields that differed, with how many round trips gave the same. `--save-ignore REGEX` leaves fields out, such as a variable the game's `loadgosub` sets on every load (`'^%190$'`) |
 | `replay` | Where a `--replay` run went another way, or ran out of choices |
-| `memory` | Image memory (the pages' `mem`) that jumps by `--mem-jump` MB (64) from one page to the next, or grows steadily by `--mem-leak` MB (128) or more over the run (a leak). The report's head gives the least and most, and where it grew |
+| `memory` | Image memory (the pages' `mem`) that jumps by `--mem-jump` MB (64) from one page to the next, or grows steadily by `--mem-leak` MB (128) or more over the run (a leak); a single picture taking more than `--trace-max-image` (the `large image` warnings). The report's head gives the least and most, and where it grew |
 | `coverage` | With `--script`, the labels the run never reached (`--coverage-skip REGEX` leaves some out) |
 
 Voices are the sounds on the `--voice-ch` channels (0) or whose file

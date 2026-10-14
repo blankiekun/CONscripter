@@ -3119,12 +3119,13 @@ void ONScripter::traceLongWait( int ms )
     traceWrite( r );
 }
 
-// --trace-max-image px: a warn when a picture is made wider or taller than
-// this (4096 by default, the most a web browser's graphics are sure to
-// take), once for each file.
-void ONScripter::setTraceMaxImage( int side )
+// --trace-max-image mb: a warn when a single picture takes more memory
+// than this (64 MB by default, a 4096x4096 picture), once for each file.
+// Pictures are decoded and drawn in software in every build, the web one
+// too, so their size is limited by memory only.
+void ONScripter::setTraceMaxImage( int mb )
 {
-    AnimationInfo::large_side = side;
+    AnimationInfo::large_bytes = (long long)mb << 20;
 }
 
 void ONScripter::traceLargeImage( AnimationInfo *ai, int w, int h )
@@ -3134,10 +3135,11 @@ void ONScripter::traceLargeImage( AnimationInfo *ai, int w, int h )
     const char *file = ai->file_name ? ai->file_name : ai->image_name;
     if (!ons->trace_large_seen.insert( file ? file : "" ).second) return;
     char buf[96];
-    snprintf( buf, sizeof(buf), "{\"t\":\"warn\",\"pg\":%d,\"what\":\"image too large for the web\",\"file\":", ons->trace_page );
+    snprintf( buf, sizeof(buf), "{\"t\":\"warn\",\"pg\":%d,\"what\":\"large image\",\"file\":", ons->trace_page );
     std::string r = buf;
     traceString( r, file );
-    snprintf( buf, sizeof(buf), ",\"w\":%d,\"h\":%d,\"at\":", w, h );
+    long long bytes = ai->image_surface ? (long long)ai->image_surface->pitch * ai->image_surface->h : (long long)w * h * 4;
+    snprintf( buf, sizeof(buf), ",\"w\":%d,\"h\":%d,\"mb\":%lld,\"at\":", w, h, (bytes + (1 << 19)) >> 20 );
     r += buf;
     ons->traceAt( r, ons->script_h.getCurrent( true ) );
     r += '}';
