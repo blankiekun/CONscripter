@@ -620,6 +620,9 @@ int ONScripter::spbtnCommand()
 
     int sprite_no = script_h.readInt();
     int no        = script_h.readInt();
+    int press_cell = -1; // CONscripter: spbtn num,no,pressed_cell
+    if ( script_h.getEndStatus() & ScriptHandler::END_COMMA )
+        press_cell = script_h.readInt();
     if (no < 1 || 
         sprite_no < 0 ||
         sprite_no >= MAX_SPRITE_NUM || 
@@ -639,6 +642,7 @@ int ONScripter::spbtnCommand()
     button->button_type = ButtonLink::SPRITE_BUTTON;
     button->sprite_no   = sprite_no;
     button->no          = no;
+    button->press_cell  = press_cell;
 
     if ( sprite_info[ sprite_no ].image_surface ||
          sprite_info[ sprite_no ].trans_mode == AnimationInfo::TRANS_STRING )

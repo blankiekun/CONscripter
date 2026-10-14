@@ -102,6 +102,13 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   `chvolfade 3,30:dwaveloop 3,"se\rain.ogg"` … `chvolfade 3,100,2000`;
   `bgmvolfade 20,500` ducks the music, `bgmvolfade 100,1000` brings it
   back.
+- **`spbtn num,no,pressed_cell`**: a third argument to `spbtn` names the
+  cell sprite `num` shows while the left mouse button is held on it (the
+  hover cell is 1, as before). It goes back to the hover cell when the
+  button is let go, to cell 0 when the pointer leaves, and shows the
+  pressed cell again if the pointer comes back with the button still
+  held. Without the argument, buttons work as before. (Nitroplus menus
+  draw a pressed picture for every button.)
 - **`pushscreen first,last`** / **`popscreen`**: save the background,
   sprites `first`..`last` (image, position, visibility, cell, filters;
   a `strsp` sprite's text, font and colours),

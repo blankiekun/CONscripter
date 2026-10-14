@@ -482,6 +482,7 @@ private:
     void flushDirectYUV(SDL_Overlay *overlay);
     #endif
     void mouseOverCheck( int x, int y );
+    void consPressCell( bool down ); // CONscripter: spbtn's pressed cell
     void warpMouse(int x, int y);
     void setFullScreen(bool fullscreen);
 public:

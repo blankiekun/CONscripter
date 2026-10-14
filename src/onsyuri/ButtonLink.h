@@ -42,6 +42,7 @@ struct ButtonLink{
     SDL_Rect image_rect;
     AnimationInfo *anim[2];
     int show_flag; // 0...show nothing, 1... show anim[0], 2 ... show anim[1]
+    int press_cell; // CONscripter: cell shown while the mouse button is held on it (spbtn's 3rd argument), -1 none
 
     ButtonLink(){
         button_type = NORMAL_BUTTON;
@@ -49,6 +50,7 @@ struct ButtonLink{
         exbtn_ctl[0] = exbtn_ctl[1] = exbtn_ctl[2] = NULL;
         anim[0] = anim[1] = NULL;
         show_flag = 0;
+        press_cell = -1;
     };
 
     ~ButtonLink(){

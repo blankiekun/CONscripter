@@ -396,6 +396,8 @@ bool ONScripter::mousePressEvent( SDL_MouseButtonEvent *event )
     current_button_state.y = event->y;
     current_button_state.down_flag = false;
     skip_mode &= ~SKIP_NORMAL;
+    if ( event->button == SDL_BUTTON_LEFT )
+        consPressCell( event->type == SDL_MOUSEBUTTONDOWN ); // CONscripter
 
     bool longpress_flag = false;
     if(event->button == SDL_BUTTON_LEFT && event->type == SDL_MOUSEBUTTONUP)
@@ -1285,7 +1287,11 @@ void ONScripter::runEventLoop()
             }
             current_button_state.event_type = event.type;
             current_button_state.event_button = event.button.button;
-            if ( !btndown_flag ) break;
+            if ( !btndown_flag ){
+                if ( event.button.button == SDL_BUTTON_LEFT )
+                    consPressCell( true ); // CONscripter
+                break;
+            }
           case SDL_MOUSEBUTTONUP:
             current_button_state.event_type = event.type;
             current_button_state.event_button = event.button.button;

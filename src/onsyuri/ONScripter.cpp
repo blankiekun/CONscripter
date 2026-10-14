@@ -1065,6 +1065,10 @@ void ONScripter::mouseOverCheck( int x, int y )
                 if (!bexec_flag || !bl->exbtn_ctl[1]){
                     sprite_info[ bl->sprite_no ].visible = true;
                     sprite_info[ bl->sprite_no ].setCell(1);
+                    // CONscripter: entered with the mouse button held
+                    if ( bl->press_cell >= 0 && bl->press_cell < sprite_info[ bl->sprite_no ].num_of_cells &&
+                         (SDL_GetMouseState( NULL, NULL ) & SDL_BUTTON_LMASK) )
+                        sprite_info[ bl->sprite_no ].setCell( bl->press_cell );
                 }
                 if ( bl->exbtn_ctl[1] )
                     decodeExbtnControl( bl->exbtn_ctl[1], &check_src_rect, &check_dst_rect );

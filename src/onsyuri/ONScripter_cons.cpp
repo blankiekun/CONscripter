@@ -3814,3 +3814,18 @@ void ONScripter::roundtripPage()
     r += "]}";
     traceWrite( r );
 }
+
+// spbtn num,no,pressed_cell: the button under the pointer shows its pressed
+// cell while the left mouse button is held, and its hover cell again when
+// it is let go.
+void ONScripter::consPressCell( bool down )
+{
+    if ( current_over_button == -1 || !current_button_link ) return;
+    ButtonLink *bl = current_button_link;
+    if ( bl->button_type != ButtonLink::SPRITE_BUTTON || bl->press_cell < 0 ) return;
+    AnimationInfo &si = sprite_info[ bl->sprite_no ];
+    if ( bl->press_cell >= si.num_of_cells ) return;
+    si.setCell( down ? bl->press_cell : 1 );
+    dirty_rect.add( bl->image_rect );
+    flush( refreshMode() );
+}
