@@ -240,7 +240,7 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
         if ( info->openFont( font_file, screen_ratio1, screen_ratio2 ) == NULL ){
             utils::printError("can't open font file: %s\n", font_file );
             quit();
-            exit(-1);
+            startupFailed();
         }
     }
 #if defined(PSP)

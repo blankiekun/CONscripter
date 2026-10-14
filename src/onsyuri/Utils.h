@@ -88,9 +88,21 @@ namespace utils{
 		va_end(ap);
 	}
 
+	// CONscripter: the last error printed, for the debug trace's error record
+	inline char *lastError(){
+		static char buf[512];
+		return buf;
+	}
+
 	inline void printError(const char *format, ...){
 		va_list ap;
 		va_start(ap, format);
+		{
+			va_list ap3;
+			va_copy(ap3, ap);
+			vsnprintf(lastError(), 512, format, ap3);
+			va_end(ap3);
+		}
 #ifdef USE_FILELOG
 		static int isfirst = 1;
 		FILE *fp = NULL;

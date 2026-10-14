@@ -135,7 +135,7 @@ void ONScripter::initSDL()
 
     if ( SDL_Init( SDL_INIT_VIDEO | SDL_INIT_TIMER  ) < 0 ){
         utils::printError("Couldn't initialize SDL: %s\n", SDL_GetError());
-        exit(-1);
+        startupFailed();
     }
 
     if( SDL_Init(SDL_INIT_AUDIO) < 0)
@@ -146,7 +146,7 @@ void ONScripter::initSDL()
 #ifdef USE_CDROM
     if( cdaudio_flag && SDL_InitSubSystem( SDL_INIT_CDROM ) < 0 ){
         utils::printError("Couldn't initialize CD-ROM: %s\n", SDL_GetError());
-        exit(-1);
+        startupFailed();
     }
 #endif
 
@@ -165,7 +165,7 @@ void ONScripter::initSDL()
     /* Initialize SDL */
     if ( TTF_Init() < 0 ){
         utils::printError("can't initialize SDL TTF\n");
-        exit(-1);
+        startupFailed();
     }
 
     screen_bpp = 32;
@@ -246,7 +246,7 @@ void ONScripter::initSDL()
     window = SDL_CreateWindow(NULL, window_x, window_y, screen_device_width, screen_device_height, window_flag);
     if (window == NULL) {
         utils::printError("Could not create window: %s\n", SDL_GetError());
-        exit(-1);
+        startupFailed();
     }
     Uint32 render_flag = SDL_RENDERER_ACCELERATED;
     if (vsync) render_flag |= SDL_RENDERER_PRESENTVSYNC;
@@ -258,7 +258,7 @@ void ONScripter::initSDL()
     }
     if (renderer == NULL) {
         utils::printError("Could not create renderer: %s\n", SDL_GetError());
-        exit(-1);
+        startupFailed();
     }
 
     if(!stretch_mode && !(force_window_height && force_window_width))
@@ -361,6 +361,7 @@ ONScripter::ONScripter()
     window_trans = 255;
     text_size_percent = 100;
     trace_fp = NULL;
+    trace_meta_written = false;
     trace_page = 0;
     trace_sprite = NULL;
     trace_ignore = NULL;

@@ -70,7 +70,8 @@ void optionHelp()
     printf( "      --seed n\t\tstart the random numbers (rnd, --auto-choice random) from n\n");
     printf( "      --shot-pages 412,980-990\twith --trace, save a picture of these pages (--shot-dir, default shots)\n");
     printf( "      --shot-every n\twith --trace, save a picture of every n-th page\n");
-    printf( "      --enc:[gbk|sjis|utf8]\tdefine the encoding of script\n\n");
+    printf( "      --enc:[gbk|sjis|utf8]\tdefine the encoding of script\n");
+    printf( "      (exit codes: 0 ok, 1 --auto-play stuck, 2 script error, 3 startup failure)\n\n");
 
     printf( " render options: \n");
     printf( "      --window\t\tstart in windowed mode\n");
@@ -619,8 +620,8 @@ int main(int argc, char *argv[])
 
     // ----------------------------------------
     // Run ONScripter
-    if (ons.openScript()) exit(-1);
-    if (ons.init()) exit(-1);
+    if (ons.openScript()) ons.startupFailed(); // exits with 3
+    if (ons.init()) ons.startupFailed();
 #if defined(WEB)
     EM_ASM(
         self.postMessage("onsinit");

@@ -605,7 +605,7 @@ void ScriptParser::errorAndExit( const char *str, const char *reason )
         else          snprintf( message, sizeof(message), "%s", str );
         ScriptHandler::error_hook( message );
     }
-    exit(-1);
+    exit(2); // CONscripter: a script error
 }
 
 void ScriptParser::deleteNestInfo()
@@ -707,8 +707,10 @@ ScriptParser::EffectLink *ScriptParser::parseEffect(bool init_flag)
         link = link->next;
     }
 
-    utils::printError( "Effect No. %d is not found.\n", tmp_effect.effect);
-    exit(-1);
+    char message[64];
+    snprintf( message, sizeof(message), "Effect No. %d is not found.", tmp_effect.effect );
+    errorAndExit( message );
+    return NULL;
 
     return NULL;
 }

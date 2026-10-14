@@ -968,7 +968,7 @@ void ScriptHandler::errorAndExit( const char *str )
         snprintf( message, sizeof(message), "%s [%s]", str, string_buffer );
         error_hook( message );
     }
-    exit(-1);
+    exit(2); // CONscripter: a script error (see DEBUG.md for the exit codes)
 }
 
 void ScriptHandler::addStringBuffer( char ch )
@@ -1476,8 +1476,9 @@ void ScriptHandler::parseStr( char **buf )
             p_str_alias = p_str_alias->next;
         }
         if ( !p_str_alias ){
-            utils::printInfo("can't find str alias for %s...\n", alias_buf );
-            exit(-1);
+            char message[300];
+            snprintf( message, sizeof(message), "can't find str alias for %s", alias_buf );
+            errorAndExit( message );
         }
         current_variable.type |= VAR_CONST;
     }

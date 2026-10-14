@@ -120,6 +120,7 @@ public:
     void setTraceShots(const char *pages); // CONscripter: --shot-pages, --shot-every, --shot-dir
     void setTraceShotEvery(int pages);
     void setTraceShotDir(const char *dir);
+    void startupFailed(); // CONscripter: records the error just printed, exits with 3
     const char* getArchivePath() { return archive_path; }
     void setWindowWidth(int width);
     void setWindowHeight(int height);
@@ -725,8 +726,12 @@ private:
     void tracePage( bool dump=false );
     void traceSound( int channel, const char *name, bool loop );
     void traceWarn( const char *what, const char *file );
-    void traceError( const char *message );
+    void traceError( const char *message, const char *kind="script" );
+    void traceStack( std::string &out );
     void traceEnd();
+    void traceMeta();
+    bool trace_meta_written;
+    static void traceCrash( int sig );
     void traceIgnoreSetup();
     const char *trace_end_reason;    // why a run that plays itself stopped
     std::string trace_effect;        // the effect the command being run used, as JSON

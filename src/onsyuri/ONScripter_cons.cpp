@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <signal.h>
 #include <sys/stat.h>
 #if defined(_WIN32)
 #include <direct.h>
@@ -1323,6 +1324,12 @@ SDL_Surface *ONScripter::loadWebP(const unsigned char *data, size_t length)
 extern Coding2UTF16 *coding2utf16;
 static ONScripter *trace_ons = NULL;
 
+// The last commands run, for the crash record: where each was and its name
+// (the name is the engine's own string), formatted only after a crash.
+enum { TRACE_RECENT = 50 };
+static struct { char *at; const char *cmd; } trace_recent[TRACE_RECENT];
+static int trace_recent_count = 0; // ever run; the next goes in count % TRACE_RECENT
+
 // Script bytes (in the script's encoding) as a JSON string in UTF-8;
 // two-byte characters are told apart as the engine draws them.
 static void traceString( std::string &out, const char *text, int len=-1 )
@@ -1379,8 +1386,64 @@ void ONScripter::setTraceFile( const char *path )
     }
     trace_ons = this;
     ScriptHandler::error_hook = traceErrorHook;
-    if (!exit_hooked) atexit( traceExitHook );
+    if (!exit_hooked){
+        atexit( traceExitHook );
+#if !defined(WEB)
+        // a crash writes a "crash" record, then crashes as before (a core dump)
+        signal( SIGSEGV, traceCrash );
+        signal( SIGABRT, traceCrash );
+        signal( SIGFPE, traceCrash );
+#if defined(SIGBUS)
+        signal( SIGBUS, traceCrash );
+#endif
+#endif
+    }
     exit_hooked = true;
+}
+
+// A crash: a "crash" record with where the script was, the gosub calls
+// that led there and the last commands run, then the signal again with
+// its default action. Not safe in a signal handler, but it is only a debug
+// aid, and the trace is flushed up to here anyway.
+void ONScripter::traceCrash( int sig )
+{
+    signal( sig, SIG_DFL ); // a crash in here ends it at once
+    if (trace_ons && trace_ons->trace_fp){
+        ONScripter *ons = trace_ons;
+        const char *name = sig == SIGSEGV ? "SIGSEGV" : sig == SIGABRT ? "SIGABRT" : sig == SIGFPE ? "SIGFPE" : "SIGBUS";
+        char buf[96];
+        snprintf( buf, sizeof(buf), "{\"t\":\"crash\",\"pg\":%d,\"signal\":\"%s\",\"at\":", ons->trace_page, name );
+        std::string r = buf;
+        ons->traceAt( r, ons->trace_sprite ? ons->script_h.getCurrent( true ) : NULL );
+        r += ",\"stack\":[";
+        ons->traceStack( r );
+        r += "],\"recent\":[";
+        int first = trace_recent_count > TRACE_RECENT ? trace_recent_count - TRACE_RECENT : 0;
+        for (int i=first ; i<trace_recent_count ; i++){
+            if (i > first) r += ',';
+            r += "{\"at\":";
+            ons->traceAt( r, trace_recent[i % TRACE_RECENT].at );
+            r += ",\"cmd\":";
+            traceString( r, trace_recent[i % TRACE_RECENT].cmd );
+            r += '}';
+        }
+        r += "]}";
+        ons->traceWrite( r );
+        fclose( ons->trace_fp );
+        ons->trace_fp = NULL; // no end record: it crashed
+    }
+    raise( sig );
+}
+
+// Startup failed (no script, no font, SDL couldn't start): an error record
+// of kind "startup" with the message just printed, then exit code 3.
+void ONScripter::startupFailed()
+{
+    if (trace_fp){
+        traceError( utils::lastError(), "startup" );
+        traceEnd();
+    }
+    exit(3);
 }
 
 void ONScripter::traceErrorHook( const char *message )
@@ -1398,6 +1461,7 @@ void ONScripter::traceExitHook()
 
 void ONScripter::traceWrite( std::string &record )
 {
+    if (!trace_meta_written) traceMeta(); // a startup error comes before traceStart
 #if defined(WEB)
     // the web page keeps the records, to download them
     EM_ASM({ if (self.onsyuriTrace) self.onsyuriTrace(UTF8ToString($0)); }, record.c_str());
@@ -1448,13 +1512,19 @@ void ONScripter::traceStart()
 {
     trace_sprite = new TraceSprite[TRACE_SPRITES];
     trace_label_seen.assign( script_h.getNumLabels(), false );
+    if (!trace_meta_written) traceMeta();
+}
 
+// The first record: the engine, the game and the options.
+void ONScripter::traceMeta()
+{
+    trace_meta_written = true;
     char buf[256];
     time_t now = time( NULL );
     char date[32];
     strftime( date, sizeof(date), "%Y-%m-%dT%H:%M:%S", localtime( &now ) );
     snprintf( buf, sizeof(buf),
-              "{\"t\":\"meta\",\"schema\":1,\"engine\":\"CONscripter %s\",\"time\":\"%s\",\"w\":%d,\"h\":%d,\"utf8\":%s,\"dir\":",
+              "{\"t\":\"meta\",\"schema\":2,\"engine\":\"CONscripter %s\",\"time\":\"%s\",\"w\":%d,\"h\":%d,\"utf8\":%s,\"dir\":",
               CONSCRIPTER_VERSION, date, screen_width, screen_height,
               coding2utf16->force_utf8 ? "true" : "false" );
     std::string r = buf;
@@ -1681,6 +1751,9 @@ static const struct { const char *name; int kind; } trace_commands[] = {
 int ONScripter::traceCommand( const char *name, FuncList method )
 {
     char *start = trace_cmd_start = script_h.getCurrent();
+    trace_recent[trace_recent_count % TRACE_RECENT].at = start;
+    trace_recent[trace_recent_count % TRACE_RECENT].cmd = name;
+    trace_recent_count++;
     trace_effect.clear();
     traceLabel( start );
     int kind = 0;
@@ -1992,22 +2065,33 @@ void ONScripter::traceWarn( const char *what, const char *file )
 
 // A script error, just before the engine exits, with the gosub calls that
 // led to it (innermost first: where each returns to).
-void ONScripter::traceError( const char *message )
+void ONScripter::traceError( const char *message, const char *kind )
 {
-    char buf[64];
-    snprintf( buf, sizeof(buf), "{\"t\":\"error\",\"pg\":%d,\"msg\":", trace_page );
+    char buf[96];
+    snprintf( buf, sizeof(buf), "{\"t\":\"error\",\"pg\":%d,\"kind\":\"%s\",\"msg\":", trace_page, kind );
     std::string r = buf;
-    traceString( r, message );
+    // without the line's end and the frame printError puts round it
+    std::string msg = message;
+    while (!msg.empty() && (msg[msg.size()-1] == '\n' || msg[msg.size()-1] == ' ')) msg.erase( msg.size()-1 );
+    traceString( r, msg.c_str() );
     r += ",\"at\":";
-    traceAt( r, script_h.getCurrent( true ) );
+    traceAt( r, trace_sprite ? script_h.getCurrent( true ) : NULL ); // none before the script runs
     r += ",\"stack\":[";
-    for (NestInfo *info = last_nest_info ; info && info != &root_nest_info ; info = info->previous){
-        if (info->nest_mode != NestInfo::LABEL) continue;
-        if (r[r.size()-1] != '[') r += ',';
-        traceAt( r, info->next_script );
-    }
+    traceStack( r );
     r += "]}";
     traceWrite( r );
+}
+
+// The gosub calls that led here, innermost first: where each returns to.
+void ONScripter::traceStack( std::string &out )
+{
+    bool first = true;
+    for (NestInfo *info = last_nest_info ; info && info != &root_nest_info ; info = info->previous){
+        if (info->nest_mode != NestInfo::LABEL) continue;
+        if (!first) out += ',';
+        first = false;
+        traceAt( out, info->next_script );
+    }
 }
 
 // The last record, written as the engine exits normally or after a script
