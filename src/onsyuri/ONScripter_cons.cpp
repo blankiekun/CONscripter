@@ -2049,7 +2049,18 @@ void ONScripter::tracePage( bool dump )
         if (!trace_sprite[i].image.empty()) traceSprite( r, i );
     }
     r += "]}";
+    if (roundtrip_pending && !dump){ // the page shown again after a round trip: compared, not recorded
+        roundtripPage();
+        if (roundtrip_skip_page){
+            trace_page--;
+            return;
+        }
+    }
     traceWrite( r );
+    if (!dump && roundtrip_every > 0 && auto_play_flag && trace_page % roundtrip_every == 0){
+        roundtripState( roundtrip_before );
+        roundtrip_due = true;
+    }
 }
 
 // "412,980-990": the pages --shot-pages takes a picture of.
@@ -2461,6 +2472,10 @@ void ONScripter::autoPlayStuck( const char *what )
 // routes, the same choice taken at each turn).
 void ONScripter::autoPlayPage()
 {
+    if (roundtrip_skip_page){ // the page shown again after a round trip
+        roundtrip_skip_page = false;
+        return;
+    }
     auto_play_waits = 0;
     auto_play_choices = 0;
     int label = script_h.getLabelIndex( script_h.getCurrent( true ) );
@@ -2864,4 +2879,160 @@ void ONScripter::traceLargeImage( AnimationInfo *ai, int w, int h )
     ons->traceAt( r, ons->script_h.getCurrent( true ) );
     r += '}';
     ons->traceWrite( r );
+}
+
+/* --roundtrip-every n (with --trace and --auto-play): every n pages, the
+ * game is saved to --roundtrip-slot (999) and loaded again, as a player
+ * saving and loading at that click wait would. The load goes back to where
+ * the save was made (the start of the page's line) and the game's
+ * loadgosub runs; when the same page is shown again, its state is compared
+ * with the one before, and a difference is a "save/load mismatch" warn.
+ * The page shown again isn't recorded, so the run goes on as without it. */
+void ONScripter::setRoundtrip( int pages, int slot )
+{
+    if (pages >= 0) roundtrip_every = pages;
+    if (slot >= 0) roundtrip_slot = slot;
+}
+
+// What a page shows, field by field, for comparing: what the page record
+// has (without the counts and times), the sprites without "since", the
+// looping sounds, the pushscreen stack and the variables.
+void ONScripter::roundtripState( std::map<std::string, std::string> &state )
+{
+    state.clear();
+    char buf[160];
+    traceAt( state["at"], script_h.getCurrent( true ) );
+    traceString( state["text"], current_page->text, current_page->text_count );
+    if (current_page->tag) traceString( state["tag"], current_page->tag );
+    traceString( state["bg"], bg_info.file_name );
+    traceString( state["bgm"], music_file_name ? music_file_name : midi_file_name );
+    if (loop_bgm_name[0]){
+        traceString( state["loopbgm"], loop_bgm_name[0] );
+        traceString( state["loopbgm"], loop_bgm_name[1] );
+    }
+    for (int ch=0 ; audio_open_flag && ch<=MIX_WAVE_CHANNEL ; ch++){
+        if (!trace_se_name[ch] || !trace_se_loop[ch] || !Mix_Playing( ch )) continue; // a voice isn't saved
+        snprintf( buf, sizeof(buf), "se %d", ch );
+        traceString( state[buf], trace_se_name[ch] );
+    }
+    state["window"] = (display_mode & DISPLAY_MODE_TEXT) ? "true" : "false";
+    if (window_trans != 255) state["windowtrans"] = std::to_string( window_trans );
+    if (monocro_flag){
+        snprintf( buf, sizeof(buf), "#%02x%02x%02x", monocro_color[0], monocro_color[1], monocro_color[2] );
+        state["monocro"] = buf;
+    }
+    if (nega_mode) state["nega"] = std::to_string( nega_mode );
+    for (int i=0 ; i<MAX_SCREEN_FILTER ; i++){
+        AnimationInfo::Filter &f = screen_filter[i];
+        if (f.kind == AnimationInfo::FILTER_NONE) continue;
+        snprintf( buf, sizeof(buf), "kind %d blend %d strength %d p %d,%d,%d", f.kind, f.blend, f.strength, f.param[0], f.param[1], f.param[2] );
+        state["filter " + std::to_string( i+1 )] = buf;
+    }
+    for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
+        ScreenEffect &e = screen_effect[i];
+        if (e.kind == SCREEN_EFFECT_NONE) continue;
+        std::string &v = state["fx " + std::to_string( i+1 )];
+        v = std::to_string( e.kind );
+        if (e.map_name) traceString( v, e.map_name );
+    }
+    if (all_sprite_hide_flag) state["sprites_hidden"] = "true";
+    if (all_sprite2_hide_flag) state["sprites2_hidden"] = "true";
+    if (screen_stack_num) state["pushscreen"] = std::to_string( screen_stack_num );
+    for (int i=0 ; i<TRACE_SPRITES ; i++){
+        if (trace_ignore[i]) continue;
+        const char *kind;
+        int no;
+        AnimationInfo &ai = traceSpriteInfo( i, kind, no );
+        const char *image = ai.image_name;
+        if (!image && ai.trans_mode == AnimationInfo::TRANS_STRING) image = ai.file_name;
+        if (!ai.visible || !image) continue;
+        SDL_Rect r = (kind[3] == '2') ? ai.bounding_rect : ai.pos;
+        snprintf( buf, sizeof(buf), "sp %s %d", kind, no );
+        std::string &v = state[buf];
+        traceString( v, image );
+        snprintf( buf, sizeof(buf), " %d,%d %dx%d alpha %d cell %d filters %d", r.x, r.y, r.w, r.h,
+                  ai.trans < 0 ? 255 : ai.trans, ai.current_cell, ai.num_of_filters );
+        v += buf;
+    }
+    for (int i=0 ; i<script_h.variable_range ; i++){
+        ScriptHandler::VariableData &vd = script_h.getVariableData( i );
+        if (vd.num) state["%" + std::to_string( i )] = std::to_string( vd.num );
+        if (vd.str && vd.str[0]) traceString( state["$" + std::to_string( i )], vd.str );
+    }
+}
+
+// Saves and loads, as savegame and loadgame would (the save holds the
+// state at the start of the page's line).
+void ONScripter::roundtripLoad()
+{
+    roundtrip_due = false;
+    if (saveon_flag && internal_saveon_flag) storeSaveFile();
+    char buf[96];
+    snprintf( buf, sizeof(buf), "{\"t\":\"roundtrip\",\"pg\":%d,\"slot\":%d,\"at\":", trace_page, roundtrip_slot );
+    std::string r = buf;
+    traceAt( r, script_h.getCurrent( true ) );
+    r += '}';
+    traceWrite( r );
+    if (writeSaveFile( roundtrip_slot ) != 0 || !loadGame( roundtrip_slot )){
+        r = "{\"t\":\"warn\",\"pg\":" + std::to_string( trace_page ) + ",\"what\":\"save/load mismatch\",\"diff\":[\"can't save or load\"]}";
+        traceWrite( r );
+        return;
+    }
+    roundtrip_pending = true;
+}
+
+// A page after the load: the page saved, shown again, is compared and not
+// recorded (an earlier page on the same line, shown again on the way, isn't
+// recorded either); a page elsewhere means the load went somewhere else.
+void ONScripter::roundtripPage()
+{
+    std::map<std::string, std::string> after;
+    roundtripState( after );
+    std::map<std::string, std::string> &before = roundtrip_before;
+    bool same_place = after["at"] == before["at"];
+    if (same_place && after["text"] != before["text"] &&
+        before["text"].compare( 0, after["text"].size() - 1, after["text"], 0, after["text"].size() - 1 ) == 0){
+        roundtrip_skip_page = true; // the page's text so far: on the way back to it
+        return;
+    }
+    roundtrip_pending = false;
+    roundtrip_skip_page = same_place;
+
+    std::vector<std::string> diff;
+    std::map<std::string, std::string>::iterator i = before.begin(), j = after.begin();
+    while (i != before.end() || j != after.end()){
+        std::string key, a = "none", b = "none";
+        if (j == after.end() || (i != before.end() && i->first < j->first)){
+            key = i->first; a = i->second; i++;
+        }
+        else if (i == before.end() || j->first < i->first){
+            key = j->first; b = j->second; j++;
+        }
+        else{
+            key = i->first; a = i->second; b = j->second; i++; j++;
+        }
+        if (a == b) continue;
+        if (a.size() > 100) a = a.substr( 0, 100 ) + "...";
+        if (b.size() > 100) b = b.substr( 0, 100 ) + "...";
+        diff.push_back( key + ": " + a + " -> " + b );
+    }
+    if (diff.empty()) return;
+
+    char buf[64];
+    snprintf( buf, sizeof(buf), "{\"t\":\"warn\",\"pg\":%d,\"what\":\"save/load mismatch\",\"at\":", trace_page );
+    std::string r = buf;
+    r += before["at"];
+    r += ",\"diff\":[";
+    for (size_t k=0 ; k<diff.size() && k<40 ; k++){
+        if (k) r += ',';
+        // the values are already JSON strings in UTF-8; escape them as text
+        r += '"';
+        for (size_t c=0 ; c<diff[k].size() ; c++){
+            if (diff[k][c] == '"' || diff[k][c] == '\\') r += '\\';
+            r += diff[k][c];
+        }
+        r += '"';
+    }
+    r += "]}";
+    traceWrite( r );
 }

@@ -370,6 +370,9 @@ ONScripter::ONScripter()
     trace_vars_flag = false;
     trace_long_wait = 10000;
     trace_overflow = false;
+    roundtrip_every = 0;
+    roundtrip_slot = 999;
+    roundtrip_due = roundtrip_pending = roundtrip_skip_page = false;
     ruby_hidden = false;
     text_speed_override = -1;
     web_mode_sent = -1;
@@ -1136,6 +1139,11 @@ void ONScripter::executeLabel()
 
         if ( kidokuskip_flag && skip_mode & SKIP_NORMAL && kidokumode_flag && !script_h.isKidoku() ) skip_mode &= ~SKIP_NORMAL;
 
+        if (roundtrip_due){ // CONscripter: --roundtrip-every
+            roundtripLoad();
+            readToken();
+            continue;
+        }
         char *line_start = script_h.getCurrent();
         int ret = parseLine();
         if (trace_vars_flag) traceVarChanges( line_start ); // CONscripter: --trace-vars

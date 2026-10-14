@@ -68,6 +68,7 @@ void optionHelp()
     printf( "      --trace-vars 300-899,$10-20\twith --trace, a record for each change of these variables\n");
     printf( "      --trace-long-wait ms\twith --trace, warn of a wait, effect or fade asked to last longer (10000)\n");
     printf( "      --trace-max-image px\twith --trace, warn of a picture wider or taller than this (4096)\n");
+    printf( "      --roundtrip-every n\twith --trace and --auto-play, save and load every n pages and compare (--roundtrip-slot, 999)\n");
     printf( "      --auto-play pages\tplay by itself, without waiting, for this many pages (0: to the end)\n");
     printf( "      --auto-choice first|cycle|random|untaken\thow --auto-play picks a button or choice\n");
     printf( "      --replay trace.jsonl\twith --auto-play, make the choices a trace recorded, then --auto-choice\n");
@@ -469,6 +470,16 @@ void parseOption(int argc, char *argv[]) {
                 argc--;
                 argv++;
                 ons.setTraceMaxImage(atoi(argv[0]));
+            }
+            else if ( !strcmp( argv[0]+1, "-roundtrip-every" ) ){
+                argc--;
+                argv++;
+                ons.setRoundtrip(atoi(argv[0]), -1);
+            }
+            else if ( !strcmp( argv[0]+1, "-roundtrip-slot" ) ){
+                argc--;
+                argv++;
+                ons.setRoundtrip(-1, atoi(argv[0]));
             }
             else if ( !strcmp( argv[0]+1, "-trace-vars" ) ){
                 argc--;

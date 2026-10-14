@@ -134,6 +134,7 @@ public:
     void setTraceVars(const char *spec); // CONscripter: --trace-vars
     void setTraceLongWait(int ms); // CONscripter: --trace-long-wait
     void setTraceMaxImage(int side); // CONscripter: --trace-max-image
+    void setRoundtrip(int pages, int slot); // CONscripter: --roundtrip-every, --roundtrip-slot
     void setDumpVars(const char *path);
     const char* getArchivePath() { return archive_path; }
     void setWindowWidth(int width);
@@ -812,6 +813,14 @@ private:
     bool trace_overflow;             // the page's text went past the window's last line
     std::set<std::string> trace_large_seen; // pictures warned of as too large for the web
     static void traceLargeImage( AnimationInfo *ai, int w, int h );
+    int roundtrip_every, roundtrip_slot;
+    bool roundtrip_due;              // save and load at the next command
+    bool roundtrip_pending;          // loaded: compare at the page's click wait
+    bool roundtrip_skip_page;        // the page just recorded was the page shown again
+    std::map<std::string, std::string> roundtrip_before; // the state at the page
+    void roundtripState( std::map<std::string, std::string> &state );
+    void roundtripPage();
+    void roundtripLoad();
     void traceLongWait( int ms );
     static void traceErrorHook( const char *message );
     static void traceExitHook();
