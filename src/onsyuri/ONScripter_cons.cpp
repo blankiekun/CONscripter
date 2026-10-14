@@ -2960,8 +2960,9 @@ int ONScripter::autoPlayButton()
     if (auto_choice == AUTO_CHOICE_RANDOM) return nos[ random % nos.size() ];
     if (auto_choice == AUTO_CHOICE_UNTAKEN){
         // leave out the options to avoid, unless all are; of those not
-        // made yet in this run, the one --taken counts least, the first of
-        // those; when all were made, as "first"
+        // made yet in this run, the one --taken counts least, the lowest
+        // of those (0, a click elsewhere, first); when all were made, as
+        // "first"
         std::string at = traceAtText( trace_cmd_start ) + "\t";
         std::vector<int> ok;
         for (size_t i=0 ; i<nos.size() ; i++)
@@ -2973,7 +2974,7 @@ int ONScripter::autoPlayButton()
             if (auto_taken_run.count( key )) continue;
             auto it = auto_taken.find( key );
             int n = it == auto_taken.end() ? 0 : it->second;
-            if (best < 0 || n < fewest){ best = ok[i]; fewest = n; }
+            if (best < 0 || n < fewest || (n == fewest && ok[i] < best)){ best = ok[i]; fewest = n; }
         }
         if (best >= 0) return best;
         size_t visit = auto_choice_visits[ script_h.getCurrent() ]++;

@@ -85,7 +85,7 @@ goes on past a hyperlink. Each place in the script counts its visits:
 | `first` (default) | the option matching the visit count, staying on the last: the first button the first time, the next one when the game comes back (a hyperlink, then on; a menu of topics, each in turn) |
 | `cycle` | the same, but going round again after the last |
 | `random` | any option; with `--seed n` the same run every time |
-| `untaken` | of the options not taken there earlier in this run, the one `--taken FILE` counts the fewest times (one never taken while there is one), the first in order of those; `first` when this run has taken them all |
+| `untaken` | of the options not taken there earlier in this run, the one `--taken FILE` counts the fewest times (one never taken while there is one), the lowest of those (0 before the buttons); `first` when this run has taken them all |
 
 `--seed n` also fixes the numbers `rnd` gives, so a run that worked out a
 route can be repeated exactly.
@@ -102,8 +102,11 @@ add up. Lines starting with `#` are left out. `tools/cons_explore.py`
 *conv_link1_wait:5994	0	1
 ```
 
-Ties go to the first option in order, so runs with the same `--taken`
-file and `--seed` make the same choices. `avoid` in place of the count
+Ties go to the lowest option, so runs with the same `--taken` file and
+`--seed` make the same choices. At a `btnwait` that is 0, a click
+elsewhere: with no `--taken` file a run goes on past each hyperlink, and
+the next runs, finding 0 taken, open them. Whether a game's hyperlinks
+were read can change its route, so the runs see both. `avoid` in place of the count
 marks a choice that led to a script error: `untaken` doesn't make it
 while the place has another option that isn't marked.
 
