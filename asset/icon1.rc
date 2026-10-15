@@ -10,11 +10,11 @@ BEGIN
     BEGIN
       VALUE "CompanyName", "blankiekun"
       VALUE "FileDescription", "CONscripter, an ONScripter (NScripter-compatible) visual novel engine"
-      VALUE "FileVersion", "0.21.0"
+      VALUE "FileVersion", "0.21.1"
       VALUE "InternalName", "conscripter"
       VALUE "OriginalFilename", "conscripter.exe"
       VALUE "ProductName", "CONscripter"
-      VALUE "ProductVersion", "0.21.0"
+      VALUE "ProductVersion", "0.21.1"
     END
   END
   BLOCK "VarFileInfo"
