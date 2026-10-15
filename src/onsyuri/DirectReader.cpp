@@ -319,12 +319,30 @@ FILE *DirectReader::getFileHandle( const char *file_name, int &compression_type,
     convertCodingToUTF8(capital_name_tmp, capital_name);
     strcpy(capital_name, capital_name_tmp);
     len = strlen(capital_name);
-#elif defined(LINUX)
-    convertCodingToEUC(capital_name);
-#endif    
+    fp = fopen( capital_name, "rb" );
+#elif defined(LINUX) || defined(MACOSX)
+    // chimimouryou: file names are UTF-8 on today's systems (and in the web
+    // build's file system): a loose file with a Japanese name is looked
+    // for under its UTF-8 name first, then as before (EUC-JP on Linux, the
+    // script's own bytes on macOS).
+    convertCodingToUTF8(capital_name_tmp, capital_name);
+    fp = fopen( capital_name_tmp, "rb" );
+    if (fp){
+        strcpy(capital_name, capital_name_tmp);
+        len = strlen(capital_name);
+    }
+    else{
+#if defined(LINUX)
+        convertCodingToEUC(capital_name);
+#endif
+        fp = fopen( capital_name, "rb" );
+    }
+#else
+    fp = fopen( capital_name, "rb" );
+#endif
 
     *length = 0;
-    if ( (fp = fopen( capital_name, "rb" )) != NULL && len >= 3 ){
+    if ( fp != NULL && len >= 3 ){
         compression_type = getRegisteredCompressionType( capital_name );
         if ( compression_type == NBZ_COMPRESSION || compression_type == SPB_COMPRESSION ){
             *length = getDecompressedFileLength( compression_type, fp, 0 );

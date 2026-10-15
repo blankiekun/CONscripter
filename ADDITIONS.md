@@ -408,6 +408,10 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   so with a picture smaller than the text area (a 1×1 transparent one,
   text over the scene) the old page stayed under the new one. The window
   now counts as its picture and the area its text can take.
+- **Loose files with Japanese names are found** on Linux, macOS and in
+  the web build: the script's Shift-JIS name is looked for as UTF-8, the
+  file systems' encoding, before the old ways (EUC-JP on Linux, the raw
+  bytes on macOS). A loose game no longer needs ASCII file names.
 - **Text hooks (web build)**: the engine calls these functions on the
   page's global scope (`self`) when they are defined, so the page can lay
   selectable text over the game:
