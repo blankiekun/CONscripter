@@ -891,6 +891,9 @@ private:
     bool auto_voice_wait = true;     // auto mode waits for the voice to end (off: cuts it)
     bool select_keep = false;        // auto mode and skip go on after a select
     int movie_stop = -1;             // a click stops a movie: 0 never, 1 always, -1 the script's flag
+    bool movie_skipped = false;      // the last movie was stopped by a click (or auto-play)
+    unsigned long long fresh_channels = 0; // dwave channels started since the last wait: a movie's own sounds
+    void stopFreshChannels();
     int game_speed = 100;            // script times run at this percent of real speed
     bool effect_off = false;         // every print effect is drawn at once
     bool text_shadow = true;         // the message text has setwindow's shadow (off: none)

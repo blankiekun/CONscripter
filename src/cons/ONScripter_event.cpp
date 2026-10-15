@@ -294,6 +294,7 @@ void ONScripter::waitEventSub(int count)
 
 bool ONScripter::waitEvent( int count )
 {
+    if (count != 0) fresh_channels = 0; // CONscripter: time passes, the sounds started are no movie's
     if (trace_fp && count > 0){ // CONscripter: as asked, before auto-play shortens it
         traceLongWait( count );
         trace_wait_ms += count;

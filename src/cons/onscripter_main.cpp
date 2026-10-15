@@ -367,7 +367,7 @@ FILE *fopen_ons(const char *path, const char *mode)
     return fp;
 }
 
-extern "C" void playVideoWeb(const char *path, bool click_flag, bool loop_flag)
+extern "C" bool playVideoWeb(const char *path, bool click_flag, bool loop_flag)
 {
     EM_ASM(
         var path = g_cons_module.UTF8ToString($0);
@@ -378,6 +378,7 @@ extern "C" void playVideoWeb(const char *path, bool click_flag, bool loop_flag)
     {
         SDL_Delay(5);
     }
+    return EM_ASM_INT(return g_cons_module.video_skipped ? 1 : 0;); // CONscripter
 }
 #endif
 

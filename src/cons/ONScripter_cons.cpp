@@ -825,6 +825,20 @@ int ONScripter::dwavefadeoutCommand()
     return RET_CONTINUE;
 }
 
+// A skipped movie stops the sounds started with it (since the last wait):
+// a sound cut into the movie would play on over what follows.
+void ONScripter::stopFreshChannels()
+{
+    for (int ch = 0; ch < ONS_MIX_CHANNELS; ch++){
+        if (!(fresh_channels >> ch & 1) || !wave_sample[ch]) continue;
+        trace_se_loop[ch] = false;
+        cutChannel( ch );
+        Mix_FreeChunk( wave_sample[ch] );
+        wave_sample[ch] = NULL;
+    }
+    fresh_channels = 0;
+}
+
 /* chvolfade ch,vol[,ms]
  *   Sets the volume of dwave channel ch's sound to vol percent (0-100)
  *   of the sound effect or voice setting, over ms milliseconds (default
@@ -3673,7 +3687,7 @@ int ONScripter::playMovieFFmpeg(const char *path, bool click_flag, bool loop_fla
                     if (k == SDLK_RCTRL) ctrl_pressed_status &= ~0x01;
                     if (k == SDLK_LCTRL) ctrl_pressed_status &= ~0x02;
                 }
-                if (skip && click_flag) done = true;
+                if (skip && click_flag) done = movie_skipped = true;
             }
             if (done) break;
             SDL_LockMutex(m.lock);

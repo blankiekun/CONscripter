@@ -41,7 +41,7 @@ extern "C" void playVideoIOS(const char *filename, bool click_flag, bool loop_fl
 #endif
 
 #if defined(WEB)
-extern "C" void playVideoWeb(const char *filename, bool click_flag, bool loop_flag);
+extern "C" bool playVideoWeb(const char *filename, bool click_flag, bool loop_flag);
 #endif
 
 #if defined(USE_AVIFILE)
@@ -272,7 +272,9 @@ static void smpeg_filter_destroy( struct SMPEG_Filter * filter )
 
 int ONScripter::playMPEG(const char *filename, bool click_flag, bool loop_flag)
 {
+    movie_skipped = false; // CONscripter
     if (auto_play_flag){ // CONscripter: a run that plays itself skips movies, but finds missing ones
+        movie_skipped = click_flag; // as a player clicking at once
         if (trace_fp && script_h.cBR->getFileLength( filename ) == 0) traceWarn("missing movie", filename);
         return 0;
     }
@@ -380,6 +382,7 @@ int ONScripter::playMPEG(const char *filename, bool click_flag, bool loop_flag)
         SDL_mutexV(oi.mutex);
         SDL_Delay( 1 );
     }
+    movie_skipped = done_flag && click_flag && ret == 0; // CONscripter
     Mix_HookMusic( NULL, NULL );
     stopSMPEG();
     openAudio();
@@ -400,7 +403,7 @@ int ONScripter::playMPEG(const char *filename, bool click_flag, bool loop_flag)
 #elif defined(ANDROID)
     playVideoAndroid(absolute_filename);
 #elif defined(WEB)
-    playVideoWeb(absolute_filename, click_flag, loop_flag);
+    movie_skipped = playVideoWeb(absolute_filename, click_flag, loop_flag);
 #elif CONS_FFMPEG_MOVIES
     ret = playMovieFFmpeg(absolute_filename, click_flag, loop_flag);
 #else

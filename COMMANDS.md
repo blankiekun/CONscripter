@@ -852,7 +852,9 @@ Impl `ONScripter::clickvoicestopCommand`, `autovoicewaitCommand`.
 
 ### mpegplay [cons]
 `mpegplay "file",click[,1]` — play a movie; click 1 = clickable. [cons] a
-third argument 1 keeps the music playing. Linux/macOS play through ffmpeg
+third argument 1 keeps the music playing. [cons] A click that stops it
+also stops the `dwave` sounds started since the last wait (the movie's own).
+Linux/macOS play through ffmpeg
 (`CONS_FFMPEG`, else `PATH`). Impl `ONScripter::mpegplayCommand`.
 
 ### movie

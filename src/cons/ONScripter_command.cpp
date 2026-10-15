@@ -1426,6 +1426,7 @@ int ONScripter::mpegplayCommand()
         trace_end_reason = "window closed"; // CONscripter: closed during the movie
         endCommand();
     }
+    if (movie_skipped) stopFreshChannels(); // CONscripter
 
     repaintCommand();
     
@@ -1630,6 +1631,7 @@ int ONScripter::movieCommand()
         trace_end_reason = "window closed"; // CONscripter: closed during the movie
         endCommand();
     }
+    if (movie_skipped) stopFreshChannels(); // CONscripter
 
     return RET_CONTINUE;
 }
@@ -3000,10 +3002,12 @@ int ONScripter::dwaveCommand()
         soundCommand( ch, NULL, true ); // CONscripter: for the trace and the web page
         trace_se_loop[ch] = loop_flag; // and the save
         playChannel(ch, wave_sample[ch], loop_flag?-1:0);
+        fresh_channels |= 1ULL << ch; // CONscripter
     }
     else{
         const char *buf = script_h.readStr();
         soundCommand( ch, buf, play_mode == WAVE_PLAY );
+        if (play_mode == WAVE_PLAY) fresh_channels |= 1ULL << ch; // CONscripter
         int fmt = SOUND_CHUNK;
         if (play_mode == WAVE_PRELOAD) fmt |= SOUND_PRELOAD;
         playSound(buf, fmt, loop_flag, ch);
