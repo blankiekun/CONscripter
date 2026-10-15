@@ -138,14 +138,14 @@ public:
     int zoom_x, zoom_y;
 
     /* CONscripter: a motion (spmotion, spmotion2): offsets the sprite is
-       drawn at, and a zoom and an angle about its centre, stepped along
-       keys (ms from the start, x, y, zoom percent, degrees) by the timer,
-       looping or once (then back at its place, or, motion_keep, moved to
-       the last key's offset and zoom). Stays across lsp; reset by
-       remove(). */
+       drawn at, a zoom and an angle about its centre and a part of its
+       alpha, stepped along keys (ms from the start, x, y, zoom percent,
+       degrees, alpha 0-256) by the timer, looping or once (then back at
+       its place, or, motion_keep, moved to the last key's offset, zoom and
+       alpha). Stays across lsp; reset by remove(). */
     enum { MAX_MOTION_KEYS = 32 };
     int motion_keys;           // 0: no motion
-    int motion_key[MAX_MOTION_KEYS][5];
+    int motion_key[MAX_MOTION_KEYS][6];
     bool motion_loop;
     bool motion_keep;
     int motion_start;          // ticks when it started
@@ -153,6 +153,7 @@ public:
     int motion_dx, motion_dy;  // the offset drawn now
     int motion_zoom;           // percent, 100 = none
     int motion_rot;            // degrees, counterclockwise as lsp2's
+    int motion_alpha;          // 0-256 of the sprite's alpha
 
     /* CONscripter: a fade in (spfade): the sprite is drawn at fade_alpha
        (0-256) of its own alpha, going from fade_from to 256 over fade_ms,

@@ -57,15 +57,17 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   shakes it. While a sprite is zoomed or moving, each refresh redraws the
   whole screen, and `csp` redraws where it was drawn. `loop` 2 runs once
   and leaves the sprite at the last key: its offset is added to the
-  sprite's place (as `msp` would) and its zoom to the `spzoom` (the angle
-  goes back to 0).
-- **`spmotion2 num[,loop,t1,x1,y1,zoom1,angle1,...]`**: `spmotion` with a
-  zoom (percent, 100 = its size, on top of `spzoom`'s) and an angle
-  (degrees, counterclockwise, as `lsp2`'s) in each key, both about the
-  centre of the sprite's place, straight from key to key like the
-  offsets. `spmotion2 10,1,0,0,0,100,0,1000,0,0,100,360` spins sprite 10
-  once a second; `spmotion2 10,2,0,0,0,100,0,500,0,-100,150,0` lifts it
-  100 pixels and grows it by half, and it stays there.
+  sprite's place (as `msp` would), its zoom to the `spzoom` and its
+  alpha to the sprite's (the angle goes back to 0).
+- **`spmotion2 num[,loop,t1,x1,y1,zoom1,angle1,alpha1,...]`**: `spmotion`
+  with a zoom (percent, 100 = its size, on top of `spzoom`'s) and an
+  angle (degrees, counterclockwise, as `lsp2`'s), both about the centre
+  of the sprite's place, and an alpha (0-256 of the sprite's own) in each
+  key, straight from key to key like the offsets.
+  `spmotion2 10,1,0,0,0,100,0,256,1000,0,0,100,360,256` spins sprite 10
+  once a second; `spmotion2 10,2,0,0,0,100,0,256,500,300,0,100,0,0`
+  slides it 300 pixels right as it fades out, and it stays gone (the
+  next `lsp` on it shows it again).
 - **`spfade num,ms[,from]`**: fades `lsp` sprite `num` in by itself: it
   is drawn at `from`/256 (0-256, default 0) of its alpha, rising to its
   alpha over `ms`, stepped about every 16 ms by the timer while the script

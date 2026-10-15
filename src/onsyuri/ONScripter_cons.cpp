@@ -210,13 +210,15 @@ int ONScripter::spzoomCommand()
  *   files (restarted). "spmotion 10,1,0,0,0,250,0,-12,500,0,0" bobs
  *   sprite 10 up and down twice a second. loop 2 runs once and leaves the
  *   sprite at the last key: its offset is added to the sprite's place (as
- *   msp) and its zoom to the spzoom; the angle goes back to 0.
+ *   msp), its zoom to the spzoom and its alpha to the sprite's; the angle
+ *   goes back to 0.
  *
- * spmotion2 num[,loop,t1,x1,y1,zoom1,angle1,...]
+ * spmotion2 num[,loop,t1,x1,y1,zoom1,angle1,alpha1,...]
  *   spmotion with a zoom (percent, 100 = its size, times spzoom's) and an
- *   angle (degrees, counterclockwise, as lsp2's) in each key, both about
- *   the centre of the sprite's place: "spmotion2 10,1,0,0,0,100,0,
- *   1000,0,0,100,360" spins sprite 10 once a second. */
+ *   angle (degrees, counterclockwise, as lsp2's), both about the centre of
+ *   the sprite's place, and an alpha (0-256 of the sprite's) in each key:
+ *   "spmotion2 10,1,0,0,0,100,0,256,1000,0,0,100,360,256" spins sprite 10
+ *   once a second. */
 int ONScripter::spmotionCommand()
 {
     leaveTextDisplayMode();
@@ -234,6 +236,7 @@ int ONScripter::spmotionCommand()
     ai->motion_dx = ai->motion_dy = 0;
     ai->motion_zoom = 100;
     ai->motion_rot = 0;
+    ai->motion_alpha = 256;
     if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
         int mode = script_h.readInt();
         ai->motion_loop = mode == 1;
@@ -244,12 +247,13 @@ int ONScripter::spmotionCommand()
             int y = script_h.readInt();
             int zoom = two ? script_h.readInt() : 100;
             int rot = two ? script_h.readInt() : 0;
+            int alpha = two ? script_h.readInt() : 256;
             if (ai->motion_keys == AnimationInfo::MAX_MOTION_KEYS){
                 utils::printError("spmotion: more than %d keys\n", AnimationInfo::MAX_MOTION_KEYS);
                 continue;
             }
             int *k = ai->motion_key[ai->motion_keys++];
-            k[0] = speedTime( t ); k[1] = x; k[2] = y; k[3] = zoom; k[4] = rot; // gamespeed
+            k[0] = speedTime( t ); k[1] = x; k[2] = y; k[3] = zoom; k[4] = rot; k[5] = alpha; // gamespeed
         }
         ai->motion_start = ai->motion_next = SDL_GetTicks();
         stepSpriteMotion( *ai, ai->motion_start );
@@ -378,8 +382,8 @@ void ONScripter::drawSpriteRange( SDL_Surface *surface, SDL_Rect &clip, int hi, 
     }
 }
 
-// Sets a motion's offset, zoom and angle for the time; ends a motion that
-// ran once (one that keeps its last key moves the sprite's place there).
+// Sets a motion's offset, zoom, angle and alpha for the time; ends a motion
+// that ran once (one that keeps its last key moves the sprite there).
 void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
 {
     if (ai.motion_keys == 0) return;
@@ -394,27 +398,30 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
             ai.scalePosXY( screen_ratio1, screen_ratio2 );
             ai.zoom_x = ai.zoom_x * k[3] / 100;
             ai.zoom_y = ai.zoom_y * k[3] / 100;
+            if (k[5] < 256) ai.trans = (ai.trans < 0 ? 255 : ai.trans) * k[5] / 256;
         }
         ai.motion_keys = 0;
         ai.motion_dx = ai.motion_dy = 0;
         ai.motion_zoom = 100;
         ai.motion_rot = 0;
+        ai.motion_alpha = 256;
         return;
     }
     int i = 0;
     while (i + 1 < ai.motion_keys && ai.motion_key[i+1][0] <= t) i++;
     int *a = ai.motion_key[i];
-    int v[5] = {0, a[1], a[2], a[3], a[4]};
+    int v[6] = {0, a[1], a[2], a[3], a[4], a[5]};
     if (i + 1 < ai.motion_keys && t > a[0]){
         int *b = ai.motion_key[i+1];
         int span = b[0] - a[0];
         if (span > 0)
-            for (int j=1 ; j<5 ; j++) v[j] += (b[j] - a[j]) * (t - a[0]) / span;
+            for (int j=1 ; j<6 ; j++) v[j] += (b[j] - a[j]) * (t - a[0]) / span;
     }
     ai.motion_dx = v[1] * screen_ratio1 / screen_ratio2;
     ai.motion_dy = v[2] * screen_ratio1 / screen_ratio2;
     ai.motion_zoom = v[3];
     ai.motion_rot = v[4];
+    ai.motion_alpha = v[5];
 }
 
 // Sets a keyed alpha (spalpha) for the time; stops one that ran once, at
@@ -487,11 +494,11 @@ void ONScripter::proceedSpriteMotions( int current_time )
             ai.motion_next = current_time;
         }
         while (ai.motion_next <= current_time) ai.motion_next += 16;
-        int dx = ai.motion_dx, dy = ai.motion_dy, zoom = ai.motion_zoom, rot = ai.motion_rot;
+        int dx = ai.motion_dx, dy = ai.motion_dy, zoom = ai.motion_zoom, rot = ai.motion_rot, alpha = ai.motion_alpha;
         SDL_Rect r = drawnRect( ai );
         stepSpriteMotion( ai, current_time );
         if (!ai.visible || !ai.image_surface) continue;
-        if (dx == ai.motion_dx && dy == ai.motion_dy && zoom == ai.motion_zoom && rot == ai.motion_rot && ai.motion_keys > 0) continue;
+        if (dx == ai.motion_dx && dy == ai.motion_dy && zoom == ai.motion_zoom && rot == ai.motion_rot && alpha == ai.motion_alpha && ai.motion_keys > 0) continue;
         SDL_Rect r2 = drawnRect( ai );
         int x1 = (r.x < r2.x) ? r.x : r2.x, y1 = (r.y < r2.y) ? r.y : r2.y;
         int x2 = (r.x + r.w > r2.x + r2.w) ? r.x + r.w : r2.x + r2.w;
@@ -1839,7 +1846,7 @@ void ONScripter::saveSaveFileCons( bool output_flag )
     }
 
     // Version 13: the motions' (version 9's, in the same order) keep flag
-    // and each key's zoom and angle (spmotion2).
+    // and each key's zoom, angle and alpha (spmotion2).
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo *ai = &sprite_info[i];
         if (ai->motion_keys == 0) continue;
@@ -1847,6 +1854,7 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         for (int k=0 ; k<ai->motion_keys ; k++){
             writeInt( ai->motion_key[k][3], output_flag );
             writeInt( ai->motion_key[k][4], output_flag );
+            writeInt( ai->motion_key[k][5], output_flag );
         }
     }
 }
@@ -2281,7 +2289,7 @@ void ONScripter::loadSaveFileCons()
             int t = readInt(), x = readInt(), y = readInt();
             if (k >= AnimationInfo::MAX_MOTION_KEYS) continue;
             ai->motion_key[k][0] = t; ai->motion_key[k][1] = x; ai->motion_key[k][2] = y;
-            ai->motion_key[k][3] = 100; ai->motion_key[k][4] = 0;
+            ai->motion_key[k][3] = 100; ai->motion_key[k][4] = 0; ai->motion_key[k][5] = 256;
             ai->motion_keys++;
         }
         ai->motion_start = ai->motion_next = SDL_GetTicks();
@@ -2335,9 +2343,9 @@ void ONScripter::loadSaveFileCons()
         AnimationInfo *ai = motions[n].first;
         ai->motion_keep = readInt() != 0;
         for (int k=0 ; k<motions[n].second ; k++){
-            int zoom = readInt(), rot = readInt();
+            int zoom = readInt(), rot = readInt(), alpha = readInt();
             if (k >= AnimationInfo::MAX_MOTION_KEYS) continue;
-            ai->motion_key[k][3] = zoom; ai->motion_key[k][4] = rot;
+            ai->motion_key[k][3] = zoom; ai->motion_key[k][4] = rot; ai->motion_key[k][5] = alpha;
         }
         stepSpriteMotion( *ai, ai->motion_start );
     }
