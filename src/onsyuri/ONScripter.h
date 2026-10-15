@@ -232,6 +232,7 @@ public:
     int btnseCommand();
     int effectoffCommand();
     int textshadowCommand();
+    int strspoutlineCommand();
     int screenrippleCommand();
     int screenpulseCommand();
     int screenzoomCommand();
@@ -758,7 +759,7 @@ private:
     void applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip );
 
     // CONscripter: strsp's font settings, per sprite and in saved screens
-    struct StrspFont { int num_xy[2], font_size_xy[2], pitch_xy[2]; bool bold, shadow, tate; }; // tate: vstrsp
+    struct StrspFont { int num_xy[2], font_size_xy[2], pitch_xy[2]; bool bold, shadow, tate; int outline = -1; }; // tate: vstrsp; outline: strspoutline's
     // CONscripter: screen states saved by pushscreen, restored by popscreen
     struct ScreenSprite {
         char *image_name;
@@ -885,6 +886,8 @@ private:
     int syse_volume = -1;            // sysevol: wave's channel (menu sounds), -1 the sound effects'
     char *btn_se_file = NULL;        // btnse: played when a btnwait ends on a button
     bool shadowed( const FontInfo *info ){ return info->is_shadow && (text_shadow || info != &sentence_font); }
+    bool outlined( const FontInfo *info ){ return render_font_outline || info->outline >= 0; }
+    int strsp_outline = -1;          // strspoutline: the outline later strsp sprites get (-1: none)
     int speedTime( int ms );         // ms at game_speed
     bool autoWaitsForVoice();
     void voiceAfterWait();

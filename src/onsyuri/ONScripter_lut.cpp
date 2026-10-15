@@ -72,6 +72,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"sysevol",			&ONScripter::sysevolCommand},
     {"systemcall",		&ONScripter::systemcallCommand},
     {"sub",				&ONScripter::subCommand},
+    {"strspoutline",	&ONScripter::strspoutlineCommand},
     {"strsph",			&ONScripter::strspCommand},
     {"strsp",			&ONScripter::strspCommand},
     {"vstrsp",			&ONScripter::strspCommand},

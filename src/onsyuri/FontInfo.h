@@ -55,6 +55,7 @@ public:
     int wait_time;
     bool is_bold;
     bool is_shadow;
+    int outline; // CONscripter: the shadow is a 1 px outline of this 0xRRGGBB (-1: a shadow)
     bool is_transparent;
     bool is_newline_accepted;
     uchar3  window_color;

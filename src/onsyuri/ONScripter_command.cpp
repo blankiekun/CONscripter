@@ -406,6 +406,8 @@ int ONScripter::strspCommand()
     sf.bold = fi.is_bold;
     sf.shadow = fi.is_shadow;
     sf.tate = tate;
+    sf.outline = fi.is_shadow ? strsp_outline : -1;
+    fi.outline = sf.outline;
 
     char *buffer = script_h.getNext();
     while(script_h.getEndStatus() & ScriptHandler::END_COMMA){

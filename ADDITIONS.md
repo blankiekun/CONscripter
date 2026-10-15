@@ -195,6 +195,13 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   characters; brackets, dashes and long vowel marks are turned. Kept in
   saves and by `pushscreen` like `strsp`. A save screen's chapter title in
   its side panel: `vstrsp 20,"―　プロローグ　―",955,41,1,20,20,20,0,0,0,0,"#000000"`.
+- **`strspoutline "#RRGGBB"`**: `strsp` and `vstrsp` sprites made after it
+  with their shadow on draw the shadow as a 1 px outline of this colour
+  (all around, as `--render-font-outline` draws one, but in a colour of
+  the script's); kept with the sprite in saves and by `pushscreen`. `""`
+  (default) goes back to the shadow. Other text keeps its own. 続・殺戮の
+  ジャンゴ's text log, black letters with a light rim:
+  `strspoutline "#AAAA88":strsp 20,"…",120,99,24,1,20,20,0,0,0,1,"#000000":strspoutline ""`.
 - **`getkey`**: the next `btnwait` or `textbtnwait` also ends when a
   letter key is pressed, returning -1000 minus the letter's upper-case
   code (A is -1065, M -1077, Z -1090), before the key's own meaning

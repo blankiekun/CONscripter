@@ -152,13 +152,18 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
     
     SDL_Color scolor = {0, 0, 0};
     SDL_Surface *tmp_surface_s = tmp_surface;
-    if (shadowed(info) && render_font_outline){
+    if (shadowed(info) && outlined(info)){
         unsigned char max_color = color.r;
         if (max_color < color.g) max_color = color.g;
         if (max_color < color.b) max_color = color.b;
         if (max_color < 0x80) scolor.r = 0xff;
         else                  scolor.r = 0;
         scolor.g = scolor.b = scolor.r;
+        if (info->outline >= 0){ // CONscripter: strspoutline's colour
+            scolor.r = (info->outline >> 16) & 0xff;
+            scolor.g = (info->outline >> 8) & 0xff;
+            scolor.b = info->outline & 0xff;
+        }
 
         tmp_surface_s = TTF_RenderGlyph_Shaded((TTF_Font*)info->ttf_font[1], unicode, fcol, bcol);
         if (tmp_surface && tmp_surface_s){
@@ -192,7 +197,7 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
 
     if (shadowed(info) && tmp_surface_s){
         SDL_Rect dst_rect_s = dst_rect;
-        if (render_font_outline){
+        if (outlined(info)){
             dst_rect_s.x -= (tmp_surface_s->w - tmp_surface->w)/2;
             dst_rect_s.y -= (tmp_surface_s->h - tmp_surface->h)/2;
         }
@@ -321,7 +326,7 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
         }
         else if ( flush_flag ){
             if (shadowed(info)){
-                if (render_font_outline)
+                if (outlined(info))
                     info->addShadeArea(dst_rect, -1, -1, 2, 2);
                 else
                     info->addShadeArea(dst_rect, 0, 0, shade_distance[0], shade_distance[1]);
@@ -458,7 +463,7 @@ void ONScripter::drawString( const char *str, uchar3 color, FontInfo *info, bool
     scaled_clipped_rect.h = clipped_rect.h * screen_ratio1 / screen_ratio2;
 
     if (shadowed(info)){
-        if (render_font_outline)
+        if (outlined(info))
             info->addShadeArea(scaled_clipped_rect, -1, -1, 2, 2);
         else
             info->addShadeArea(scaled_clipped_rect, 0, 0, shade_distance[0], shade_distance[1]);

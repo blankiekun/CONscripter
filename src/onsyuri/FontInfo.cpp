@@ -88,6 +88,7 @@ void FontInfo::reset()
 
     is_bold = true;
     is_shadow = true;
+    outline = -1;
     is_transparent = true;
     is_newline_accepted = false;
 }

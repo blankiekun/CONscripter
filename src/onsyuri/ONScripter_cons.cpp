@@ -964,6 +964,23 @@ int ONScripter::sysevolCommand()
     return RET_CONTINUE;
 }
 
+/* strspoutline "#RRGGBB"
+ *   strsp and vstrsp sprites made after it with their shadow on draw it
+ *   as a 1 px outline of this colour (the text log's light rim around
+ *   dark letters), kept with the sprite in saves. "" (default): a shadow,
+ *   as before. */
+int ONScripter::strspoutlineCommand()
+{
+    const char *buf = script_h.readStr();
+    strsp_outline = -1;
+    if (buf[0] == '#'){
+        uchar3 c;
+        readColor( &c, buf );
+        strsp_outline = (c[0] << 16) | (c[1] << 8) | c[2];
+    }
+    return RET_CONTINUE;
+}
+
 int ONScripter::btnseCommand()
 {
     const char *name = script_h.readStr();
@@ -1910,7 +1927,8 @@ void ONScripter::writeStrsp( char *text, const StrspFont &sf, int cells, uchar3 
     }
     // vstrsp's columns ride in bold's second bit: the save format stays
     writeInt( (sf.bold ? 1 : 0) | (sf.tate ? 2 : 0), output_flag );
-    writeInt( sf.shadow ? 1 : 0, output_flag );
+    // strspoutline's colour rides in shadow, above 0xffffff
+    writeInt( !sf.shadow ? 0 : sf.outline >= 0 ? 0x1000000 | sf.outline : 1, output_flag );
     writeInt( cells, output_flag );
     for (int c=0 ; c<cells ; c++)
         for (int k=0 ; k<3 ; k++)
@@ -1928,7 +1946,9 @@ void ONScripter::readStrsp( char **text, StrspFont &sf, int &cells, uchar3 *&col
     int bold = readInt();
     sf.bold = (bold & 1) != 0;
     sf.tate = (bold & 2) != 0;
-    sf.shadow = readInt() == 1;
+    int shadow = readInt();
+    sf.shadow = shadow == 1 || shadow >= 0x1000000;
+    sf.outline = shadow >= 0x1000000 ? shadow & 0xffffff : -1;
     cells = readInt();
     colors = new uchar3[cells > 0 ? cells : 1];
     for (int c=0 ; c<cells ; c++)
@@ -1950,6 +1970,7 @@ void ONScripter::setStrsp( int no, const char *text, const StrspFont &sf, int ce
     }
     fi.is_bold = sf.bold;
     fi.is_shadow = sf.shadow;
+    fi.outline = sf.outline;
     if (sf.tate) fi.setTateyokoMode( FontInfo::TATE_MODE );
     int cell = ai->current_cell;
     ai->font_size_xy[0] = -1;
