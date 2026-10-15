@@ -1019,9 +1019,9 @@ void ONScripter::applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip )
         if (e.kind == SCREEN_EFFECT_SHAKE){
             long long ux, uy; // where on the wave or path, 16.16
             if (e.param[2] == 1){
-                const int *a = shake_path[e.point], *b = shake_path[e.point + 1];
-                ux = a[0] + ((long long)(b[0] - a[0]) * e.phase_x >> 16);
-                uy = a[1] + ((long long)(b[1] - a[1]) * e.phase_x >> 16);
+                // jumps from point to point, as the original (filmed)
+                ux = shake_path[e.point][0];
+                uy = shake_path[e.point][1];
             }
             else{
                 ux = (long long)(sin( M_PI * 2 * ((e.phase_x >> 8) & 0xff) / 256 ) * 65536);
