@@ -212,8 +212,16 @@ void ONScripter::setupAnimationInfo( AnimationInfo *anim, FontInfo *info )
             xy_bak[1] = f_info.xy[1];
             
             int xy[2] = {0, 0};
-            f_info.setXY(f_info.num_xy[0]-1, f_info.num_xy[1]-1);
+            if (f_info.getTateyokoMode() == FontInfo::TATE_MODE){
+                // CONscripter: columns run from the right (vstrsp)
+                xy[0] = (f_info.num_xy[0]-1)*2;
+                f_info.setXY(0, f_info.num_xy[1]-1);
+            }
+            else
+                f_info.setXY(f_info.num_xy[0]-1, f_info.num_xy[1]-1);
+            int columns = f_info.num_xy[0]; // calcUpdatedArea resets it in columns
             pos = f_info.calcUpdatedArea(xy, screen_ratio1, screen_ratio2);
+            f_info.num_xy[0] = columns;
 
             f_info.xy[0] = xy_bak[0];
             f_info.xy[1] = xy_bak[1];

@@ -713,7 +713,7 @@ private:
     void applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip );
 
     // CONscripter: strsp's font settings, per sprite and in saved screens
-    struct StrspFont { int num_xy[2], font_size_xy[2], pitch_xy[2]; bool bold, shadow; };
+    struct StrspFont { int num_xy[2], font_size_xy[2], pitch_xy[2]; bool bold, shadow, tate; }; // tate: vstrsp
     // CONscripter: screen states saved by pushscreen, restored by popscreen
     struct ScreenSprite {
         char *image_name;

@@ -371,6 +371,7 @@ int ONScripter::strspCommand()
     
     bool v = true;
     if ( script_h.isName( "strsph" ) ) v = false;
+    bool tate = script_h.isName( "vstrsp" ); // CONscripter: in columns
 
     int sprite_no = script_h.readInt();
     AnimationInfo *ai = &sprite_info[sprite_no];
@@ -395,6 +396,7 @@ int ONScripter::strspCommand()
     fi.pitch_xy[1] = script_h.readInt() + fi.font_size_xy[1];
     fi.is_bold = script_h.readInt()?true:false;
     fi.is_shadow = script_h.readInt()?true:false;
+    if (tate) fi.setTateyokoMode( FontInfo::TATE_MODE );
     StrspFont &sf = strsp_font[sprite_no]; // CONscripter: kept for the save
     for (int i=0 ; i<2 ; i++){
         sf.num_xy[i] = fi.num_xy[i];
@@ -403,6 +405,7 @@ int ONScripter::strspCommand()
     }
     sf.bold = fi.is_bold;
     sf.shadow = fi.is_shadow;
+    sf.tate = tate;
 
     char *buffer = script_h.getNext();
     while(script_h.getEndStatus() & ScriptHandler::END_COMMA){

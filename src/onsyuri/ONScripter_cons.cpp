@@ -1505,7 +1505,8 @@ void ONScripter::writeStrsp( char *text, const StrspFont &sf, int cells, uchar3 
         writeInt( sf.font_size_xy[k], output_flag );
         writeInt( sf.pitch_xy[k], output_flag );
     }
-    writeInt( sf.bold ? 1 : 0, output_flag );
+    // vstrsp's columns ride in bold's second bit: the save format stays
+    writeInt( (sf.bold ? 1 : 0) | (sf.tate ? 2 : 0), output_flag );
     writeInt( sf.shadow ? 1 : 0, output_flag );
     writeInt( cells, output_flag );
     for (int c=0 ; c<cells ; c++)
@@ -1521,7 +1522,9 @@ void ONScripter::readStrsp( char **text, StrspFont &sf, int &cells, uchar3 *&col
         sf.font_size_xy[k] = readInt();
         sf.pitch_xy[k] = readInt();
     }
-    sf.bold = readInt() == 1;
+    int bold = readInt();
+    sf.bold = (bold & 1) != 0;
+    sf.tate = (bold & 2) != 0;
     sf.shadow = readInt() == 1;
     cells = readInt();
     colors = new uchar3[cells > 0 ? cells : 1];
@@ -1544,6 +1547,7 @@ void ONScripter::setStrsp( int no, const char *text, const StrspFont &sf, int ce
     }
     fi.is_bold = sf.bold;
     fi.is_shadow = sf.shadow;
+    if (sf.tate) fi.setTateyokoMode( FontInfo::TATE_MODE );
     int cell = ai->current_cell;
     ai->font_size_xy[0] = -1;
     ai->removeTag();

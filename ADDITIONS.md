@@ -146,6 +146,13 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   `chvolfade 3,30:dwaveloop 3,"se\rain.ogg"` … `chvolfade 3,100,2000`;
   `bgmvolfade 20,500` ducks the music, `bgmvolfade 100,1000` brings it
   back.
+- **`vstrsp num,"text",x,y,columns,rows,w,h,pitch_x,pitch_y,bold,shadow[,colours]`**:
+  `strsp` with the text in columns, top to bottom, the first at the right
+  (as `tateyoko 1` lays out the text window): `columns` columns of `rows`
+  characters, `pitch_x` pixels between columns and `pitch_y` between
+  characters; brackets, dashes and long vowel marks are turned. Kept in
+  saves and by `pushscreen` like `strsp`. A save screen's chapter title in
+  its side panel: `vstrsp 20,"―　プロローグ　―",955,41,1,20,20,20,0,0,0,0,"#000000"`.
 - **`getkey`**: the next `btnwait` or `textbtnwait` also ends when a
   letter key is pressed, returning -1000 minus the letter's upper-case
   code (A is -1065, M -1077, Z -1090), before the key's own meaning

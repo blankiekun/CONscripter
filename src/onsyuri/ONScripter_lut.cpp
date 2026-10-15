@@ -73,6 +73,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"sub",				&ONScripter::subCommand},
     {"strsph",			&ONScripter::strspCommand},
     {"strsp",			&ONScripter::strspCommand},
+    {"vstrsp",			&ONScripter::strspCommand},
     {"stralias",		&ONScripter::straliasCommand},
     {"stop",			&ONScripter::stopCommand},
     {"sp_rgb_gradation",&ONScripter::sp_rgb_gradationCommand},
