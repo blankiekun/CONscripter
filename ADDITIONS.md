@@ -59,6 +59,13 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   draw: follow it with `print` (an effect fades it in). Kept in save
   files and by `pushscreen`, cleared by `reset`.
   `screenfilter 1,4,0,256,-200:print 10` darkens the scene for night.
+- **`screenflash opacity[,"#RRGGBB"]`**: adds the colour (white when
+  not given) at `opacity`/256 to every pixel of the screen, over
+  everything: the picture, the text window, the sprites in front of it
+  and the buttons (`lsp2add` stays under the text window). It doesn't
+  draw: follow it with `print`. `screenflash 0` takes it away, as `reset`
+  does; not kept in save files.
+  `screenflash 128:print 1:delay 100:screenflash 0:print 1` (lightning).
 - **`screenshake slot,time,interval,mode,speed_x,speed_y,x0,y0,x1,y1`**
   and **`screenripple slot,"map",time,interval,opacity0,opacity1,amp0,amp1,angle,angle_step,phase_step[,blend]`**:
   effects that move by themselves on the same picture as `screenfilter`

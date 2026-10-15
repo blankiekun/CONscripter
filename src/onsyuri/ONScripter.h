@@ -207,6 +207,7 @@ public:
     int spfilterCommand();
     int spzoomCommand();
     int spmotionCommand();
+    int screenflashCommand();
     int screenfilterCommand();
     int screenshakeCommand();
     int screenrippleCommand();
@@ -675,6 +676,10 @@ private:
     void clearScreenFilters();
     bool screenFilterBlurs();
     void applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip );
+    // CONscripter: screenflash, a colour added over everything (0: none)
+    int screen_flash_opacity = 0;
+    uchar3 screen_flash_colour = {0xff, 0xff, 0xff};
+    void applyScreenFlash( SDL_Surface *surface, SDL_Rect &clip );
 
     // CONscripter: animated effects on the same picture (screenshake,
     // screenripple, screenpulse), by slot, stepped like sprite animations

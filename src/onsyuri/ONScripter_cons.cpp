@@ -424,6 +424,48 @@ void ONScripter::clearScreenFilters()
     }
 }
 
+/* screenflash opacity[,"#RRGGBB"]
+ *   Adds the colour (white when not given) at opacity/256 (0-256) to every
+ *   pixel of the screen, over everything: the picture, the text window,
+ *   the sprites in front of it and the buttons, as a flash of lightning
+ *   does. It doesn't draw: follow it with print. "screenflash 0" takes it
+ *   away, as reset does. Not kept in save files.
+ *   "screenflash 128:print 1:delay 100:screenflash 0:print 1" */
+int ONScripter::screenflashCommand()
+{
+    screen_flash_opacity = script_h.readInt();
+    if (screen_flash_opacity < 0) screen_flash_opacity = 0;
+    if (screen_flash_opacity > 256) screen_flash_opacity = 256;
+    screen_flash_colour[0] = screen_flash_colour[1] = screen_flash_colour[2] = 0xff;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA)
+        readColor( &screen_flash_colour, script_h.readStr() );
+    dirty_rect.fill( screen_width, screen_height );
+
+    return RET_CONTINUE;
+}
+
+void ONScripter::applyScreenFlash( SDL_Surface *surface, SDL_Rect &clip )
+{
+    if (screen_flash_opacity == 0 || surface == NULL || surface->format->BytesPerPixel != 4) return;
+    SDL_PixelFormat *fmt = surface->format;
+    Uint32 add[3], mask[3] = {fmt->Rmask, fmt->Gmask, fmt->Bmask};
+    int shift[3] = {fmt->Rshift, fmt->Gshift, fmt->Bshift};
+    for (int c=0 ; c<3 ; c++) add[c] = screen_flash_colour[c] * screen_flash_opacity / 256;
+    SDL_LockSurface( surface );
+    for (int y=clip.y ; y<clip.y+clip.h ; y++){
+        Uint32 *p = (Uint32*)((Uint8*)surface->pixels + y * surface->pitch) + clip.x;
+        for (int x=0 ; x<clip.w ; x++, p++){
+            Uint32 out = *p & ~(mask[0] | mask[1] | mask[2]);
+            for (int c=0 ; c<3 ; c++){
+                Uint32 v = ((*p & mask[c]) >> shift[c]) + add[c];
+                out |= (v > 0xff ? 0xff : v) << shift[c];
+            }
+            *p = out;
+        }
+    }
+    SDL_UnlockSurface( surface );
+}
+
 bool ONScripter::screenFilterBlurs()
 {
     for (int i=0 ; i<MAX_SCREEN_FILTER ; i++)

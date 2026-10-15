@@ -843,6 +843,7 @@ void ONScripter::resetSub()
     text_size_percent = 100;
     clearScreenFilters();
     clearScreenEffects();
+    screen_flash_opacity = 0;
 
     stopCommand();
     loopbgmstopCommand();
