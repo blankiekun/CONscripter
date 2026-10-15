@@ -152,7 +152,7 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
     
     SDL_Color scolor = {0, 0, 0};
     SDL_Surface *tmp_surface_s = tmp_surface;
-    if (info->is_shadow && render_font_outline){
+    if (shadowed(info) && render_font_outline){
         unsigned char max_color = color.r;
         if (max_color < color.g) max_color = color.g;
         if (max_color < color.b) max_color = color.b;
@@ -190,7 +190,7 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
         dst_rect.y -= info->font_size_xy[0]/2;
     }
 
-    if (info->is_shadow && tmp_surface_s){
+    if (shadowed(info) && tmp_surface_s){
         SDL_Rect dst_rect_s = dst_rect;
         if (render_font_outline){
             dst_rect_s.x -= (tmp_surface_s->w - tmp_surface->w)/2;
@@ -320,7 +320,7 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
             dirty_rect.add( dst_rect );
         }
         else if ( flush_flag ){
-            if (info->is_shadow){
+            if (shadowed(info)){
                 if (render_font_outline)
                     info->addShadeArea(dst_rect, -1, -1, 2, 2);
                 else
@@ -457,7 +457,7 @@ void ONScripter::drawString( const char *str, uchar3 color, FontInfo *info, bool
     scaled_clipped_rect.w = clipped_rect.w * screen_ratio1 / screen_ratio2;
     scaled_clipped_rect.h = clipped_rect.h * screen_ratio1 / screen_ratio2;
 
-    if (info->is_shadow){
+    if (shadowed(info)){
         if (render_font_outline)
             info->addShadeArea(scaled_clipped_rect, -1, -1, 2, 2);
         else

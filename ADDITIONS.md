@@ -212,6 +212,12 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
     end. Text speed, auto mode's wait and sounds keep theirs.
     `gamespeed 200` plays a 1 s fade in 0.5 s (Nitroplus's ゲーム全般の処理速度;
     a game's own menus set it back to 100 while they are open).
+  - **`effectoff on`**: 1 = every `print` effect (and those of `bg`,
+    `ld`, `cl`) is drawn at once, as effect 1 (a game's "use screen
+    effects" switch); 0 (default) = as the script asks.
+  - **`textshadow on`**: 0 = the message text has no shadow, whatever
+    `setwindow` says (a "text decoration" switch); 1 (default) =
+    `setwindow`'s. Other text (`strsp`, menus) keeps its own.
 - **`spbtn num,no,pressed_cell`**: a third argument to `spbtn` names the
   cell sprite `num` shows while the left mouse button is held on it (the
   hover cell is 1, as before). It goes back to the hover cell when the

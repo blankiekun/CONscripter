@@ -789,6 +789,28 @@ int ONScripter::selectkeepCommand()
     return RET_CONTINUE;
 }
 
+/* effectoff on
+ *   1 = every print effect (and bg/ld/cl's) is drawn at once, as with
+ *   effect 1; 0 (default) = as the script asks. */
+int ONScripter::effectoffCommand()
+{
+    effect_off = script_h.readInt() != 0;
+    return RET_CONTINUE;
+}
+
+/* textshadow on
+ *   0 = the message text is drawn without a shadow, whatever setwindow
+ *   says; 1 (default) = with setwindow's. */
+int ONScripter::textshadowCommand()
+{
+    bool on = script_h.readInt() != 0;
+    if (on != text_shadow){
+        text_shadow = on;
+        dirty_rect.fill( screen_width, screen_height );
+    }
+    return RET_CONTINUE;
+}
+
 int ONScripter::moviestopCommand()
 {
     int m = script_h.readInt();

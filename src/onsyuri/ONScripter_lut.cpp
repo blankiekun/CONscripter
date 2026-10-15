@@ -113,6 +113,8 @@ static ONScripter::FuncLUT func_lut[] = {
     {"selgosub",		&ONScripter::selectCommand},
     {"selectvoice",		&ONScripter::selectvoiceCommand},
     {"selectkeep",		&ONScripter::selectkeepCommand},
+    {"effectoff",		&ONScripter::effectoffCommand},
+    {"textshadow",		&ONScripter::textshadowCommand},
     {"selectcolor",		&ONScripter::selectcolorCommand},
     {"selectbtnwait",	&ONScripter::btnwaitCommand},
     {"select",			&ONScripter::selectCommand},

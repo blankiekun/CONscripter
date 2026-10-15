@@ -227,6 +227,8 @@ public:
     int selectkeepCommand();
     int moviestopCommand();
     int gamespeedCommand();
+    int effectoffCommand();
+    int textshadowCommand();
     int screenrippleCommand();
     int screenpulseCommand();
     int screenzoomCommand();
@@ -863,12 +865,16 @@ private:
 
     // CONscripter: player settings a game's settings screen sets
     // (soundmute, clickvoicestop, autovoicewait, selectkeep, moviestop,
-    // gamespeed); not saved, the game sets them again at startup
+    // gamespeed, effectoff, textshadow); not saved, the game sets them
+    // again at startup
     bool click_voice_stop = false;   // a click that ends a text wait stops the voice
     bool auto_voice_wait = true;     // auto mode waits for the voice to end (off: cuts it)
     bool select_keep = false;        // auto mode and skip go on after a select
     int movie_stop = -1;             // a click stops a movie: 0 never, 1 always, -1 the script's flag
     int game_speed = 100;            // script times run at this percent of real speed
+    bool effect_off = false;         // every print effect is drawn at once
+    bool text_shadow = true;         // the message text has setwindow's shadow (off: none)
+    bool shadowed( const FontInfo *info ){ return info->is_shadow && (text_shadow || info != &sentence_font); }
     int speedTime( int ms );         // ms at game_speed
     bool autoWaitsForVoice();
     void voiceAfterWait();
