@@ -350,7 +350,9 @@ may press its load button and go round in circles.
 
 `--roundtrip-every n` (with `--trace` and `--auto-play`) checks saving
 itself: every n pages it saves to a spare slot (`--roundtrip-slot`, 999),
-loads it again, and when the same page shows again compares the state
+clears what it compares (as a load from the title screen would find it;
+the settings made once in `*define` stay), loads the save, and when the
+same page shows again compares the state
 with the first time: the text, the background, the sprites, the music and
 looping sounds, the filters, the variables, ... Any difference is written
 as a `save/load mismatch` warning, which points at something the save file
@@ -511,11 +513,15 @@ handles the wait.
 | `bg` | The `bg` argument: a file, `black`, `white` or `#rrggbb` |
 | `bgm` | The music last started with `bgm`/`mp3`/`ogg`/`play`/`midi` and not stopped (it may have finished if it doesn't loop); `null` for none |
 | `loopbgm` | `[intro, loop]` when `loopbgm` is playing (omitted otherwise) |
-| `se` | The sound channels still playing (`dwave`, `wave`, voices): channel, file, and `loop` for a looping one (omitted when none) |
+| `bgmvol` | The music's volume as heard, in percent, when below 100: the player's setting, `soundmute`, a fade, `bgmvol`, `bgmvolfade` |
+| `se` | The sound channels still playing (`dwave`, `wave`, voices): channel, file, `loop` for a looping one, and `vol`, its volume as heard in percent (the setting, `chvol`, `soundmute`, a channel fade), when below 100 (omitted when none) |
+| `wait` | The milliseconds the script asked to wait since the last page: text drawn a character at a time, `wait`, `delay`, effects. Auto-play skips them, so this is what a player would wait |
+| `px` | A checksum of the screen as shown (FNV-1a of its pixels), for `--diff` |
 | `window` | Whether the text window is shown |
 | `windowtrans` | The text window picture's opacity (`windowtrans`), when not 255 |
 | `monocro` | The colour of `monocro`, as `"#rrggbb"`, while it is on |
 | `nega` | The `nega` mode, while it is on |
+| `flash` | `[opacity, "#rrggbb"]` while a `screenflash` is on |
 | `filters` | The `screenfilter` slots in use: `{"slot","kind","blend","strength","p":[p1,p2,p3]}` (see ADDITIONS.md) |
 | `fx` | The `screenshake`/`screenripple`/`screenpulse` slots in use: `{"slot","kind":"shake"\|"ripple"\|"pulse"}`, with the ripple's `map` and a shake's `end` (ms) when it has one; a timed wait skipped by auto-play still counts toward that end |
 | `shot` | The picture saved of this page (`--shot-pages`, `--shot-every`) |
@@ -536,8 +542,13 @@ Each sprite in `sp`:
 | `off` | `true` when the box is entirely off the screen |
 | `filters` | The number of `spfilter` filters on it |
 | `zoom` | `[x,y]`, its `spzoom` in percent (omitted at 100) |
-| `motion` | `"loop"` or `"once"` while an `spmotion` moves it (the box is its place, without the motion) |
-| `since` | The page where it last appeared, or changed its image, position, size, opacity or cell (an animation stepping its own cells doesn't count) |
+| `anim` | `true` for a sprite that steps its own cells (its picture changes with time) |
+| `motion` | `"loop"`, `"once"` or `"keep"` (loop mode 2) while an `spmotion` or `spmotion2` moves it (the box is its place, without the motion) |
+| `over` | The sprite `spz` draws it right over |
+| `fade` | `true` while `spfade` fades it in |
+| `keyed` | `"loop"` or `"once"` while `spalpha` keys its alpha |
+| `shown` | The alpha it is drawn at, when `spfade`, `spalpha` or `spmotion2`'s keys make it differ from `alpha` |
+| `since` | The page where it last appeared, or changed its image, position, size, opacity, cell, `spz` or `spalpha` keys (an animation stepping its own cells, or a fade or keyed alpha moving, doesn't count) |
 
 `since` makes lingering sprites easy to spot: a character still up with
 a `since` far below the current `pg`, especially across a `bg` change.
@@ -578,15 +589,19 @@ record:
 Which commands are written:
 
 - **sprites and the background** (`lsp`, `lsp2` and their variants,
-  `csp`, `vsp`, `msp`, `amsp`, `cell`, `spfilter`, `strsp`, `ld`, `cl`,
+  `csp`, `vsp`, `msp`, `amsp`, `cell`, `spfilter`, `strsp`, `vstrsp`, `spz`, `ld`, `cl`,
   `bg`, `popscreen`, ...): only when they changed something, so a `csp`
   of a sprite that isn't there doesn't appear;
 - **sound and movies** (`bgm`, `mp3`, `play`, `stop`, `dwave`, `wave`,
-  `loopbgm`, their stops and fades, `mpegplay`, `movie`, `avi`) and
+  `loopbgm`, their stops and fades, `bgmfadein`, `mp3fadein`, `bgmvolfade`,
+  `dwavefadein`, `chvol`, `mpegplay`, `movie`, `avi`), `spfade`, `spalpha`, the
+  player settings a game's settings screen sets (`soundmute`, `clickvoicestop`,
+  `autovoicewait`, `selectkeep`, `moviestop`, `gamespeed`, `effectoff`,
+  `textshadow`, `sysevol`, `btnse`) and
   **effect definitions** (`effect`): always;
 - **what is laid over the picture** (`screenfilter`, `screenshake`,
   `screenripple`, `screenpulse`, `pushscreen`, `monocro`, `nega`,
-  `quake`, `windowtrans`, `allsphide`, ...): always;
+  `quake`, `windowtrans`, `screenflash`, `allsphide`, ...): always;
 - **`print`**: when something changed since the last `print` written
   (sprites, the background, or what is laid over the picture), so it
   marks when those changes appear, and with what effect.
@@ -606,7 +621,10 @@ the one picked, counted from 1. `btnwait` (and `btnwait2`, not
 `textbtnwait`, which waits on a text page) gives the buttons that were
 offered (a sprite button's number, sprite and image or `str`; an area's
 `x`,`y`,`w`,`h`) and the result: the button's number, 0 for a click
-elsewhere, negative for right-click, keys or a timeout.
+elsewhere, negative for right-click, keys or a timeout. A button that
+can't be seen has `blocked`: `off` (its area is off the screen), `hidden`
+(its sprite isn't shown), `alpha 0`, or `under lsp n` (an opaque `lsp`
+sprite in front covers all of it; a click still reaches it).
 
 ### `label`: the first time a label runs
 
@@ -665,7 +683,7 @@ Schema 2 adds these, with their own fields:
 |---|---|---|
 | `long wait` | `cmd`, `ms` | a command asks to wait longer than `--trace-long-wait` (10000 ms): an effect (`print 10,270000`), `wait`, `delay`, `waittimer` (the time left), a fade, a `quake`, or a `btnwait` with a long `btntime`. `ms` is what the script asked for, even when auto-play shortened it |
 | `large image` | `file`, `w`, `h`, `mb` | a picture, as kept after scaling to the screen, takes more memory than `--trace-max-image` (64 MB); once per file. `file` is the tag for a picture without a file (a colour), `null` if none. Every build, the web one too, decodes and draws pictures in software, so a picture's width and height aren't limited (a 24000x600 animation strip works in a browser), only the memory it takes |
-| `save/load mismatch` | `diff` | `--roundtrip-every` found the state changed by saving and loading; `at` is the page compared, `pg` the page after the round trip. `diff` has up to 40 strings `"field: before -> after"` (`none` when absent; a long value is cut to 100 bytes around where the two differ, with `...`): `at`, `text`, `tag`, `bg`, `bgm`, `loopbgm` (` (stopped)` after the names when it no longer plays, or its intro plays with the loop gone), `se <ch>` (looping sounds), `window`, `windowtrans`, `monocro`, `nega`, `filter <slot>`, `fx <slot>`, `sprites_hidden`, `sprites2_hidden`, `pushscreen`, `sp <kind> <n>` (the image, then `x,y wxh alpha a cell c filters f`), `%n`, `$n`; `["can't save or load"]` if that failed |
+| `save/load mismatch` | `diff` | `--roundtrip-every` found the state changed by saving and loading; `at` is the page compared, `pg` the page after the round trip. `diff` has up to 40 strings `"field: before -> after"` (`none` when absent; a long value is cut to 100 bytes around where the two differ, with `...`): `at`, `text`, `tag`, `bg`, `bgm`, `loopbgm` (` (stopped)` after the names when it no longer plays, or its intro plays with the loop gone), `se <ch>` (looping sounds, with ` vol n` when quieter than 100), `window`, `windowtrans`, `monocro`, `nega`, `flash`, `filter <slot>`, `fx <slot>`, `sprites_hidden`, `sprites2_hidden`, `pushscreen`, `sp <kind> <n>` (the image, then `x,y wxh alpha a cell c filters f`, and `over z` for `spz`, `keyed loop`, `keyed once` or `keyed a` for `spalpha`), `%n`, `$n`; `["can't save or load"]` if that failed |
 | `replay diverged` | `expected` | `--replay` reached a choice at `at`, where the recorded run's was at `expected` |
 | `replay ended` | | `--replay` ran out of recorded choices |
 | `choice not offered` | `option`, `from`, `options` | the answer `--choose` or `--choices` (`from`) gave isn't one of the `options` offered; the choice goes on to the next way of choosing ("Following a route") |
@@ -749,22 +767,24 @@ image memory: 12 to 340 MB (the most at page 4120, *s9_l36:62672), 54 MB at the 
 |---|---|
 | `error` | Script and startup errors (with the gosub chain), a crash (its signal and the last commands run), a trace without `end` or ended by a signal (killed), an auto-play run that got stuck |
 | `missing` | Files that couldn't be loaded, grouped by file, and sprites shown without their image |
-| `text` | A page's text with garbled characters (U+FFFD, control or private-use characters, mojibake such as UTF-8 read as Shift-JIS, which mixes kanji and half-width katakana); text past the window (`overflow`, or a line longer than `--line-chars`); an empty page; a text tag shown as text (`!w100`, `!s`, `!d`, `#rrggbb`, `~...~`, a `\` or `@`); with `--script`, a `%`, `$` or `?` in a text line, which prints a variable or reads an array (a converter that left them in) |
-| `sound` | The same sound started on two channels before one click wait, or a looping one doubled (in a trace without `--auto-play`, any overlap); a voice cut off by the next sound before a click wait, so it was never heard |
-| `voice` | A spoken line with no voice: the speaker's (the `tag`'s name) other lines have one on at least `--voice-share` (0.8) of them and `--voice-min` (5); for lines without a tag, the `--voice-window` (3) spoken lines before and after it in the same label all have one. A line of only "……" or "！？" needs none |
+| `text` | A page's text, or a `select`'s options, with garbled characters (U+FFFD, control or private-use characters, mojibake such as UTF-8 read as Shift-JIS, which mixes kanji and half-width katakana); text past the window (`overflow`, or a line longer than `--line-chars`); an empty page; a text tag shown as text (`!w100`, `!s`, `!d`, `#rrggbb`, `~...~`, a `\` or `@`); with `--script`, a `%`, `$` or `?` in a text line, which prints a variable or reads an array (a converter that left them in) |
+| `sound` | The same sound started on two channels before one click wait, or a looping one doubled (in a trace without `--auto-play`, any overlap); a voice cut off by the next sound before a click wait, so it was never heard; a voice or the music playing at volume 0 |
+| `voice` | A spoken line with no voice: the speaker's (the `tag`'s name) other lines have one on at least `--voice-share` (0.8) of them and `--voice-min` (5); for lines without a tag, the `--voice-window` (3) spoken lines before and after it in the same label all have one. A line of only "……" or "！？" needs none. Also a voice file that belongs to another speaker: each speaker with `--voice-min` voiced lines gets the shortest file-name start that `--voice-share` of their voices have and no other speaker's do (`v3` for あずさ's `v300010.ogg`), and a line whose voice has another speaker's start is reported. Also one voice file played for lines that say different things (punctuation left out), a voice given to the wrong line |
 | `linger` | A tall picture (a character or CG) still up after the background changed, or up for more than `--linger` pages |
 | `float` | A picture at least `--float-h` of the screen tall whose bottom edge stops up to `--float-gap` pixels above the screen's |
 | `offscreen` | A sprite entirely off the screen |
-| `invisible` | A sprite shown at alpha 0 |
-| `crowd` | More than `--crowd` tall pictures at once, or two at the same place |
-| `overlay` | A screen filter or effect still on after the background changed, and with `--cg REGEX` any filter or effect over a background whose name matches (an eye-close left over a CG), and a `screenshake` with no end shaking for more than `--shake` pages (default 30; a game drawing everything as sprites keeps one background, so only this catches a shake never cleared) |
+| `invisible` | A sprite drawn at alpha 0 (its `shown` alpha when it has one; not while it fades in or its keys loop) |
+| `crowd` | More than `--crowd` tall pictures at once, or two at the same place; a picture covering the whole screen (a background or frame drawn as a sprite) isn't counted |
+| `overlay` | A screen filter, effect, `screenflash`, `monocro` or `nega` still on after the background changed, and with `--cg REGEX` any filter or effect over a background whose name matches (an eye-close left over a CG), and a `screenshake` with no end shaking for more than `--shake` pages (default 30; a game drawing everything as sprites keeps one background, so only this catches a shake never cleared) |
 | `loop` | A looping sound playing for more than `--loop` pages |
 | `duration` | A wait or effect the script asks to last very long (the `long wait` warnings: `print 10,270000` is 4.5 minutes) |
 | `slow` | Where the time went: the `--slow` (10) places with the most time, `--slow-ms` (1000) or more, between one record and the next, added up over every visit (a slow load, a long effect, a wait auto-play didn't shorten) |
 | `save` | A `save/load mismatch` from `--roundtrip-every`, once for each set of fields that differed, with how many round trips gave the same. `--save-ignore REGEX` leaves fields out, such as a variable the game's `loadgosub` sets on every load (`'^%190$'`) |
 | `replay` | Where a `--replay` run went another way, or ran out of choices; a `--choose` or `--choices` answer that wasn't offered; where the `--choices` list ran out |
 | `memory` | Image memory (the pages' `mem`) that jumps by `--mem-jump` MB (64) from one page to the next, or grows steadily by `--mem-leak` MB (128) or more over the run (a leak); a single picture taking more than `--trace-max-image` (the `large image` warnings). The report's head gives the least and most, and where it grew |
+| `button` | A `btnwait` button that can't be seen (its `blocked`) |
 | `coverage` | With `--script`, the labels the run never reached (`--coverage-skip REGEX` leaves some out) |
+| `unused` | With `--root`, the image and sound files in the game folder no trace loaded. Loose files only: files in `.nsa` or `.sar` archives aren't listed |
 
 Voices are the sounds on the `--voice-ch` channels (0) or whose file
 matches `--voice` (a `voice` folder); spoken lines are those with a tag
@@ -783,6 +803,22 @@ in `--help`. `--max N` sets how many findings of each kind are shown, and
 `--json` prints them all as JSON (with the counts, the `end` or `crash`
 record, the memory summary and how many findings the config left out).
 
+Several traces can be checked at once, such as the runs `cons_explore.py`
+wrote. Each finding is listed once, and `coverage` and `unused` count what
+any of the runs reached:
+
+```sh
+python3 tools/cons_trace_check.py /tmp/explore/run*.jsonl --script 0.txt --root .
+```
+
+The report's head gives `script waits`, the time the script asked to wait
+in all (the pages' `wait`), which is about how long the run takes to play
+by hand, and the page that asks for the most.
+
+`--baseline old.json`, an earlier report made with `--json`, leaves out
+the findings it already had (matched by rule, place and message, with
+the numbers in it left out), so only new ones show after a change.
+
 To check a fix, compare a trace from before it with one from after, made
 the same way (the same `--auto-play`, `--auto-choice` and `--seed`):
 
@@ -792,7 +828,10 @@ python3 tools/cons_trace_check.py --diff before.jsonl after.jsonl
 
 This prints each page whose background, music, screen state or sprites
 differ (once for a run of pages with the same difference), and where the
-two runs part if they took different routes.
+two runs part if they took different routes. A page whose state is the same
+but whose picture (`px`) differs is listed too, when nothing on it moves by
+itself (an animated, fading or moving sprite, a shake): a drawing change
+between two builds, such as a zoom or an effect drawn differently.
 
 The report ends with the pages its findings are on, as a `--shot-pages`
 option for taking their pictures.

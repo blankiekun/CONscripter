@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check a CONscripter debug trace (--trace) for suspicious states.
 
-usage: cons_trace_check.py TRACE [--script 0.txt] [--config FILE] [--cg REGEX] [--max N] [--json]
+usage: cons_trace_check.py TRACE... [--script 0.txt] [--root DIR] [--config FILE] [--baseline OLD.json] [--max N] [--json]
        cons_trace_check.py --diff OLD NEW [--max N]
 
 Reads the trace (DEBUG.md describes it) and prints what looks wrong, ranked
@@ -11,19 +11,22 @@ by kind, each finding at the script line ("*label:line") to look at:
                commands); a run that ended without "end", was killed by a
                signal or got stuck
   missing      files that couldn't be loaded, grouped by file
-  text         garbled characters, text past the window, empty pages,
-               text tags shown as text; with --script, %, $ or ? in a text
-               line (they print a variable)
+  text         garbled characters (in pages and select options), text past
+               the window, empty pages, text tags shown as text; with
+               --script, %, $ or ? in a text line (they print a variable)
   sound        the same sound on two channels at once; a voice cut off by
-               the next one before a click wait
+               the next one before a click wait; a voice or music at volume 0
   voice        a line with no voice where the same speaker (or the lines
-               around it) has one
+               around it) has one; a voice file another speaker's lines use;
+               one voice file for lines that say different things
   linger       a sprite still up after the background changed, or for many pages
   float        a tall picture whose bottom edge stops just above the screen's
   offscreen    a sprite entirely off the screen
   invisible    a sprite shown at alpha 0
   crowd        too many tall pictures at once, or two at the same place
-  overlay      a screen filter or effect still on after the background changed,
+               (pictures covering the whole screen left out)
+  overlay      a screen filter, effect, monocro or nega still on after the
+               background changed,
                or (--cg) any filter or effect over a background matching REGEX,
                or a screenshake with no end shaking for many pages (--shake)
   loop         a looping sound left playing for many pages
@@ -34,7 +37,15 @@ by kind, each finding at the script line ("*label:line") to look at:
                a --choose or --choices answer not offered, a --choices list run out
   memory       image memory that grows steadily or jumps; a single picture
                taking a lot of it (--trace-max-image)
+  button       a btnwait button that can't be seen: off the screen, hidden,
+               at alpha 0 or under an opaque sprite
   coverage     (--script) labels the run never reached
+  unused       (--root) image and sound files no trace loaded
+
+Several traces (the runs of cons_explore.py) are read as one: coverage and
+unused count what any of them reached, and each finding is listed once.
+--baseline OLD.json (an earlier --json report) leaves out the findings it
+already had, so only new ones show.
 
 Settings for a game can go in a JSON file, cons_trace_check.json beside the
 trace or the script, or --config FILE: any option below by name, "ignore"
@@ -42,7 +53,8 @@ trace or the script, or --config FILE: any option below by name, "ignore"
 out). Options given on the command line win.
 
 --diff compares two traces of the same route page by page (before and after
-a fix) and prints the pages whose state differs.
+a fix) and prints the pages whose state differs, and pages whose picture
+differs while their state is the same (nothing animating).
 """
 import argparse
 import json
@@ -56,11 +68,11 @@ FILTER_KINDS = {1: 'colour', 2: 'greyscale', 3: 'negative', 4: 'brightness', 5: 
 
 RULES = ['error', 'missing', 'text', 'sound', 'voice', 'linger', 'float', 'offscreen',
          'invisible', 'crowd', 'overlay', 'loop', 'duration', 'slow', 'save', 'replay',
-         'memory', 'coverage']
+         'memory', 'button', 'coverage', 'unused']
 
 # Options a config file may set, with their defaults.
 DEFAULTS = {
-    'script': None, 'cg': None, 'coverage_skip': None, 'ignore': None, 'skip': None,
+    'script': None, 'root': None, 'cg': None, 'coverage_skip': None, 'ignore': None, 'skip': None,
     'max': 20, 'tall': 0.4, 'linger': 150, 'float_h': 0.75, 'float_gap': 40, 'crowd': 4,
     'loop': 100, 'shake': 30, 'voice_ch': '0', 'voice': r'(^|[\\/])voices?[\\/]',
     'dialogue': '^[\\s\u3000]*[\u300c\u300e\u201c]', 'voice_window': 3, 'voice_share': 0.8,
@@ -208,6 +220,11 @@ class Checker:
         self.dialogue_re = re.compile(args.dialogue)
         self.started = {}                  # channel -> page when its sound started
         self.voiced = False                # a voice started since the last page
+        self.voice_file = None             # the voice a sound command started since the last page
+        self.voice_lines = {}              # voice file -> {its line's text, punctuation left out: (pg, at, text)}
+        self.total = defaultdict(int)      # counts over every trace
+        self.baseline = set()              # (rule, at, message) of --baseline's findings
+        self.in_baseline = 0
         self.lines_seen = []               # (pg, at, speaker, dialogue, voiced) for the voice rule
         self.last_ms = None                # the last record with "ms"
         self.stretches = {}                # (from at, to at) -> [total ms, count, max, pg, desc]
@@ -216,6 +233,18 @@ class Checker:
         self.reloading = False             # between a "roundtrip" record and the next page
         self.mismatch = OrderedDict()      # the fields that differed -> [round trips, first at, page, diff]
         self.twice = OrderedDict()         # file -> [first at, page, channels, pages] played on two channels
+        self.used = set()                  # files the traces loaded, normalised (--root)
+        self.runs = []                     # (trace, pages, commands, choices, how it ended)
+        self.wait_ms = 0                   # the time the script's waits, effects and text asked for
+        self.wait_most = None              # (ms, page, at) of the page that asked for the most
+
+    def start_trace(self):
+        """Forget what belongs to one run, before the next trace."""
+        self.prev = self.end = self.crash = self.last_ms = None
+        self.pg = 0
+        self.loops, self.shakes, self.started = {}, {}, {}
+        self.voiced, self.reloading, self.starts, self.mem = False, False, [], []
+        self.counts = defaultdict(int)
 
     def add(self, rule, key, at, message):
         if rule in self.skip:
@@ -237,7 +266,12 @@ class Checker:
     def is_voice(self, ch, f):
         return (ch is not None and ch in self.voice_ch) or bool(f and self.voice_re.search(f))
 
+    def use(self, f):
+        if f and isinstance(f, str):
+            self.used.add(norm_file(f))
+
     def run(self, path):
+        self.start_trace()
         for r in records(path):
             t = r.get('t')
             self.counts[t] += 1
@@ -249,6 +283,12 @@ class Checker:
                     self.labels.add(label_of(r[k]).lower())
             if 'ms' in r and t in ('page', 'ev'):
                 self.timing(r)
+            for k in ('file', 'bg', 'bgm', 'cut'):
+                self.use(r.get(k))
+            for s in (r.get('sp') or []) + (r.get('se') or []) + (r.get('buttons') or []):
+                self.use(s.get('file'))
+            for f in r.get('loopbgm') or []:
+                self.use(f)
             if t == 'label':
                 self.labels.add(str(r.get('name')).lower())
             elif t == 'meta':
@@ -268,6 +308,10 @@ class Checker:
                     self.page(r)
             elif t == 'warn':
                 self.warn(r)
+            elif t == 'choice' and r.get('kind') == 'btnwait':
+                self.buttons(r)
+            elif t == 'choice':
+                self.options(r)
             elif t == 'roundtrip':
                 self.reloading = True
             elif t == 'error':
@@ -295,6 +339,14 @@ class Checker:
         elif self.end and str(self.end.get('reason', '')).startswith('stuck') and not self.findings['error']:
             self.add('error', None, self.prev.get('at') if self.prev else None,
                      'auto-play stopped: %s' % self.end['reason'])
+        self.memory()
+        end = self.end.get('reason', 'ended') if self.end else 'crashed' if self.crash else 'no end record'
+        self.runs.append((path, self.counts['page'], self.counts['ev'], self.counts['choice'], end))
+        for k, v in self.counts.items():
+            self.total[k] += v
+
+    def finish(self):
+        """The checks over every trace read."""
         for (what, f), (n, at) in self.missing.items():
             self.add('missing', None, at, '%s %s%s' % (what, f, ' (%d times)' % n if n > 1 else ''))
         if self.args.script and self.lines is None:
@@ -308,11 +360,89 @@ class Checker:
             self.add('sound', None, at, '%s plays on two channels at once (%s), on %d page%s' % (
                 f, ', '.join(str(c) for c in sorted(chs)), n, 's' if n > 1 else ''))
         self.voices()
+        self.speakers()
         self.slow()
-        self.memory()
         if self.lines is not None:
             self.reserved()
             self.coverage()
+        if self.args.root:
+            self.unused()
+        if self.baseline:
+            for rule in RULES:
+                keep = [f for f in self.findings[rule] if (rule, f[0], finding_key(f[1])) not in self.baseline]
+                self.in_baseline += len(self.findings[rule]) - len(keep)
+                self.findings[rule] = keep
+
+    def buttons(self, r):
+        for b in r.get('buttons') or []:
+            if b.get('blocked'):
+                name = 'button %s%s' % (b.get('no'), ' (lsp %s %s)' % (b['sp'], b.get('file') or b.get('str') or '')
+                                         if 'sp' in b else '')
+                self.add('button', (r.get('at'), b.get('no'), b['blocked']), r.get('at'),
+                         '%s can\'t be seen: %s' % (name, b['blocked'] if b['blocked'] != 'off' else 'off the screen'))
+
+    def speakers(self):
+        """A voice file whose name another speaker's voices share: the wrong voice, or the wrong name."""
+        names = defaultdict(list)
+        for pg, at, speaker, dialogue, voiced, vf in self.lines_seen:
+            if speaker and vf:
+                names[speaker].append(os.path.basename(norm_file(vf)))
+        # each speaker's prefix of each length that most (--voice-share) of their voices start with
+        major = {}
+        for who, files in names.items():
+            if len(files) < self.args.voice_min:
+                continue
+            major[who] = {}
+            for n in range(1, min(len(f) for f in files) + 1):
+                counts = defaultdict(int)
+                for f in files:
+                    counts[f[:n]] += 1
+                p, c = max(counts.items(), key=lambda kv: kv[1])
+                if c < len(files) * self.args.voice_share:
+                    break
+                major[who][n] = p
+        # the shortest that no other speaker's voices share (v3 for v300..., v4 for v410...)
+        prefix = {}
+        for who, ps in major.items():
+            for n in sorted(ps):
+                if all(m.get(n) != ps[n] for o, m in major.items() if o != who):
+                    prefix[who] = ps[n]
+                    break
+        # only prefixes that tell the speakers apart, and none inside another
+        good = {w: p for w, p in prefix.items()
+                if not any(o != w and (q.startswith(p) or p.startswith(q)) for o, q in prefix.items())}
+        for pg, at, speaker, dialogue, voiced, vf in self.lines_seen:
+            if speaker not in good or not vf:
+                continue
+            f = os.path.basename(norm_file(vf))
+            if f.startswith(good[speaker]):
+                continue
+            other = [w for w, p in good.items() if f.startswith(p)]
+            if other:
+                self.pg = pg
+                self.add('voice', (at, f), at, '%s speaks with %s, a voice of %s (%s\u2026), not their own (%s\u2026)'
+                         % (speaker, vf, other[0], good[other[0]], good[speaker]))
+
+    def unused(self):
+        root = self.args.root
+        exts = ('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp', '.ogg', '.opus', '.wav', '.mp3', '.mid', '.midi', '.flac')
+        # shortcut: loose files only; a game in .nsa/.sar archives isn't listed, until the archives are read
+        files = []
+        for d, _, fs in os.walk(root):
+            for f in fs:
+                if f.lower().endswith(exts):
+                    rel = os.path.relpath(os.path.join(d, f), root)
+                    if norm_file(rel) not in self.used:
+                        files.append(rel)
+        if files:
+            files.sort()
+            by_dir = defaultdict(int)
+            for f in files:
+                by_dir[os.path.dirname(f) or '.'] += 1
+            self.pg = 0
+            self.add('unused', None, None, '%d files no trace loaded (%s): %s%s' % (
+                len(files), ', '.join('%s %d' % kv for kv in sorted(by_dir.items(), key=lambda kv: -kv[1])[:8]),
+                ', '.join(files[:self.args.max * 3]), ' ...' if len(files) > self.args.max * 3 else ''))
 
     def warn(self, r):
         what, at = r.get('what'), r.get('at')
@@ -377,6 +507,7 @@ class Checker:
                 self.starts.append((ch, f))
         if self.is_voice(ch, f):
             self.voiced = True
+            self.voice_file = f
 
     def timing(self, r):
         prev = self.last_ms
@@ -426,10 +557,13 @@ class Checker:
             if s.get('off'):
                 self.add('offscreen', key + (s['x'], s['y']), at, '%s is off the screen at %d,%d (%dx%d)%s'
                          % (name, s['x'], s['y'], s['w'], s['h'], where))
-            if s.get('alpha') == 0:
+            # the alpha it is drawn at (spalpha, spmotion2); one fading in or keyed in a loop passes 0 on its way
+            if s.get('shown', s.get('alpha')) == 0 and not s.get('fade') and s.get('keyed') != 'loop':
                 self.add('invisible', key, at, '%s is shown at alpha 0%s' % (name, where))
 
-        tall = [s for s in sp if self.tall(s) and not s.get('off') and not s.get('missing')]
+        # a picture covering the whole screen is a background drawn as a sprite, not a character
+        tall = [s for s in sp if self.tall(s) and not s.get('off') and not s.get('missing')
+                and not (s['x'] <= 0 and s['y'] <= 0 and s['x'] + s['w'] >= self.w and s['y'] + s['h'] >= self.h)]
         if len(tall) > a.crowd:
             self.add('crowd', tuple(sorted((s['kind'], s['n']) for s in tall)), at,
                      '%d tall pictures at once: %s' % (len(tall), ', '.join(
@@ -441,12 +575,13 @@ class Checker:
                              '%s %d %s and %s %d %s are at the same place (%d,%d)'
                              % (s1['kind'], s1['n'], s1.get('file'), s2['kind'], s2['n'], s2.get('file'), s1['x'], s1['y']))
 
-        overlay = (p.get('filters') or []) + (p.get('fx') or [])
+        overlay = overlays(p)
         if overlay:
-            desc = ', '.join('screenfilter %d (%s)' % (o['slot'], FILTER_KINDS.get(o['kind'], o['kind']))
+            desc = ', '.join(o['name'] if 'name' in o else
+                             'screenfilter %d (%s)' % (o['slot'], FILTER_KINDS.get(o['kind'], o['kind']))
                              if isinstance(o['kind'], int) else 'screen%s %d' % (o['kind'], o['slot'])
                              for o in overlay)
-            if bg_changed and ((prev.get('filters') or []) + (prev.get('fx') or [])) == overlay:
+            if bg_changed and overlays(prev) == overlay:
                 self.add('overlay', (p.get('bg'), desc), at, '%s still on when the background changed %s -> %s'
                          % (desc, prev.get('bg'), p.get('bg')))
             if a.cg and re.search(a.cg, p.get('bg') or ''):
@@ -489,11 +624,24 @@ class Checker:
                 d[2].update(chs)
                 d[3] += 1
 
+        if 'wait' in p:
+            self.wait_ms += p['wait']
+            if not self.wait_most or p['wait'] > self.wait_most[0]:
+                self.wait_most = (p['wait'], pg, at)
+        for s in se:
+            if s.get('vol') == 0 and self.is_voice(s['ch'], s['file']):
+                self.add('sound', ('vol0', s['ch']), at, 'voice %s on channel %d plays at volume 0 (soundmute, chvol?)'
+                         % (s['file'], s['ch']))
+        if p.get('bgmvol') == 0 and p.get('bgm'):
+            self.add('sound', ('vol0', 'bgm'), at, 'music %s plays at volume 0 (soundmute, bgmvol?)' % p['bgm'])
+
         self.text(p)
         # a voice that started for this page: a sound command, or one in "se" the last page didn't have
         old = {(s['ch'], s['file']) for s in (prev or {}).get('se', [])}
-        voiced = self.voiced or any(self.is_voice(s['ch'], s['file']) and (s['ch'], s['file']) not in old for s in se)
-        self.voiced = False
+        new = [s['file'] for s in se if self.is_voice(s['ch'], s['file']) and (s['ch'], s['file']) not in old]
+        vf = self.voice_file or (new[0] if new else None)
+        voiced = self.voiced or bool(new)
+        self.voiced, self.voice_file = False, None
         tag = p.get('tag')
         if tag is None and self.lines is not None:
             # the text line's own [name|voice] tag
@@ -505,25 +653,48 @@ class Checker:
         said = re.findall('[\u300c\u300e]([^\u300d\u300f]*)', p.get('text', '')) or [p.get('text', '')]
         dialogue = (bool(speaker) or bool(self.dialogue_re.search(p.get('text', '')))) \
             and bool(re.sub('[\\W_\u3063\u30c3\u30fc]', '', ''.join(said)))
-        self.lines_seen.append((pg, at, speaker, dialogue, voiced))
+        self.lines_seen.append((pg, at, speaker, dialogue, voiced, vf))
+        if vf:
+            # the text this click wait added: a page's later waits repeat the earlier text
+            text, before = p.get('text') or '', (prev or {}).get('text') or ''
+            own = text[len(before):] if before and text.startswith(before) else text
+            norm = re.sub(r'[\W_]', '', own)
+            if norm:
+                self.voice_lines.setdefault(vf, {}).setdefault(norm, (pg, at, own.strip()))
         if 'mem' in p and isinstance(p['mem'], dict):
             self.mem.append((pg, at, p['mem'].get('bytes', 0), p['mem'].get('surf', 0)))
         self.prev = p
+
+    def garbled(self, text):
+        """What is garbled in the text, with where, or None."""
+        for rx, what in GARBLED:
+            m = rx.search(text)
+            if m:
+                return '%s: %s' % (what, snippet(text, m.start()))
+        m = HALF_KANA.search(text)
+        if m and not self.meta.get('utf8'):
+            return 'kanji and half-width katakana in turn (mojibake?): %s' % snippet(text, m.start())
+
+    def options(self, r):
+        """A select's options: garbled, or a text tag shown as text."""
+        at = r.get('at')
+        for i, o in enumerate(r.get('options') or [], 1):
+            text = o.get('text') or ''
+            bad = self.garbled(text)
+            if bad:
+                self.add('text', ('option', at, i), at, 'option %d of the %s has %s' % (i, r.get('kind'), bad))
+            m = TAGS.search(text)
+            if m:
+                self.add('text', ('option tag', at, i), at, 'option %d of the %s shows a text tag, %s: %s'
+                         % (i, r.get('kind'), m.group(0), snippet(text, m.start())))
 
     def text(self, p):
         at, text = p.get('at'), p.get('text', '')
         shown = RUBY.sub(r'\1', text)
         shown = re.sub(r'<\d+|>', '', shown)
-        for rx, what in GARBLED:
-            m = rx.search(text)
-            if m:
-                self.add('text', ('garbled', at), at, 'the text has %s: %s' % (what, snippet(text, m.start())))
-                break
-        else:
-            m = HALF_KANA.search(text)
-            if m and not self.meta.get('utf8'):
-                self.add('text', ('garbled', at), at, 'the text has kanji and half-width katakana in turn (mojibake?): %s'
-                         % snippet(text, m.start()))
+        bad = self.garbled(text)
+        if bad:
+            self.add('text', ('garbled', at), at, 'the text has %s' % bad)
         if not shown.strip(' \t\n\u3000'):
             self.add('text', ('empty', at), at, 'an empty page (a click wait with no text)')
         m = TAGS.search(shown)
@@ -561,13 +732,13 @@ class Checker:
     def voices(self):
         a = self.args
         stats = defaultdict(lambda: [0, 0])  # speaker -> [voiced, lines]
-        for pg, at, speaker, dialogue, voiced in self.lines_seen:
+        for pg, at, speaker, dialogue, voiced, vf in self.lines_seen:
             if speaker:
                 stats[speaker][0] += voiced
                 stats[speaker][1] += 1
         dl = [x for x in self.lines_seen if x[3]]
         w = a.voice_window
-        for i, (pg, at, speaker, dialogue, voiced) in enumerate(dl):
+        for i, (pg, at, speaker, dialogue, voiced, vf) in enumerate(dl):
             if voiced:
                 continue
             self.pg = pg
@@ -579,6 +750,12 @@ class Checker:
                 around = dl[i - w:i] + dl[i + 1:i + 1 + w]
                 if all(x[4] and x[2] is None and label_of(x[1]) == label_of(at) for x in around):
                     self.add('voice', None, at, 'no voice, but the %d lines before and after have one' % w)
+        # one voice file for lines that say different things: a voice given to the wrong line
+        for f, said in self.voice_lines.items():
+            if len(said) > 1:
+                (_, at1, t1), (self.pg, at2, t2) = list(said.values())[:2]
+                self.add('voice', None, at2, '%s plays for different lines: %s here, %s at %s'
+                         % (f, snippet(t2), snippet(t1), at1))
 
     def slow(self):
         items = sorted(self.stretches.items(), key=lambda kv: -kv[1][0])
@@ -611,8 +788,10 @@ class Checker:
                 grew[label_of(self.mem[i][1])] += floor[i] - floor[i - 1]
         top = sorted(grew.items(), key=lambda kv: -kv[1])[:3]
         hi = max(self.mem, key=lambda m: m[2])
-        self.mem_summary = {'min_mb': min(bs) // MB, 'max_mb': hi[2] // MB, 'max_page': hi[0], 'max_at': hi[1],
-                            'end_mb': bs[-1] // MB, 'grew': {'*%s' % l: v // MB for l, v in top}}
+        old = getattr(self, 'mem_summary', None)
+        if old is None or hi[2] // MB >= old['max_mb']:
+            self.mem_summary = {'min_mb': min(bs) // MB, 'max_mb': hi[2] // MB, 'max_page': hi[0], 'max_at': hi[1],
+                                'end_mb': bs[-1] // MB, 'grew': {'*%s' % l: v // MB for l, v in top}}
         rises = sum(1 for x, y in zip(segs, segs[1:]) if y >= x)
         if len(bs) >= 20 and rises >= 8 and segs[-1] - segs[0] >= a.mem_leak * MB:
             self.pg = self.mem[-1][0]
@@ -630,16 +809,24 @@ class Checker:
     def report(self):
         mem = getattr(self, 'mem_summary', None)
         if self.args.json:
-            json.dump({'counts': dict(self.counts), 'end': self.end, 'crash': self.crash, 'memory': mem,
-                       'suppressed': dict(self.suppressed),
+            json.dump({'counts': dict(self.total), 'end': self.end, 'crash': self.crash, 'memory': mem,
+                       'runs': [{'trace': r[0], 'pages': r[1], 'end': r[4]} for r in self.runs],
+                       'suppressed': dict(self.suppressed), 'in_baseline': self.in_baseline,
+                       'script_wait_ms': self.wait_ms,
                        'findings': {r: [{'at': at, 'page': pg, 'message': m} for at, m, pg in self.findings[r]]
                                     for r in RULES if self.findings[r]}},
                       sys.stdout, ensure_ascii=False, indent=1)
             print()
             return
-        end = self.end.get('reason', 'ended') if self.end else 'crashed' if self.crash else 'no end record'
-        print('%s: %d pages, %d commands, %d choices; %s' % (
-            self.args.trace, self.counts['page'], self.counts['ev'], self.counts['choice'], end))
+        for run in self.runs:
+            print('%s: %d pages, %d commands, %d choices; %s' % run)
+        if self.wait_ms:
+            ms, pg, at = self.wait_most
+            total = '%.1f minutes' % (self.wait_ms / 60000) if self.wait_ms >= 60000 else '%.1f s' % (self.wait_ms / 1000)
+            print('script waits: %s in all, played by hand (text, waits, effects); the most, %.1f s, at page %d, %s'
+                  % (total, ms / 1000, pg, at))
+        if self.args.baseline:
+            print('baseline %s: %d findings it had left out' % (self.args.baseline, self.in_baseline))
         if self.args.config:
             n = sum(self.suppressed.values())
             print('config %s%s' % (self.args.config, ': %d known findings left out (%s)' % (n, ', '.join(
@@ -658,23 +845,47 @@ class Checker:
             print('\n== %s (%d)' % (rule, len(items)))
             for at, m, pg in items[:self.args.max]:
                 print('  %-24s %s' % (at, m))
-                if rule not in ('coverage', 'missing', 'slow') and pg > 0:
+                if rule not in ('coverage', 'missing', 'slow', 'unused') and pg > 0:
                     pages.add(pg)
             if len(items) > self.args.max:
                 print('  ... %d more (--max)' % (len(items) - self.args.max))
         if not total:
             print('nothing suspicious')
-        elif pages:
+        elif pages and len(self.runs) == 1:
             print('\nTo see these pages, run the game again the same way with:\n  --shot-pages %s'
                   % ','.join(str(p) for p in sorted(pages)))
+
+
+def norm_file(f):
+    """A file name as the engine finds it: / for \\, lower case, no ./ in front."""
+    f = f.replace('\\', '/').lower()
+    return f[2:] if f.startswith('./') else f
+
+
+def finding_key(message):
+    """A finding's message with its numbers left out (pages, counts), to match one across runs."""
+    return re.sub(r'\d+', '#', message)
+
+
+def overlays(p):
+    # a screenflash as 'screenflash <opacity>', beside the filter and effect slots
+    flash = [{'kind': 'flash', 'slot': p['flash'][0]}] if p.get('flash') else []
+    # monocro and nega as 'monocro #rrggbb', 'nega 1'
+    tints = [{'kind': k, 'slot': p[k], 'name': '%s %s' % (k, p[k])} for k in ('monocro', 'nega') if p.get(k)]
+    return (p.get('filters') or []) + (p.get('fx') or []) + flash + tints
 
 
 def page_state(p):
     sp = {(s['kind'], s['n']): (s.get('file') or s.get('str') or s.get('tag'), s.get('x'), s.get('y'),
                                  s.get('w'), s.get('h'), s.get('alpha'), s.get('cell'))
           for s in p.get('sp', [])}
-    rest = {k: p.get(k) for k in ('bg', 'bgm', 'window', 'windowtrans', 'monocro', 'nega', 'filters', 'fx')}
+    rest = {k: p.get(k) for k in ('bg', 'bgm', 'window', 'windowtrans', 'monocro', 'nega', 'filters', 'fx', 'flash')}
     return sp, rest
+
+
+def moving(p):
+    """Something on the page that changes with time, so its picture can differ between two runs."""
+    return bool(p.get('fx')) or any(s.get(k) for s in p.get('sp', []) for k in ('anim', 'fade', 'keyed', 'motion'))
 
 
 def diff(old, new, limit):
@@ -696,6 +907,8 @@ def diff(old, new, limit):
             if spa.get(k) != spb.get(k):
                 fmt = lambda v: 'none' if v is None else '%s at %s,%s %sx%s alpha %s' % v[:6]
                 lines.append('%s %d: %s -> %s' % (k[0], k[1], fmt(spa.get(k)), fmt(spb.get(k))))
+        if not lines and pa.get('px') and pb.get('px') and pa['px'] != pb['px'] and not (moving(pa) or moving(pb)):
+            lines.append('the picture differs, the state the same (px %s -> %s)' % (pa['px'], pb['px']))
         if not lines:
             continue
         if groups and groups[-1][3] == lines and groups[-1][1] == pa['pg'] - 1:
@@ -720,7 +933,7 @@ def find_config(args):
     """--config, or cons_trace_check.json beside the trace or the script."""
     if args.config:
         return args.config
-    for path in (args.trace, args.script):
+    for path in (args.trace[0], args.script):
         if path:
             d = path if os.path.isdir(path) else os.path.dirname(os.path.abspath(path))
             f = os.path.join(d, 'cons_trace_check.json')
@@ -772,9 +985,11 @@ def apply_config(ap, args):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('trace', nargs='?')
+    ap.add_argument('trace', nargs='*')
     ap.add_argument('--diff', nargs=2, metavar=('OLD', 'NEW'))
     ap.add_argument('--config', metavar='FILE', help='the settings for a game (default: cons_trace_check.json beside the trace or the script)')
+    ap.add_argument('--root', metavar='DIR', help='the game folder, to list image and sound files no trace loaded')
+    ap.add_argument('--baseline', metavar='OLD.json', help='an earlier --json report: leave out the findings it had')
     ap.add_argument('--script', help="the game's 0.txt (or its folder), to list labels never reached and check text lines")
     ap.add_argument('--ignore', metavar='LIST', help='sprites to leave out, as --trace-ignore (22-48,lsp2:12-23)')
     ap.add_argument('--skip', metavar='RULES', help='rules to leave out, comma-separated (slow,coverage)')
@@ -809,7 +1024,17 @@ def main():
         ap.error('give a trace, or --diff OLD NEW')
     apply_config(ap, args)
     c = Checker(args)
-    c.run(args.trace)
+    if args.baseline:
+        try:
+            with open(args.baseline, encoding='utf-8') as f:
+                old = json.load(f)
+        except (OSError, ValueError) as e:
+            ap.error("can't read the baseline %s: %s" % (args.baseline, e))
+        c.baseline = {(rule, x['at'], finding_key(x['message']))
+                      for rule, xs in old.get('findings', {}).items() for x in xs}
+    for t in args.trace:
+        c.run(t)
+    c.finish()
     c.report()
 
 
