@@ -517,7 +517,7 @@ handles the wait.
 | `monocro` | The colour of `monocro`, as `"#rrggbb"`, while it is on |
 | `nega` | The `nega` mode, while it is on |
 | `filters` | The `screenfilter` slots in use: `{"slot","kind","blend","strength","p":[p1,p2,p3]}` (see ADDITIONS.md) |
-| `fx` | The `screenshake`/`screenripple`/`screenpulse` slots in use: `{"slot","kind":"shake"\|"ripple"\|"pulse"}`, with the ripple's `map` |
+| `fx` | The `screenshake`/`screenripple`/`screenpulse` slots in use: `{"slot","kind":"shake"\|"ripple"\|"pulse"}`, with the ripple's `map` and a shake's `end` (ms) when it has one; a timed wait skipped by auto-play still counts toward that end |
 | `shot` | The picture saved of this page (`--shot-pages`, `--shot-every`) |
 | `sprites_hidden` | `true` while `allsphide` hides the `lsp` and `ld` sprites (they are still listed); `sprites2_hidden` likewise for `allsp2hide` and `lsp2` |
 | `sp` | Every visible sprite, in the order: `lsp` 0-999, `lsp2` 0-255, `ld` (0 left, 1 centre, 2 right). A lower `lsp` number is drawn in front |
@@ -757,7 +757,7 @@ image memory: 12 to 340 MB (the most at page 4120, *s9_l36:62672), 54 MB at the 
 | `offscreen` | A sprite entirely off the screen |
 | `invisible` | A sprite shown at alpha 0 |
 | `crowd` | More than `--crowd` tall pictures at once, or two at the same place |
-| `overlay` | A screen filter or effect still on after the background changed, and with `--cg REGEX` any filter or effect over a background whose name matches (an eye-close left over a CG) |
+| `overlay` | A screen filter or effect still on after the background changed, and with `--cg REGEX` any filter or effect over a background whose name matches (an eye-close left over a CG), and a `screenshake` with no end shaking for more than `--shake` pages (default 30; a game drawing everything as sprites keeps one background, so only this catches a shake never cleared) |
 | `loop` | A looping sound playing for more than `--loop` pages |
 | `duration` | A wait or effect the script asks to last very long (the `long wait` warnings: `print 10,270000` is 4.5 minutes) |
 | `slow` | Where the time went: the `--slow` (10) places with the most time, `--slow-ms` (1000) or more, between one record and the next, added up over every visit (a slow load, a long effect, a wait auto-play didn't shorten) |

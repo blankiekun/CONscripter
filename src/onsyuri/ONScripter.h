@@ -708,6 +708,7 @@ private:
         int map_w, map_h;
         int next_step;                   // ticks of the next step
         int elapsed;                     // ms, up to the effect's time
+        int ran;                         // ms since it started (shake: its end)
         int range_x, range_y;            // shake: amplitude, 16.16 pixels
         unsigned int phase_x, phase_y;   // shake: wave phases (or path progress)
         int point;                       // shake: point on the path (mode 1)

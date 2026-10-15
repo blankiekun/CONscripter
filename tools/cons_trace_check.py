@@ -24,7 +24,8 @@ by kind, each finding at the script line ("*label:line") to look at:
   invisible    a sprite shown at alpha 0
   crowd        too many tall pictures at once, or two at the same place
   overlay      a screen filter or effect still on after the background changed,
-               or (--cg) any filter or effect over a background matching REGEX
+               or (--cg) any filter or effect over a background matching REGEX,
+               or a screenshake with no end shaking for many pages (--shake)
   loop         a looping sound left playing for many pages
   duration     a wait or effect the script asks to last very long
   slow         where the time went: the slowest stretches between records
@@ -61,7 +62,7 @@ RULES = ['error', 'missing', 'text', 'sound', 'voice', 'linger', 'float', 'offsc
 DEFAULTS = {
     'script': None, 'cg': None, 'coverage_skip': None, 'ignore': None, 'skip': None,
     'max': 20, 'tall': 0.4, 'linger': 150, 'float_h': 0.75, 'float_gap': 40, 'crowd': 4,
-    'loop': 100, 'voice_ch': '0', 'voice': r'(^|[\\/])voices?[\\/]',
+    'loop': 100, 'shake': 30, 'voice_ch': '0', 'voice': r'(^|[\\/])voices?[\\/]',
     'dialogue': '^[\\s\u3000]*[\u300c\u300e\u201c]', 'voice_window': 3, 'voice_share': 0.8,
     'voice_min': 5, 'line_chars': None, 'save_ignore': None, 'slow': 10, 'slow_ms': 1000, 'mem_jump': 64, 'mem_leak': 128,
 }
@@ -193,6 +194,7 @@ class Checker:
         self.set_by = {}                   # (kind, n) -> (at, src) of the ev that last showed it
         self.prev = None                   # the previous page
         self.loops = {}                    # file -> first page it was seen looping
+        self.shakes = {}                   # slot -> (page, at) where its endless shake was set
         self.labels = set()                # labels reached
         self.missing = OrderedDict()       # (what, file) -> [count, first at]
         self.counts = defaultdict(int)
@@ -255,6 +257,9 @@ class Checker:
                 if self.args.script:
                     self.lines = script_lines(self.args.script, r.get('utf8'))
             elif t == 'ev':
+                m = re.match(r'screenshake\s+(\d+)', r.get('src') or '')
+                if m:
+                    self.shakes.pop(int(m.group(1)), None)  # set again (or cleared): counted from here
                 self.ev(r)
             elif t in ('page', 'dump'):
                 if self.ignore:
@@ -446,6 +451,17 @@ class Checker:
                          % (desc, prev.get('bg'), p.get('bg')))
             if a.cg and re.search(a.cg, p.get('bg') or ''):
                 self.add('overlay', ('cg', p.get('bg'), desc), at, '%s over the CG %s' % (desc, p.get('bg')))
+
+        # a shake left on: a timed shake given no end shakes until cleared
+        shaking = {o['slot']: o for o in (p.get('fx') or []) if o['kind'] == 'shake' and not o.get('end')}
+        for slot in list(self.shakes):
+            if slot not in shaking:
+                del self.shakes[slot]
+        for slot in shaking:
+            first = self.shakes.setdefault(slot, (pg, at))
+            if pg - first[0] >= a.shake:
+                self.add('overlay', ('shake', slot, first[1]), first[1],
+                         'screenshake %d has shaken for %d pages (set with no end, never cleared)' % (slot, pg - first[0]))
 
         se = p.get('se', [])
         looping = {s['file'] for s in se if s.get('loop')}
@@ -772,6 +788,7 @@ def main():
     ap.add_argument('--float-gap', type=int, help='pixels above the bottom that count as floating (default 40)')
     ap.add_argument('--crowd', type=int, help='tall pictures allowed at once (default 4)')
     ap.add_argument('--loop', type=int, help='pages a looping sound may play (default 100)')
+    ap.add_argument('--shake', type=int, help='pages a screenshake with no end may shake (default 30)')
     ap.add_argument('--voice-ch', metavar='LIST', help='channels that play voices (default 0)')
     ap.add_argument('--voice', metavar='REGEX', help='sound files that are voices (default: in a "voice" folder)')
     ap.add_argument('--dialogue', metavar='REGEX', help='page text that is a spoken line (default: starts with \u300c, \u300e or \u201c)')

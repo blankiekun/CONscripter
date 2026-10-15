@@ -81,7 +81,7 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   draw: follow it with `print`. `screenflash 0` takes it away, as `reset`
   does; not kept in save files.
   `screenflash 128:print 1:delay 100:screenflash 0:print 1` (lightning).
-- **`screenshake slot,time,interval,mode,speed_x,speed_y,x0,y0,x1,y1`**
+- **`screenshake slot,time,interval,mode,speed_x,speed_y,x0,y0,x1,y1[,end]`**
   and **`screenripple slot,"map",time,interval,opacity0,opacity1,amp0,amp1,angle,angle_step,phase_step[,blend]`**:
   effects that move by themselves on the same picture as `screenfilter`
   (applied after the filters), while the script and the text go on. Every
@@ -109,6 +109,9 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   update redraws the whole screen.
   `screenshake 1,1000,100,0,800,800,0,0,30,30` shakes harder and harder for
   a second, then keeps shaking until `screenshake 1`.
+  With an 11th number `end` (> 0) a shake stops by itself after `end` ms
+  (its slot clears): `screenshake 1,500,16,0,1300,1700,10,10,10,10,500`
+  shakes for half a second, as a game's timed shake does.
   **`screenzoom slot,time,interval,zoom,x,y,zoom_time,fade_in,ease,power`**
   (same slots): a frozen copy of that picture, taken when it first shows,
   laid over the live one and zoomed: over `zoom_time` ms its scale goes

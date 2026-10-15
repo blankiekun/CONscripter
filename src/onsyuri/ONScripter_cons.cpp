@@ -575,9 +575,10 @@ void ONScripter::applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip )
     AnimationInfo::applyFilterList( surface, clip, f, num );
 }
 
-/* screenshake slot[, time, interval, mode, speed_x, speed_y, x0, y0, x1, y1]
+/* screenshake slot[, time, interval, mode, speed_x, speed_y, x0, y0, x1, y1[, end]]
  *   Shakes the picture behind the text window (what screenfilter
- *   filters) until the slot is cleared, without waiting: the script and
+ *   filters) until the slot is cleared, or with end (> 0) for end ms,
+ *   after which the slot clears itself; without waiting: the script and
  *   the text go on while it shakes. Every interval ms the picture is drawn
  *   moved by an offset whose largest size grows from x0,y0 to x1,y1
  *   pixels over time ms, then stays. Mode 0 swings each axis on a sine
@@ -834,7 +835,7 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
     int param[SCREEN_EFFECT_PARAMS] = {0};
     if (set){
         if (kind == SCREEN_EFFECT_RIPPLE) setStr( &map_name, script_h.readStr() );
-        // Nine numbers, then optional ones (screenripple's blend).
+        // Nine numbers, then optional ones (screenripple's blend, screenshake's end).
         for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++){
             if (i >= 9 && !(script_h.getEndStatus() & ScriptHandler::END_COMMA)) break;
             param[i] = script_h.readInt();
@@ -892,6 +893,7 @@ void ONScripter::startScreenEffect( ScreenEffect &e )
         SDL_FreeSurface( map );
     }
     e.elapsed = 0;
+    e.ran = 0;
     e.next_step = SDL_GetTicks() + p[1];
     e.range_x = e.range_y = 0;
     e.phase_x = e.phase_y = 0;
@@ -913,6 +915,7 @@ void ONScripter::stepScreenEffect( ScreenEffect &e )
     int *p = e.param;
     int time = p[0], interval = p[1];
     e.elapsed += interval;
+    e.ran += interval;
     if (e.elapsed > time) e.elapsed = time;
     int t = (time > 0) ? (int)((long long)e.elapsed * 256 / time) : 256;
 
@@ -989,6 +992,11 @@ void ONScripter::proceedScreenEffects( int current_time )
             stepScreenEffect( e );
             e.next_step += e.param[1];
             changed = true;
+            // a shake given an end clears its slot when it's over
+            if (e.kind == SCREEN_EFFECT_SHAKE && e.param[9] > 0 && e.ran >= e.param[9]){
+                clearScreenEffect( e );
+                break;
+            }
         }
     }
     if (changed){
@@ -3232,6 +3240,10 @@ void ONScripter::tracePage( bool dump )
         listed = true;
         snprintf( buf, sizeof(buf), "{\"slot\":%d,\"kind\":\"%s\"", i+1, names[e.kind] );
         r += buf;
+        if (e.kind == SCREEN_EFFECT_SHAKE && e.param[9] > 0){
+            snprintf( buf, sizeof(buf), ",\"end\":%d", e.param[9] );
+            r += buf;
+        }
         if (e.map_name){
             r += ",\"map\":";
             traceString( r, e.map_name );
@@ -3839,7 +3851,19 @@ bool ONScripter::autoPlayWait( int &count )
 {
     if (++auto_play_waits > 20000) autoPlayStuck( "20000 waits without a new page" );
     if (!(event_mode & (WAIT_INPUT_MODE | WAIT_BUTTON_MODE))){
-        if (count > 1) count = 1;
+        if (count > 1){
+            // the time skipped still counts toward a shake's end
+            for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
+                ScreenEffect &e = screen_effect[i];
+                if (e.kind != SCREEN_EFFECT_SHAKE || e.param[9] <= 0) continue;
+                e.ran += count - 1;
+                if (e.ran >= e.param[9]){
+                    clearScreenEffect( e );
+                    dirty_rect.fill( screen_width, screen_height );
+                }
+            }
+            count = 1;
+        }
         return false;
     }
 
