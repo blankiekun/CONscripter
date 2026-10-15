@@ -455,7 +455,7 @@ void ONScripter::drawZoomedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
 
     anim->pos.x = poly_rect.x + pos.w/2;
     anim->pos.y = poly_rect.y + pos.h/2;
-    anim->affine_pos.x = pos.w * anim->current_cell;
+    anim->affine_pos.x = 0; // blendOnSurface2 adds the current cell's offset
     anim->affine_pos.y = 0;
     anim->affine_pos.w = pos.w;
     anim->affine_pos.h = pos.h;

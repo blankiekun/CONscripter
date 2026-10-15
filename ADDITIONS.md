@@ -38,8 +38,11 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   `spzoom` redraws the whole screen at the next `print`, so call it again
   after moving a zoomed sprite: `amsp 10,x,y:spzoom 10,150:print 1` (a
   camera zoom on a background, step by step). An animated sprite
-  (`:a/n,…`) that is zoomed or moving redraws where it is drawn as its
-  cells change (it used to redraw only its unzoomed place).
+  (`:a/n,…`) zoomed this way shows each of its cells in turn (it showed
+  the first cell, the others clipped away) and redraws where it is drawn
+  as they change, also when that is partly off the screen (it used to
+  redraw only its unzoomed place, and a screen update of an area partly
+  off the screen was dropped).
 - **`spmotion num[,loop,t1,x1,y1,t2,x2,y2,...]`**: moves `lsp` sprite
   `num` by itself along offsets from its place: `x,y` pixels at `t` ms
   from now, straight from key to key, stepped about every 16 ms by the

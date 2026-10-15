@@ -924,12 +924,16 @@ void ONScripter::flushDirect( SDL_Rect &rect, int refresh_mode )
 
     --dst_rect.x; --dst_rect.y; dst_rect.w += 2; dst_rect.h += 2;
     if (AnimationInfo::doClipping(&dst_rect, &screen_rect) || (dst_rect.w == 2 && dst_rect.h == 2)) return;
-    refreshSurface(accumulation_surface, &rect, refresh_mode);
+    // CONscripter: a rect partly off the screen (a zoomed sprite's) is cut
+    // to it; it used to skip updating the screen
+    SDL_Rect on_screen = rect;
+    if (AnimationInfo::doClipping(&on_screen, &screen_rect)) return;
+    refreshSurface(accumulation_surface, &on_screen, refresh_mode);
     SDL_LockSurface(accumulation_surface);
-    int offset = accumulation_surface->pitch * rect.y + rect.x * sizeof(ONSBuf);
+    int offset = accumulation_surface->pitch * on_screen.y + on_screen.x * sizeof(ONSBuf);
     if (offset >= 0) // need to check for update texture
     {
-        SDL_UpdateTexture(texture, &rect,
+        SDL_UpdateTexture(texture, &on_screen,
             (unsigned char*)accumulation_surface->pixels + offset,
             accumulation_surface->pitch);
     }
