@@ -46,11 +46,11 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 12 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
+#define CONS_SAVE_VERSION 13 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
                             // 5: + strsp sprites, looping dwave sounds; 6: + strsp sprites in the screen stack;
                             // 7: + sprite zooms; 8: + script volumes (chvolfade, bgmvolfade);
                             // 9: + sprite motions; 10: + sprite orders (spz); 11: + play time;
-                            // 12: + keyed sprite alphas (spalpha)
+                            // 12: + keyed sprite alphas (spalpha); 13: + motions' zooms, angles, keep (spmotion2)
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
 
@@ -208,11 +208,20 @@ int ONScripter::spzoomCommand()
  *   keys. amsp, msp and spzoom act on the place as usual; the motion stays
  *   when lsp changes the image, is removed by csp and is kept in save
  *   files (restarted). "spmotion 10,1,0,0,0,250,0,-12,500,0,0" bobs
- *   sprite 10 up and down twice a second. */
+ *   sprite 10 up and down twice a second. loop 2 runs once and leaves the
+ *   sprite at the last key: its offset is added to the sprite's place (as
+ *   msp) and its zoom to the spzoom; the angle goes back to 0.
+ *
+ * spmotion2 num[,loop,t1,x1,y1,zoom1,angle1,...]
+ *   spmotion with a zoom (percent, 100 = its size, times spzoom's) and an
+ *   angle (degrees, counterclockwise, as lsp2's) in each key, both about
+ *   the centre of the sprite's place: "spmotion2 10,1,0,0,0,100,0,
+ *   1000,0,0,100,360" spins sprite 10 once a second. */
 int ONScripter::spmotionCommand()
 {
     leaveTextDisplayMode();
 
+    bool two = script_h.isName("spmotion2");
     int no = script_h.readInt();
     if (no < 0 || no >= MAX_SPRITE_NUM){
         utils::printError("spmotion: sprite %d out of range\n", no);
@@ -220,33 +229,34 @@ int ONScripter::spmotionCommand()
         return RET_CONTINUE;
     }
     AnimationInfo *ai = &sprite_info[no];
-    SDL_Rect before = zoomedRect( *ai );
-    before.x += ai->motion_dx;
-    before.y += ai->motion_dy;
+    SDL_Rect before = drawnRect( *ai );
     ai->motion_keys = 0;
     ai->motion_dx = ai->motion_dy = 0;
+    ai->motion_zoom = 100;
+    ai->motion_rot = 0;
     if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
-        ai->motion_loop = script_h.readInt() != 0;
+        int mode = script_h.readInt();
+        ai->motion_loop = mode == 1;
+        ai->motion_keep = mode == 2;
         while (script_h.getEndStatus() & ScriptHandler::END_COMMA){
             int t = script_h.readInt();
             int x = script_h.readInt();
             int y = script_h.readInt();
+            int zoom = two ? script_h.readInt() : 100;
+            int rot = two ? script_h.readInt() : 0;
             if (ai->motion_keys == AnimationInfo::MAX_MOTION_KEYS){
                 utils::printError("spmotion: more than %d keys\n", AnimationInfo::MAX_MOTION_KEYS);
                 continue;
             }
             int *k = ai->motion_key[ai->motion_keys++];
-            k[0] = speedTime( t ); k[1] = x; k[2] = y; // gamespeed
+            k[0] = speedTime( t ); k[1] = x; k[2] = y; k[3] = zoom; k[4] = rot; // gamespeed
         }
         ai->motion_start = ai->motion_next = SDL_GetTicks();
         stepSpriteMotion( *ai, ai->motion_start );
     }
     if (ai->visible){
         dirty_rect.add( before );
-        SDL_Rect after = zoomedRect( *ai );
-        after.x += ai->motion_dx;
-        after.y += ai->motion_dy;
-        dirty_rect.add( after );
+        dirty_rect.add( drawnRect( *ai ) );
     }
 
     return RET_CONTINUE;
@@ -368,7 +378,8 @@ void ONScripter::drawSpriteRange( SDL_Surface *surface, SDL_Rect &clip, int hi, 
     }
 }
 
-// Sets a motion's offset for the time; ends a motion that ran once.
+// Sets a motion's offset, zoom and angle for the time; ends a motion that
+// ran once (one that keeps its last key moves the sprite's place there).
 void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
 {
     if (ai.motion_keys == 0) return;
@@ -376,24 +387,34 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
     int t = current_time - ai.motion_start;
     if (ai.motion_loop && last > 0) t %= last;
     else if (t >= last){
+        if (ai.motion_keep){
+            int *k = ai.motion_key[ai.motion_keys-1];
+            ai.orig_pos.x += k[1];
+            ai.orig_pos.y += k[2];
+            ai.scalePosXY( screen_ratio1, screen_ratio2 );
+            ai.zoom_x = ai.zoom_x * k[3] / 100;
+            ai.zoom_y = ai.zoom_y * k[3] / 100;
+        }
         ai.motion_keys = 0;
         ai.motion_dx = ai.motion_dy = 0;
+        ai.motion_zoom = 100;
+        ai.motion_rot = 0;
         return;
     }
     int i = 0;
     while (i + 1 < ai.motion_keys && ai.motion_key[i+1][0] <= t) i++;
     int *a = ai.motion_key[i];
-    int x = a[1], y = a[2];
+    int v[5] = {0, a[1], a[2], a[3], a[4]};
     if (i + 1 < ai.motion_keys && t > a[0]){
         int *b = ai.motion_key[i+1];
         int span = b[0] - a[0];
-        if (span > 0){
-            x += (b[1] - a[1]) * (t - a[0]) / span;
-            y += (b[2] - a[2]) * (t - a[0]) / span;
-        }
+        if (span > 0)
+            for (int j=1 ; j<5 ; j++) v[j] += (b[j] - a[j]) * (t - a[0]) / span;
     }
-    ai.motion_dx = x * screen_ratio1 / screen_ratio2;
-    ai.motion_dy = y * screen_ratio1 / screen_ratio2;
+    ai.motion_dx = v[1] * screen_ratio1 / screen_ratio2;
+    ai.motion_dy = v[2] * screen_ratio1 / screen_ratio2;
+    ai.motion_zoom = v[3];
+    ai.motion_rot = v[4];
 }
 
 // Sets a keyed alpha (spalpha) for the time; stops one that ran once, at
@@ -466,12 +487,12 @@ void ONScripter::proceedSpriteMotions( int current_time )
             ai.motion_next = current_time;
         }
         while (ai.motion_next <= current_time) ai.motion_next += 16;
-        int dx = ai.motion_dx, dy = ai.motion_dy;
+        int dx = ai.motion_dx, dy = ai.motion_dy, zoom = ai.motion_zoom, rot = ai.motion_rot;
+        SDL_Rect r = drawnRect( ai );
         stepSpriteMotion( ai, current_time );
-        if (!ai.visible || !ai.image_surface || (dx == ai.motion_dx && dy == ai.motion_dy)) continue;
-        SDL_Rect r = zoomedRect( ai ), r2 = r;
-        r.x += dx; r.y += dy;
-        r2.x += ai.motion_dx; r2.y += ai.motion_dy;
+        if (!ai.visible || !ai.image_surface) continue;
+        if (dx == ai.motion_dx && dy == ai.motion_dy && zoom == ai.motion_zoom && rot == ai.motion_rot && ai.motion_keys > 0) continue;
+        SDL_Rect r2 = drawnRect( ai );
         int x1 = (r.x < r2.x) ? r.x : r2.x, y1 = (r.y < r2.y) ? r.y : r2.y;
         int x2 = (r.x + r.w > r2.x + r2.w) ? r.x + r.w : r2.x + r2.w;
         int y2 = (r.y + r.h > r2.y + r2.h) ? r.y + r.h : r2.y + r2.h;
@@ -515,12 +536,15 @@ int ONScripter::nextSpriteMotionTime()
     return min;
 }
 
-// The box a sprite's picture covers, zoomed (spzoom) about its centre.
+// The box a sprite's picture covers, zoomed (spzoom, a motion's zoom) and
+// turned (a motion's angle) about its centre.
 SDL_Rect ONScripter::zoomedRect( const AnimationInfo &ai )
 {
     SDL_Rect r = ai.pos;
-    if (ai.zoom_x == 100 && ai.zoom_y == 100) return r;
-    int w = ai.pos.w * abs(ai.zoom_x) / 100, h = ai.pos.h * abs(ai.zoom_y) / 100;
+    if (ai.zoom_x == 100 && ai.zoom_y == 100 && ai.motion_zoom == 100 && ai.motion_rot == 0) return r;
+    int w = ai.pos.w * abs(ai.zoom_x) / 100 * abs(ai.motion_zoom) / 100;
+    int h = ai.pos.h * abs(ai.zoom_y) / 100 * abs(ai.motion_zoom) / 100;
+    if (ai.motion_rot % 360 != 0) w = h = (int)ceil( sqrt( (double)w * w + (double)h * h ) );
     r.x = ai.pos.x + ai.pos.w/2 - w/2 - 1;
     r.y = ai.pos.y + ai.pos.h/2 - h/2 - 1;
     r.w = w + 2;
@@ -532,7 +556,7 @@ SDL_Rect ONScripter::zoomedRect( const AnimationInfo &ai )
 // place (poly_rect, its top left on the screen).
 void ONScripter::drawZoomedSurface( SDL_Surface *dst_surface, AnimationInfo *anim, SDL_Rect &poly_rect, SDL_Rect &clip )
 {
-    if (anim->zoom_x == 0 || anim->zoom_y == 0) return;
+    if (anim->zoom_x == 0 || anim->zoom_y == 0 || anim->motion_zoom == 0) return;
     SDL_Rect pos = anim->pos, affine_pos = anim->affine_pos, bounding_rect = anim->bounding_rect;
     int scale_x = anim->scale_x, scale_y = anim->scale_y, rot = anim->rot;
 
@@ -542,9 +566,9 @@ void ONScripter::drawZoomedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
     anim->affine_pos.y = 0;
     anim->affine_pos.w = pos.w;
     anim->affine_pos.h = pos.h;
-    anim->scale_x = anim->zoom_x;
-    anim->scale_y = anim->zoom_y;
-    anim->rot = 0;
+    anim->scale_x = anim->zoom_x * anim->motion_zoom / 100;
+    anim->scale_y = anim->zoom_y * anim->motion_zoom / 100;
+    anim->rot = anim->motion_rot;
     anim->calcAffineMatrix();
     anim->blendOnSurface2( dst_surface, anim->pos.x, anim->pos.y, clip, anim->trans );
 
@@ -1813,6 +1837,18 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         for (int k=0 ; k<ai->alpha_keys ; k++)
             for (int j=0 ; j<2 ; j++) writeInt( ai->alpha_key[k][j], output_flag );
     }
+
+    // Version 13: the motions' (version 9's, in the same order) keep flag
+    // and each key's zoom and angle (spmotion2).
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        AnimationInfo *ai = &sprite_info[i];
+        if (ai->motion_keys == 0) continue;
+        writeInt( ai->motion_keep ? 1 : 0, output_flag );
+        for (int k=0 ; k<ai->motion_keys ; k++){
+            writeInt( ai->motion_key[k][3], output_flag );
+            writeInt( ai->motion_key[k][4], output_flag );
+        }
+    }
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -2230,23 +2266,27 @@ void ONScripter::loadSaveFileCons()
     }
 
     if (version < 9) return;
+    std::vector< std::pair<AnimationInfo*, int> > motions; // version 13 adds to them
+    AnimationInfo motion_dummy;
     num = readInt();
     for (int n=0 ; n<num ; n++){
         int no = readInt();
         bool loop = readInt() != 0;
         int keys = readInt();
-        AnimationInfo dummy;
-        AnimationInfo *ai = (no >= 0 && no < MAX_SPRITE_NUM) ? &sprite_info[no] : &dummy;
+        AnimationInfo *ai = (no >= 0 && no < MAX_SPRITE_NUM) ? &sprite_info[no] : &motion_dummy;
         ai->motion_keys = 0;
         ai->motion_loop = loop;
+        ai->motion_keep = false;
         for (int k=0 ; k<keys ; k++){
             int t = readInt(), x = readInt(), y = readInt();
             if (k >= AnimationInfo::MAX_MOTION_KEYS) continue;
             ai->motion_key[k][0] = t; ai->motion_key[k][1] = x; ai->motion_key[k][2] = y;
+            ai->motion_key[k][3] = 100; ai->motion_key[k][4] = 0;
             ai->motion_keys++;
         }
         ai->motion_start = ai->motion_next = SDL_GetTicks();
         stepSpriteMotion( *ai, ai->motion_start );
+        motions.push_back( std::make_pair( ai, keys ) );
     }
 
     if (version < 10) return;
@@ -2288,6 +2328,18 @@ void ONScripter::loadSaveFileCons()
         }
         ai->alpha_start = ai->alpha_next = SDL_GetTicks();
         stepSpriteAlpha( *ai, ai->alpha_start );
+    }
+
+    if (version < 13) return;
+    for (size_t n=0 ; n<motions.size() ; n++){
+        AnimationInfo *ai = motions[n].first;
+        ai->motion_keep = readInt() != 0;
+        for (int k=0 ; k<motions[n].second ; k++){
+            int zoom = readInt(), rot = readInt();
+            if (k >= AnimationInfo::MAX_MOTION_KEYS) continue;
+            ai->motion_key[k][3] = zoom; ai->motion_key[k][4] = rot;
+        }
+        stepSpriteMotion( *ai, ai->motion_start );
     }
 }
 
@@ -3397,7 +3449,7 @@ void ONScripter::traceSprite( std::string &out, int i )
         out += buf;
     }
     if (ai.motion_keys > 0){
-        snprintf( buf, sizeof(buf), ",\"motion\":%s", ai.motion_loop ? "\"loop\"" : "\"once\"" );
+        snprintf( buf, sizeof(buf), ",\"motion\":%s", ai.motion_loop ? "\"loop\"" : ai.motion_keep ? "\"keep\"" : "\"once\"" );
         out += buf;
     }
     snprintf( buf, sizeof(buf), ",\"since\":%d}", ts.since );
@@ -3451,7 +3503,7 @@ bool ONScripter::traceChanges( std::string &out )
 static const struct { const char *name; int kind; } trace_commands[] = {
     {"lsp",1}, {"lsph",1}, {"lsp2",1}, {"lsph2",1}, {"lsp2add",1}, {"lsph2add",1},
     {"lsp2sub",1}, {"lsph2sub",1}, {"csp",1}, {"csp2",1}, {"vsp",1}, {"vsp2",1},
-    {"msp",1}, {"msp2",1}, {"amsp",1}, {"amsp2",1}, {"cell",1}, {"spfilter",1}, {"spzoom",1}, {"spmotion",1},
+    {"msp",1}, {"msp2",1}, {"amsp",1}, {"amsp2",1}, {"cell",1}, {"spfilter",1}, {"spzoom",1}, {"spmotion",1}, {"spmotion2",1},
     {"strsp",1}, {"strsph",1}, {"spstr",1}, {"spreload",1}, {"ld",1}, {"cl",1},
     {"bg",1}, {"bgcopy",1}, {"bgcpy",1}, {"popscreen",1},
     {"bgm",2}, {"bgmonce",2}, {"mp3",2}, {"mp3loop",2}, {"mp3save",2}, {"play",2},
