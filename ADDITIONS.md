@@ -190,6 +190,28 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   it, on the page's first row ("" on the others). `logrows %1,26`, then
   a `strsp` for each row shown; clicking the voice icon plays
   `dwave 0,$voice`.
+- **Player settings** a game's settings screen sets, kept in memory only
+  (the game keeps its settings in global variables and sets them again
+  at startup); without them the engine works as before:
+  - **`soundmute bgm,se,voice`**: 1 mutes the music, the sound effects
+    (every `dwave` channel but 0), the voice (channel 0), whatever their
+    volume; 0 lets them be heard. Muted sounds play on unheard, so music
+    comes back where it has got to. Auto mode doesn't wait for a muted
+    voice.
+  - **`clickvoicestop on`**: 1 = a click that ends a text wait (`\`, `@`,
+    `textbtnwait`) stops the voice; 0 (default) = it plays on.
+  - **`autovoicewait on`**: 1 (default) = auto mode waits for the voice
+    to end; 0 = it reads on after its own time and stops the voice.
+  - **`selectkeep on`**: 1 = auto mode and skip go on after a `select`'s
+    option is chosen; 0 (default) = a `select` ends them.
+  - **`moviestop mode`**: whether a click stops a movie (`mpegplay`,
+    `movie`): 1 always, 0 never, -1 (default) as the script's flag says.
+  - **`gamespeed percent`** (10-10000, default 100): script times run at
+    that percent of real speed: `wait`, `delay`, `waittimer`, `gettimer`,
+    effects (`print`), `spfade`, `spmotion`, and `screenshake`'s time and
+    end. Text speed, auto mode's wait and sounds keep theirs.
+    `gamespeed 200` plays a 1 s fade in 0.5 s (Nitroplus's ゲーム全般の処理速度;
+    a game's own menus set it back to 100 while they are open).
 - **`spbtn num,no,pressed_cell`**: a third argument to `spbtn` names the
   cell sprite `num` shows while the left mouse button is held on it (the
   hover cell is 1, as before). It goes back to the hover cell when the

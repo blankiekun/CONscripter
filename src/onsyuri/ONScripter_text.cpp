@@ -658,7 +658,8 @@ bool ONScripter::doClickEnd()
     draw_cursor_flag = true;
 
     if ( automode_flag ){
-        event_mode =  WAIT_TEXT_MODE | WAIT_INPUT_MODE | WAIT_VOICE_MODE | WAIT_TIMER_MODE;
+        event_mode =  WAIT_TEXT_MODE | WAIT_INPUT_MODE | WAIT_TIMER_MODE;
+        if (autoWaitsForVoice()) event_mode |= WAIT_VOICE_MODE; // CONscripter: autovoicewait
         ret = waitEvent( automodeWait() );
     }
     else if ( autoclick_time > 0 ){
@@ -672,6 +673,7 @@ bool ONScripter::doClickEnd()
 
     num_chars_in_sentence = 0;
     draw_cursor_flag = false;
+    if (!ret) voiceAfterWait(); // CONscripter: clickvoicestop, autovoicewait
 
     return ret;
 }

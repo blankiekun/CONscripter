@@ -70,9 +70,24 @@ static int scriptVolumeAt( int from, int to, int ms, Uint32 start, Uint32 now )
     return from + (to - from) * (int)t / ms;
 }
 
+/* soundmute: the groups the player has muted (SOUND_MUTE_*). The track
+ * effect below silences a muted channel's sound (ramped over a buffer, so
+ * no click) and it goes on playing unheard; the music's volume is 0. */
+#define SOUND_MUTE_BGM   1
+#define SOUND_MUTE_SE    2
+#define SOUND_MUTE_VOICE 4
+static volatile int sound_mute = 0;
+
+static bool channelMuted( int channel )
+{
+    int group = channel == 0 ? SOUND_MUTE_VOICE : channel == MIX_BGM_CHANNEL ? SOUND_MUTE_BGM : SOUND_MUTE_SE;
+    return (sound_mute & group) != 0;
+}
+
 static int trackGain( int channel ) // 0-4096
 {
     if (channel < 0 || channel >= ONS_MIX_CHANNELS) return 4096;
+    if (channelMuted( channel )) return 0;
     return scriptVolumeAt( track_gain[channel].from, track_gain[channel].to, track_gain[channel].ms,
                            track_gain[channel].start, SDL_GetTicks() ) * 4096 / 100;
 }
@@ -220,7 +235,7 @@ int ONScripter::spmotionCommand()
                 continue;
             }
             int *k = ai->motion_key[ai->motion_keys++];
-            k[0] = t; k[1] = x; k[2] = y;
+            k[0] = speedTime( t ); k[1] = x; k[2] = y; // gamespeed
         }
         ai->motion_start = ai->motion_next = SDL_GetTicks();
         stepSpriteMotion( *ai, ai->motion_start );
@@ -258,7 +273,7 @@ int ONScripter::spfadeCommand()
     AnimationInfo &ai = sprite_info[no];
     if (from < 0) from = 0;
     if (from > 256) from = 256;
-    ai.fade_ms = ms > 0 ? ms : 0;
+    ai.fade_ms = ms > 0 ? speedTime( ms ) : 0; // gamespeed
     ai.fade_from = from;
     ai.fade_alpha = ai.fade_ms > 0 ? from : 256;
     ai.fade_start = ai.fade_next = SDL_GetTicks();
@@ -720,6 +735,96 @@ int ONScripter::bgmvolfadeCommand()
     return RET_CONTINUE;
 }
 
+/* Player settings, for a game's settings screen. None is saved: the game
+ * keeps its settings and sets them again at startup.
+ *
+ * soundmute bgm,se,voice
+ *   1 mutes the music, the sound effects (every dwave channel but 0), the
+ *   voice (channel 0), whatever their volume; 0 lets them be heard again.
+ *   Muted sounds go on playing unheard, so music unmuted mid-piece goes on
+ *   from where it is. Auto mode doesn't wait for a muted voice.
+ * clickvoicestop on
+ *   1: a click that ends a text wait (a click wait in the text, textbtnwait)
+ *   stops the voice (channel 0). 0 (default): it plays on.
+ * autovoicewait on
+ *   1 (default): auto mode waits for the voice to end before reading on.
+ *   0: it reads on after its own time and stops the voice.
+ * selectkeep on
+ *   1: auto mode and skip go on after a select's option is chosen.
+ *   0 (default): a select ends them, as in NScripter.
+ * moviestop mode
+ *   Whether a click stops a movie (mpegplay, movie): 1 always, 0 never,
+ *   -1 (default) as the script's click flag says.
+ * gamespeed percent
+ *   Script times run at percent of real speed (100 default, 10-10000):
+ *   wait, delay, waittimer and gettimer, effects (print), spfade, spmotion
+ *   and screenshake's time and end. 200 plays them in half the time. Text
+ *   speed, auto mode's wait and sounds aren't changed. */
+int ONScripter::soundmuteCommand()
+{
+    int m = 0;
+    if (script_h.readInt()) m |= SOUND_MUTE_BGM;
+    if (script_h.readInt()) m |= SOUND_MUTE_SE;
+    if (script_h.readInt()) m |= SOUND_MUTE_VOICE;
+    sound_mute = m;
+    applyMusicVolume();
+    return RET_CONTINUE;
+}
+
+int ONScripter::clickvoicestopCommand()
+{
+    click_voice_stop = script_h.readInt() != 0;
+    return RET_CONTINUE;
+}
+
+int ONScripter::autovoicewaitCommand()
+{
+    auto_voice_wait = script_h.readInt() != 0;
+    return RET_CONTINUE;
+}
+
+int ONScripter::selectkeepCommand()
+{
+    select_keep = script_h.readInt() != 0;
+    return RET_CONTINUE;
+}
+
+int ONScripter::moviestopCommand()
+{
+    int m = script_h.readInt();
+    movie_stop = m < 0 ? -1 : m > 0 ? 1 : 0;
+    return RET_CONTINUE;
+}
+
+int ONScripter::gamespeedCommand()
+{
+    int p = script_h.readInt();
+    game_speed = p < 10 ? 10 : p > 10000 ? 10000 : p;
+    return RET_CONTINUE;
+}
+
+int ONScripter::speedTime( int ms )
+{
+    if (game_speed == 100 || ms <= 0) return ms;
+    return (int)((long long)ms * 100 / game_speed);
+}
+
+bool ONScripter::autoWaitsForVoice()
+{
+    return auto_voice_wait && !(sound_mute & SOUND_MUTE_VOICE);
+}
+
+// After a text wait: a click stops the voice (clickvoicestop), auto mode
+// reading on stops it when it doesn't wait for it (autovoicewait 0).
+void ONScripter::voiceAfterWait()
+{
+    if (!wave_sample[0] || skip_mode & SKIP_NORMAL || ctrl_pressed_status) return;
+    if (automode_flag ? auto_voice_wait : !click_voice_stop) return;
+    cutChannel( 0 );
+    Mix_FreeChunk( wave_sample[0] );
+    wave_sample[0] = NULL;
+}
+
 // chvolfade and bgmvolfade back to 100, at once (reset, startup).
 void ONScripter::resetScriptVolumes()
 {
@@ -741,6 +846,7 @@ int ONScripter::bgmScriptVolume()
 // The music's volume, percent: the setting times bgmvolfade's.
 int ONScripter::musicVolume()
 {
+    if (sound_mute & SOUND_MUTE_BGM) return 0;
     return music_volume * bgmScriptVolume() / 100;
 }
 
@@ -863,6 +969,10 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
     e.map_name = map_name;
     for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++) e.param[i] = param[i];
     e.kind = kind;
+    if (kind == SCREEN_EFFECT_SHAKE){ // gamespeed: its time and end
+        e.param[0] = speedTime( e.param[0] );
+        e.param[9] = speedTime( e.param[9] );
+    }
     startScreenEffect( e );
     dirty_rect.fill( screen_width, screen_height );
 

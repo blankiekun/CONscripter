@@ -121,7 +121,7 @@ int ONScripter::waveCommand()
 
 int ONScripter::waittimerCommand()
 {
-    int count = script_h.readInt() + internal_timer - SDL_GetTicks();
+    int count = speedTime( script_h.readInt() ) + internal_timer - SDL_GetTicks(); // CONscripter: gamespeed
     if (count < 0) count = 0;
 
     event_mode = WAIT_TIMER_MODE;
@@ -133,7 +133,7 @@ int ONScripter::waittimerCommand()
 int ONScripter::waitCommand()
 {
     event_mode = WAIT_TIMER_MODE;
-    waitEvent( script_h.readInt() );
+    waitEvent( speedTime( script_h.readInt() ) ); // CONscripter: gamespeed
 
     return RET_CONTINUE;
 }
@@ -909,6 +909,8 @@ int ONScripter::selectCommand()
         setCurrentLabel( "customsel" );
         return RET_CONTINUE;
     }
+    // CONscripter: selectkeep, auto mode and skip go on after the choice
+    bool kept_auto = automode_flag, kept_skip = (skip_mode & SKIP_NORMAL) != 0;
     automode_flag = false;
     sentence_font.xy[0] = xy[0];
     sentence_font.xy[1] = xy[1];
@@ -928,6 +930,10 @@ int ONScripter::selectCommand()
         if (waitEvent(-1)) return RET_CONTINUE;
     }
     while(current_button_state.button <= 0 || current_button_state.button > options || skip_mode & SKIP_NORMAL);
+    if (select_keep){
+        automode_flag = kept_auto;
+        if (kept_skip) skip_mode |= SKIP_NORMAL;
+    }
     if (trace_fp) traceSelect( current_button_state.button );
     if (auto_play_flag) autoPlayChosen( current_button_state.button );
         
@@ -1395,6 +1401,7 @@ int ONScripter::mpegplayCommand()
     bool click_flag = (script_h.readInt()==1)?true:false;
 
     stopBGM( false );
+    if (movie_stop >= 0) click_flag = movie_stop == 1; // CONscripter: moviestop
     if (playMPEG( save_buf, click_flag )){
         trace_end_reason = "window closed"; // CONscripter: closed during the movie
         endCommand();
@@ -1589,6 +1596,7 @@ int ONScripter::movieCommand()
         }
     }
     
+    if (movie_stop >= 0) click_flag = movie_stop == 1; // CONscripter: moviestop
     if (playMPEG(filename, click_flag, loop_flag)){
         trace_end_reason = "window closed"; // CONscripter: closed during the movie
         endCommand();
@@ -2188,7 +2196,8 @@ int ONScripter::gettimerCommand()
     script_h.readInt();
 
     if ( gettimer_flag ){
-        script_h.setInt( &script_h.current_variable, SDL_GetTicks() - internal_timer );
+        // CONscripter: gamespeed
+        script_h.setInt( &script_h.current_variable, (int)((long long)(SDL_GetTicks() - internal_timer) * game_speed / 100) );
     }
     else{
         script_h.setInt( &script_h.current_variable, btnwait_time );
@@ -3138,7 +3147,7 @@ int ONScripter::delayCommand()
         return RET_CONTINUE;
 
     event_mode = WAIT_TIMER_MODE | WAIT_INPUT_MODE;
-    waitEvent( val );
+    waitEvent( speedTime( val ) ); // CONscripter: gamespeed
 
     return RET_CONTINUE;
 }
@@ -3492,7 +3501,7 @@ int ONScripter::btnwaitCommand()
             event_mode |= WAIT_INPUT_MODE;
             if ( btntime_value == -1 ){
                 if ( automode_flag ){
-                    event_mode |= WAIT_VOICE_MODE;
+                    if (autoWaitsForVoice()) event_mode |= WAIT_VOICE_MODE; // CONscripter: autovoicewait
                     if (t == -1 || t > automodeWait())
                         t = automodeWait();
                     //current_button_state.button = 0;
@@ -3504,8 +3513,11 @@ int ONScripter::btnwaitCommand()
         }
 
         event_mode |= WAIT_TIMER_MODE;
-        waitEvent(t);
+        bool closed = waitEvent(t);
         skip_mode &= ~SKIP_TO_EOL;
+        // CONscripter: clickvoicestop, autovoicewait (a click or auto mode
+        // reading on, not a button)
+        if (textbtn_flag && !closed && current_button_state.button == 0) voiceAfterWait();
     }
 
     btnwait_time = SDL_GetTicks() - internal_button_timer;
