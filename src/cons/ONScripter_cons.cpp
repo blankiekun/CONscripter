@@ -85,6 +85,9 @@ static bool channelMuted( int channel )
     return (sound_mute & group) != 0;
 }
 
+// Appends text (as JSON when json) to out (ONScripter_trace.cpp).
+void traceString( std::string &out, const char *text, int len=-1, bool json=true );
+
 int trackGain( int channel ) // 0-4096; the trace reads it too
 {
     if (channel < 0 || channel >= ONS_MIX_CHANNELS) return 4096;

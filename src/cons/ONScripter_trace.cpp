@@ -62,7 +62,7 @@ static int trace_recent_count = 0; // ever run; the next goes in count % TRACE_R
 // two-byte characters are told apart as the engine draws them. With json
 // false, the text alone, without quotes or escapes (a newline becomes a
 // space).
-static void traceString( std::string &out, const char *text, int len=-1, bool json=true )
+void traceString( std::string &out, const char *text, int len=-1, bool json=true )
 {
     if (!text){
         if (json) out += "null";
