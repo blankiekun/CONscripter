@@ -1373,6 +1373,7 @@ int ONScripter::mspCommand()
     }
     else{
         ai = &sprite_info[no];
+        endKeptMotion( *ai ); // CONscripter: spmotion's loop 2
         dirty_rect.add( ai->pos );
     }
 
@@ -1751,6 +1752,7 @@ int ONScripter::lspCommand()
 
     int no = script_h.readInt();
     AnimationInfo *ai = &sprite_info[no];
+    endKeptMotion( *ai ); // CONscripter: spmotion's loop 2
 
     if (ai->image_surface && ai->visible)
         dirty_rect.add( ai->pos );
@@ -3972,6 +3974,7 @@ int ONScripter::amspCommand()
     }
     else{
         ai = &sprite_info[no];
+        endKeptMotion( *ai ); // CONscripter: spmotion's loop 2
         dirty_rect.add( ai->pos );
     }
 

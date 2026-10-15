@@ -580,6 +580,7 @@ private:
     SDL_Rect drawnRect(const AnimationInfo &ai);
     bool spriteZoomOrMotion();
     void stepSpriteMotion(AnimationInfo &ai, int current_time);
+    void endKeptMotion(AnimationInfo &ai);
     void stepSpriteAlpha(AnimationInfo &ai, int current_time);
     void proceedSpriteMotions(int current_time);
     int nextSpriteMotionTime();

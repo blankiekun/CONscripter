@@ -59,8 +59,9 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   and leaves the sprite at the last key: its offset is added to the
   sprite's place (as `msp` would), its zoom to the `spzoom` and its
   alpha to the sprite's (the angle goes back to 0). Another `spmotion`
-  or `spmotion2` on the sprite, also one that stops it, first ends such
-  a motion at its last key.
+  or `spmotion2` on the sprite (also one that stops it), `lsp`, `msp` or
+  `amsp` first ends such a motion at its last key, so a skipped scene
+  puts the sprite where it would be.
 - **`spmotion2 num[,loop,t1,x1,y1,zoom1,angle1,alpha1,...]`**: `spmotion`
   with a zoom (percent, 100 = its size, on top of `spzoom`'s) and an
   angle (degrees, counterclockwise, as `lsp2`'s), both about the centre
