@@ -22,6 +22,7 @@ set(SOURCES
   ../onsyuri/ONScripter_animation.cpp
   ../onsyuri/ONScripter_command.cpp
   ../onsyuri/ONScripter_cons.cpp
+  ../onsyuri/ONScripter_trace.cpp
   ../onsyuri/ONScripter_effect.cpp
   ../onsyuri/ONScripter_effect_breakup.cpp
   ../onsyuri/ONScripter_event.cpp
