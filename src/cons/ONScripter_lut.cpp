@@ -192,6 +192,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"mp3fadein",		&ONScripter::mp3fadeinCommand},
     {"mp3",				&ONScripter::mp3Command},
     {"moviestop",		&ONScripter::moviestopCommand},
+    {"mpeghold",		&ONScripter::mpegholdCommand},
     {"movl",			&ONScripter::movCommand},
     {"movie",			&ONScripter::movieCommand},
     {"movemousecursor",	&ONScripter::movemousecursorCommand},

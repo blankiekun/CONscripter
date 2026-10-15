@@ -227,6 +227,7 @@ public:
     int autovoicewaitCommand();
     int selectkeepCommand();
     int moviestopCommand();
+    int mpegholdCommand();
     int gamespeedCommand();
     int sysevolCommand();
     int btnseCommand();
@@ -894,6 +895,22 @@ private:
     bool movie_skipped = false;      // the last movie was stopped by a click (or auto-play)
     unsigned long long fresh_channels = 0; // dwave channels started since the last wait: a movie's own sounds
     void stopFreshChannels();
+    // CONscripter: mpeghold, a movie that plays while the button is held
+    struct MovieHold {
+        int sprite = -1;             // drawn over the movie
+        int channel = -1;            // its sound's, -1 none
+        int fade_ms = 0;             // 0: the sound pauses with the movie; else restarts looped, fades on release
+        bool held = false, started = false;
+        bool mouse = false;          // what holds it: the left button,
+        int keys = 0, fingers = 0;   // Enter, Space (bits), touches
+    };
+    MovieHold *movie_hold = NULL;
+    void movieHoldSet( bool held );
+    void movieHoldEvent( const SDL_Event &event );
+    void movieHoldEnd();
+#if defined(WEB)
+    void playMovieHoldWeb( const char *path );
+#endif
     int game_speed = 100;            // script times run at this percent of real speed
     bool effect_off = false;         // every print effect is drawn at once
     bool text_shadow = true;         // the message text has setwindow's shadow (off: none)

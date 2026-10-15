@@ -857,6 +857,17 @@ also stops the `dwave` sounds started since the last wait (the movie's own).
 Linux/macOS play through ffmpeg
 (`CONS_FFMPEG`, else `PATH`). Impl `ONScripter::mpegplayCommand`.
 
+### mpeghold [cons]
+`mpeghold "file"[,sp[,ch,"sound",fade_ms]]` — a movie that plays only while
+the left button, a touch, Enter or Space is held down and stops on its
+frame when let go; its first frame shows until the first press; it can't be
+skipped and the music plays on. Sprite sp (-1 none), if shown, is drawn
+over it with its cells going round (a "hold the button" prompt). "sound"
+plays on dwave channel ch: fade_ms 0 pauses and resumes it with the movie
+(it plays on after the movie); otherwise each press starts it again,
+looped, and it fades out over fade_ms when let go and when the movie ends.
+Linux/macOS (ffmpeg) and the web build. Impl `ONScripter::mpegholdCommand`.
+
 ### movie
 `movie "file"[,pos,x,y,w,h][,click][,loop][,async]` / `movie stop`.
 Impl `ONScripter::movieCommand`.

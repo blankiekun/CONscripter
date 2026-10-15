@@ -403,7 +403,8 @@ int ONScripter::playMPEG(const char *filename, bool click_flag, bool loop_flag)
 #elif defined(ANDROID)
     playVideoAndroid(absolute_filename);
 #elif defined(WEB)
-    movie_skipped = playVideoWeb(absolute_filename, click_flag, loop_flag);
+    if (movie_hold) playMovieHoldWeb(absolute_filename); // CONscripter: mpeghold
+    else movie_skipped = playVideoWeb(absolute_filename, click_flag, loop_flag);
 #elif CONS_FFMPEG_MOVIES
     ret = playMovieFFmpeg(absolute_filename, click_flag, loop_flag);
 #else

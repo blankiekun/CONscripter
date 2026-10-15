@@ -508,6 +508,7 @@
                 videoEnded();
             }
             function videoEnded(){
+                holdEnded();
                 g_video_skippable=false;
                 video.onclick=null;
                 video.pause();
@@ -552,6 +553,99 @@
                     video.muted=true;
                     video.play().catch(videoEnded);
                 });
+            }
+
+            // mpeghold: the video plays while the pointer, Enter or Space
+            // is held down on it, under the engine's sprite (a "hold the
+            // button" prompt); g_cons_module.video_held tells the engine
+            const holdOverlay=document.createElement("canvas");
+            holdOverlay.style.cssText="position:absolute; display:none; touch-action:none;";
+            document.body.appendChild(holdOverlay);
+            var g_hold=null;
+            function holdSet(){
+                if (!g_hold) return;
+                const down=g_hold.pointers.size>0 || g_hold.keys.size>0;
+                if (down==!!g_cons_module.video_held) return;
+                g_cons_module.video_held=down;
+                if (down) video.play().catch(()=>{ video.muted=true; video.play().catch(()=>{}); });
+                else video.pause();
+            }
+            function holdKey(event){
+                if (!g_hold || !(event.key=="Enter" || event.key==" ")) return;
+                event.preventDefault();
+                if (event.type=="keydown") g_hold.keys.add(event.key); else g_hold.keys.delete(event.key);
+                holdSet();
+            }
+            window.addEventListener('keydown', holdKey);
+            window.addEventListener('keyup', holdKey);
+            holdOverlay.addEventListener('pointerdown', function(event){
+                if (!g_hold || event.button>0) return;
+                holdOverlay.setPointerCapture(event.pointerId);
+                g_hold.pointers.add(event.pointerId);
+                holdSet();
+            });
+            for (const name of ['pointerup', 'pointercancel', 'lostpointercapture'])
+                holdOverlay.addEventListener(name, function(event){
+                    if (!g_hold) return;
+                    g_hold.pointers.delete(event.pointerId);
+                    holdSet();
+                });
+            holdOverlay.addEventListener('contextmenu', (event)=>event.preventDefault());
+            window.addEventListener('blur', function(){
+                if (!g_hold) return;
+                g_hold.pointers.clear();
+                g_hold.keys.clear();
+                holdSet();
+            });
+
+            // rgba: the sprite's picture (w x h, stride px a row), cells side
+            // by side, each shown ms; drawn at x,y of the sw x sh screen
+            function playVideoHold(path, rgba, w, h, stride, cells, ms, x, y, sw, sh){
+                g_cons_module.wait_video=true;
+                g_cons_module.video_held=false;
+                const fileData = g_cons_module.FS.readFile(path, {flags:'r',encoding:'binary'});
+                video.src = URL.createObjectURL(new Blob([fileData.buffer], { type: 'video/mp4' }));
+                video.loop=false;
+                video.muted=false;
+                video.onclick=null;
+                g_video_skippable=false;
+                video.preload="auto";
+                video.pause();
+
+                const canvas=g_cons_module.canvas;
+                video.style.width=canvas.style.width||canvas.clientWidth+"px";
+                video.style.height=canvas.style.height||canvas.clientHeight+"px";
+                canvas.style.display="none";
+                video.style.display="block";
+                const r=video.getBoundingClientRect();
+                Object.assign(holdOverlay.style, {left:(r.left+window.scrollX)+"px", top:(r.top+window.scrollY)+"px",
+                                                  width:r.width+"px", height:r.height+"px", display:"block"});
+                holdOverlay.width=sw;
+                holdOverlay.height=sh;
+                const ctx=holdOverlay.getContext("2d");
+                ctx.clearRect(0, 0, sw, sh);
+                g_hold={pointers:new Set(), keys:new Set(), timer:null};
+                if (rgba && w>0 && h>0){
+                    const image=new ImageData(w, h);
+                    for (let row=0; row<h; row++)
+                        image.data.set(rgba.subarray(row*stride*4, row*stride*4 + w*4), row*w*4);
+                    const cw=Math.floor(w/Math.max(cells,1));
+                    let cell=0;
+                    const draw=()=>{
+                        ctx.clearRect(0, 0, sw, sh);
+                        ctx.putImageData(image, x - cell*cw, y, cell*cw, 0, cw, h);
+                        cell=(cell+1)%Math.max(cells,1);
+                    };
+                    draw();
+                    if (cells>1 && ms>0) g_hold.timer=setInterval(draw, ms);
+                }
+            }
+            function holdEnded(){
+                if (!g_hold) return;
+                if (g_hold.timer) clearInterval(g_hold.timer);
+                g_hold=null;
+                g_cons_module.video_held=false;
+                holdOverlay.style.display="none";
             }
 
             video.addEventListener('error', function(event) {
@@ -634,4 +728,4 @@
             <button onclick="toggle_webmenu()">close[F9]</button>
         </div>
     </body>
-</html>
+</html>

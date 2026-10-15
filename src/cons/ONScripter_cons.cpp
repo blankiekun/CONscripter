@@ -3415,9 +3415,50 @@ struct MovieStream {
     Uint64 played = 0;
     bool sound_eof = false;
     bool stop = false;
+    bool paused = false; // mpeghold, not held: the sound waits
     int volume = 100; // percent
     bool float_samples = false;
     int video_fd = -1, sound_fd = -1;
+};
+
+/* mpeghold's sprite, drawn over the movie with its cells going round. */
+struct MovieOverlay {
+    SDL_Texture *texture = nullptr;
+    SDL_Rect pos = {0, 0, 0, 0};
+    std::vector<int> durations; // ms each cell shows
+    int total = 0;
+    void load(SDL_Renderer *renderer, AnimationInfo *ai)
+    {
+        if (!ai->visible || !ai->image_surface) return;
+        texture = SDL_CreateTextureFromSurface(renderer, ai->image_surface);
+        if (!texture) return;
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        pos = ai->pos;
+        if (ai->is_animatable && ai->duration_list)
+            for (int i = 0; i < ai->num_of_cells; i++) durations.push_back(std::max(ai->duration_list[i], 1));
+        for (int d : durations) total += d;
+    }
+    int cell(Uint32 now) const
+    {
+        if (!texture) return -1;
+        if (total == 0) return 0;
+        int t = now % total, c = 0;
+        while (t >= durations[c]) t -= durations[c++];
+        return c;
+    }
+    void draw(SDL_Renderer *renderer, const SDL_Rect &view, int screen_w, int screen_h) const
+    {
+        if (!texture) return;
+        SDL_Rect src = {cell(SDL_GetTicks()) * pos.w, 0, pos.w, pos.h};
+        SDL_Rect dst = {view.x + pos.x * view.w / screen_w, view.y + pos.y * view.h / screen_h,
+                        pos.w * view.w / screen_w, pos.h * view.h / screen_h};
+        SDL_RenderCopy(renderer, texture, &src, &dst);
+    }
+    void free()
+    {
+        if (texture) SDL_DestroyTexture(texture);
+        texture = nullptr;
+    }
 };
 
 /* The ffmpeg to run: CONS_FFMPEG, else ffmpeg from PATH, else Homebrew's
@@ -3582,6 +3623,11 @@ void mixMovieSound(void *data, Uint8 *stream, int len)
 {
     MovieStream *m = (MovieStream *)data;
     SDL_LockMutex(m->lock);
+    if (m->paused) {
+        SDL_UnlockMutex(m->lock);
+        memset(stream, 0, len);
+        return;
+    }
     size_t take = std::min((size_t)len, m->sound_count);
     for (size_t done = 0; done < take;) {
         size_t chunk = std::min(take - done, m->sound.size() - m->sound_first);
@@ -3651,6 +3697,10 @@ int ONScripter::playMovieFFmpeg(const char *path, bool click_flag, bool loop_fla
         utils::printError("can't play the movie [%s]: %s\n", path, SDL_GetError());
         return 0;
     }
+    MovieOverlay overlay;
+    if (movie_hold && movie_hold->sprite >= 0 && movie_hold->sprite < MAX_SPRITE_NUM)
+        overlay.load(renderer, &sprite_info[movie_hold->sprite]);
+    int overlay_cell = -1;
     int ret = 0;
     bool done = false;
     while (!done) {
@@ -3672,7 +3722,7 @@ int ONScripter::playMovieFFmpeg(const char *path, bool click_flag, bool loop_fla
         SDL_Thread *video_thread = SDL_CreateThread(readVideo, "movie video", &m);
         SDL_Thread *sound_thread = has_sound ? SDL_CreateThread(readSound, "movie sound", &m) : NULL;
         if (has_sound) Mix_HookMusic(mixMovieSound, &m);
-        Uint32 start = SDL_GetTicks();
+        Uint32 last = SDL_GetTicks(), played_ms = 0; // the time played (not counting mpeghold's pauses)
         int shown = 0;
         bool finished = false;
         while (!finished && !done) {
@@ -3680,6 +3730,7 @@ int ONScripter::playMovieFFmpeg(const char *path, bool click_flag, bool loop_fla
             while (SDL_PollEvent(&event)) {
                 bool skip = false;
                 if (event.type == SDL_QUIT) { ret = 1; done = true; }
+                else if (movie_hold) { movieHoldEvent(event); continue; }
                 else if (event.type == SDL_MOUSEBUTTONUP || event.type == SDL_FINGERUP) skip = true;
                 else if (event.type == SDL_KEYUP) {
                     SDL_Keycode k = event.key.keysym.sym;
@@ -3690,11 +3741,16 @@ int ONScripter::playMovieFFmpeg(const char *path, bool click_flag, bool loop_fla
                 if (skip && click_flag) done = movie_skipped = true;
             }
             if (done) break;
+            bool running = !movie_hold || movie_hold->held;
+            Uint32 now = SDL_GetTicks();
+            if (running) played_ms += now - last;
+            last = now;
             SDL_LockMutex(m.lock);
+            m.paused = !running;
             double clock = has_sound && !m.sound_eof
                 ? m.played / (double)(freq * channels * (m.float_samples ? 4 : 2))
-                : (SDL_GetTicks() - start) / 1000.0;
-            if (has_sound && m.sound_eof && m.sound_count == 0) clock = 1e9; // the sound ended: show what is left
+                : played_ms / 1000.0;
+            if (has_sound && m.sound_eof && m.sound_count == 0 && running) clock = 1e9; // the sound ended: show what is left
             bool due = m.count > 0 && clock >= shown / fps;
             if (due) {
                 // Late frames are dropped, but not the last one queued.
@@ -3712,12 +3768,17 @@ int ONScripter::playMovieFFmpeg(const char *path, bool click_flag, bool loop_fla
             }
             finished = m.video_eof && m.count == 0 && (!has_sound || m.sound_eof);
             SDL_UnlockMutex(m.lock);
+            int cell = overlay.cell(now);
+            if (cell != overlay_cell) { overlay_cell = cell; due = shown > 0; }
             if (due) {
                 SDL_RenderClear(renderer);
-                if ((stretch_mode && fullscreen_mode) || (force_window_height && force_window_width))
-                    SDL_RenderCopy(renderer, frame_texture, NULL, NULL);
-                else
-                    SDL_RenderCopy(renderer, frame_texture, NULL, &render_view_rect);
+                SDL_Rect view = render_view_rect;
+                if ((stretch_mode && fullscreen_mode) || (force_window_height && force_window_width)) {
+                    view.x = view.y = 0;
+                    SDL_GetRendererOutputSize(renderer, &view.w, &view.h);
+                }
+                SDL_RenderCopy(renderer, frame_texture, NULL, &view);
+                overlay.draw(renderer, view, screen_width, screen_height);
                 SDL_RenderPresent(renderer);
             } else {
                 SDL_Delay(2);
@@ -3739,12 +3800,151 @@ int ONScripter::playMovieFFmpeg(const char *path, bool click_flag, bool loop_fla
         if (!loop_flag) break;
     }
     SDL_DestroyTexture(frame_texture);
+    overlay.free();
     // The game's screen again.
     dirty_rect.fill(screen_width, screen_height);
     flush(refreshMode());
     return ret;
 }
 #endif // CONS_FFMPEG_MOVIES
+
+/* mpeghold "file"[,sp[,ch,"sound",fade_ms]]
+ *   Plays a movie that goes on only while the left button, a touch,
+ *   Enter or Space is held down, and stops on its frame when they are
+ *   let go; it shows its first frame until the first press, can't be
+ *   skipped, and returns when it ends. The music plays on. Sprite sp
+ *   (-1: none), if shown, is drawn over the movie with its cells going
+ *   round (a "hold the button" prompt). "sound" plays on dwave channel
+ *   ch while the movie does: with fade_ms 0 it is paused and resumed
+ *   with the movie and plays on after it ends; otherwise each press
+ *   starts it again from its beginning, looped, and it fades out over
+ *   fade_ms when let go and when the movie ends.
+ *       mpeghold "movie\hold.mp4",6,3,"se\fire.ogg",500
+ *   続・殺戮のジャンゴ's 400-vs-3 battle, where the player holds the
+ *   trigger down. Linux, macOS (ffmpeg) and the web build; elsewhere
+ *   it plays as mpegplay "file",0,1. */
+int ONScripter::mpegholdCommand()
+{
+    std::string movie = script_h.readStr();
+    MovieHold hold;
+    std::string sound;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA)
+        hold.sprite = script_h.readInt();
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
+        hold.channel = script_h.readInt();
+        sound = script_h.readStr();
+        hold.fade_ms = script_h.readInt();
+    }
+    if (hold.channel < 0 || hold.channel >= ONS_MIX_CHANNELS || sound.empty() ||
+        playSound( sound.c_str(), SOUND_CHUNK | SOUND_PRELOAD, hold.fade_ms > 0, hold.channel ) != SOUND_CHUNK)
+        hold.channel = -1;
+
+    traceMovie( false );
+    movie_hold = &hold;
+    int quit = playMPEG( movie.c_str(), false );
+    movieHoldEnd();
+    movie_hold = NULL;
+    if (quit){
+        trace_end_reason = "window closed";
+        endCommand();
+    }
+    repaintCommand();
+    return RET_CONTINUE;
+}
+
+// mpeghold's movie held down (or let go): its sound with it.
+void ONScripter::movieHoldSet( bool held )
+{
+    MovieHold *h = movie_hold;
+    if (!h || held == h->held) return;
+    h->held = held;
+    int ch = h->channel;
+    if (ch < 0 || !wave_sample[ch]) return;
+    if (held){
+        if (h->fade_ms > 0){
+            Mix_HaltChannel( ch );
+            playChannel( ch, wave_sample[ch], -1 );
+        }
+        else if (!h->started)
+            playChannel( ch, wave_sample[ch], 0 );
+        else
+            Mix_Resume( ch );
+        h->started = true;
+    }
+    else if (h->fade_ms > 0)
+        Mix_FadeOutChannel( ch, h->fade_ms );
+    else
+        Mix_Pause( ch );
+}
+
+// An event while mpeghold's movie plays: what holds it down.
+void ONScripter::movieHoldEvent( const SDL_Event &event )
+{
+    MovieHold *h = movie_hold;
+    switch (event.type){
+      case SDL_MOUSEBUTTONDOWN:
+      case SDL_MOUSEBUTTONUP:
+        if (event.button.button == SDL_BUTTON_LEFT) h->mouse = event.type == SDL_MOUSEBUTTONDOWN;
+        break;
+      case SDL_FINGERDOWN:
+        h->fingers++;
+        break;
+      case SDL_FINGERUP:
+        if (h->fingers > 0) h->fingers--;
+        break;
+      case SDL_KEYDOWN:
+      case SDL_KEYUP: {
+        SDL_Keycode k = event.key.keysym.sym;
+        int bit = k == SDLK_RETURN ? 1 : k == SDLK_KP_ENTER ? 2 : k == SDLK_SPACE ? 4 : 0;
+        if (event.type == SDL_KEYDOWN) h->keys |= bit;
+        else h->keys &= ~bit;
+        if (event.type == SDL_KEYUP && k == SDLK_RCTRL) ctrl_pressed_status &= ~0x01;
+        if (event.type == SDL_KEYUP && k == SDLK_LCTRL) ctrl_pressed_status &= ~0x02;
+        break;
+      }
+      case SDL_WINDOWEVENT:
+        if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST){
+            h->mouse = false;
+            h->keys = h->fingers = 0;
+        }
+        break;
+      default:
+        break;
+    }
+    movieHoldSet( h->mouse || h->keys || h->fingers > 0 );
+}
+
+// mpeghold's movie ended: a looped sound fades out, a paused one plays on.
+void ONScripter::movieHoldEnd()
+{
+    MovieHold *h = movie_hold;
+    if (h->channel < 0 || !h->started) return;
+    if (h->fade_ms == 0) Mix_Resume( h->channel );
+    else if (h->held) Mix_FadeOutChannel( h->channel, h->fade_ms );
+}
+
+#if defined(WEB)
+/* mpeghold in the web build: the page plays the video while it is held
+ * (conscripter.html's playVideoHold, which draws the sprite over it) and
+ * says so in g_cons_module.video_held. */
+void ONScripter::playMovieHoldWeb( const char *path )
+{
+    AnimationInfo *ai = movie_hold->sprite >= 0 && movie_hold->sprite < MAX_SPRITE_NUM ? &sprite_info[movie_hold->sprite] : NULL;
+    SDL_Surface *rgba = ai && ai->visible && ai->image_surface ?
+        SDL_ConvertSurfaceFormat( ai->image_surface, SDL_PIXELFORMAT_ABGR8888, 0 ) : NULL; // RGBA in memory
+    int ms = rgba && ai->is_animatable && ai->duration_list ? ai->duration_list[0] : 0;
+    EM_ASM({
+        playVideoHold(g_cons_module.UTF8ToString($0), $1 ? HEAPU8.slice($1, $1 + $3 * $4) : null, $2, $4, $3 >> 2,
+                      $5, $6, $7, $8, $9, $10);
+    }, path, rgba ? rgba->pixels : NULL, rgba ? rgba->w : 0, rgba ? rgba->pitch : 0, rgba ? rgba->h : 0,
+       rgba ? ai->num_of_cells : 1, ms, rgba ? ai->pos.x : 0, rgba ? ai->pos.y : 0, screen_width, screen_height);
+    if (rgba) SDL_FreeSurface( rgba );
+    while (EM_ASM_INT( return g_cons_module.wait_video; )){
+        movieHoldSet( EM_ASM_INT( return g_cons_module.video_held ? 1 : 0; ) );
+        SDL_Delay( 5 );
+    }
+}
+#endif
 
 /* logrows %n,columns
  *   Lays the text history out as rows, oldest first, and puts how many
