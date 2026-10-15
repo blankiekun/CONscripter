@@ -358,6 +358,15 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   The setting (0-100) was given to SDL_mixer as is, on its 0-128 scale,
   so music at 100 % played at 78 % (−2 dB) until something changed its
   volume (a `bgmfadein`, `bgmvol`); MIDI music too.
+- **A `bgmstop` fading out during a `bgmfadein` no longer hangs the next
+  `bgm`.** The fade-out took the fade-in's timer slot without stopping
+  it, and the fade-in, ending, removed the fade-out's timer: the music
+  played on, its name already cleared, and the next `bgm` or `bgmstop`
+  started a fade-out it waited on forever (a name it didn't know counted
+  as not Ogg, and only such a fade's end breaks the wait). A fade-out
+  now stops a fade-in first, and music whose name is gone is not waited
+  for. Seen with 俺たちに翼はない's `bgmfadein 1000` … `bgmfadeout 16:bgmstop`
+  a few clicks apart.
 - **WebP images in the web build**: emscripten's SDL_image port has no
   WebP decoder, so the web build links libwebp (`script/cross_web.sh`
   builds it) and decodes WebP itself, lossy and lossless, with alpha. The

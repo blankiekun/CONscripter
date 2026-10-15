@@ -1442,6 +1442,10 @@ int ONScripter::mp3stopCommand()
     if (Mix_PlayingMusic() == 1 && mp3fadeout_duration > 0){
         // do a bgm fadeout
         Mix_HookMusicFinished( NULL );
+        // CONscripter: a fade-in still running stops first (its timer,
+        // kept, would end the fade-out's and leave the music playing)
+        if (timer_bgmfade_id) SDL_RemoveTimer( timer_bgmfade_id );
+        removeBGMFadeEvent();
         mp3fadeout_duration_internal = mp3fadeout_duration;
         mp3fade_start = SDL_GetTicks();
         timer_bgmfade_id = SDL_AddTimer(20, bgmfadeCallback, 0);
@@ -1449,7 +1453,10 @@ int ONScripter::mp3stopCommand()
 
         char *ext = NULL;
         if (music_file_name) ext = strrchr(music_file_name, '.');
-        if (ext && (!strcmp(ext+1, "OGG") || !strcmp(ext+1, "ogg"))){
+        // CONscripter: nor when the name is gone (music an ogg fade-out
+        // left playing): the fade's end only breaks the wait for a name
+        // that isn't ogg
+        if (!ext || !strcmp(ext+1, "OGG") || !strcmp(ext+1, "ogg")){
             // do not wait until fadout is finished when playing ogg
             event_mode = IDLE_EVENT_MODE;
             waitEvent(0);
