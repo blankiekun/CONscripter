@@ -796,6 +796,7 @@ private:
     struct TraceSprite {
         std::string image;           // what was shown, to tell when it changed
         int x, y, w, h, trans, cell;
+        int over, keyed;             // spz's sprite, spalpha running (1 once, 2 loop)
         int since;                   // the page it last changed
     };
     enum { TRACE_SPRITES = MAX_SPRITE_NUM + MAX_SPRITE2_NUM + 3 }; // lsp, then lsp2, then ld
@@ -986,6 +987,9 @@ private:
     void roundtripPage();
     std::string roundtripExcerpt( const std::string &s, size_t from );
     void roundtripLoad();
+    void roundtripClear();
+    int trace_wait_ms = 0;           // the time the waits and effects since the last page asked for
+    std::string traceBlocked( ButtonLink *bl );
     void traceLongWait( int ms );
     static void traceErrorHook( const char *message );
     static void traceExitHook();

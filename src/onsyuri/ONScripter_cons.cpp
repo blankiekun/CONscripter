@@ -3434,12 +3434,15 @@ int ONScripter::traceSpriteUpdate( int i, int since )
     SDL_Rect r = (kind[3] == '2') ? ai.bounding_rect : zoomedRect( ai ); // lsp2: its box after scaling and turning
     // an animation steps its cells by itself
     int cell = ai.is_animatable ? -1 : ai.current_cell;
+    int keyed = ai.alpha_keys > 0 ? (ai.alpha_loop ? 2 : 1) : 0;
     if (ts.image == image && ts.x == r.x && ts.y == r.y && ts.w == r.w && ts.h == r.h &&
-        ts.trans == ai.trans && ts.cell == cell) return 0;
+        ts.trans == ai.trans && ts.cell == cell && ts.over == ai.z_over && ts.keyed == keyed) return 0;
     ts.image = image;
     ts.x = r.x; ts.y = r.y; ts.w = r.w; ts.h = r.h;
     ts.trans = ai.trans;
     ts.cell = cell;
+    ts.over = ai.z_over;
+    ts.keyed = keyed;
     ts.since = since;
     return 1;
 }
@@ -3499,6 +3502,19 @@ void ONScripter::traceSprite( std::string &out, int i )
         snprintf( buf, sizeof(buf), ",\"motion\":%s", ai.motion_loop ? "\"loop\"" : ai.motion_keep ? "\"keep\"" : "\"once\"" );
         out += buf;
     }
+    if (ai.is_animatable) out += ",\"anim\":true";
+    if (ai.z_over >= 0){
+        snprintf( buf, sizeof(buf), ",\"over\":%d", ai.z_over );
+        out += buf;
+    }
+    if (ai.fade_ms > 0 && ai.fade_alpha < 256) out += ",\"fade\":true";
+    if (ai.alpha_keys > 0) out += ai.alpha_loop ? ",\"keyed\":\"loop\"" : ",\"keyed\":\"once\"";
+    // the alpha it is drawn at, after spfade, spalpha and spmotion2's keys
+    int factor = (ai.fade_ms > 0 ? ai.fade_alpha : 256) * ai.key_alpha / 256 * ai.motion_alpha / 256;
+    if (factor != 256){
+        snprintf( buf, sizeof(buf), ",\"shown\":%d", (ai.trans < 0 ? 255 : ai.trans) * factor / 256 );
+        out += buf;
+    }
     snprintf( buf, sizeof(buf), ",\"since\":%d}", ts.since );
     out += buf;
 }
@@ -3551,17 +3567,20 @@ static const struct { const char *name; int kind; } trace_commands[] = {
     {"lsp",1}, {"lsph",1}, {"lsp2",1}, {"lsph2",1}, {"lsp2add",1}, {"lsph2add",1},
     {"lsp2sub",1}, {"lsph2sub",1}, {"csp",1}, {"csp2",1}, {"vsp",1}, {"vsp2",1},
     {"msp",1}, {"msp2",1}, {"amsp",1}, {"amsp2",1}, {"cell",1}, {"spfilter",1}, {"spzoom",1}, {"spmotion",1}, {"spmotion2",1},
-    {"strsp",1}, {"strsph",1}, {"spstr",1}, {"spreload",1}, {"ld",1}, {"cl",1},
+    {"strsp",1}, {"strsph",1}, {"vstrsp",1}, {"spz",1}, {"spstr",1}, {"spreload",1}, {"ld",1}, {"cl",1},
     {"bg",1}, {"bgcopy",1}, {"bgcpy",1}, {"popscreen",1},
     {"bgm",2}, {"bgmonce",2}, {"mp3",2}, {"mp3loop",2}, {"mp3save",2}, {"play",2},
     {"playonce",2}, {"playstop",2}, {"stop",2}, {"mp3stop",2}, {"bgmstop",2},
     {"mp3fadeout",2}, {"bgmfadeout",2}, {"loopbgm",2}, {"loopbgmstop",2},
     {"wave",2}, {"waveloop",2}, {"wavestop",2}, {"dwave",2}, {"dwaveloop",2},
     {"dwavestop",2}, {"dwaveplay",2}, {"dwaveplayloop",2}, {"dwavefadeout",2},
-    {"mpegplay",2}, {"movie",2}, {"avi",2},
+    {"mpegplay",2}, {"movie",2}, {"avi",2}, {"spfade",2}, {"spalpha",2},
+    {"mp3fadein",2}, {"bgmfadein",2}, {"bgmvolfade",2}, {"dwavefadein",2}, {"chvol",2},
+    {"soundmute",2}, {"clickvoicestop",2}, {"autovoicewait",2}, {"selectkeep",2}, {"moviestop",2},
+    {"gamespeed",2}, {"effectoff",2}, {"textshadow",2}, {"sysevol",2}, {"btnse",2},
     {"screenfilter",5}, {"screenshake",5}, {"screenripple",5}, {"screenpulse",5}, {"screenzoom",5},
     {"pushscreen",5}, {"monocro",5}, {"nega",5}, {"quake",5}, {"quakex",5}, {"quakey",5},
-    {"allsphide",5}, {"allspresume",5}, {"allsp2hide",5}, {"allsp2resume",5}, {"windowtrans",5},
+    {"allsphide",5}, {"allspresume",5}, {"allsp2hide",5}, {"allsp2resume",5}, {"windowtrans",5}, {"screenflash",5},
     {"print",3},
     {"effect",4},
 };
@@ -3687,6 +3706,8 @@ void ONScripter::traceButtons( int result )
                 traceString( r, ai.file_name );
             }
         }
+        std::string blocked = traceBlocked( bl );
+        if (!blocked.empty()) r += ",\"blocked\":\"" + blocked + "\"";
         else{
             snprintf( buf, sizeof(buf), ",\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d",
                       bl->select_rect.x, bl->select_rect.y, bl->select_rect.w, bl->select_rect.h );
@@ -3697,6 +3718,34 @@ void ONScripter::traceButtons( int result )
     snprintf( buf, sizeof(buf), "],\"result\":%d}", result );
     r += buf;
     traceWrite( r );
+}
+
+// Why a btnwait's button can't be seen: "off" the screen, its sprite
+// "hidden" or drawn at "alpha 0", or "under lsp n", an opaque sprite in
+// front covering it all (a click still reaches it). Empty when it can.
+std::string ONScripter::traceBlocked( ButtonLink *bl )
+{
+    SDL_Rect &r = bl->select_rect;
+    if (r.w <= 0 || r.h <= 0 || r.x >= screen_width || r.y >= screen_height || r.x + r.w <= 0 || r.y + r.h <= 0)
+        return "off";
+    if (bl->button_type != ButtonLink::SPRITE_BUTTON && bl->button_type != ButtonLink::TMP_SPRITE_BUTTON) return "";
+    int no = bl->sprite_no;
+    if (no < 0 || no >= MAX_SPRITE_NUM) return "";
+    AnimationInfo &ai = sprite_info[no];
+    if (!ai.visible || all_sprite_hide_flag) return "hidden";
+    int factor = (ai.fade_ms > 0 ? ai.fade_alpha : 256) * ai.key_alpha / 256 * ai.motion_alpha / 256;
+    if (ai.trans == 0 || (ai.fade_ms == 0 && ai.alpha_keys == 0 && factor == 0)) return "alpha 0";
+    // shortcut: lsp in front only, without spz; lsp2 and ld aren't looked at
+    if (ai.z_over >= 0) return "";
+    for (int i=0 ; i<no ; i++){
+        AnimationInfo &f = sprite_info[i];
+        if (!f.visible || !f.image_surface || f.z_over >= 0 || f.trans_mode != AnimationInfo::TRANS_COPY ||
+            (f.trans >= 0 && f.trans < 255) || f.fade_ms > 0 || f.key_alpha != 256 || f.motion_alpha != 256) continue;
+        SDL_Rect c = zoomedRect( f );
+        if (c.x <= r.x && c.y <= r.y && c.x + c.w >= r.x + r.w && c.y + c.h >= r.y + r.h)
+            return "under lsp " + std::to_string( i );
+    }
+    return "";
 }
 
 // The state at a click wait or a new page: where the script is, the text,
@@ -3738,6 +3787,20 @@ void ONScripter::tracePage( bool dump )
         r += ']';
     }
 
+    if (audio_open_flag && (music_file_name || midi_file_name)){
+        // the music as heard: the setting, soundmute, a fade, bgmvolfade
+        int vol = (Mix_PlayingMusic() ? Mix_VolumeMusic( -1 ) : Mix_Volume( MIX_BGM_CHANNEL, -1 )) * 100 / MIX_MAX_VOLUME;
+        if (vol < 100){
+            snprintf( buf, sizeof(buf), ",\"bgmvol\":%d", vol );
+            r += buf;
+        }
+    }
+    if (trace_wait_ms > 0){
+        snprintf( buf, sizeof(buf), ",\"wait\":%d", trace_wait_ms );
+        r += buf;
+    }
+    if (!dump) trace_wait_ms = 0;
+
     bool se = false;
     for (int ch=0 ; audio_open_flag && ch<=MIX_WAVE_CHANNEL ; ch++){
         if (!trace_se_name[ch] || !Mix_Playing( ch )) continue;
@@ -3746,7 +3809,13 @@ void ONScripter::tracePage( bool dump )
         snprintf( buf, sizeof(buf), "{\"ch\":%d,\"file\":", ch );
         r += buf;
         traceString( r, trace_se_name[ch] );
-        r += trace_se_loop[ch] ? ",\"loop\":true}" : "}";
+        if (trace_se_loop[ch]) r += ",\"loop\":true";
+        int vol = Mix_Volume( ch, -1 ) * 100 / MIX_MAX_VOLUME * trackGain( ch ) / 4096; // as heard: soundmute, chvolfade
+        if (vol < 100){
+            snprintf( buf, sizeof(buf), ",\"vol\":%d", vol );
+            r += buf;
+        }
+        r += '}';
     }
     if (se) r += ']';
 
@@ -3762,6 +3831,11 @@ void ONScripter::tracePage( bool dump )
     }
     if (nega_mode){
         snprintf( buf, sizeof(buf), ",\"nega\":%d", nega_mode );
+        r += buf;
+    }
+    if (screen_flash_opacity){
+        snprintf( buf, sizeof(buf), ",\"flash\":[%d,\"#%02x%02x%02x\"]", screen_flash_opacity,
+                  screen_flash_colour[0], screen_flash_colour[1], screen_flash_colour[2] );
         r += buf;
     }
     bool listed = false;
@@ -3809,6 +3883,19 @@ void ONScripter::tracePage( bool dump )
     if (dump) traceVars( r );
     if (all_sprite_hide_flag) r += ",\"sprites_hidden\":true";
     if (all_sprite2_hide_flag) r += ",\"sprites2_hidden\":true";
+    if (accumulation_surface && accumulation_surface->format->BytesPerPixel == 4){
+        // FNV-1a of the screen as shown, without its alpha, for --diff
+        SDL_Surface *s = accumulation_surface;
+        Uint32 mask = s->format->Rmask | s->format->Gmask | s->format->Bmask, h = 2166136261u;
+        SDL_LockSurface( s );
+        for (int y=0 ; y<s->h ; y++){
+            Uint32 *p = (Uint32*)((Uint8*)s->pixels + y * s->pitch);
+            for (int x=0 ; x<s->w ; x++) h = (h ^ (p[x] & mask)) * 16777619u;
+        }
+        SDL_UnlockSurface( s );
+        snprintf( buf, sizeof(buf), ",\"px\":\"%08x\"", h );
+        r += buf;
+    }
     traceShot( r, dump );
     r += ",\"sp\":[";
     for (int i=0 ; i<TRACE_SPRITES ; i++){
@@ -5148,6 +5235,8 @@ void ONScripter::roundtripState( std::map<std::string, std::string> &state )
         if (!trace_se_name[ch] || !trace_se_loop[ch] || !Mix_Playing( ch )) continue; // a voice isn't saved
         snprintf( buf, sizeof(buf), "se %d", ch );
         traceString( state[buf], trace_se_name[ch] );
+        int vol = Mix_Volume( ch, -1 ) * 100 / MIX_MAX_VOLUME * trackGain( ch ) / 4096;
+        if (vol < 100) state[buf] += " vol " + std::to_string( vol );
     }
     state["window"] = (display_mode & DISPLAY_MODE_TEXT) ? "true" : "false";
     if (window_trans != 255) state["windowtrans"] = std::to_string( window_trans );
@@ -5156,6 +5245,11 @@ void ONScripter::roundtripState( std::map<std::string, std::string> &state )
         state["monocro"] = buf;
     }
     if (nega_mode) state["nega"] = std::to_string( nega_mode );
+    if (screen_flash_opacity){
+        snprintf( buf, sizeof(buf), "%d #%02x%02x%02x", screen_flash_opacity,
+                  screen_flash_colour[0], screen_flash_colour[1], screen_flash_colour[2] );
+        state["flash"] = buf;
+    }
     for (int i=0 ; i<MAX_SCREEN_FILTER ; i++){
         AnimationInfo::Filter &f = screen_filter[i];
         if (f.kind == AnimationInfo::FILTER_NONE) continue;
@@ -5187,6 +5281,9 @@ void ONScripter::roundtripState( std::map<std::string, std::string> &state )
         snprintf( buf, sizeof(buf), " %d,%d %dx%d alpha %d cell %d filters %d", r.x, r.y, r.w, r.h,
                   ai.trans < 0 ? 255 : ai.trans, ai.current_cell, ai.num_of_filters );
         v += buf;
+        if (ai.z_over >= 0) v += " over " + std::to_string( ai.z_over );
+        if (ai.alpha_keys > 0) v += ai.alpha_loop ? " keyed loop" : " keyed once"; // its alpha moves with the time
+        else if (ai.key_alpha != 256) v += " keyed " + std::to_string( ai.key_alpha );
     }
     for (int i=0 ; i<script_h.variable_range ; i++){
         ScriptHandler::VariableData &vd = script_h.getVariableData( i );
@@ -5207,12 +5304,41 @@ void ONScripter::roundtripLoad()
     traceAt( r, script_h.getCurrent( true ) );
     r += '}';
     traceWrite( r );
-    if (writeSaveFile( roundtrip_slot ) != 0 || !loadGame( roundtrip_slot )){
+    bool saved = writeSaveFile( roundtrip_slot ) == 0;
+    if (saved) roundtripClear(); // what the save leaves out is then missing after the load
+    if (!saved || !loadGame( roundtrip_slot )){
         r = "{\"t\":\"warn\",\"pg\":" + std::to_string( trace_page ) + ",\"what\":\"save/load mismatch\",\"diff\":[\"can't save or load\"]}";
         traceWrite( r );
         return;
     }
     roundtrip_pending = true;
+}
+
+// Clears the state roundtripState compares, as a load from the title
+// screen would find it, so a field the save leaves out shows as changed
+// instead of carrying over. Settings made once in *define (cursors,
+// kinsoku, the window) are kept, as a real load keeps them.
+void ONScripter::roundtripClear()
+{
+    for (int i=0 ; i<script_h.global_variable_border ; i++)
+        script_h.getVariableData( i ).reset( false );
+    monocro_flag = false;
+    nega_mode = 0;
+    window_trans = 255;
+    all_sprite_hide_flag = all_sprite2_hide_flag = false;
+    clearScreenStack();
+    clearScreenFilters();
+    clearScreenEffects();
+    screen_flash_opacity = 0;
+    stopCommand();
+    loopbgmstopCommand();
+    stopAllDWAVE();
+    bg_info.reset();
+    setStr( &bg_info.file_name, "black" );
+    createBackground();
+    for (int i=0 ; i<3 ; i++) tachi_info[i].reset();
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++) sprite_info[i].reset();
+    for (int i=0 ; i<MAX_SPRITE2_NUM ; i++) sprite2_info[i].reset();
 }
 
 // A page after the load: the page saved, shown again, is compared and not
@@ -5262,6 +5388,11 @@ void ONScripter::roundtripPage()
             key = i->first; a = i->second; b = j->second; i++; j++;
         }
         if (a == b) continue;
+        // a page continued past a click wait: the save holds its line only,
+        // so the load shows that line's text alone (as every load does)
+        if (key == "text" && same_place && a.size() > b.size() + 2 &&
+            a.compare( a.size() - b.size() + 1, b.size() - 1, b, 1, b.size() - 1 ) == 0 &&
+            a.compare( a.size() - b.size() - 1, 2, "\\n" ) == 0) continue;
         // long values: 100 bytes from a little before where they differ,
         // cut between UTF-8 characters
         size_t from = 0;

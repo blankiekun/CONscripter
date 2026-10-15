@@ -95,7 +95,10 @@ bool ONScripter::setEffect( EffectLink *effect )
     effect_counter = 0;
 
     effect_duration = effect->duration;
-    if (trace_fp) traceLongWait( effect_duration ); // CONscripter: as asked, however long it is shown
+    if (trace_fp){ // CONscripter: as asked, however long it is shown
+        traceLongWait( effect_duration );
+        trace_wait_ms += effect_duration;
+    }
     effect_duration = speedTime( effect_duration ); // CONscripter: gamespeed
     if (skip_mode & SKIP_NORMAL || ctrl_pressed_status){
         // shorten the duration of effects while skipping

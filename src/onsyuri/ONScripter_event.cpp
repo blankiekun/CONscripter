@@ -294,7 +294,10 @@ void ONScripter::waitEventSub(int count)
 
 bool ONScripter::waitEvent( int count )
 {
-    if (trace_fp && count > 0) traceLongWait( count ); // CONscripter: as asked, before auto-play shortens it
+    if (trace_fp && count > 0){ // CONscripter: as asked, before auto-play shortens it
+        traceLongWait( count );
+        trace_wait_ms += count;
+    }
     if (auto_play_flag && autoPlayWait( count )) return false;
     if (count > 0) count += SDL_GetTicks();
     // chimimouryou: the reader may look up sprite text while the game waits for input.

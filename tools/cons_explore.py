@@ -225,9 +225,10 @@ def main():
         print('\n%d of %d labels reached; %d never:' % (total - len(left), total, len(left)))
         if left:
             print('  ' + ', '.join('*%s:%d' % (l, n) for n, l in left[:args.max]) + (' ...' if len(left) > args.max else ''))
-    print('\ntraces (check each with tools/cons_trace_check.py):')
+    print('\ntraces:')
     for t in traces:
         print('  ' + t)
+    print('check them together: python3 tools/cons_trace_check.py %s --root %s' % (' '.join(traces), args.game))
     print('choices made: %s' % taken)
 
 
