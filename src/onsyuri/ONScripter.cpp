@@ -809,6 +809,8 @@ void ONScripter::resetSub()
 {
     int i;
 
+    setPlaytime( 0 ); // CONscripter
+
     for ( i=0 ; i<script_h.global_variable_border ; i++ )
         script_h.getVariableData(i).reset(false);
 

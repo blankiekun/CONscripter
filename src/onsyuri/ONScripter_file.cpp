@@ -270,6 +270,11 @@ int ONScripter::writeSaveFile( int no, const char *savestr )
     sprintf( filename, "save%d.dat", no );
         
     memcpy(file_io_buf, save_data_buf, save_data_len);
+    // CONscripter: the play time as the save is made, not as its page began
+    if (playtime_offset >= 0 && playtime_offset + 4 <= (int)save_data_len){
+        file_io_buf_ptr = playtime_offset;
+        writeInt( playtimeSeconds(), true );
+    }
     file_io_buf_ptr = save_data_len;
     if (saveFileIOBuf( filename, 0, savestr )){
         utils::printError("can't open save file %s for writing\n", filename );

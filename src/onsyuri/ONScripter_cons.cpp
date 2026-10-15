@@ -46,10 +46,10 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 10 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
+#define CONS_SAVE_VERSION 11 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
                             // 5: + strsp sprites, looping dwave sounds; 6: + strsp sprites in the screen stack;
                             // 7: + sprite zooms; 8: + script volumes (chvolfade, bgmvolfade);
-                            // 9: + sprite motions; 10: + sprite orders (spz)
+                            // 9: + sprite motions; 10: + sprite orders (spz); 11: + play time
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
 
@@ -1562,6 +1562,11 @@ void ONScripter::saveSaveFileCons( bool output_flag )
             writeInt( st.sprite[i - st.first].z_over, output_flag );
         }
     }
+
+    // Version 11: the play time in seconds (getplaytime), last: writeSaveFile
+    // puts the time of the save there, at playtime_offset.
+    if (output_flag) playtime_offset = file_io_buf_ptr;
+    writeInt( playtimeSeconds(), output_flag );
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -1753,6 +1758,7 @@ void ONScripter::loadSaveFileCons()
     applyMusicVolume();
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++) sprite_info[i].z_over = -1;
     dirty_rect.fill( screen_width, screen_height );
+    setPlaytime( 0 ); // older saves have none
     if (readInt() != CONS_SAVE_MAGIC) return;
     int version = readInt();
     if (version < 1) return;
@@ -2012,6 +2018,9 @@ void ONScripter::loadSaveFileCons()
             if (st && i >= st->first && i <= st->last) st->sprite[i - st->first].z_over = over;
         }
     }
+
+    if (version < 11) return;
+    setPlaytime( readInt() );
 }
 
 /* --save-dir path: makes the folder, and the folders it is in, if they
@@ -4693,5 +4702,32 @@ void ONScripter::consPressCell( bool down )
 int ONScripter::getkeyCommand()
 {
     getkey_flag = true;
+    return RET_CONTINUE;
+}
+
+// Play time: the seconds the game has run since it started (or was reset,
+// or setplaytime set it), kept in saves and put back by loads.
+// getplaytime %var / setplaytime seconds.
+int ONScripter::playtimeSeconds()
+{
+    return (int)((playtime_base_ms + (SDL_GetTicks() - playtime_start)) / 1000);
+}
+
+void ONScripter::setPlaytime( int seconds )
+{
+    playtime_base_ms = (long long)(seconds < 0 ? 0 : seconds) * 1000;
+    playtime_start = SDL_GetTicks();
+}
+
+int ONScripter::getplaytimeCommand()
+{
+    script_h.readInt();
+    script_h.setInt( &script_h.current_variable, playtimeSeconds() );
+    return RET_CONTINUE;
+}
+
+int ONScripter::setplaytimeCommand()
+{
+    setPlaytime( script_h.readInt() );
     return RET_CONTINUE;
 }

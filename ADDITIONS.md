@@ -166,6 +166,14 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   (S skip, A auto, H/J/K/L cursor). It lasts for one wait, like
   `getfunction`. A game whose keys open its menus
   (`getkey:textbtnwait %9` … `if %9 == -1077 gosub *menu`).
+- **`getplaytime %var`** / **`setplaytime seconds`**: the play time, the
+  seconds the game has run since it started, kept in each save (as it
+  stands when `savegame` writes it, not when its page began) and put
+  back by `loadgame`; it goes on counting from there. `reset` sets it to
+  0, as does loading a save made before it was kept. A save screen
+  showing each save's play time (`getplaytime %1` before `savegame2`,
+  into the label); a new game after the title starts at
+  `setplaytime 0`.
 - **`spbtn num,no,pressed_cell`**: a third argument to `spbtn` names the
   cell sprite `num` shows while the left mouse button is held on it (the
   hover cell is 1, as before). It goes back to the hover cell when the

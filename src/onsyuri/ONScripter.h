@@ -217,6 +217,8 @@ public:
     int screenzoomCommand();
     int windowtransCommand();
     int getkeyCommand();
+    int getplaytimeCommand();
+    int setplaytimeCommand();
     int spbtnCommand();
     int skipoffCommand();
     int sevolCommand();
@@ -670,6 +672,14 @@ private:
     // CONscripter: extra state after the NScripter save data (ONScripter_cons.cpp)
     void loadSaveFileCons();
     void saveSaveFileCons( bool output_flag );
+    // CONscripter: play time (getplaytime), counted from playtime_start on
+    // top of playtime_base; the save data's offset of it (writeSaveFile
+    // brings it up to date there).
+    long long playtime_base_ms = 0;
+    Uint32 playtime_start = 0;
+    int playtime_offset = -1;
+    int playtimeSeconds();
+    void setPlaytime( int seconds );
     // CONscripter: where savescreenshot and delsavegame put a file
     std::string saveDirPath( const char *name );
     // CONscripter: decodes a WebP image where SDL_image can't (USE_WEBP)
