@@ -891,6 +891,7 @@ private:
     Uint32 web_persist_time, web_kidoku_time; // when webPersistHook last looked, last wrote kidoku.dat
     bool webEvent( int code, int value );
     void webStateHook();
+    SDL_Rect textWindowRect();
     void webPersistHook();
     void webPageHook();
     void soundCommand( int channel, const char *name, bool play );

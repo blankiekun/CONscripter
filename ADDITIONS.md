@@ -391,6 +391,11 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   during a `select`, whose wait took its number as the option: no label
   was found and the script stopped with an error. Such clicks are now
   ignored.
+- **A new page erases the last one's text where the window picture
+  doesn't reach**: the screen was refreshed only over the window picture,
+  so with a picture smaller than the text area (a 1×1 transparent one,
+  text over the scene) the old page stayed under the new one. The window
+  now counts as its picture and the area its text can take.
 - **Text hooks (web build)**: the engine calls these functions on the
   page's global scope (`self`) when they are defined, so the page can lay
   selectable text over the game:

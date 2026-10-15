@@ -1428,7 +1428,8 @@ void ONScripter::newPage()
 
     page_enter_status = 0;
 
-    flush( refreshMode(), &sentence_font_info.pos );
+    SDL_Rect rect = textWindowRect();
+    flush( refreshMode(), &rect );
 }
 
 ButtonLink *ONScripter::getSelectableSentence( char *buffer, FontInfo *info, bool flush_flag, bool nofile_flag )

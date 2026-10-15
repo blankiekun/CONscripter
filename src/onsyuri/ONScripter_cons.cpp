@@ -904,7 +904,7 @@ int ONScripter::windowtransCommand()
 {
     int n = script_h.readInt();
     window_trans = n < 0 ? 0 : n > 255 ? 255 : n;
-    dirty_rect.add( sentence_font_info.pos );
+    dirty_rect.add( textWindowRect() );
     return RET_CONTINUE;
 }
 
@@ -5675,3 +5675,26 @@ unsigned char *decodeOpus(const unsigned char *data, unsigned long length, unsig
     return wav;
 }
 #endif // USE_CONS_OPUS
+
+// The text window as the screen sees it: the window picture and the area
+// its text can take, which may lie outside a small picture (a fully
+// transparent 1x1 picture: the text on the background). Refreshing only
+// the picture left the last page's text under the next one.
+SDL_Rect ONScripter::textWindowRect()
+{
+    SDL_Rect r = sentence_font_info.pos;
+    FontInfo &f = sentence_font;
+    int n = f.num_xy[0] > f.num_xy[1] ? f.num_xy[0] : f.num_xy[1];
+    int pad = f.font_size_xy[0] > f.font_size_xy[1] ? f.font_size_xy[0] : f.font_size_xy[1];
+    SDL_Rect t;
+    t.x = f.top_xy[0] - pad;
+    t.y = f.top_xy[1] - pad;
+    t.w = f.pitch_xy[0] * n + pad * 2;
+    t.h = f.pitch_xy[1] * n + pad * 2;
+    if (r.w <= 0 || r.h <= 0) return t;
+    int x0 = r.x < t.x ? r.x : t.x, y0 = r.y < t.y ? r.y : t.y;
+    int x1 = r.x + r.w > t.x + t.w ? r.x + r.w : t.x + t.w;
+    int y1 = r.y + r.h > t.y + t.h ? r.y + r.h : t.y + t.h;
+    r.x = x0; r.y = y0; r.w = x1 - x0; r.h = y1 - y0;
+    return r;
+}

@@ -691,7 +691,7 @@ void ONScripter::setwindowCore()
     sentence_font.is_shadow = script_h.readInt()?true:false;
 
     const char *buf = script_h.readStr();
-    dirty_rect.add( sentence_font_info.pos );
+    dirty_rect.add( textWindowRect() );
 
     AnimationInfo *ai = &sentence_font_info;
     if ( buf[0] == '#' ){
@@ -731,7 +731,10 @@ int ONScripter::setwindow3Command()
     line_enter_status = 0;
     page_enter_status = 0;
     display_mode = DISPLAY_MODE_NORMAL;
-    flush( refreshMode(), &sentence_font_info.pos );
+    {
+        SDL_Rect rect = textWindowRect();
+        flush( refreshMode(), &rect );
+    }
     
     return RET_CONTINUE;
 }
@@ -764,7 +767,10 @@ int ONScripter::setwindowCommand()
     line_enter_status = 0;
     page_enter_status = 0;
     display_mode = DISPLAY_MODE_NORMAL;
-    flush( refreshMode(), &sentence_font_info.pos );
+    {
+        SDL_Rect rect = textWindowRect();
+        flush( refreshMode(), &rect );
+    }
     
     return RET_CONTINUE;
 }
@@ -1134,7 +1140,10 @@ int ONScripter::resetCommand()
 
     start_page = current_page = &page_list[0];
     clearCurrentPage();
-    flush( refreshMode(), &sentence_font_info.pos );
+    {
+        SDL_Rect rect = textWindowRect();
+        flush( refreshMode(), &rect );
+    }
     
     /* Initialize local variables */
     for (int i=0 ; i<script_h.global_variable_border ; i++)

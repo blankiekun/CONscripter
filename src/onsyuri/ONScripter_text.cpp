@@ -620,7 +620,7 @@ void ONScripter::enterTextDisplayMode(bool text_flag)
     
     if (!(display_mode & DISPLAY_MODE_TEXT)){
         dirty_rect.clear();
-        dirty_rect.add( sentence_font_info.pos );
+        dirty_rect.add( textWindowRect() );
         display_mode = DISPLAY_MODE_TEXT;
 #if defined(WEB)
         // chimimouryou: the text window and its text are back.
@@ -639,7 +639,7 @@ void ONScripter::leaveTextDisplayMode(bool force_leave_flag)
     if (display_mode & DISPLAY_MODE_TEXT &&
         (force_leave_flag || erase_text_window_mode != 0)){
 
-        dirty_rect.add(sentence_font_info.pos);
+        dirty_rect.add(textWindowRect());
         display_mode = DISPLAY_MODE_NORMAL;
 #if defined(WEB)
         // chimimouryou: the text window is hidden; so is its text.
