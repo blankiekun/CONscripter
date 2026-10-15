@@ -3914,13 +3914,49 @@ void ONScripter::movieHoldEvent( const SDL_Event &event )
     movieHoldSet( h->mouse || h->keys || h->fingers > 0 );
 }
 
-// mpeghold's movie ended: a looped sound fades out, a paused one plays on.
+// mpeghold's movie ended: a looped sound fades out, a paused one plays
+// on; what still holds it, let go later, is no click (a long press would
+// open the menu).
 void ONScripter::movieHoldEnd()
 {
     MovieHold *h = movie_hold;
+    hold_release = (h->mouse ? 1 : 0) | h->keys << 1 | (h->fingers > 0 ? 16 : 0);
     if (h->channel < 0 || !h->started) return;
     if (h->fade_ms == 0) Mix_Resume( h->channel );
     else if (h->held) Mix_FadeOutChannel( h->channel, h->fade_ms );
+}
+
+// An event after mpeghold's movie ended while held: true for the release
+// of what held it, which is dropped.
+bool ONScripter::holdRelease( const SDL_Event &event )
+{
+    int bit = 0;
+    bool up = true;
+    switch (event.type){
+      case SDL_MOUSEBUTTONDOWN:
+        up = false; // fall through
+      case SDL_MOUSEBUTTONUP:
+        if (event.button.button == SDL_BUTTON_LEFT) bit = 1;
+        break;
+      case SDL_FINGERDOWN:
+        up = false; // fall through
+      case SDL_FINGERUP:
+        bit = 16;
+        break;
+      case SDL_KEYDOWN:
+        up = false; // fall through
+      case SDL_KEYUP: {
+        SDL_Keycode k = event.key.keysym.sym;
+        bit = k == SDLK_RETURN ? 2 : k == SDLK_KP_ENTER ? 4 : k == SDLK_SPACE ? 8 : 0;
+        if (!up && event.key.repeat) return bit & hold_release; // still held
+        break;
+      }
+      default:
+        return false;
+    }
+    bool held = bit & hold_release;
+    hold_release &= ~bit;
+    return held && up;
 }
 
 #if defined(WEB)
@@ -3943,6 +3979,12 @@ void ONScripter::playMovieHoldWeb( const char *path )
         movieHoldSet( EM_ASM_INT( return g_cons_module.video_held ? 1 : 0; ) );
         SDL_Delay( 5 );
     }
+    // What held it at the end (the page's bits: 1 the pointer, 2 Enter, 8
+    // Space); key events meanwhile went to the page.
+    int end = EM_ASM_INT( return g_cons_module.video_hold_end|0; );
+    movie_hold->mouse = end & 1;
+    movie_hold->keys = end >> 1 & 7;
+    SDL_FlushEvents( SDL_KEYDOWN, SDL_KEYUP );
 }
 #endif
 

@@ -905,6 +905,8 @@ private:
         int keys = 0, fingers = 0;   // Enter, Space (bits), touches
     };
     MovieHold *movie_hold = NULL;
+    int hold_release = 0;            // it ended while held: the releases that are no clicks (bit 0 the button, keys << 1, 16 a touch)
+    bool holdRelease( const SDL_Event &event );
     void movieHoldSet( bool held );
     void movieHoldEvent( const SDL_Event &event );
     void movieHoldEnd();

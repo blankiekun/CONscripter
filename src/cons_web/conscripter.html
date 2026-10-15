@@ -603,6 +603,7 @@
             function playVideoHold(path, rgba, w, h, stride, cells, ms, x, y, sw, sh){
                 g_cons_module.wait_video=true;
                 g_cons_module.video_held=false;
+                g_cons_module.video_hold_end=0;
                 const fileData = g_cons_module.FS.readFile(path, {flags:'r',encoding:'binary'});
                 video.src = URL.createObjectURL(new Blob([fileData.buffer], { type: 'video/mp4' }));
                 video.loop=false;
@@ -642,6 +643,7 @@
             }
             function holdEnded(){
                 if (!g_hold) return;
+                g_cons_module.video_hold_end=(g_hold.pointers.size>0 ? 1 : 0) | (g_hold.keys.has("Enter") ? 2 : 0) | (g_hold.keys.has(" ") ? 8 : 0);
                 if (g_hold.timer) clearInterval(g_hold.timer);
                 g_hold=null;
                 g_cons_module.video_held=false;

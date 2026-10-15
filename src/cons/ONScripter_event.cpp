@@ -1210,6 +1210,8 @@ void ONScripter::runEventLoop()
             event = tmp_event;
         }
 
+        if (hold_release && holdRelease( event )) continue; // CONscripter: mpeghold
+
         switch (event.type) {
 #if defined(IOS) || defined(ANDROID) || defined(WINRT)
         case SDL_FINGERMOTION:
