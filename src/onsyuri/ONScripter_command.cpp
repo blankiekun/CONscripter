@@ -917,12 +917,17 @@ int ONScripter::selectCommand()
         
     refreshMouseOverButton();
 
+    // CONscripter: a sprite button the script left (spbtn) is no option:
+    // its number found no label and the script stopped
+    int options = 0;
+    for (SelectLink *link = root_select_link.next ; link ; link = link->next) options++;
+
     event_mode = WAIT_TEXT_MODE | WAIT_BUTTON_MODE | WAIT_TIMER_MODE;
     do{
         skip_mode &= ~SKIP_NORMAL;
         if (waitEvent(-1)) return RET_CONTINUE;
     }
-    while(current_button_state.button <= 0 || skip_mode & SKIP_NORMAL);
+    while(current_button_state.button <= 0 || current_button_state.button > options || skip_mode & SKIP_NORMAL);
     if (trace_fp) traceSelect( current_button_state.button );
     if (auto_play_flag) autoPlayChosen( current_button_state.button );
         

@@ -321,6 +321,11 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   when the script allows (`mpegplay "f",1`, `movie "f",click`); `movie`'s
   `loop` repeats it. Without ffmpeg the movie is skipped with a message
   (and a trace warning). The file must be loose, as on the other builds.
+- **`select` ignores sprite buttons that aren't its options**: a button
+  the script left defined with `spbtn` (a menu bar's) could be clicked
+  during a `select`, whose wait took its number as the option: no label
+  was found and the script stopped with an error. Such clicks are now
+  ignored.
 - **Text hooks (web build)**: the engine calls these functions on the
   page's global scope (`self`) when they are defined, so the page can lay
   selectable text over the game:
