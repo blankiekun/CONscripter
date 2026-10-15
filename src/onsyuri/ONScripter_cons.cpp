@@ -5257,3 +5257,103 @@ int ONScripter::getlogrowCommand()
     setStr( &script_h.getVariableData( voice_var ).str, in && !log_rows[row].voice.empty() ? log_rows[row].voice.c_str() : NULL );
     return RET_CONTINUE;
 }
+
+/* Opus sounds: SDL_mixer plays Opus only when it was built with
+ * opusfile, which none of our builds' is, so the engine decodes them
+ * itself (cmake/cons_opus.cmake builds opusfile into every build) and
+ * hands SDL_mixer a WAV: 48 kHz 16-bit stereo, with a LOOPSTART /
+ * LOOPEND (or LOOPLENGTH) tag, in 48 kHz samples as SDL_mixer reads them
+ * from Opus, as the WAV's loop (smpl). Any file name works: the data is
+ * recognised by its header. */
+#if defined(USE_CONS_OPUS)
+#include <opusfile.h>
+
+static void putLE32(std::vector<unsigned char> &v, Uint32 x)
+{
+    for (int i = 0; i < 4; i++) v.push_back((x >> (8 * i)) & 0xff);
+}
+
+static Sint64 opusTagSamples(const OpusTags *tags, const char *name)
+{
+    const char *v = opus_tags_query(tags, name, 0);
+    if (!v || !*v) return -1;
+    if (!strchr(v, ':')) return strtoll(v, NULL, 10);
+    // h:m:s.frac, as SDL_mixer also accepts
+    double t = 0;
+    for (const char *p = v; *p;) {
+        char *end;
+        double x = strtod(p, &end);
+        if (end == p) return -1;
+        t = *end == ':' ? (t + x) * 60 : t + x;
+        p = *end == ':' ? end + 1 : end;
+        if (*p && *p != ':' && end == p) return -1;
+    }
+    return (Sint64)(t * 48000);
+}
+
+unsigned char *decodeOpus(const unsigned char *data, unsigned long length, unsigned long *wav_length)
+{
+    if (length < 36 || memcmp(data, "OggS", 4) != 0 || memcmp(data + 28, "OpusHead", 8) != 0)
+        return NULL;
+    int err = 0;
+    OggOpusFile *of = op_open_memory(data, length, &err);
+    if (!of) return NULL;
+    std::vector<opus_int16> pcm;
+    ogg_int64_t total = op_pcm_total(of, -1);
+    if (total > 0) pcm.reserve((size_t)total * 2);
+    opus_int16 buf[11520]; // 120 ms of 48 kHz stereo, opusfile's largest
+    for (;;) {
+        int n = op_read_stereo(of, buf, sizeof(buf) / sizeof(buf[0]));
+        if (n == OP_HOLE) continue; // a gap in the data: keep going
+        if (n <= 0) break;
+        pcm.insert(pcm.end(), buf, buf + n * 2);
+    }
+    Sint64 frames = pcm.size() / 2;
+    const OpusTags *tags = op_tags(of, -1);
+    Sint64 loop_start = tags ? opusTagSamples(tags, "LOOPSTART") : -1;
+    Sint64 loop_end = tags ? opusTagSamples(tags, "LOOPEND") : -1;
+    Sint64 loop_length = tags ? opusTagSamples(tags, "LOOPLENGTH") : -1;
+    op_free(of);
+    if (frames == 0) return NULL;
+    if (loop_start >= 0 && loop_end < 0 && loop_length > 0) loop_end = loop_start + loop_length;
+    bool loop = loop_start >= 0 && loop_end > loop_start && loop_end <= frames;
+
+    std::vector<unsigned char> head;
+    Uint32 data_bytes = (Uint32)(frames * 4);
+    Uint32 smpl_bytes = loop ? 36 + 24 : 0;
+    head.insert(head.end(), {'R', 'I', 'F', 'F'});
+    putLE32(head, 4 + (8 + 16) + (smpl_bytes ? 8 + smpl_bytes : 0) + 8 + data_bytes);
+    head.insert(head.end(), {'W', 'A', 'V', 'E', 'f', 'm', 't', ' '});
+    putLE32(head, 16);
+    putLE32(head, 1 | (2 << 16)); // PCM, stereo
+    putLE32(head, 48000);
+    putLE32(head, 48000 * 4);
+    putLE32(head, 4 | (16 << 16)); // block align, bits
+    if (loop) {
+        head.insert(head.end(), {'s', 'm', 'p', 'l'});
+        putLE32(head, smpl_bytes);
+        for (int i = 0; i < 7; i++) putLE32(head, 0); // manufacturer ... SMPTE offset
+        putLE32(head, 1); // one loop
+        putLE32(head, 0); // no sampler data
+        putLE32(head, 0); // loop id
+        putLE32(head, 0); // forward
+        putLE32(head, (Uint32)loop_start);
+        putLE32(head, (Uint32)(loop_end - 1)); // the smpl end is the loop's last sample
+        putLE32(head, 0); // fraction
+        putLE32(head, 0); // play forever
+    }
+    head.insert(head.end(), {'d', 'a', 't', 'a'});
+    putLE32(head, data_bytes);
+    unsigned char *wav = new (std::nothrow) unsigned char[head.size() + data_bytes];
+    if (!wav) return NULL;
+    memcpy(wav, head.data(), head.size());
+    // WAV is little-endian
+    unsigned char *out = wav + head.size();
+    for (size_t i = 0; i < pcm.size(); i++) {
+        out[2 * i] = pcm[i] & 0xff;
+        out[2 * i + 1] = (pcm[i] >> 8) & 0xff;
+    }
+    *wav_length = head.size() + data_bytes;
+    return wav;
+}
+#endif // USE_CONS_OPUS

@@ -100,6 +100,14 @@ int ONScripter::playSound(const char *filename, int format, bool loop_flag, int 
             return SOUND_NONE;
         }
         script_h.cBR->getFile( filename, buffer );
+#if defined(USE_CONS_OPUS)
+        unsigned long wav_length; // CONscripter: Opus, as WAV (cmake/cons_opus.cmake)
+        if (unsigned char *wav = decodeOpus(buffer, length, &wav_length)){
+            delete[] buffer;
+            buffer = wav;
+            length = wav_length;
+        }
+#endif
     }
     
     if (format & SOUND_MUSIC){

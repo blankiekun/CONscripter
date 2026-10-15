@@ -312,6 +312,18 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   player saved afterwards. The web build now writes the global variables
   at a click wait when they changed (at most every 2 seconds), and the
   read marks every 30 seconds or with them, then syncs the save directory.
+- **Opus sounds in every build**: SDL_mixer plays Opus only when it was
+  built with opusfile, and none of the builds' SDL_mixer was (the
+  prebuilt Linux and Windows ports, Android's, emscripten's). The engine
+  now decodes Ogg Opus itself, for `bgm`, `dwave` and every other sound
+  command, and hands SDL_mixer the sound as WAV (48 kHz, 16-bit stereo).
+  The file is recognised by its header, so it can keep an `.ogg` name. A
+  `LOOPSTART` and `LOOPEND` (or `LOOPLENGTH`) tag, in 48 kHz samples as in
+  SDL_mixer, loops music as it does Vorbis. `cmake/cons_opus.cmake`
+  downloads libogg 1.3.5, libopus 1.5.2 and opusfile 0.12 when the build
+  is configured and compiles them in (`-DCONS_OPUS=OFF` leaves them out).
+  Music is decoded whole (about 11 MB a minute), so long music is better
+  left as Vorbis.
 - **Movies on Linux and macOS**: `mpegplay` and `movie` printed
   "mpegplay command is disabled" there. They now play in the game window
   through the player's ffmpeg (`CONS_FFMPEG`, else `ffmpeg` on `PATH`,

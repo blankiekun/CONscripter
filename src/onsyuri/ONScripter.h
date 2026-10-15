@@ -68,6 +68,9 @@
 #define DEFAULT_VOLUME 100
 #define ONS_MIX_CHANNELS 50
 #define ONS_MIX_EXTRA_CHANNELS 4
+#if defined(USE_CONS_OPUS) // CONscripter: an Opus sound as WAV (new[]), or NULL when it's no Opus
+unsigned char *decodeOpus(const unsigned char *data, unsigned long length, unsigned long *wav_length);
+#endif
 // CONscripter: movies through the player's ffmpeg where nothing else plays them
 #if !defined(_WIN32) && !defined(IOS) && !defined(ANDROID) && !defined(WEB) && !defined(__LIBRETRO__) && !defined(USE_SMPEG)
 #define CONS_FFMPEG_MOVIES 1

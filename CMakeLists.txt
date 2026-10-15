@@ -526,3 +526,5 @@ set(CONSCRIPTER_DEFINES
     ENABLE_1BYTE_CHAR
 )
 config_platform(${PROJECT_NAME})
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/cons_opus.cmake) # CONscripter: Opus sounds
+cons_opus(${PROJECT_NAME})
