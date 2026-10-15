@@ -18,18 +18,18 @@ def make_filelist(inpath, urlbase):
     return files
 
 def debug():
-    cmdstr="-i ./asset/test_mo2demo/ -o ./build_web/onsyuri_index.json --urlbase http://localhost:5500/build_web/ --lazyload"
+    cmdstr="-i ./asset/test_mo2demo/ -o ./build_web/cons_index.json --urlbase http://localhost:5500/build_web/ --lazyload"
     main(cmdstr)
 
 def main(cmdstr=None):
     parser = argparse.ArgumentParser(
-        description="Generate onsyuri_index.json for web\n" 
+        description="Generate cons_index.json for web\n" 
             "v0.1, developed by devseed, part of CONscripter")
     parser.add_argument('-i', '--inpath', type=str, default='./')
     parser.add_argument('-o', '--outpath', type=str)
     parser.add_argument('--title', type=str, help="game title, default indir name")
-    parser.add_argument('--gamedir', type=str, help="gamedir in web fs, default /onsyuri/{title}")
-    parser.add_argument('--savedir', type=str, help="savedir in web fs, default /onsyuri_save/{title}")
+    parser.add_argument('--gamedir', type=str, help="gamedir in web fs, default /cons/{title}")
+    parser.add_argument('--savedir', type=str, help="savedir in web fs, default /cons_save/{title}")
     parser.add_argument('--urlbase', type=str, default='', help="load files from this url default ./")
     parser.add_argument('--lazyload',  action='store_true', help="lazyload by fetching file with filemap ")
     parser.add_argument('--lazyindex', type=str, help="the index file name for lazyload by BrowerFS (deprecated)")
@@ -48,17 +48,17 @@ def main(cmdstr=None):
     onsargs = args.args
 
     inpath = os.path.abspath(inpath)
-    if outpath==None: outpath = os.path.join(inpath, "onsyuri_index.json")
+    if outpath==None: outpath = os.path.join(inpath, "cons_index.json")
     if not title: title = os.path.basename(inpath)
-    if not gamedir: gamedir = "/onsyuri/" + title
-    if not savedir: savedir = "/onsyuri_save/"+title
+    if not gamedir: gamedir = "/cons/" + title
+    if not savedir: savedir = "/cons_save/"+title
     
     if lazyindex is not None:
-        if  lazyindex=="": lazyindex="onsyuri_lazyindex.json"
+        if  lazyindex=="": lazyindex="cons_lazyindex.json"
         make_lazyindex(lazyindex, inpath)
     files = make_filelist(inpath, urlbase)
 
-    onsyuri_index = {
+    cons_index = {
         'title': title,
         'gamedir': gamedir,
         'savedir': savedir,
@@ -66,9 +66,9 @@ def main(cmdstr=None):
         'lazyload': lazyload,
         'files':files
     }
-    if lazyindex is not None: onsyuri_index["lazyindex"] = lazyindex
+    if lazyindex is not None: cons_index["lazyindex"] = lazyindex
     with open(outpath, 'w') as fp:
-        json.dump(onsyuri_index, fp, indent=2) 
+        json.dump(cons_index, fp, indent=2) 
 
 if __name__ == '__main__':
     # debug()

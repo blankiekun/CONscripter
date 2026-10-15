@@ -115,10 +115,10 @@ void *FontInfo::openFont( char *font_file, int ratio1, int ratio2 )
 #if defined(ANDROID) || defined(WEB)
             FILE *fp = fopen(font_file, "rb");
             if(fp) rwops = SDL_RWFromFP(fp, SDL_TRUE);
-            // utils::printInfo("## onsyuri FontInfo::openFont %s, fp=%p, rwops=%p\n", font_file, fp, rwops);
+            // utils::printInfo("## cons FontInfo::openFont %s, fp=%p, rwops=%p\n", font_file, fp, rwops);
 #else
             rwops = SDL_RWFromFile(font_file, "rb");
-            // utils::printInfo("## onsyuri FontInfo::openFont %s, useFile=%d, rwops=%p\n", font_file, useFile, rwops);
+            // utils::printInfo("## cons FontInfo::openFont %s, useFile=%d, rwops=%p\n", font_file, useFile, rwops);
 #endif
         } else {
           rwops = SDL_RWFromConstMem(font_cache, font_cache_size);

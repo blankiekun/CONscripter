@@ -223,7 +223,7 @@ void ONScripter::traceWrite( std::string &record )
     if (!trace_meta_written) traceMeta(); // a startup error comes before traceStart
 #if defined(WEB)
     // the web page keeps the records, to download them
-    EM_ASM({ if (self.onsyuriTrace) self.onsyuriTrace(UTF8ToString($0)); }, record.c_str());
+    EM_ASM({ if (self.consTrace) self.consTrace(UTF8ToString($0)); }, record.c_str());
 #endif
     record += '\n';
     fputs( record.c_str(), trace_fp );
@@ -1132,7 +1132,7 @@ void ONScripter::traceShot( std::string &out, bool dump )
 // dwave, wave and the like, before they play a sound (name, or NULL for
 // the one dwaveload loaded) on a channel: the trace's ev gets
 // ,"ch":n,"file":"..." and ,"cut":"..." when it stops another sound still
-// playing there, and the web page's self.onsyuriVoice(channel, file) is
+// playing there, and the web page's self.consVoice(channel, file) is
 // called when it plays.
 void ONScripter::soundCommand( int channel, const char *name, bool play )
 {
@@ -1154,11 +1154,11 @@ void ONScripter::soundCommand( int channel, const char *name, bool play )
         std::string file;
         traceString( file, name, -1, false ); // UTF-8
         if (channel == 0 && current_page){
-            setStr( &current_page->voice, file.c_str() ); // for onsyuriBacklog
+            setStr( &current_page->voice, file.c_str() ); // for consBacklog
             setStr( &current_page->voice_file, name );    // for getlogrow
         }
 #if defined(WEB)
-        EM_ASM({ if (self.onsyuriVoice) self.onsyuriVoice($0, UTF8ToString($1)); }, channel, file.c_str());
+        EM_ASM({ if (self.consVoice) self.consVoice($0, UTF8ToString($1)); }, channel, file.c_str());
 #endif
     }
 }

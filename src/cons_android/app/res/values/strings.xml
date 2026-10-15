@@ -5,8 +5,8 @@
         CONscripter, a fork of ONScripter-Yuri by YuriSizuku \n\n
         1. Game Dir \n
         use SAF or put game files in app, ext app dir \n
-            /storage/emulated/0/Android/data/com.yuri.onscripter/files \n
-            /storage/XXXX-XXXX/0/Android/data/com.yuri.onscripter/files \n\n
+            /storage/emulated/0/Android/data/io.github.blankiekun.conscripter/files \n
+            /storage/XXXX-XXXX/0/Android/data/io.github.blankiekun.conscripter/files \n\n
         2. Game Setting \n
            setting game parameter like `strech fullscreen` \n\n
         3. Game Gesture \n

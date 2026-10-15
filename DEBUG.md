@@ -384,7 +384,7 @@ file too.
 ## In the web build
 
 The web build writes the same records, and passes each one to the page
-as `self.onsyuriTrace(line)` when the page defines it. The engine's own
+as `self.consTrace(line)` when the page defines it. The engine's own
 page (`src/cons_web/conscripter.html`) does this when its URL has
 `?trace`. It keeps the records, and its menu (F9) gets a **trace** button
 (**F7**) that downloads them as `trace.jsonl`. The other options can go
@@ -399,7 +399,7 @@ It takes `trace-ignore`, `auto-play`, `auto-choice`, `seed`, `until` and
 
 F8 works as above, without the picture (the web build has nowhere to
 save it). A page of your own can do the same: add `--trace`, `"/trace.jsonl"`
-to the arguments given to `callMain`, and define `self.onsyuriTrace`
+to the arguments given to `callMain`, and define `self.consTrace`
 before the game starts.
 
 ## Pictures of pages

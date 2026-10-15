@@ -228,7 +228,7 @@ FILE *fopen_ons(const char *path, const char *mode)
     if (mode[0] == 'w') mode2 = 1;
 
     FILE *fp = fopen(path, mode);
-    // __android_log_print(ANDROID_LOG_INFO, "## onsyuri",  "fopen_ons %s, %s, %p", path, mode, fp);
+    // __android_log_print(ANDROID_LOG_INFO, "## cons",  "fopen_ons %s, %s, %p", path, mode, fp);
 
     if (fp) return fp;
     
@@ -295,7 +295,7 @@ extern "C" void playVideoIOS(const char *filename, bool click_flag, bool loop_fl
 
 /*
 * fetch the file from server beforce fopen for lazyload
-* value: g_onsyuri_module, g_onsyuri_index, g_onsyuri_filemap
+* value: g_cons_module, g_cons_index, g_cons_filemap
 * function: fetch_file
 */
 FILE *fopen_ons(const char *path, const char *mode)
@@ -306,13 +306,13 @@ FILE *fopen_ons(const char *path, const char *mode)
     {
         use_lazyload = EM_ASM_INT(
             // check enviroment
-            if (!g_onsyuri_module) return 0;
-            if (!g_onsyuri_index) return 0;
+            if (!g_cons_module) return 0;
+            if (!g_cons_index) return 0;
             if (!fetch_file) return 0;
 
             // check lazyload flag with filemap
-            if (!g_onsyuri_filemap) return 0;
-            if (Object.keys(g_onsyuri_filemap).length==0) return 0;
+            if (!g_cons_filemap) return 0;
+            if (Object.keys(g_cons_filemap).length==0) return 0;
             return 1;
         );
     }
@@ -322,12 +322,12 @@ FILE *fopen_ons(const char *path, const char *mode)
     {   
         int ret = 0;
         ret = EM_ASM_INT( // path is combined after --gamedir
-            var path = g_onsyuri_module.UTF8ToString($0);
+            var path = g_cons_module.UTF8ToString($0);
             var key = path.toLowerCase(); // pay attention to the case sensitive of web
-            if(!g_onsyuri_filemap[key]) return 0;
-            if(g_onsyuri_filemap[key].loaded) return 2;
+            if(!g_cons_filemap[key]) return 0;
+            if(g_cons_filemap[key].loaded) return 2;
             try {
-                fetch_file(g_onsyuri_module.FS, key, g_onsyuri_filemap);
+                fetch_file(g_cons_module.FS, key, g_cons_filemap);
                 return 1;
             } 
             catch(e) { 
@@ -338,7 +338,7 @@ FILE *fopen_ons(const char *path, const char *mode)
         {
             case 0: 
             {
-                // printf(" not found in g_onsyuri_filemap !\n");
+                // printf(" not found in g_cons_filemap !\n");
                 return fp; // use fopen to check for other file mount
                 break;
             }
@@ -356,9 +356,9 @@ FILE *fopen_ons(const char *path, const char *mode)
         }
 
         while(!EM_ASM_INT(
-            var path = g_onsyuri_module.UTF8ToString($0);
+            var path = g_cons_module.UTF8ToString($0);
             var key = path.toLowerCase();
-            return g_onsyuri_filemap[key].loaded;, path))
+            return g_cons_filemap[key].loaded;, path))
         {
             SDL_Delay(5); // wait for async function
         }
@@ -370,11 +370,11 @@ FILE *fopen_ons(const char *path, const char *mode)
 extern "C" void playVideoWeb(const char *path, bool click_flag, bool loop_flag)
 {
     EM_ASM(
-        var path = g_onsyuri_module.UTF8ToString($0);
+        var path = g_cons_module.UTF8ToString($0);
         playVideo(path, $1, $2);
     ,path,click_flag,loop_flag);
 
-    while(EM_ASM_INT(return g_onsyuri_module.wait_video;))
+    while(EM_ASM_INT(return g_cons_module.wait_video;))
     {
         SDL_Delay(5);
     }

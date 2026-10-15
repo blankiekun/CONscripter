@@ -1,7 +1,7 @@
-package com.yuri.onscripter;
+package io.github.blankiekun.conscripter;
 
-import static com.yuri.onscripter.MainActivity.SHAREDPREF_GAMECONFIG;
-import static com.yuri.onscripter.MainActivity.SHAREDPREF_GAMEURI;
+import static io.github.blankiekun.conscripter.MainActivity.SHAREDPREF_GAMECONFIG;
+import static io.github.blankiekun.conscripter.MainActivity.SHAREDPREF_GAMEURI;
 
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
@@ -56,7 +56,7 @@ public class ONScripter extends SDLActivity {
             Uri uri;
             path = path.replace('\\', '/');
             if(m_onsbase==null)  {
-                // scoped storage, content://com.yuri.onscripter.fileProvider/external_file_path/
+                // scoped storage, content://io.github.blankiekun.conscripter.fileProvider/external_file_path/
                 uri = FileProvider.getUriForFile(this,
                         Objects.requireNonNull(getClass().getPackage()).getName() +".fileProvider",
                         new File(path));

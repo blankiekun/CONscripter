@@ -3077,7 +3077,7 @@ SDL_Surface *ONScripter::loadWebP(const unsigned char *data, size_t length)
 }
 
 /* Web page controls (chimimouryou): the page calls these on the module
- * (module._onsyuriSetAuto(1), ...); each becomes an event the engine
+ * (module._consSetAuto(1), ...); each becomes an event the engine
  * handles while it waits, as a key press would be. */
 #if defined(WEB)
 static void pushWebEvent( int code, int value )
@@ -3092,13 +3092,13 @@ static void pushWebEvent( int code, int value )
 
 extern "C" {
 // auto mode on (1) or off (0)
-EMSCRIPTEN_KEEPALIVE void onsyuriSetAuto( int on ){ pushWebEvent( ONScripter::WEB_SET_AUTO, on ); }
+EMSCRIPTEN_KEEPALIVE void consSetAuto( int on ){ pushWebEvent( ONScripter::WEB_SET_AUTO, on ); }
 // skip mode on (1) or off (0)
-EMSCRIPTEN_KEEPALIVE void onsyuriSetSkip( int on ){ pushWebEvent( ONScripter::WEB_SET_SKIP, on ); }
+EMSCRIPTEN_KEEPALIVE void consSetSkip( int on ){ pushWebEvent( ONScripter::WEB_SET_SKIP, on ); }
 // ruby drawn (1) or not (0)
-EMSCRIPTEN_KEEPALIVE void onsyuriSetRuby( int on ){ pushWebEvent( ONScripter::WEB_SET_RUBY, on ); }
+EMSCRIPTEN_KEEPALIVE void consSetRuby( int on ){ pushWebEvent( ONScripter::WEB_SET_RUBY, on ); }
 // ms per character, 0 at once, -1 the game's own speed
-EMSCRIPTEN_KEEPALIVE void onsyuriSetTextSpeed( int ms ){ pushWebEvent( ONScripter::WEB_SET_TEXT_SPEED, ms ); }
+EMSCRIPTEN_KEEPALIVE void consSetTextSpeed( int ms ){ pushWebEvent( ONScripter::WEB_SET_TEXT_SPEED, ms ); }
 }
 #endif
 
@@ -3146,8 +3146,8 @@ bool ONScripter::webEvent( int code, int value )
 }
 
 // Tells the web page when auto or skip mode changed, as
-// self.onsyuriMode(auto, skip), and when the text window moved, was resized,
-// shown or hidden, as self.onsyuriWindow(x, y, w, h, shown) in screen
+// self.consMode(auto, skip), and when the text window moved, was resized,
+// shown or hidden, as self.consWindow(x, y, w, h, shown) in screen
 // pixels. Called as the engine waits.
 void ONScripter::webStateHook()
 {
@@ -3155,13 +3155,13 @@ void ONScripter::webStateHook()
     int mode = (automode_flag ? 1 : 0) | ((skip_mode & SKIP_NORMAL) ? 2 : 0);
     if (mode != web_mode_sent){
         web_mode_sent = mode;
-        EM_ASM({ if (self.onsyuriMode) self.onsyuriMode($0, $1); }, mode & 1, mode >> 1);
+        EM_ASM({ if (self.consMode) self.consMode($0, $1); }, mode & 1, mode >> 1);
     }
     SDL_Rect &r = sentence_font_info.pos;
     int window[5] = { r.x, r.y, r.w, r.h, (display_mode & DISPLAY_MODE_TEXT) ? 1 : 0 };
     if (memcmp( window, web_window_sent, sizeof(window) )){
         memcpy( web_window_sent, window, sizeof(window) );
-        EM_ASM({ if (self.onsyuriWindow) self.onsyuriWindow($0, $1, $2, $3, $4); },
+        EM_ASM({ if (self.consWindow) self.consWindow($0, $1, $2, $3, $4); },
                window[0], window[1], window[2], window[3], window[4]);
     }
 #endif
@@ -3205,8 +3205,8 @@ void ONScripter::webPersistHook()
 #endif
 }
 
-// At each click wait and new page, before onsyuriText: where the text is
-// in the script, as self.onsyuriPosition(offset, total, label, read): the
+// At each click wait and new page, before consText: where the text is
+// in the script, as self.consPosition(offset, total, label, read): the
 // byte offset of the text's line in the script, the script's length, the
 // label it is in (UTF-8), and 1 if it was read before, 0 if not, -1 when
 // the game doesn't keep track (kidokuskip off).
@@ -3218,7 +3218,7 @@ void ONScripter::webPageHook()
     int label = script_h.getLabelIndex( address );
     std::string name;
     if (label >= 0) traceString( name, script_h.getLabelName( label ), -1, false );
-    EM_ASM({ if (self.onsyuriPosition) self.onsyuriPosition($0, $1, UTF8ToString($2), $3); },
+    EM_ASM({ if (self.consPosition) self.consPosition($0, $1, UTF8ToString($2), $3); },
            script_h.getOffset( address ), script_h.getScriptLength(), name.c_str(), script_h.getKidokuState());
 #endif
 }

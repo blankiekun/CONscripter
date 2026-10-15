@@ -12,7 +12,7 @@
 #   public *;
 #}
 
--keep class com.yuri.onscripter.ONScripter {
+-keep class io.github.blankiekun.conscripter.ONScripter {
     public *;
 }
 

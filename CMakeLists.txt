@@ -387,7 +387,7 @@ function(config_web TARGET_NAME)
 
     # pass flags for emcc
     set(EMCC_FLAGS "-o ${TARGET_NAME}.js -sASYNCIFY -sALLOW_MEMORY_GROWTH=1") # this two is very important! 
-    set(EMCC_FLAGS "${EMCC_FLAGS} -sMODULARIZE -sINVOKE_RUN=0 -sEXPORT_NAME=onsyuri") # keep the JS factory name, web players call onsyuri(module)
+    set(EMCC_FLAGS "${EMCC_FLAGS} -sMODULARIZE -sINVOKE_RUN=0 -sEXPORT_NAME=cons") # web players call cons(module)
     set(EMCC_FLAGS "${EMCC_FLAGS} -sEXPORTED_RUNTIME_METHODS=callMain,UTF8ToString,FS,PATH,IDBFS") # make as module
     set(EMCC_FLAGS "${EMCC_FLAGS} -sUSE_SDL=2 -sUSE_SDL_TTF=2 -sUSE_BZIP2=1")
     set(EMCC_FLAGS "${EMCC_FLAGS} -sUSE_SDL_IMAGE=2 -sSDL2_IMAGE_FORMATS=bmp,png,jpg")
@@ -431,7 +431,7 @@ function(config_android TARGET_NAME)
         USE_GLES
         USE_FILELOG
         UTF8_FILESYSTEM
-        SDL_JAVA_PACKAGE_PATH=com_yuri_onscripter
+        SDL_JAVA_PACKAGE_PATH=io_github_blankiekun_conscripter
     )
     target_compile_options(${TARGET_NAME} PRIVATE 
         -Wno-invalid-source-encoding

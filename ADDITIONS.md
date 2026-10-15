@@ -470,56 +470,56 @@ auto-play and the run options of `DEBUG.md` in `src/cons/ONScripter_trace.cpp`.
 - **Text hooks (web build)**: the engine calls these functions on the
   page's global scope (`self`) when they are defined, so the page can lay
   selectable text over the game:
-  - `onsyuriText(text, skipped, boxes)` at each click wait and new page:
+  - `consText(text, skipped, boxes)` at each click wait and new page:
     `text` is the page shown so far as raw script bytes (a `Uint8Array`
     in the script's encoding), `skipped` is 1 while the reader skips
     text, and `boxes` is an `Int32Array` of `offset, x, y, size` per
     character drawn (byte offset in `text`; position and font size in
     screen pixels).
-  - `onsyuriChoice(text, x, y, size, pitch)` for each `select` choice as
+  - `consChoice(text, x, y, size, pitch)` for each `select` choice as
     it is drawn: its raw bytes, position, font size and character pitch
     in screen pixels.
-  - `onsyuriOverlay(event)` when drawn text leaves the screen: `'page'` (a
+  - `consOverlay(event)` when drawn text leaves the screen: `'page'` (a
     new page), `'hide'` and `'show'` (the text window hidden and shown
     again with its page), `'choices'` (the buttons cleared), `'enter'` (the
     system menu or backlog opened), `'leave'` (back to the page) or
     `'reset'` (a game loaded from the menu).
-  - `onsyuriBacklog(text, boxes, voice)` for each backlog page shown, like
-    `onsyuriText` (the current page's boxes are kept for when it returns),
+  - `consBacklog(text, boxes, voice)` for each backlog page shown, like
+    `consText` (the current page's boxes are kept for when it returns),
     with the last voice `dwave` played on channel 0 for that page (as
-    for `onsyuriVoice`), or `null`.
-  - `onsyuriSprites(text, boxes)` whenever the game waits for input: the
-    visible `strsp` sprites' text and character boxes, like `onsyuriText`
+    for `consVoice`), or `null`.
+  - `consSprites(text, boxes)` whenever the game waits for input: the
+    visible `strsp` sprites' text and character boxes, like `consText`
     (all sprites in one `text`), for menus and backlogs a script draws itself.
-  - `onsyuriVoice(channel, file)` when `dwave`, `dwaveloop`, `dwaveplay`,
+  - `consVoice(channel, file)` when `dwave`, `dwaveloop`, `dwaveplay`,
     `wave` or `waveloop` starts a sound: the channel (0 is the usual
     voice channel) and the file as the script names it, as a UTF-8
     string (`voice\v300002.ogg`), so the page can keep the voice of the
-    page being read. It is called before the next `onsyuriText`.
-  - `onsyuriPosition(offset, total, label, read)` at each click wait and
-    new page, just before `onsyuriText`: the byte offset in the script of
+    page being read. It is called before the next `consText`.
+  - `consPosition(offset, total, label, read)` at each click wait and
+    new page, just before `consText`: the byte offset in the script of
     the line the text is on, the script's length in bytes (for a
     percentage), the label it is in (UTF-8, without `*`), and `read`: 1 if
     the text was read before, 0 if not, -1 when the game doesn't keep track
     (it hasn't turned on `kidokuskip`). Several click waits on one line
     share an offset.
-  - `onsyuriMode(auto, skip)` when auto mode or skip mode starts or stops
+  - `consMode(auto, skip)` when auto mode or skip mode starts or stops
     (each 0 or 1), whatever started it.
-  - `onsyuriWindow(x, y, w, h, shown)` when the text window moves, changes
+  - `consWindow(x, y, w, h, shown)` when the text window moves, changes
     size, or is shown or hidden: its rectangle in screen pixels (the window
     picture or colour, as `setwindow` places it) and 1 or 0.
 
-  The page can also call these on the module (the object `onsyuri()` was
-  given), for example `module._onsyuriSetAuto(0)`. The engine acts on them
+  The page can also call these on the module (the object `cons()` was
+  given), for example `module._consSetAuto(0)`. The engine acts on them
   the next time it waits (at once while it waits for a click):
-  - `_onsyuriSetAuto(on)`, `_onsyuriSetSkip(on)`: start (1) or stop (0)
+  - `_consSetAuto(on)`, `_consSetSkip(on)`: start (1) or stop (0)
     auto or skip mode, as the `a` and `s` keys do; starting one at a click
     wait goes on at once, as the keys do, and stopping auto mode at a click
     wait makes it wait for a click.
-  - `_onsyuriSetRuby(on)`: 0 stops drawing ruby (furigana) from the next
+  - `_consSetRuby(on)`: 0 stops drawing ruby (furigana) from the next
     text drawn, leaving the space for it; the text hooks still have the
     `(base/reading)` text. 1 draws it again.
-  - `_onsyuriSetTextSpeed(ms)`: the milliseconds per character, 0 for the
+  - `_consSetTextSpeed(ms)`: the milliseconds per character, 0 for the
     whole text at once, -1 for the game's own speed again.
 - **Save files** end with an extra block (`CONS`, a version, then the
   state above) after the NScripter data. Saves without it load as before.

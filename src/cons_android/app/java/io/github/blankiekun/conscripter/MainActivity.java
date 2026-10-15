@@ -1,4 +1,4 @@
-package com.yuri.onscripter;
+package io.github.blankiekun.conscripter;
 
 import static android.provider.DocumentsContract.Document.MIME_TYPE_DIR;
 
@@ -59,7 +59,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String COLOR_INRDIR = "#4CAF50";
     private static final String COLOR_SAFDIR = "#FF26C6DA";
     private static final String COLOR_EXTDIR = "#FFD4E157";
-    public static final String SHAREDPREF_NAME = "onsyuri";
+    public static final String SHAREDPREF_NAME = "cons";
     public static final String SHAREDPREF_GAMEDIR = "gamedir";
     public static final String SHAREDPREF_GAMEURI = "gameuri";
     public static final String SHAREDPREF_GAMECONFIG = "gameargs";
@@ -298,7 +298,7 @@ public class MainActivity extends AppCompatActivity {
             holder.button_gameicon.setOnClickListener(view -> {
                 int gamemod = gameinfo.checkValid();
                 ArrayList<String> onsargs = prepareOnsargs(gameinfo.getGameDir());
-                startOnsyuri(gamemod, gameinfo.getRealPath(), onsargs, gameinfo.m_isUri);
+                startCons(gamemod, gameinfo.getRealPath(), onsargs, gameinfo.m_isUri);
             });
 
             // game details
@@ -341,7 +341,7 @@ public class MainActivity extends AppCompatActivity {
                     ArrayList<String> args;
                     if(!cmd.equals(gamecmd)) args = cmdToArgs(cmd);
                     else  args = gameargs;
-                    startOnsyuri(gamemod, gameinfo.getRealPath(), args, gameinfo.m_isUri);
+                    startCons(gamemod, gameinfo.getRealPath(), args, gameinfo.m_isUri);
                 });
 
                 // game detail popup
@@ -366,9 +366,9 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
-        public void startOnsyuri(int mode, String gamepath, ArrayList<String> args, boolean usesaf) {
+        public void startCons(int mode, String gamepath, ArrayList<String> args, boolean usesaf) {
             if(mode==7)  {
-                MainActivity.this.startOnsyuri(args, usesaf);
+                MainActivity.this.startCons(args, usesaf);
                 return;
             }
             AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
@@ -383,7 +383,7 @@ public class MainActivity extends AppCompatActivity {
             builder.setCancelable(true);
             builder.setPositiveButton("Yes", (dialog, which) -> {
                 dialog.dismiss();
-                MainActivity.this.startOnsyuri(args, usesaf);
+                MainActivity.this.startCons(args, usesaf);
             });
             builder.setNegativeButton("No", (dialog, which) -> dialog.dismiss());
             AlertDialog dialog = builder.create();
@@ -421,7 +421,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void test(){
-        // storage/emulated/0/Android/data/com.yuri.onscripter/files/game/test
+        // storage/emulated/0/Android/data/io.github.blankiekun.conscripter/files/game/test
         File file = new File("/storage/emulated/0/Local/Game/ons_game/Noesis 羽化/0.txt");
         try {
             FileInputStream fin = new FileInputStream(file);
@@ -535,7 +535,7 @@ public class MainActivity extends AppCompatActivity {
         return onsargs;
     }
 
-    private void startOnsyuri(ArrayList<String> onsargs, boolean usesaf) {
+    private void startCons(ArrayList<String> onsargs, boolean usesaf) {
         Intent intent = new Intent();
         intent.setClass(this, ONScripter.class);
         intent.putStringArrayListExtra(SHAREDPREF_GAMECONFIG, onsargs);

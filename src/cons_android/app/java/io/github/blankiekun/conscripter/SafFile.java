@@ -4,7 +4,7 @@
  *  v0.7, developed by devseed
  */
 
-package com.yuri.onscripter;
+package io.github.blankiekun.conscripter;
 
 import java.io.File;
 import java.io.FileNotFoundException;

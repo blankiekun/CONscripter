@@ -151,20 +151,20 @@ click opens the menu.
 conscripter.html
 conscripter.js
 conscripter.wasm
-onsyuri_index.json
+cons_index.json
 [your game files]
 ```
 
 ![CONscripter in a phone browser](screenshot/onsyuri_mo2_webtest3.jpg)
 
-The page loads the game listed in `onsyuri_index.json` (set by
-`<meta onsyuri_index="onsyuri_index.json">` in `conscripter.html`):
+The page loads the game listed in `cons_index.json` (set by
+`<meta cons_index="cons_index.json">` in `conscripter.html`):
 
 ``` json
 {
   "title": "game1",
-  "gamedir": "/onsyuri/game1",
-  "savedir": "/onsyuri_save/game1",
+  "gamedir": "/cons/game1",
+  "savedir": "/cons_save/game1",
   "args": [],
   "lazyload": "true",
   "files":[
@@ -181,11 +181,10 @@ The page loads the game listed in `onsyuri_index.json` (set by
 python conscripter_index.py -i /path/to/game --urlbase https://example.com/game1/ --lazyload
 ```
 
-The JavaScript interface keeps ONScripter-Yuri's names, so pages written for
-ONScripter-Yuri (chimimouryou's player among them) work unchanged and existing
-web saves stay where they were: the module factory is `onsyuri(module)`, the
-globals are `g_onsyuri_module`, `g_onsyuri_index` and `g_onsyuri_filemap`, the
-index is `onsyuri_index.json` and saves default to `/onsyuri_save/<title>` in
+The JavaScript interface uses CONscripter's own names (pages written for
+ONScripter-Yuri need them renamed): the module factory is `cons(module)`, the
+globals are `g_cons_module`, `g_cons_index` and `g_cons_filemap`, the
+index is `cons_index.json` and saves default to `/cons_save/<title>` in
 IndexedDB.
 
 `mpegplay` and `movie` play a loose file (not one inside an archive) in the
@@ -196,9 +195,9 @@ has been clicked; the video then plays muted instead of waiting.
 ### (5) Android
 
 Install the APK. A three-finger tap or a long touch opens the menu, four fingers
-skip text. Put games in `/storage/emulated/0/Android/data/com.yuri.onscripter/files`
-or pick any folder through SAF. The package id is still ONScripter-Yuri's
-`com.yuri.onscripter`.
+skip text. Put games in `/storage/emulated/0/Android/data/io.github.blankiekun.conscripter/files`
+or pick any folder through SAF. The package id is
+`io.github.blankiekun.conscripter`.
 
 ![CONscripter on Android](screenshot/onsyuri_ui_androidtest2.jpg)
 

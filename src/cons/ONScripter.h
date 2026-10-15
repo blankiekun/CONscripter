@@ -894,11 +894,11 @@ private:
     void voiceAfterWait();
 
     // CONscripter: what the web page can change (ONS_WEB_EVENT, from its
-    // onsyuriSet... calls) and what it is told (ONScripter_cons.cpp)
+    // consSet... calls) and what it is told (ONScripter_cons.cpp)
     bool ruby_hidden;                // ruby isn't drawn (the text hooks still have it)
     int text_speed_override;         // ms per character, -1 for the game's own
-    int web_mode_sent;               // auto and skip as last sent to onsyuriMode
-    int web_window_sent[5];          // the text window as last sent to onsyuriWindow
+    int web_mode_sent;               // auto and skip as last sent to consMode
+    int web_window_sent[5];          // the text window as last sent to consWindow
     std::vector<unsigned char> web_globals_written; // gloval.sav as webPersistHook last wrote it
     Uint32 web_persist_time, web_kidoku_time; // when webPersistHook last looked, last wrote kidoku.dat
     bool webEvent( int code, int value );

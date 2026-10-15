@@ -3,8 +3,8 @@
     <head>
         <meta charset="utf-8">
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-        <meta onsyuri_js="conscripter.js">
-        <meta onsyuri_index="onsyuri_index.json">
+        <meta cons_js="conscripter.js">
+        <meta cons_index="cons_index.json">
         <title>CONscripter v0.22.0</title>
     </head>
     <body style="margin: 0 auto; background-color:black;">
@@ -92,7 +92,7 @@
         </script>
         
         <script type="text/javascript" src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
-        <script type="text/javascript"> // onsyuri web function 
+        <script type="text/javascript"> // cons web function 
             function em_mkdirs(_FS, path) {
                 var tmpdir="";
                 var arr = path.split('/');
@@ -138,7 +138,7 @@
                 for (let i=0; i<paths.length; i++) {
                     var data = _FS.readFile(paths[i]);
                     zip.file(paths[i], data, {binary: true});
-                    console.log("## onsyuri_fs: em_export", paths[i]);
+                    console.log("## cons_fs: em_export", paths[i]);
                 }
                 zip.generateAsync({type : "arraybuffer"})
                 .then(function(data) {
@@ -157,7 +157,7 @@
                             obj.async("arraybuffer")
                             .then((buf) => {
                                 _FS.writeFile(path, new Uint8Array(buf));
-                                console.log("## onsyuri_fs: em_import", path);
+                                console.log("## cons_fs: em_import", path);
                             });
                         }
                     });
@@ -166,7 +166,7 @@
 
             // mount --gamedir other by preload or lazyload
             function mount_game(_FS, gamedir, files, urlbase="", lazyload=false) {
-                console.log("## onsyuri_fs: mount_onsgame", gamedir);
+                console.log("## cons_fs: mount_onsgame", gamedir);
                 var filemap = {}
                 
                 if(gamedir[gamedir.length-1] =="/" ) 
@@ -207,7 +207,7 @@
             // mount --gamedir using BrowserFS with lazyload, 
             // deprecated as sync block sound problems
             function mount_game2(_module, gamedir, lazyindex, urlbase) {
-                console.log("## onsyuri_fs: mount_onsgame2", gamedir);
+                console.log("## cons_fs: mount_onsgame2", gamedir);
                 var _FS=_module.FS;
                 _module.addRunDependency("onsgamefs");
                 
@@ -226,7 +226,7 @@
 
             // mount --savedir using IDBFS
             function mount_save(_FS, _IDBFS, savedir) {
-                console.log("## onsyuri_fs: mount_onssave", savedir);
+                console.log("## cons_fs: mount_onssave", savedir);
                 em_mkdirs(_FS, savedir);
                 _FS.mount(_IDBFS, {}, savedir);
                 _FS.syncfs(true, (err)=>{
@@ -235,13 +235,13 @@
             }
         </script>
         
-        <script type="text/javascript"> // onsyuri C interface of val or function
+        <script type="text/javascript"> // cons C interface of val or function
             
             // flush the savedir to IDFBFS for persistence
             function flush_save() { 
-                g_onsyuri_module.FS.syncfs(false, (err)=>{
+                g_cons_module.FS.syncfs(false, (err)=>{
                     if(err) console.log(err);
-                    else console.log("## onsyuri_fs: flush_save, sync finished");
+                    else console.log("## cons_fs: flush_save, sync finished");
                 });
             }
 
@@ -268,74 +268,74 @@
                 })
             }
     
-            const ONSYURI_PREFIX = ""; // prefix for mount, not used 
-            const ONSYURI_INDEX_URL = document.querySelector( // the url to load onsyuri_index.json
-                'meta[onsyuri_index]').attributes.onsyuri_index.textContent;
-            const ONSYURI_JS_URL = document.querySelector(
-                'meta[onsyuri_js]').attributes.onsyuri_js.textContent;
-            var g_onsyuri_index = {}; // onsyuri_index.json, game file index
-            var g_onsyuri_filemap = {}; // filemap to record status of loaded files, used for lazyload
-            var g_onsyuri_module  = {}; // onsyuri c module, FS and configure are here
+            const CONS_PREFIX = ""; // prefix for mount, not used 
+            const CONS_INDEX_URL = document.querySelector( // the url to load cons_index.json
+                'meta[cons_index]').attributes.cons_index.textContent;
+            const CONS_JS_URL = document.querySelector(
+                'meta[cons_js]').attributes.cons_js.textContent;
+            var g_cons_index = {}; // cons_index.json, game file index
+            var g_cons_filemap = {}; // filemap to record status of loaded files, used for lazyload
+            var g_cons_module  = {}; // cons c module, FS and configure are here
 
         </script>
 
-        <script type="text/javascript"> // onsyuri module
-            g_onsyuri_module.canvas = (()=>{return document.getElementById('canvas');})();
-            g_onsyuri_module.preRun = () => {
-                console.log("## onsyuri: preRun");
+        <script type="text/javascript"> // cons module
+            g_cons_module.canvas = (()=>{return document.getElementById('canvas');})();
+            g_cons_module.preRun = () => {
+                console.log("## cons: preRun");
                 var lazyload = false;
                 var urlbase = window.location.href;
                 urlbase = urlbase.substring(0, urlbase.lastIndexOf("/") + 1);
                 
                 // lazyindex is deprecated as the sync sound problem
-                if(g_onsyuri_index.lazyindex && g_onsyuri_index.lazyindex!=""){
-                    mount_onsgame2(g_onsyuri_module, g_onsyuri_index.gamedir, 
-                        g_onsyuri_index.lazyindex, urlbase);
+                if(g_cons_index.lazyindex && g_cons_index.lazyindex!=""){
+                    mount_onsgame2(g_cons_module, g_cons_index.gamedir, 
+                        g_cons_index.lazyindex, urlbase);
                 }
                 else{
-                    lazyload = g_onsyuri_index.lazyload||lazyload;
-                    window.g_onsyuri_filemap = mount_game(
-                        g_onsyuri_module.FS, g_onsyuri_index.gamedir, 
-                        g_onsyuri_index.files, urlbase, lazyload
+                    lazyload = g_cons_index.lazyload||lazyload;
+                    window.g_cons_filemap = mount_game(
+                        g_cons_module.FS, g_cons_index.gamedir, 
+                        g_cons_index.files, urlbase, lazyload
                     );
                 }
-                mount_save(g_onsyuri_module.FS, g_onsyuri_module.IDBFS, g_onsyuri_index.savedir);
+                mount_save(g_cons_module.FS, g_cons_module.IDBFS, g_cons_index.savedir);
             };
-            g_onsyuri_module.onRuntimeInitialized = () => {
-                console.log("## onsyuri: onRuntimeInitialized");
+            g_cons_module.onRuntimeInitialized = () => {
+                console.log("## cons: onRuntimeInitialized");
             };
             
             (async() => {
                 //return
-                g_onsyuri_index = await load_json(ONSYURI_INDEX_URL);
-                await load_js(ONSYURI_JS_URL); // dynamic load conscripter.js
-                await onsyuri(g_onsyuri_module);
+                g_cons_index = await load_json(CONS_INDEX_URL);
+                await load_js(CONS_JS_URL); // dynamic load conscripter.js
+                await cons(g_cons_module);
 
                 var args = [
-                    "--root", ONSYURI_PREFIX + g_onsyuri_index.gamedir, 
-                    "--font",  ONSYURI_PREFIX + g_onsyuri_index.gamedir + "/default.ttf", 
-                    "--save-dir", g_onsyuri_index.savedir
+                    "--root", CONS_PREFIX + g_cons_index.gamedir, 
+                    "--font",  CONS_PREFIX + g_cons_index.gamedir + "/default.ttf", 
+                    "--save-dir", g_cons_index.savedir
                 ];
-                args = args.concat(g_onsyuri_index.args);
+                args = args.concat(g_cons_index.args);
                 // the debug trace (DEBUG.md): ?trace, with ?trace-ignore=, ?auto-play=,
                 // ?auto-choice=, ?seed=, ?until=, ?max-pages=; the page keeps the records for "trace[F7]"
                 var params = new URLSearchParams(window.location.search);
                 if(params.has("trace")){
                     args.push("--trace", "/trace.jsonl");
-                    self.onsyuriTrace = (line) => { g_trace_lines.push(line); };
-                    document.getElementById("onsyuri_trace_button").style.display = "";
+                    self.consTrace = (line) => { g_trace_lines.push(line); };
+                    document.getElementById("cons_trace_button").style.display = "";
                 }
                 for(var name of ["trace-ignore", "auto-play", "auto-choice", "seed", "until", "max-pages"]){
                     if(params.get(name) !== null) args.push("--" + name, params.get(name));
                 }
-                console.log("## onsyuri: args", args);
-                g_onsyuri_module.callMain(args);
+                console.log("## cons: args", args);
+                g_cons_module.callMain(args);
             })();
         </script>
 
-        <script type="text/javascript"> // onsyuri ui
+        <script type="text/javascript"> // cons ui
             var g_fullstrech = false;
-            var g_screen_height, g_screen_width; // initial in onsyuri C code
+            var g_screen_height, g_screen_width; // initial in the engine's C code
             var g_lastpressdown; // for longpress 
             const LONG_CLICK_TIME = 1200;
 
@@ -379,32 +379,32 @@
             }
 
             function toggle_webinfo() {
-                var onsyuri_webinfo = document.getElementById("onsyuri_webinfo");
-                if(onsyuri_webinfo.style.display=="none") {
-                    var first_line = onsyuri_webinfo.getElementsByTagName("p")[0];
-                    first_line.innerText = `In Game <${g_onsyuri_index.title}>`
-                    onsyuri_webinfo.style.display="block";
+                var cons_webinfo = document.getElementById("cons_webinfo");
+                if(cons_webinfo.style.display=="none") {
+                    var first_line = cons_webinfo.getElementsByTagName("p")[0];
+                    first_line.innerText = `In Game <${g_cons_index.title}>`
+                    cons_webinfo.style.display="block";
                 }
                 else{
-                    onsyuri_webinfo.style.display="none";
+                    cons_webinfo.style.display="none";
                 }
             }
 
             function toggle_webmenu() {
-                var onsyuri_webrmenu = document.getElementById("onsyuri_webrmenu");
-                if(onsyuri_webrmenu.style.display=="none") {
-                    onsyuri_webrmenu.style.display = "block";
+                var cons_webrmenu = document.getElementById("cons_webrmenu");
+                if(cons_webrmenu.style.display=="none") {
+                    cons_webrmenu.style.display = "block";
                 }
                 else {
-                    var onsyuri_webinfo = document.getElementById("onsyuri_webinfo");
-                    onsyuri_webinfo.style.display = "none";
-                    onsyuri_webrmenu.style.display = "none";
+                    var cons_webinfo = document.getElementById("cons_webinfo");
+                    cons_webinfo.style.display = "none";
+                    cons_webrmenu.style.display = "none";
                 }
             }
 
             function click_export() {
-                var files = em_lsfiles(g_onsyuri_module.FS, g_onsyuri_index.savedir);
-                em_export(g_onsyuri_module.FS, files);
+                var files = em_lsfiles(g_cons_module.FS, g_cons_index.savedir);
+                em_export(g_cons_module.FS, files);
             }
 
             var g_trace_lines = []; // the debug trace's records (?trace)
@@ -420,7 +420,7 @@
 
             async function click_import() {
                 var data = await upload_data();
-                em_import(g_onsyuri_module.FS, data);
+                em_import(g_cons_module.FS, data);
             }
 
             window.onresize = (event) => {
@@ -464,8 +464,8 @@
             window.onmouseup = (event) => {
                 if(event.button==0){
                     if(event.timeStamp - g_lastpressdown > LONG_CLICK_TIME) {
-                        var onsyuri_webrmenu = document.getElementById("onsyuri_webrmenu");
-                        if(onsyuri_webrmenu.style.display=="none") toggle_webmenu();
+                        var cons_webrmenu = document.getElementById("cons_webrmenu");
+                        if(cons_webrmenu.style.display=="none") toggle_webmenu();
                         g_lastpressdown = event.timeStamp;
                     }
                 }
@@ -477,27 +477,27 @@
 
             window.ontouchend = (event) => {
                 if(event.timeStamp - g_lastpressdown > LONG_CLICK_TIME) {
-                    var onsyuri_webrmenu = document.getElementById("onsyuri_webrmenu");
-                    if(onsyuri_webrmenu.style.display=="none") toggle_webmenu();
+                    var cons_webrmenu = document.getElementById("cons_webrmenu");
+                    if(cons_webrmenu.style.display=="none") toggle_webmenu();
                     g_lastpressdown = event.timeStamp;
                 }
             }
 
             window.onmessage = (evnet)=> {
-                console.log("## onsyuri: onmessage ", event.data);
+                console.log("## cons: onmessage ", event.data);
                 if(!event.data) return;
                 switch(event.data) {
                     case "onsinit":
                         var body = document.getElementsByTagName("body")[0];
-                        var onsyuri_webinfo = document.getElementById("onsyuri_webinfo");
+                        var cons_webinfo = document.getElementById("cons_webinfo");
                         if(body) body.style.background = "black";
-                        if(onsyuri_webinfo) onsyuri_webinfo.style.display = "none";
+                        if(cons_webinfo) cons_webinfo.style.display = "none";
                         break;
                 }
             }
         </script>
         
-        <script type="text/javascript"> // onsyuri video 
+        <script type="text/javascript"> // cons video 
             const video=document.getElementById("video");
 
             // a skipped movie must stop: hiding it and clearing src leaves
@@ -507,14 +507,14 @@
                 g_video_skippable=false;
                 video.onclick=null;
                 video.pause();
-                g_onsyuri_module.canvas.style.display="block";
+                g_cons_module.canvas.style.display="block";
                 video.style.display="none";
                 if (video.src && video.src.startsWith('blob:')) {
                     URL.revokeObjectURL(video.src);
                 }
                 video.removeAttribute('src');
                 video.load();
-                g_onsyuri_module.wait_video=false;
+                g_cons_module.wait_video=false;
             }
 
             // Enter, Space and Escape skip it, as in the native player
@@ -523,14 +523,14 @@
             });
 
             function playVideo(path, click_flag, loop_flag){
-                g_onsyuri_module.wait_video=true;
-                const fileData = g_onsyuri_module.FS.readFile(path, {flags:'r',encoding:'binary'});
+                g_cons_module.wait_video=true;
+                const fileData = g_cons_module.FS.readFile(path, {flags:'r',encoding:'binary'});
                 const videoBlob = new Blob([fileData.buffer], { type: 'video/mp4' });
                 const videoUrl = URL.createObjectURL(videoBlob);
                 video.src = videoUrl;
 
                 // the same size as the game on the page
-                const canvas=g_onsyuri_module.canvas;
+                const canvas=g_cons_module.canvas;
                 video.style.width=canvas.style.width||canvas.clientWidth+"px";
                 video.style.height=canvas.style.height||canvas.clientHeight+"px";
                 canvas.style.display="none";
@@ -557,7 +557,7 @@
         </script>
 
         <style>
-            #onsyuri_webinfo {
+            #cons_webinfo {
                 position: fixed; 
                 display: block;
                 border-radius: 10px;
@@ -573,12 +573,12 @@
                 background: cornflowerblue;
             }
 
-            #onsyuri_webinfo p {
+            #cons_webinfo p {
                 margin-left: 10%; 
                 margin-right: 10%;
             }
 
-            #onsyuri_webrmenu {
+            #cons_webrmenu {
                 position: fixed; 
                 display: block;
                 border-radius: 10px;
@@ -593,7 +593,7 @@
                 color: snow;
             }
 
-            #onsyuri_webrmenu button {
+            #cons_webrmenu button {
                 border: 1px solid;
                 border-radius: 0.3em;
                 background: #00bcd4;
@@ -603,13 +603,13 @@
                 outline: none;
             }
 
-            #onsyuri_webrmenu button:hover {
+            #cons_webrmenu button:hover {
                 background: #16e5ff;
                 border-color: #16e5ff;
             }
         </style>
         
-        <div id="onsyuri_webinfo">
+        <div id="cons_webinfo">
             <p> Loading game resources ... </p>
             <p> Powered by <a href="https://github.com/blankiekun/CONscripter" target="_blank"> CONscripter</a> v0.22.0</p>
             <hr>
@@ -617,14 +617,14 @@
             <p> [F10]: stretch full; [F11]: screen full</p>
         </div>
 
-        <div id="onsyuri_webrmenu" style="display: none;">
+        <div id="cons_webrmenu" style="display: none;">
             <button onclick="toggle_stretchfull()">sfull[F10]</button>
             <button onclick="toggle_screenfull()">full[F11]</button>
             <button onclick="toggle_onsmenu()">menu[Esc]</button>
             <button onclick="toggle_skip()">skip[Ctrl]</button>
             <button onclick="click_export()">export[F3]</button>
             <button onclick="click_import()">import[F4]</button>
-            <button id="onsyuri_trace_button" onclick="click_trace()" style="display: none;">trace[F7]</button>
+            <button id="cons_trace_button" onclick="click_trace()" style="display: none;">trace[F7]</button>
             <button onclick="toggle_webinfo()">about[F2]</button>
             <button onclick="toggle_webmenu()">close[F9]</button>
         </div>
