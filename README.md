@@ -19,7 +19,7 @@ CONscripter is the engine behind two companion projects:
   Japanese e-book reader, plays visual novels in the browser with the
   WebAssembly build of CONscripter. The web build hands each page's text and
   where each character was drawn to the web page (see the text hooks in
-  [ADDITIONS.md](ADDITIONS.md)), which lays it over the game for Yomitan and
+  [COMMANDS.md](COMMANDS.md#web-hooks)), which lays it over the game for Yomitan and
   counts it in reading statistics.
 - [conscripter-convert](https://github.com/blankiekun/conscripter-convert)
   (`vn2ons`) converts games made with other engines (Xuse, for now) into a
@@ -57,7 +57,7 @@ Commands, text tags, web hooks and save data that CONscripter adds to
 ONScripter-Yuri for games converted by
 [conscripter-convert](https://github.com/blankiekun/conscripter-convert).
 None is opt-in: new behaviour applies to every script. See
-[ADDITIONS.md](ADDITIONS.md).
+[COMMANDS.md](COMMANDS.md), the reference for every script command (ONScripter's and CONscripter's).
 
 To find bugs in a converted game, `--trace file` writes what is on screen at
 every text page, the commands that changed it, the choices made, missing
