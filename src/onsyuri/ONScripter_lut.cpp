@@ -69,6 +69,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"tal",				&ONScripter::talCommand},
     {"tablegoto",		&ONScripter::tablegotoCommand},
 
+    {"sysevol",			&ONScripter::sysevolCommand},
     {"systemcall",		&ONScripter::systemcallCommand},
     {"sub",				&ONScripter::subCommand},
     {"strsph",			&ONScripter::strspCommand},
@@ -387,6 +388,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"caption",			&ONScripter::captionCommand},
 
     {"btrans",			&ONScripter::transbtnCommand},
+    {"btnse",			&ONScripter::btnseCommand},
     {"btnwait2",		&ONScripter::btnwaitCommand},
     {"btnwait",			&ONScripter::btnwaitCommand},
     {"btntime2",		&ONScripter::btntimeCommand},

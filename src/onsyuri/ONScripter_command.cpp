@@ -3558,6 +3558,11 @@ int ONScripter::btnwaitCommand()
     else{
         script_h.setInt( &script_h.current_variable, current_button_state.button );
     }
+    // CONscripter: btnse, when the wait ends on a button
+    if (btn_se_file && current_button_state.button >= 1 && !bexec_flag){
+        soundCommand( MIX_WAVE_CHANNEL, btn_se_file, true );
+        playSound( btn_se_file, SOUND_CHUNK, false, MIX_WAVE_CHANNEL );
+    }
     if (trace_fp && !textbtn_flag && !bexec_flag) traceButtons( current_button_state.button );
     if (auto_play_flag && !textbtn_flag && !bexec_flag) autoPlayChosen( current_button_state.button );
 

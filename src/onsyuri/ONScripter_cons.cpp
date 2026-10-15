@@ -886,7 +886,17 @@ int ONScripter::bgmvolfadeCommand()
  *   Script times run at percent of real speed (100 default, 10-10000):
  *   wait, delay, waittimer and gettimer, effects (print), spfade, spmotion
  *   and screenshake's time and end. 200 plays them in half the time. Text
- *   speed, auto mode's wait and sounds aren't changed. */
+ *   speed, auto mode's wait and sounds aren't changed.
+ * sysevol vol
+ *   The volume (0-100) of wave's channel, where the menu sounds play:
+ *   wave, waveloop, selectvoice's and menuselectvoice's sounds, btnse's.
+ *   -1 (default): the sound effects' volume (sevol), as before. A game's
+ *   "system volume".
+ * btnse "file"
+ *   A sound played on wave's channel when a btnwait, btnwait2 or
+ *   textbtnwait ends on a button (a number of 1 or more; not a click
+ *   beside the buttons, a right click or a key), the menus' "confirm"
+ *   sound. "" (default): none. */
 int ONScripter::soundmuteCommand()
 {
     int m = 0;
@@ -942,6 +952,22 @@ int ONScripter::moviestopCommand()
 {
     int m = script_h.readInt();
     movie_stop = m < 0 ? -1 : m > 0 ? 1 : 0;
+    return RET_CONTINUE;
+}
+
+int ONScripter::sysevolCommand()
+{
+    int v = script_h.readInt();
+    syse_volume = v < 0 ? -1 : v > 100 ? 100 : v;
+    if (wave_sample[MIX_WAVE_CHANNEL])
+        Mix_Volume( MIX_WAVE_CHANNEL, (syse_volume >= 0 ? syse_volume : se_volume) * MIX_MAX_VOLUME / 100 );
+    return RET_CONTINUE;
+}
+
+int ONScripter::btnseCommand()
+{
+    const char *name = script_h.readStr();
+    setStr( &btn_se_file, name[0] ? name : NULL );
     return RET_CONTINUE;
 }
 

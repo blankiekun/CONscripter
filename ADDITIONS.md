@@ -247,6 +247,16 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   - **`textshadow on`**: 0 = the message text has no shadow, whatever
     `setwindow` says (a "text decoration" switch); 1 (default) =
     `setwindow`'s. Other text (`strsp`, menus) keeps its own.
+  - **`sysevol vol`**: the volume (0-100) of `wave`'s channel, where the
+    menu sounds play: `wave`, `waveloop`, `selectvoice`'s and
+    `menuselectvoice`'s sounds and `btnse`'s. -1 (default) = the sound
+    effects' volume (`sevol`), as before. A game's "system volume".
+- **`btnse "file"`**: a sound played on `wave`'s channel when a `btnwait`,
+  `btnwait2` or `textbtnwait` ends on a button (a number of 1 or more;
+  not a click beside the buttons, a right click or a key): the menus'
+  "confirm" sound, with `selectvoice "","over",""` their "cursor" sound
+  as the pointer comes onto a button. `btnse ""` (default) = none. Not
+  saved: set it at startup. `btnse "se\ok.ogg"`.
 - **`spbtn num,no,pressed_cell`**: a third argument to `spbtn` names the
   cell sprite `num` shows while the left mouse button is held on it (the
   hover cell is 1, as before). It goes back to the hover cell when the

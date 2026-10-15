@@ -203,6 +203,7 @@ int ONScripter::playWave(Mix_Chunk *chunk, int format, bool loop_flag, int chann
     cutChannel( channel ); // CONscripter: was Mix_Pause
     if      (channel == 0)               Mix_Volume( channel, voice_volume * MIX_MAX_VOLUME / 100 );
     else if (channel == MIX_BGM_CHANNEL) Mix_Volume( channel, musicVolume() * MIX_MAX_VOLUME / 100 ); // CONscripter: bgmvolfade
+    else if (channel == MIX_WAVE_CHANNEL && syse_volume >= 0) Mix_Volume( channel, syse_volume * MIX_MAX_VOLUME / 100 ); // CONscripter: sysevol
     else                                 Mix_Volume( channel, se_volume * MIX_MAX_VOLUME / 100 );
 
     if ( !(format & SOUND_PRELOAD) )
