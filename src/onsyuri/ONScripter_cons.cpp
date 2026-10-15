@@ -2499,6 +2499,66 @@ void ONScripter::effectFlip( const char *params, int duration )
 #endif
 }
 
+// src's whole width (axis 0) or height (axis 1) mapped linearly onto the
+// span a-b of dst along that axis (nearest pixel), clipped to dst.
+static void drawSpan( SDL_Surface *src, SDL_Surface *dst, int axis, float a, float b )
+{
+    int w = dst->w, h = dst->h;
+    int len = axis == 0 ? w : h;
+    if (b - a < 0.5f) return;
+    int d0 = a < 0 ? 0 : (int)a, d1 = b > len ? len : (int)(b + 0.5f);
+    SDL_LockSurface(src);
+    SDL_LockSurface(dst);
+    for (int d=d0 ; d<d1 ; d++){
+        int s = (int)((d + 0.5f - a) * len / (b - a));
+        if (s < 0) s = 0;
+        if (s >= len) s = len - 1;
+        if (axis == 0){
+            for (int y=0 ; y<h ; y++)
+                *((Uint32*)((Uint8*)dst->pixels + y * dst->pitch) + d) = *((const Uint32*)((const Uint8*)src->pixels + y * src->pitch) + s);
+        }
+        else
+            memcpy((Uint8*)dst->pixels + d * dst->pitch, (const Uint8*)src->pixels + s * src->pitch, w * 4);
+    }
+    SDL_UnlockSurface(dst);
+    SDL_UnlockSurface(src);
+}
+
+/* effect num,99,duration,"cons_cube.dll/dx,dy"
+ *   The pictures are two faces of a cube as wide (or high) as the screen,
+ *   turning a quarter turn by p * 90 degrees, seen straight on (Xuse's
+ *   BoxRolling): the new face comes in moving in direction dx,dy (one of
+ *   them -1 or 1), each face squeezed to its projected width, sin and cos
+ *   of the angle, and the parts beyond the screen cut off. The edge
+ *   between them is at half the width times 1 + sin - cos from the side
+ *   the new face comes from. */
+void ONScripter::effectCube( const char *params, int duration )
+{
+#if defined(BPP16)
+    alphaBlend( NULL, ALPHA_BLEND_CONST, 256 * effect_counter / duration, &dirty_rect.bounding_box );
+#else
+    int param[2] = {1, 0};
+    readDllParams(params, param, 2);
+    int axis = param[0] != 0 ? 0 : 1;
+    int dir = axis == 0 ? param[0] : param[1];
+    float p = duration > 0 ? (float)effect_counter / duration : 1.0f;
+    if (p > 1.0f) p = 1.0f;
+    float t = p * 1.57079632679f, s = sinf(t), c = cosf(t);
+    float half = (axis == 0 ? screen_width : screen_height) * 0.5f;
+    // Measured from the side the new face comes from.
+    float outer = half * (1.0f - s - c), edge = half * (1.0f + s - c), far = half * (1.0f + s + c);
+    float len = 2.0f * half;
+    if (dir > 0){
+        drawSpan(effect_dst_surface, accumulation_surface, axis, outer, edge);
+        drawSpan(effect_src_surface, accumulation_surface, axis, edge, far);
+    }
+    else{
+        drawSpan(effect_dst_surface, accumulation_surface, axis, len - edge, len - outer);
+        drawSpan(effect_src_surface, accumulation_surface, axis, len - far, len - edge);
+    }
+#endif
+}
+
 /* effect num,99,duration,"cons_melt.dll/stretch[,seed]"
  *   The old picture melts down off the screen, uncovering the new one
  *   (Xuse's MeltDown). Its top edge is a smooth random curve (a

@@ -265,6 +265,11 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
     1 the height): layer 0, the new picture grows from a line over the old
     one (its size sin(p · 90°)); layer 1, the old picture shrinks to a line
     over the new one (cos(p · 90°)).
+  - `effect num,99,ms,"cons_cube.dll/dx,dy"`: the pictures are two faces
+    of a cube as wide (or high) as the screen turning a quarter turn,
+    seen straight on: the new face comes in moving in direction `dx`,`dy`
+    (one of them -1 or 1), each picture squeezed to its face's width
+    (sin and cos of the angle), the parts beyond the screen cut off.
   - `effect num,99,ms,"cons_melt.dll/stretch[,seed]"`: the old picture
     melts down off the screen, uncovering the new one. Its top edge is a
     smooth random curve; each column starts falling after 0.2-0.3 of the
