@@ -584,6 +584,7 @@ record:
 | `def` | For `effect`: the effect as defined, in the same form |
 | `ch`, `file` | For `dwave`, `wave` and their variants: the channel and the file played, variables filled in (schema 2) |
 | `cut` | The sound that channel was still playing, which this one stopped (schema 2). Under `--auto-play` every voice is cut by the next, since clicks come at once |
+| `skip` | A movie (`mpegplay`, `movie`): whether a click stops it; `moviestop` beside it when that setting overrides the script's flag |
 | `via` | Inside a `gosub` (a `textgosub` routine, a helper): the line it returns to, which led there |
 
 Which commands are written:
@@ -769,6 +770,7 @@ image memory: 12 to 340 MB (the most at page 4120, *s9_l36:62672), 54 MB at the 
 | `missing` | Files that couldn't be loaded, grouped by file, and sprites shown without their image |
 | `text` | A page's text, or a `select`'s options, with garbled characters (U+FFFD, control or private-use characters, mojibake such as UTF-8 read as Shift-JIS, which mixes kanji and half-width katakana); text past the window (`overflow`, or a line longer than `--line-chars`); an empty page; a text tag shown as text (`!w100`, `!s`, `!d`, `#rrggbb`, `~...~`, a `\` or `@`); with `--script`, a `%`, `$` or `?` in a text line, which prints a variable or reads an array (a converter that left them in) |
 | `sound` | The same sound started on two channels before one click wait, or a looping one doubled (in a trace without `--auto-play`, any overlap); a voice cut off by the next sound before a click wait, so it was never heard; a voice or the music playing at volume 0 |
+| `movie` | Screen changes made after a movie and before the next `print`: the engine redraws the screen from before the movie as it ends, so they show a moment late (found under `--auto-play` too, which skips the movie); a movie the script lets a click stop that `moviestop 0` makes unskippable |
 | `voice` | A spoken line with no voice: the speaker's (the `tag`'s name) other lines have one on at least `--voice-share` (0.8) of them and `--voice-min` (5); for lines without a tag, the `--voice-window` (3) spoken lines before and after it in the same label all have one. A line of only "……" or "！？" needs none. Also a voice file that belongs to another speaker: each speaker with `--voice-min` voiced lines gets the shortest file-name start that `--voice-share` of their voices have and no other speaker's do (`v3` for あずさ's `v300010.ogg`), and a line whose voice has another speaker's start is reported. Also one voice file played for lines that say different things (punctuation left out), a voice given to the wrong line |
 | `linger` | A tall picture (a character or CG) still up after the background changed, or up for more than `--linger` pages |
 | `float` | A picture at least `--float-h` of the screen tall whose bottom edge stops up to `--float-gap` pixels above the screen's |

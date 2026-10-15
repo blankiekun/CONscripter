@@ -37,6 +37,9 @@ by kind, each finding at the script line ("*label:line") to look at:
                a --choose or --choices answer not offered, a --choices list run out
   memory       image memory that grows steadily or jumps; a single picture
                taking a lot of it (--trace-max-image)
+  movie        a screen change made after a movie but before the next print
+               (the screen from before the movie shows in between); a movie
+               the script lets a click stop that moviestop 0 makes unskippable
   button       a btnwait button that can't be seen: off the screen, hidden,
                at alpha 0 or under an opaque sprite
   coverage     (--script) labels the run never reached
@@ -68,7 +71,7 @@ FILTER_KINDS = {1: 'colour', 2: 'greyscale', 3: 'negative', 4: 'brightness', 5: 
 
 RULES = ['error', 'missing', 'text', 'sound', 'voice', 'linger', 'float', 'offscreen',
          'invisible', 'crowd', 'overlay', 'loop', 'duration', 'slow', 'save', 'replay',
-         'memory', 'button', 'coverage', 'unused']
+         'memory', 'movie', 'button', 'coverage', 'unused']
 
 # Options a config file may set, with their defaults.
 DEFAULTS = {
@@ -237,6 +240,7 @@ class Checker:
         self.runs = []                     # (trace, pages, commands, choices, how it ended)
         self.wait_ms = 0                   # the time the script's waits, effects and text asked for
         self.wait_most = None              # (ms, page, at) of the page that asked for the most
+        self.after_movie = None            # [the movie's ev, the screen changes since]
 
     def start_trace(self):
         """Forget what belongs to one run, before the next trace."""
@@ -244,6 +248,7 @@ class Checker:
         self.pg = 0
         self.loops, self.shakes, self.started = {}, {}, {}
         self.voiced, self.reloading, self.starts, self.mem = False, False, [], []
+        self.after_movie = None
         self.counts = defaultdict(int)
 
     def add(self, rule, key, at, message):
@@ -482,10 +487,39 @@ class Checker:
                 self.missing[key] = [0, at]
             self.missing[key][0] += 1
 
+    def movie(self, r):
+        """A movie, or what follows one: the engine redraws the screen it
+        had as the movie ends, so what the script changes before its next
+        print shows a frame late, after the screen from before the movie."""
+        cmd = r.get('cmd', '')
+        if cmd in ('mpegplay', 'movie', 'avi'):
+            self.movie_end()
+            if r.get('skip') is False and 'moviestop' in r:
+                self.add('movie', ('skip', r.get('at')), r.get('at'),
+                         'a click can\'t stop the movie: moviestop %s overrides the script\'s flag' % r['moviestop'])
+            self.after_movie = [r, []]
+        elif self.after_movie:
+            if cmd == 'print' or r.get('effect') or r.get('t') == 'page':
+                self.movie_end(r)
+            # (spalpha and spfade start from what is drawn)
+            elif (r.get('sp') is not None and cmd not in ('spalpha', 'spfade')) or cmd in ('bg', 'bgcopy', 'bgcpy', 'popscreen'):
+                self.after_movie[1].append(r)
+
+    def movie_end(self, by=None):
+        if self.after_movie and self.after_movie[1]:
+            m, changes = self.after_movie
+            what = ', '.join('%s %s' % (c.get('cmd'), c.get('at')) for c in changes[:3])
+            self.add('movie', ('flash', m.get('at')), m.get('at'),
+                     'the screen from before the movie shows as it ends, then %d change%s made after it '
+                     '(%s%s) at %s: make them before the movie' % (len(changes), 's' if len(changes) > 1 else '',
+                     what, ', ...' if len(changes) > 3 else '', by.get('at') if by else 'the run\'s end'))
+        self.after_movie = None
+
     def ev(self, r):
         sp = r.get('sp')
         if sp and self.ignore:
             r['sp'] = sp = [s for s in sp if (s['kind'], s['n']) not in self.ignore]
+        self.movie(r)
         for s in sp or []:
             if not s.get('gone'):
                 self.set_by[(s['kind'], s['n'])] = (r.get('at'), r.get('src', ''))
@@ -528,6 +562,7 @@ class Checker:
             s[2], s[3] = d, self.pg
 
     def page(self, p):
+        self.movie(p)
         a = self.args
         at, pg = p.get('at'), p['pg']
         sp = p.get('sp', [])

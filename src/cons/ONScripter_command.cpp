@@ -1420,6 +1420,7 @@ int ONScripter::mpegplayCommand()
         keep_music = script_h.readInt() == 1;
 
     if (!keep_music) stopBGM( false );
+    traceMovie( click_flag ); // CONscripter: whether a click stops it
     if (movie_stop >= 0) click_flag = movie_stop == 1; // CONscripter: moviestop
     if (playMPEG( save_buf, click_flag )){
         trace_end_reason = "window closed"; // CONscripter: closed during the movie
@@ -1623,6 +1624,7 @@ int ONScripter::movieCommand()
         }
     }
     
+    traceMovie( click_flag ); // CONscripter: whether a click stops it
     if (movie_stop >= 0) click_flag = movie_stop == 1; // CONscripter: moviestop
     if (playMPEG(filename, click_flag, loop_flag)){
         trace_end_reason = "window closed"; // CONscripter: closed during the movie

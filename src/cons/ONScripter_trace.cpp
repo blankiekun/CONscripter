@@ -655,6 +655,17 @@ int ONScripter::traceCommand( const char *name, FuncList method )
     return ret;
 }
 
+// A movie's "skip": whether a click stops it, with "moviestop" when that
+// overrides the script's flag.
+void ONScripter::traceMovie( bool script_click )
+{
+    if (!trace_fp) return;
+    bool click = movie_stop >= 0 ? movie_stop == 1 : script_click;
+    trace_sound += click ? ",\"skip\":true" : ",\"skip\":false";
+    if (movie_stop >= 0 && click != script_click)
+        trace_sound += ",\"moviestop\":" + std::to_string( movie_stop );
+}
+
 // An effect as {"no","type","ms"} with its "mask" (types 15, 18) or
 // "dll" (99); "no" for one defined with the effect command.
 void ONScripter::traceEffect( std::string &out, EffectLink *effect )

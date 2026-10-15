@@ -881,6 +881,7 @@ private:
     void cancelLaterBGM();
     void cutChannel( int channel );
     std::string trace_sound;         // the sound the command being run plays, as JSON fields
+    void traceMovie( bool script_click );
 
     // CONscripter: player settings a game's settings screen sets
     // (soundmute, clickvoicestop, autovoicewait, selectkeep, moviestop,
