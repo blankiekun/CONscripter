@@ -426,7 +426,8 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   saves, but closing or reloading the tab is no quit, so the settings,
   the read marks and the unlocks of a web game were lost unless the
   player saved afterwards. The web build now writes the global variables
-  at a click wait when they changed (at most every 2 seconds), and the
+  at any wait (a click wait, a timed wait, auto mode reading on) when
+  they changed (at most every 2 seconds), and the
   read marks every 30 seconds or with them, then syncs the save directory.
 - **Opus sounds in every build**: SDL_mixer plays Opus only when it was
   built with opusfile, and none of the builds' SDL_mixer was (the

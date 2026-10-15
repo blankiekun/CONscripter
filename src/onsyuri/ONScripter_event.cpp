@@ -303,7 +303,7 @@ bool ONScripter::waitEvent( int count )
     // chimimouryou: the reader may look up sprite text while the game waits for input.
     // shortcut: timed waits (btntime, automode) don't send it; add them if games need it.
     if (count == -1) sendSpriteTexts();
-    if (count == -1) webPersistHook(); // CONscripter: closing the tab is no quit
+    webPersistHook(); // CONscripter: closing the tab is no quit (every wait: auto mode has no click wait)
     webStateHook(); // CONscripter: auto, skip and the text window, for the web page
     
     while(1){

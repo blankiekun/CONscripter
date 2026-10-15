@@ -5134,8 +5134,8 @@ void ONScripter::webStateHook()
 
 // The web build: closing or reloading the tab doesn't quit the engine, so
 // what it writes on quit (gloval.sav, kidoku.dat) would be lost: the
-// settings, the read marks, the unlocks. At a click wait, at most every 2
-// seconds, the global variables are written when they changed, and the
+// settings, the read marks, the unlocks. At any wait (auto mode reads on
+// with no click wait), at most every 2 seconds, the global variables are written when they changed, and the
 // read marks every 30 seconds (or with the globals), then the save
 // directory is synced to IndexedDB.
 void ONScripter::webPersistHook()
