@@ -59,6 +59,13 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   keeps the sprite's own alpha, so a load shows it at the end of its fade.
   `lsp 60,":a;noise.png",0,0,200:spfade 60,2000:print 1` brings static up
   to 200 over two seconds.
+- **`spz num[,over]`**: draws `lsp` sprite `num` right over sprite
+  `over`, as if its number were between `over` and `over - 1`, instead of
+  at its own number; `spz num` puts it back. For a picture that goes in
+  front of some of the sprites numbered below it: `spz 70,61` draws
+  sprite 70 over 61-69 and under 60. It stays when `lsp` changes the
+  image, is removed by `csp` and is kept in save files and by
+  `pushscreen`.
 - **`screenfilter slot,kind[,blend[,strength[,p1,p2,p3]]]`**: the same
   filters on the whole picture: the background and the sprites behind the
   text window (numbers above `humanz`), where `monocro` applies; not the

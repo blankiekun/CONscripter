@@ -206,6 +206,7 @@ public:
     int spclclkCommand();
     int spfilterCommand();
     int spzoomCommand();
+    int spzCommand();
     int spmotionCommand();
     int spfadeCommand();
     int screenflashCommand();
@@ -556,6 +557,9 @@ private:
     void stepSpriteMotion(AnimationInfo &ai, int current_time);
     void proceedSpriteMotions(int current_time);
     int nextSpriteMotionTime();
+    // CONscripter: lsp sprites from hi down to lo in drawing order, with
+    // the ones spz moves drawn right over their sprite
+    void drawSpriteRange( SDL_Surface *surface, SDL_Rect &clip, int hi, int lo );
     void stopAnimation(int click);
     void loadCursor(int no, const char *str, int x, int y, bool abs_flag = false);
 
@@ -726,6 +730,7 @@ private:
         int num_of_filters;
         AnimationInfo::Filter filter[AnimationInfo::MAX_FILTER_NUM];
         int zoom_x, zoom_y;
+        int z_over = -1; // spz
     };
     struct ScreenState {
         char *bg_name;

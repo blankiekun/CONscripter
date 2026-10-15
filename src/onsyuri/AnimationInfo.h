@@ -154,6 +154,11 @@ public:
     int fade_ms;               // 0: no fade
     int fade_from, fade_start, fade_next, fade_alpha;
 
+    /* CONscripter: spz: the sprite is drawn right over sprite z_over
+       instead of at its own number (-1: at its own). Stays across lsp;
+       reset by remove(). */
+    int z_over;
+
     int font_size_xy[2]; // used by prnum and lsp string
     int font_pitch[2]; // used by lsp string
     int next_time;

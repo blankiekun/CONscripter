@@ -737,10 +737,7 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
             top = 9;
         else
             top = z_order;
-        for ( i=MAX_SPRITE_NUM-1 ; i>top ; i-- ){
-            if ( sprite_info[i].image_surface && sprite_info[i].visible )
-                drawTaggedSurface( surface, &sprite_info[i], clip );
-        }
+        drawSpriteRange( surface, clip, MAX_SPRITE_NUM-1, top+1 );
     }
 
     if ( !all_sprite_hide_flag ){
@@ -775,10 +772,7 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
             top = 10;
         else
             top = 0;
-        for ( i=z_order ; i>=top ; i-- ){
-            if ( sprite_info[i].image_surface && sprite_info[i].visible )
-                drawTaggedSurface( surface, &sprite_info[i], clip );
-        }
+        drawSpriteRange( surface, clip, z_order, top );
     }
 
     if ( !windowback_flag ){

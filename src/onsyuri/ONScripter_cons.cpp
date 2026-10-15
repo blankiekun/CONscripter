@@ -46,10 +46,10 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 9 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
+#define CONS_SAVE_VERSION 10 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
                             // 5: + strsp sprites, looping dwave sounds; 6: + strsp sprites in the screen stack;
                             // 7: + sprite zooms; 8: + script volumes (chvolfade, bgmvolfade);
-                            // 9: + sprite motions
+                            // 9: + sprite motions; 10: + sprite orders (spz)
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
 
@@ -265,6 +265,47 @@ int ONScripter::spfadeCommand()
     if (ai.visible) dirty_rect.add( drawnRect( ai ) );
 
     return RET_CONTINUE;
+}
+
+/* spz num[,over]
+ *   Draws lsp sprite num right over sprite over (just as if its number
+ *   were between over and over - 1) instead of at its own number; "spz
+ *   num" puts it back. For a picture that goes in front of some of the
+ *   sprites numbered below it: "spz 70,59" draws sprite 70 over sprites
+ *   59-69 and under 58. It stays when lsp changes the image, is removed by
+ *   csp and is kept in save files and by pushscreen. */
+int ONScripter::spzCommand()
+{
+    int no = script_h.readInt();
+    int over = -1;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA) over = script_h.readInt();
+    if (no < 0 || no >= MAX_SPRITE_NUM){
+        utils::printError("spz: sprite %d out of range\n", no);
+        return RET_CONTINUE;
+    }
+    if (over < 0 || over >= MAX_SPRITE_NUM || over == no) over = -1;
+    sprite_info[no].z_over = over;
+    if (sprite_info[no].visible) dirty_rect.add( drawnRect( sprite_info[no] ) );
+
+    return RET_CONTINUE;
+}
+
+void ONScripter::drawSpriteRange( SDL_Surface *surface, SDL_Rect &clip, int hi, int lo )
+{
+    bool moved = false;
+    for (int i=0 ; i<MAX_SPRITE_NUM && !moved ; i++)
+        if (sprite_info[i].z_over >= 0) moved = true;
+    for (int i=hi ; i>=lo ; i--){
+        AnimationInfo &ai = sprite_info[i];
+        if (ai.image_surface && ai.visible && (!moved || ai.z_over < 0))
+            drawTaggedSurface( surface, &ai, clip );
+        if (!moved) continue;
+        for (int k=MAX_SPRITE_NUM-1 ; k>=0 ; k--){
+            AnimationInfo &over = sprite_info[k];
+            if (over.z_over == i && over.image_surface && over.visible)
+                drawTaggedSurface( surface, &over, clip );
+        }
+    }
 }
 
 // Sets a motion's offset for the time; ends a motion that ran once.
@@ -1184,6 +1225,7 @@ int ONScripter::pushscreenCommand()
         memcpy(sp.filter, ai->filter, sizeof(sp.filter));
         sp.zoom_x = ai->zoom_x;
         sp.zoom_y = ai->zoom_y;
+        sp.z_over = ai->z_over;
     }
     memcpy(st.screen_filter, screen_filter, sizeof(st.screen_filter));
 
@@ -1255,6 +1297,7 @@ void ONScripter::popScreenState()
         if (ai->image_surface && ai->visible) dirty_rect.add( zoomedRect( *ai ) ); // the old zoom
         ai->zoom_x = sp.zoom_x;
         ai->zoom_y = sp.zoom_y;
+        ai->z_over = sp.z_over;
         if (ai->image_surface && ai->visible) dirty_rect.add( zoomedRect( *ai ) );
         if (ai->image_surface && ai->visible) dirty_rect.add( ai->pos );
         delete[] sp.image_name;
@@ -1493,6 +1536,32 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         for (int k=0 ; k<ai->motion_keys ; k++)
             for (int j=0 ; j<3 ; j++) writeInt( ai->motion_key[k][j], output_flag );
     }
+
+    // Version 10: the sprite orders (spz): the count, then per sprite its
+    // number and the sprite it is drawn over; then the number of pushscreen
+    // states and per state, oldest first, the same for its sprites.
+    num = 0;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (sprite_info[i].z_over >= 0) num++;
+    writeInt( num, output_flag );
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        if (sprite_info[i].z_over < 0) continue;
+        writeInt( i, output_flag );
+        writeInt( sprite_info[i].z_over, output_flag );
+    }
+    writeInt( screen_stack_num, output_flag );
+    for (int n=0 ; n<screen_stack_num ; n++){
+        ScreenState &st = screen_stack[n];
+        num = 0;
+        for (int i=st.first ; i<=st.last ; i++)
+            if (st.sprite[i - st.first].z_over >= 0) num++;
+        writeInt( num, output_flag );
+        for (int i=st.first ; i<=st.last ; i++){
+            if (st.sprite[i - st.first].z_over < 0) continue;
+            writeInt( i, output_flag );
+            writeInt( st.sprite[i - st.first].z_over, output_flag );
+        }
+    }
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -1682,6 +1751,7 @@ void ONScripter::loadSaveFileCons()
     clearScreenEffects();
     resetScriptVolumes(); // older saves have none: 100
     applyMusicVolume();
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++) sprite_info[i].z_over = -1;
     dirty_rect.fill( screen_width, screen_height );
     if (readInt() != CONS_SAVE_MAGIC) return;
     int version = readInt();
@@ -1925,6 +1995,22 @@ void ONScripter::loadSaveFileCons()
         }
         ai->motion_start = ai->motion_next = SDL_GetTicks();
         stepSpriteMotion( *ai, ai->motion_start );
+    }
+
+    if (version < 10) return;
+    num = readInt();
+    for (int n=0 ; n<num ; n++){
+        int no = readInt(), over = readInt();
+        if (no >= 0 && no < MAX_SPRITE_NUM) sprite_info[no].z_over = over;
+    }
+    depth = readInt();
+    for (int n=0 ; n<depth ; n++){
+        num = readInt();
+        for (int m=0 ; m<num ; m++){
+            int i = readInt(), over = readInt();
+            ScreenState *st = (n < screen_stack_num) ? &screen_stack[n] : NULL;
+            if (st && i >= st->first && i <= st->last) st->sprite[i - st->first].z_over = over;
+        }
     }
 }
 
