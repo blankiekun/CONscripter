@@ -846,8 +846,11 @@ private:
     int text_speed_override;         // ms per character, -1 for the game's own
     int web_mode_sent;               // auto and skip as last sent to onsyuriMode
     int web_window_sent[5];          // the text window as last sent to onsyuriWindow
+    std::vector<unsigned char> web_globals_written; // gloval.sav as webPersistHook last wrote it
+    Uint32 web_persist_time, web_kidoku_time; // when webPersistHook last looked, last wrote kidoku.dat
     bool webEvent( int code, int value );
     void webStateHook();
+    void webPersistHook();
     void webPageHook();
     void soundCommand( int channel, const char *name, bool play );
 

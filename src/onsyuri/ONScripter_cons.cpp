@@ -4460,6 +4460,44 @@ void ONScripter::webStateHook()
 #endif
 }
 
+// The web build: closing or reloading the tab doesn't quit the engine, so
+// what it writes on quit (gloval.sav, kidoku.dat) would be lost: the
+// settings, the read marks, the unlocks. At a click wait, at most every 2
+// seconds, the global variables are written when they changed, and the
+// read marks every 30 seconds (or with the globals), then the save
+// directory is synced to IndexedDB.
+void ONScripter::webPersistHook()
+{
+#if defined(WEB)
+    Uint32 now = SDL_GetTicks();
+    if (web_persist_time && now - web_persist_time < 2000) return;
+    web_persist_time = now;
+    bool changed = false;
+    if (globalon_flag){
+        file_io_buf_ptr = 0;
+        writeVariables( script_h.global_variable_border, script_h.variable_range, false );
+        allocFileIOBuf();
+        writeVariables( script_h.global_variable_border, script_h.variable_range, true );
+        if (web_globals_written.size() != file_io_buf_ptr ||
+            memcmp( web_globals_written.data(), file_io_buf, file_io_buf_ptr )){
+            if (saveFileIOBuf( "gloval.sav" ) == 0){
+                web_globals_written.assign( file_io_buf, file_io_buf + file_io_buf_ptr );
+                changed = true;
+            }
+        }
+    }
+    if (kidokuskip_flag && (changed || now - web_kidoku_time >= 30000)){
+        script_h.saveKidokuData();
+        web_kidoku_time = now;
+        changed = true;
+    }
+    if (changed) EM_ASM(
+        if(window.flush_save) window.flush_save();
+        else FS.syncfs(false, (err)=>{console.log(err);});
+    );
+#endif
+}
+
 // At each click wait and new page, before onsyuriText: where the text is
 // in the script, as self.onsyuriPosition(offset, total, label, read): the
 // byte offset of the text's line in the script, the script's length, the

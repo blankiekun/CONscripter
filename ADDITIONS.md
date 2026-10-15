@@ -295,6 +295,13 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   file, so a game packed with `--lazyload` lost its options: without
   `--enc:sjis` its Shift-JIS script was read as GBK (the text garbled).
   It is now fetched like the game's other files.
+- **Global variables and read marks kept when the web page closes**:
+  ONScripter writes `gloval.sav` and `kidoku.dat` when the game quits or
+  saves, but closing or reloading the tab is no quit, so the settings,
+  the read marks and the unlocks of a web game were lost unless the
+  player saved afterwards. The web build now writes the global variables
+  at a click wait when they changed (at most every 2 seconds), and the
+  read marks every 30 seconds or with them, then syncs the save directory.
 - **Text hooks (web build)**: the engine calls these functions on the
   page's global scope (`self`) when they are defined, so the page can lay
   selectable text over the game:

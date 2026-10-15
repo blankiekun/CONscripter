@@ -378,6 +378,7 @@ ONScripter::ONScripter()
     text_speed_override = -1;
     web_mode_sent = -1;
     memset( web_window_sent, -1, sizeof(web_window_sent) );
+    web_persist_time = web_kidoku_time = 0;
     checkpoint_every = checkpoint_count = checkpoint_pages = 0;
     checkpoint_slot = 900;
     trace_page = 0;
