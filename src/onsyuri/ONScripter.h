@@ -237,6 +237,7 @@ public:
     int screenpulseCommand();
     int screenzoomCommand();
     int windowtransCommand();
+    int openurlCommand();
     int getkeyCommand();
     int getplaytimeCommand();
     int logrowsCommand();

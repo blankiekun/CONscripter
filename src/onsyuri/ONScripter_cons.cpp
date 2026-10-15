@@ -1082,6 +1082,23 @@ int ONScripter::windowtransCommand()
     return RET_CONTINUE;
 }
 
+/* openurl "url"
+ *   Opens url in the browser (a new tab in the web build), leaving full
+ *   screen first, as a game's link to its web page. Not while the game
+ *   plays itself (--auto-play): stderr only. */
+int ONScripter::openurlCommand()
+{
+    const char *url = script_h.readStr();
+    if (auto_play_flag){
+        utils::printInfo("openurl: %s (not opened in auto-play)\n", url);
+        return RET_CONTINUE;
+    }
+    if (fullscreen_mode) setFullScreen(false);
+    if (SDL_OpenURL( url ) != 0)
+        utils::printError("openurl: %s: %s\n", url, SDL_GetError());
+    return RET_CONTINUE;
+}
+
 /* screenpulse slot, time, interval, zoom_x, zoom_y, opacity, colour,
  *             tint_opacity, tint
  *   A pulse over the picture behind the text window: when it first

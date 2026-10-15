@@ -162,6 +162,10 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   "window opacity" setting. Kept across `setwindow` and loading a save
   (not saved: set it again from the game's settings at startup); `reset`
   puts it back to 255. `windowtrans 128`.
+- **`openurl "url"`**: opens `url` in the browser (a new tab in the web
+  build), leaving full screen first, for a title button that links to
+  the game's web page (装甲悪鬼村正's ライナー画像). Under `--auto-play`
+  it only prints the URL on stderr. `openurl "https://example.com/"`.
 - **`dwavefadein ms`** / **`dwavefadeout ch,ms`**: fade a `dwave`
   channel in or out. `dwavefadein` makes the next `dwave`, `dwaveloop`,
   `dwaveplay` or `dwaveplayloop` fade its sound in over `ms`
