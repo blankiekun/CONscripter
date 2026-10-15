@@ -1909,6 +1909,58 @@ int ONScripter::delsavegameCommand()
     return RET_CONTINUE;
 }
 
+/* copysavegame from,to
+ *   Copies save file from to save file to, as it is (its savegame2 text
+ *   too); when from doesn't exist, deletes to instead. For a script that
+ *   keeps saves of its own beside a slot (the pages of nested scenes).
+ *   In the web build the save directory is synced afterwards. */
+int ONScripter::copysavegameCommand()
+{
+    int from = script_h.readInt();
+    int to = script_h.readInt();
+    std::string dir(save_dir ? save_dir : archive_path);
+    std::vector<std::string> names;
+    char filename[64];
+    sprintf( filename, "save%d.dat", from );
+    names.push_back(filename);
+    sprintf( filename, "save%d.dat", to );
+    names.push_back(filename);
+#if !defined(WEB)
+    // writeSaveFile's second copy
+    sprintf( filename, RELATIVEPATH "sav%csave%d.dat", DELIMITER, from );
+    names.push_back(filename);
+    sprintf( filename, RELATIVEPATH "sav%csave%d.dat", DELIMITER, to );
+    names.push_back(filename);
+#endif
+    for (size_t i=0 ; i+1<names.size() ; i+=2){
+        std::string src = dir + names[i], dst = dir + names[i+1];
+        FILE *in = fopen(src.c_str(), "rb");
+        if (!in){
+            if (::remove(dst.c_str()) != 0 && errno != ENOENT)
+                utils::printError("copysavegame: can't delete %s\n", dst.c_str());
+            continue;
+        }
+        std::vector<char> data;
+        char buf[4096];
+        size_t n;
+        while ((n = fread(buf, 1, sizeof(buf), in)) > 0) data.insert(data.end(), buf, buf + n);
+        fclose(in);
+        FILE *out = fopen(dst.c_str(), "wb");
+        if (!out || fwrite(data.data(), 1, data.size(), out) != data.size())
+            utils::printError("copysavegame: can't write %s\n", dst.c_str());
+        if (out) fclose(out);
+    }
+
+#if defined(WEB)
+    EM_ASM(
+        if(window.flush_save) window.flush_save();
+        else FS.syncfs(false, (err)=>{console.log(err);});
+    );
+#endif
+
+    return RET_CONTINUE;
+}
+
 /* "!zNNN" in text draws the following characters at NNN percent of the
  * text window's font size until the next "!z" ("!z100" or "!z" goes back;
  * reset clears it). A character takes its scaled width on the line and

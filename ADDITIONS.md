@@ -165,6 +165,12 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   none is set, the same folder as the saves). `savefileexist` then reports
   the slot empty. In the web build the save directory is synced
   afterwards. `delsavegame 3,"savethumb3.bmp"`.
+- **`copysavegame from,to`**: copies save file `from` to save file `to`
+  as it is (with its `savegame2` text); when `from` doesn't exist,
+  deletes `to` instead. For saves a script keeps beside a slot, such as
+  the pages of nested scenes that a save from the menu takes along.
+  The web build syncs the save directory afterwards.
+  `copysavegame 901,1031` … `copysavegame 1031,901`.
 - **Slide and zoom transitions**, as effect 99 plugins (stock builds
   draw an unknown plugin as a cross-fade):
   - `effect num,99,ms,"cons_slide.dll/layer,dx,dy"`: a picture moves one

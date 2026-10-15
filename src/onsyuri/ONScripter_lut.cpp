@@ -354,6 +354,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"cselbtn",			&ONScripter::cselbtnCommand},
     {"csel",			&ONScripter::selectCommand},
     {"cos",				&ONScripter::cosCommand},
+    {"copysavegame",	&ONScripter::copysavegameCommand},
     {"cmp",				&ONScripter::cmpCommand},
     {"clickvoice",		&ONScripter::clickvoiceCommand},
     {"clickstr",		&ONScripter::clickstrCommand},

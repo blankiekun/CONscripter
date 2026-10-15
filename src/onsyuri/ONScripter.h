@@ -340,6 +340,7 @@ public:
     int drawCommand();
     int deletescreenshotCommand();
     int delsavegameCommand();
+    int copysavegameCommand();
     int delayCommand();
     int defineresetCommand();
     int cspCommand();
