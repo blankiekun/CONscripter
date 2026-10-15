@@ -211,7 +211,8 @@ int ONScripter::spzoomCommand()
  *   sprite 10 up and down twice a second. loop 2 runs once and leaves the
  *   sprite at the last key: its offset is added to the sprite's place (as
  *   msp), its zoom to the spzoom and its alpha to the sprite's; the angle
- *   goes back to 0.
+ *   goes back to 0. Another spmotion or spmotion2 on the sprite (also one
+ *   that stops it) first ends such a motion at its last key.
  *
  * spmotion2 num[,loop,t1,x1,y1,zoom1,angle1,alpha1,...]
  *   spmotion with a zoom (percent, 100 = its size, times spzoom's) and an
@@ -232,6 +233,12 @@ int ONScripter::spmotionCommand()
     }
     AnimationInfo *ai = &sprite_info[no];
     SDL_Rect before = drawnRect( *ai );
+    // A motion that keeps its last key ends there first.
+    if (ai->motion_keys > 0 && ai->motion_keep && !ai->motion_loop){
+        stepSpriteMotion( *ai, ai->motion_start + ai->motion_key[ai->motion_keys-1][0] );
+        SDL_Rect r = drawnRect( *ai );
+        if (ai->visible) dirty_rect.add( r );
+    }
     ai->motion_keys = 0;
     ai->motion_dx = ai->motion_dy = 0;
     ai->motion_zoom = 100;
