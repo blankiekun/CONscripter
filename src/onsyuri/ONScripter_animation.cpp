@@ -90,8 +90,10 @@ void ONScripter::proceedAnimation(int current_time)
             flushDirect(tachi_info[i].pos, refreshMode() | (draw_cursor_flag?REFRESH_CURSOR_MODE:0));
         
     for (int i=MAX_SPRITE_NUM-1 ; i>=0 ; i--)
-        if (sprite_info[i].proceedAnimation(current_time))
-            flushDirect(sprite_info[i].pos, refreshMode() | (draw_cursor_flag?REFRESH_CURSOR_MODE:0));
+        if (sprite_info[i].proceedAnimation(current_time)){
+            SDL_Rect rect = drawnRect(sprite_info[i]); // CONscripter: where it is drawn (spzoom, spmotion)
+            flushDirect(rect, refreshMode() | (draw_cursor_flag?REFRESH_CURSOR_MODE:0));
+        }
 
     proceedScreenEffects(current_time); // CONscripter
     proceedSpriteMotions(current_time);

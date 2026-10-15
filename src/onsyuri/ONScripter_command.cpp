@@ -1399,8 +1399,13 @@ int ONScripter::mpegplayCommand()
     const char *save_buf = script_h.saveStringBuffer();
     
     bool click_flag = (script_h.readInt()==1)?true:false;
+    // CONscripter: mpegplay "f",click,1 leaves the music playing (a movie
+    // without its own sound, cut into a scene)
+    bool keep_music = false;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA)
+        keep_music = script_h.readInt() == 1;
 
-    stopBGM( false );
+    if (!keep_music) stopBGM( false );
     if (movie_stop >= 0) click_flag = movie_stop == 1; // CONscripter: moviestop
     if (playMPEG( save_buf, click_flag )){
         trace_end_reason = "window closed"; // CONscripter: closed during the movie

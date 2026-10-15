@@ -37,7 +37,9 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   save files and by `pushscreen`. Its buttons keep their unzoomed place.
   `spzoom` redraws the whole screen at the next `print`, so call it again
   after moving a zoomed sprite: `amsp 10,x,y:spzoom 10,150:print 1` (a
-  camera zoom on a background, step by step).
+  camera zoom on a background, step by step). An animated sprite
+  (`:a/n,…`) that is zoomed or moving redraws where it is drawn as its
+  cells change (it used to redraw only its unzoomed place).
 - **`spmotion num[,loop,t1,x1,y1,t2,x2,y2,...]`**: moves `lsp` sprite
   `num` by itself along offsets from its place: `x,y` pixels at `t` ms
   from now, straight from key to key, stepped about every 16 ms by the
@@ -225,6 +227,13 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   pressed cell again if the pointer comes back with the button still
   held. Without the argument, buttons work as before. (Nitroplus menus
   draw a pressed picture for every button.)
+- **`mpegplay "file",click,1`**: a third argument 1 leaves the music
+  playing through the movie (`mpegplay` stops it otherwise). For a movie
+  with no sound of its own cut into a scene, such as a battle cut whose
+  sound effect the script plays with `dwave` beside it. The native
+  builds play a movie's sound in place of the music, so give it a movie
+  without sound. (Nitroplus's `CreateMovie` cuts play over the scene's
+  music.)
 - **`selectvoice open,over,select` anywhere**: it was refused outside the
   define section; now a script can set the sounds for one screen (the
   `over` sound plays when the pointer enters any button) and clear them
