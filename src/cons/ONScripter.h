@@ -792,6 +792,9 @@ private:
     // CONscripter: text size tag "!zNNN" (percent of the window's font size)
     int text_size_percent;
     FontInfo *textSizeFont( FontInfo *info, FontInfo &scaled );
+    bool isProportional( FontInfo *info );
+    int hankakuExtra( FontInfo *glyph_info, char c );
+    bool breakAtSpace( const char *buf, FontInfo *info );
 
     // CONscripter: debug trace (--trace or CONS_TRACE), one JSON record per
     // line: the state at every text page, missing files and script errors

@@ -210,6 +210,7 @@ void FontInfo::clear()
     else
         setXY(num_xy[0]-1, 0);
     line_offset_xy[0] = line_offset_xy[1] = 0;
+    hankaku_dx = 0;
 }
 
 void FontInfo::newLine()
@@ -223,6 +224,7 @@ void FontInfo::newLine()
         xy[1] = 0;
     }
     line_offset_xy[0] = line_offset_xy[1] = 0;
+    hankaku_dx = 0;
 }
 
 void FontInfo::setLineArea(int num)
@@ -231,8 +233,12 @@ void FontInfo::setLineArea(int num)
     num_xy[1-tateyoko_mode] = 1;
 }
 
-bool FontInfo::isEndOfLine(int margin)
+bool FontInfo::isEndOfLine(int margin, int dx)
 {
+    // CONscripter: in pixels on a horizontal line, which proportional
+    // half-width characters leave off the grid (dx: pixels more)
+    if (tateyoko_mode == YOKO_MODE)
+        return (xy[0] + margin)*pitch_xy[0]/2 + hankaku_dx + dx >= num_xy[0]*pitch_xy[0];
     if (xy[tateyoko_mode] + margin >= num_xy[tateyoko_mode]*2) return true;
 
     return false;
@@ -263,6 +269,7 @@ SDL_Rect FontInfo::calcUpdatedArea(int start_xy[2], int ratio1, int ratio2)
         if (start_xy[1] == xy[1]){
             rect.x = top_xy[0] + pitch_xy[0]*start_xy[0]/2;
             rect.w = pitch_xy[0]*(xy[0]-start_xy[0])/2+1;
+            if (hankaku_dx > 0) rect.w += hankaku_dx; // CONscripter: wide proportional characters
         }
         else{
             rect.x = top_xy[0];

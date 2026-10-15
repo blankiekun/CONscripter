@@ -2584,6 +2584,48 @@ FontInfo *ONScripter::textSizeFont( FontInfo *info, FontInfo &scaled )
     return &scaled;
 }
 
+/* Proportional text. In a proportional font (its 'i' and 'W' differ in
+ * width), half-width characters on a horizontal line take their own width
+ * plus half the window's character spacing, not half a cell, and are drawn
+ * one at a time; lines break at spaces. A monospaced font (IPA Gothic)
+ * keeps the grid. */
+bool ONScripter::isProportional( FontInfo *info )
+{
+    if (info->getTateyokoMode() != FontInfo::YOKO_MODE || info->ttf_font[0] == NULL) return false;
+    int a, w_i, w_w;
+    TTF_GlyphMetrics((TTF_Font*)info->ttf_font[0], 'i', &a, &a, &a, &a, &w_i);
+    TTF_GlyphMetrics((TTF_Font*)info->ttf_font[0], 'W', &a, &a, &a, &a, &w_w);
+    return w_i != w_w;
+}
+
+// The width of half-width character c over half a cell, in script pixels.
+int ONScripter::hankakuExtra( FontInfo *glyph_info, char c )
+{
+    if (!isProportional(glyph_info)) return 0;
+    unsigned short unicode = (unsigned char)c;
+    if ((c & 0xe0) == 0xa0 || (c & 0xe0) == 0xc0) unicode = unicode - 0xa0 + 0xff60; // half-width kana, as drawGlyph
+    int a, adv;
+    if (TTF_GlyphMetrics((TTF_Font*)glyph_info->ttf_font[0], unicode, &a, &a, &a, &a, &adv) != 0) return 0;
+    return adv * screen_ratio2 / screen_ratio1 - glyph_info->font_size_xy[0] / 2;
+}
+
+/* True when the word after the space at buf (up to the next space, line
+ * end, full-width character or tag) doesn't fit on info's line after the
+ * space: the caller then starts a new line instead of drawing the space. */
+bool ONScripter::breakAtSpace( const char *buf, FontInfo *info )
+{
+    if (buf[0] != ' ' || info->isLineEmpty()) return false;
+    FontInfo scaled_font;
+    FontInfo *glyph_info = textSizeFont(info, scaled_font);
+    if (!isProportional(glyph_info)) return false;
+    int w = 0;
+    for (const char *p = buf; *p && *p != 0x0a && !IS_TWO_BYTE(*p) && (p == buf || *p != ' '); p++){
+        if (*p == '@' || *p == '\\' || *p == '#' || *p == '(' || (*p == '!' && strchr("swdz", p[1]) && p[1])) break;
+        w += info->pitch_xy[0]/2 + hankakuExtra(glyph_info, *p);
+    }
+    return info->isEndOfLine(0, w - 1);
+}
+
 // The numbers after the '/' of an effect's dll name ("cons_zoom.dll/0,5100").
 static int readDllParams( const char *name, int *param, int max )
 {

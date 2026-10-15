@@ -262,7 +262,17 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
         info->openFont( font_file, screen_ratio1, screen_ratio2 );
 #endif
 
-    if ( info->isEndOfLine() ){
+    // CONscripter: drawn at the size of a "!z" tag, on the line's baseline
+    FontInfo scaled_font;
+    FontInfo *glyph_info = textSizeFont(info, scaled_font);
+    int size_dy = info->font_size_xy[1] - glyph_info->font_size_xy[1];
+
+    // CONscripter: a proportional half-width character that would run past
+    // the window's right edge starts the next line
+    int extra = IS_TWO_BYTE(text[0]) ? 0 : hankakuExtra(glyph_info, text[0]);
+    if ( info->isEndOfLine() ||
+         (!IS_TWO_BYTE(text[0]) && !info->isLineEmpty() && isProportional(glyph_info) &&
+          info->isEndOfLine(1, extra - 1)) ){
         info->newLine();
         for (int i=0 ; i<indent_offset ; i++){
             if (lookback_flag){
@@ -280,11 +290,6 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
     if (trace_fp && lookback_flag && info == &sentence_font &&
         (info->getTateyokoMode() == FontInfo::YOKO_MODE ? info->xy[1]/2 >= info->num_xy[1] : info->xy[0] < 0))
         trace_overflow = true;
-
-    // CONscripter: drawn at the size of a "!z" tag, on the line's baseline
-    FontInfo scaled_font;
-    FontInfo *glyph_info = textSizeFont(info, scaled_font);
-    int size_dy = info->font_size_xy[1] - glyph_info->font_size_xy[1];
 
     if (lookback_flag && info == &sentence_font)
         addCharBox(current_page->text_count,
@@ -342,6 +347,9 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
         }
         info->advanceCharInHankaku(1);
         if (glyph_info != info) info->addLineOffset((glyph_info->font_size_xy[0] - info->font_size_xy[0])/2);
+        extra = hankakuExtra(glyph_info, text2[0]);
+        info->addLineOffset(extra);
+        info->hankaku_dx += extra;
         text2[0] = text[1];
         if (text2[0] == 0) break;
     }
@@ -442,11 +450,16 @@ void ONScripter::drawString( const char *str, uchar3 color, FontInfo *info, bool
             info->newLine();
             str++;
         }
+        else if (*str == ' ' && breakAtSpace(str, info)){
+            info->newLine(); // CONscripter: proportional text breaks at spaces
+            str++;
+        }
         else if (*str){
             text[0] = *str++;
             // CONscripter: not paired with a character that starts a
-            // full-width one, which then came out garbled ("1あ")
-            if (*str && *str != 0x0a && pack_hankaku && !IS_TWO_BYTE(*str)) text[1] = *str++;
+            // full-width one, which then came out garbled ("1あ"), nor in a
+            // proportional font
+            if (*str && *str != 0x0a && pack_hankaku && !IS_TWO_BYTE(*str) && !isProportional(info)) text[1] = *str++;
             else                                      text[1] = 0;
             drawChar( text, info, false, false, surface, cache_info );
         }
@@ -590,12 +603,17 @@ void ONScripter::restoreTextBuffer(SDL_Surface *surface)
                     f_info.newLine();
                 i += additional_bytes;
             }
+            else if (out_text[0] == ' ' && breakAtSpace(current_page->text + i, &f_info)){
+                f_info.newLine(); // CONscripter: as when it was drawn
+                continue;
+            }
             else{
                 out_text[1] = 0;
                 
                 // CONscripter: as when it was drawn, not paired with a
-                // character that starts a full-width one ("1あ", "い う")
-                if (i+1 != current_page->text_count &&
+                // character that starts a full-width one ("1あ", "い う"),
+                // nor in a proportional font
+                if (i+1 != current_page->text_count && !isProportional(&f_info) &&
                     current_page->text[i+1] != 0x0a && !IS_TWO_BYTE(current_page->text[i+1])){
                     out_text[1] = current_page->text[i+1];
                     i++;
@@ -1120,7 +1138,10 @@ bool ONScripter::processText()
         
         return true;
     }
-    else if ( ch == '!' && !(script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) ){
+    // CONscripter: a '!' that starts no tag ("Hey! You!") is text
+    else if ( ch == '!' && !(script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) &&
+              script_h.getStringBuffer()[ string_buffer_offset + 1 ] &&
+              strchr("swdz", script_h.getStringBuffer()[ string_buffer_offset + 1 ]) ){
         string_buffer_offset++;
         if ( script_h.getStringBuffer()[ string_buffer_offset ] == 's' ){
             string_buffer_offset++;
@@ -1287,8 +1308,16 @@ bool ONScripter::processText()
         // ruby), which would then be shown as text (an odd number of
         // half-width characters before them: "1/2", "abc\\", "Ghost #FFFFFF",
         // the space being kept)
+        // CONscripter: proportional text breaks its lines at spaces, and
+        // its half-width characters are drawn one at a time
+        if (ch == ' ' && breakAtSpace(script_h.getStringBuffer() + string_buffer_offset, &sentence_font)){
+            current_page->add(' ');
+            sentence_font.newLine();
+            string_buffer_offset++;
+            return true;
+        }
         char next = script_h.getStringBuffer()[ string_buffer_offset + 1 ];
-        bool pair = next && !(script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) &&
+        bool pair = next && !(script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) && !isProportional(&sentence_font) &&
             !IS_TWO_BYTE(next) && next != '/' && next != '@' && next != '\\' &&
             next != '#' && next != '!' && next != '(';
         if (pair) out_text[1] = next;

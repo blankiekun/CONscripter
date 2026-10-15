@@ -61,6 +61,7 @@ public:
     uchar3  window_color;
 
     int line_offset_xy[2]; // ruby offset for each line
+    int hankaku_dx; // CONscripter: the line's proportional half-width characters' width over half a cell each
     bool rubyon_flag;
     int tateyoko_mode;
 
@@ -78,7 +79,7 @@ public:
     void newLine();
     void setLineArea(int num);
 
-    bool isEndOfLine(int margin=0);
+    bool isEndOfLine(int margin=0, int dx=0);
     bool isLineEmpty();
     void advanceCharInHankaku(int offest);
     void addLineOffset(int margin);
