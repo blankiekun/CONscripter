@@ -72,6 +72,9 @@ int ONScripter::calcDurationToNextAnimation()
     int fade_time = nextSoundFadeTime(); // CONscripter: bgmvolfade
     if (fade_time > 0 && (min == 0 || min > fade_time))
         min = fade_time;
+    int movie_time = nextSpriteMovieTime(); // CONscripter: movies as pictures
+    if (movie_time > 0 && (min == 0 || min > movie_time))
+        min = movie_time;
 
 #ifdef USE_LUA
     if (lua_handler.is_animatable && !script_h.isExternalScript()){
@@ -98,6 +101,7 @@ void ONScripter::proceedAnimation(int current_time)
     proceedScreenEffects(current_time); // CONscripter
     proceedSpriteMotions(current_time);
     proceedSoundFades(current_time);
+    proceedSpriteMovies(current_time);
 
 #ifdef USE_LUA
     if (lua_handler.is_animatable && !script_h.isExternalScript()){
@@ -254,38 +258,47 @@ void ONScripter::setupAnimationInfo( AnimationInfo *anim, FontInfo *info )
     }
 #endif
     else{
-        bool has_alpha;
-        int location;
-        SDL_Surface *surface = loadImage( anim->file_name, &has_alpha, &location, &anim->default_alpha );
+        bool has_alpha = false;
+        int location = BaseReader::ARCHIVE_TYPE_NONE;
+        SDL_Surface *surface = isMovieFile( anim->file_name ) ? openSpriteMovie( anim ) // CONscripter
+                             : loadImage( anim->file_name, &has_alpha, &location, &anim->default_alpha );
 
         SDL_Surface *surface_m = NULL;
         if (anim->trans_mode == AnimationInfo::TRANS_MASK)
             surface_m = loadImage( anim->mask_file_name );
-        
-        surface = anim->setupImageAlpha(surface, surface_m, has_alpha);
-        anim->applyFilters(surface);
 
-        if (surface &&
-            screen_ratio2 != screen_ratio1 &&
-            (!disable_rescale_flag || location == BaseReader::ARCHIVE_TYPE_NONE))
-        {
-            SDL_Surface *src_s = surface;
-
-            int w, h;
-            if ( (w = src_s->w * screen_ratio1 / screen_ratio2) == 0 ) w = 1;
-            if ( (h = src_s->h * screen_ratio1 / screen_ratio2) == 0 ) h = 1;
-            SDL_PixelFormat *fmt = image_surface->format;
-            surface = SDL_CreateRGBSurface( SDL_SWSURFACE, w, h,
-                                            fmt->BitsPerPixel, fmt->Rmask, fmt->Gmask, fmt->Bmask, fmt->Amask );
-        
-            resizeSurface(src_s, surface);
-            SDL_FreeSurface(src_s);
-        }
-
-        anim->setImage( surface, texture_format );
+        setAnimImage( anim, surface, surface_m, has_alpha, location );
 
         if ( surface_m ) SDL_FreeSurface(surface_m);
     }
+}
+
+// The picture surface becomes anim's: its alpha (the tag's mode), filters
+// and the screen's scale. CONscripter: split from setupAnimationInfo for a
+// movie's frames.
+void ONScripter::setAnimImage( AnimationInfo *anim, SDL_Surface *surface, SDL_Surface *surface_m, bool has_alpha, int location )
+{
+    surface = anim->setupImageAlpha(surface, surface_m, has_alpha);
+    anim->applyFilters(surface);
+
+    if (surface &&
+        screen_ratio2 != screen_ratio1 &&
+        (!disable_rescale_flag || location == BaseReader::ARCHIVE_TYPE_NONE))
+    {
+        SDL_Surface *src_s = surface;
+
+        int w, h;
+        if ( (w = src_s->w * screen_ratio1 / screen_ratio2) == 0 ) w = 1;
+        if ( (h = src_s->h * screen_ratio1 / screen_ratio2) == 0 ) h = 1;
+        SDL_PixelFormat *fmt = image_surface->format;
+        surface = SDL_CreateRGBSurface( SDL_SWSURFACE, w, h,
+                                        fmt->BitsPerPixel, fmt->Rmask, fmt->Gmask, fmt->Bmask, fmt->Amask );
+    
+        resizeSurface(src_s, surface);
+        SDL_FreeSurface(src_s);
+    }
+
+    anim->setImage( surface, texture_format );
 }
 
 void ONScripter::parseTaggedString( AnimationInfo *anim )

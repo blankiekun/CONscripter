@@ -228,6 +228,7 @@ public:
     int selectkeepCommand();
     int moviestopCommand();
     int mpegholdCommand();
+    int spmoviewaitCommand();
     int gamespeedCommand();
     int sysevolCommand();
     int btnseCommand();
@@ -1190,6 +1191,20 @@ private:
     int playMPEG(const char *filename, bool click_flag, bool loop_flag=false);
 #if CONS_FFMPEG_MOVIES
     int playMovieFFmpeg(const char *path, bool click_flag, bool loop_flag); // CONscripter: Linux, macOS
+#endif
+    // CONscripter: a movie as any picture (lsp n,":c;movie\a.mp4"), playing in
+    // its place; mpegplay's frames, the text window drawn over them
+    SDL_Surface *screen_movie = NULL;
+    static bool isMovieFile( const char *name );
+    std::vector<struct SpriteMovie *> sprite_movies;
+    SDL_Surface *openSpriteMovie( AnimationInfo *anim );
+    void closeSpriteMovie( size_t i );
+    SpriteMovie *findSpriteMovie( AnimationInfo *anim );
+    int nextSpriteMovieTime();
+    void proceedSpriteMovies( int current_time );
+    void setAnimImage( AnimationInfo *anim, SDL_Surface *surface, SDL_Surface *surface_m, bool has_alpha, int location );
+#if defined(WEB)
+    int playMovieLayered( const char *path, bool click_flag, bool loop_flag );
 #endif
     int playAVI( const char *filename, bool click_flag );
     enum { WAVE_PLAY        = 0,

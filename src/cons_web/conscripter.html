@@ -650,6 +650,55 @@
                 holdOverlay.style.display="none";
             }
 
+            // CONscripter: movies whose frames the engine draws (a movie as a
+            // picture; mpegplay under the text window): a hidden <video> each,
+            // its current frame read through a canvas as RGBA bytes
+            var g_cons_movies={}, g_cons_movie_id=0;
+            function consMovieOpen(path, loop, sound, w, h){
+                var data;
+                try { data=g_cons_module.FS.readFile(path, {flags:'r',encoding:'binary'}); }
+                catch(e){ console.error('no movie '+path); return -1; }
+                const v=document.createElement('video');
+                const id=++g_cons_movie_id;
+                const m={video:v, state:0, last:-1, w:w, h:h, ctx:null};
+                v.muted=!sound; v.loop=!!loop; v.playsInline=true; v.preload='auto';
+                // in the page (a detached or hidden video may not decode), unseen
+                v.style.cssText='position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+                v.onloadeddata=function(){ if (m.state==0) m.state=1; };
+                v.onerror=function(){ m.state=-1; };
+                v.src=URL.createObjectURL(new Blob([data.buffer]));
+                document.body.appendChild(v);
+                v.play().catch(function(){ v.muted=true; v.play().catch(function(){ m.state=-1; }); });
+                g_cons_movies[id]=m;
+                return id;
+            }
+            function consMovieState(id){ const m=g_cons_movies[id]; return m ? m.state : -1; }
+            // the frame as RGBA bytes when it changed since the last call, else null
+            function consMovieFrame(id, w, h){
+                const m=g_cons_movies[id];
+                if (!m || m.video.readyState<2 || m.video.currentTime===m.last) return null;
+                m.last=m.video.currentTime;
+                if (!m.ctx){
+                    const c=document.createElement('canvas');
+                    c.width=w; c.height=h;
+                    m.ctx=c.getContext('2d', {willReadFrequently:true});
+                }
+                m.ctx.drawImage(m.video, 0, 0, w, h);
+                return m.ctx.getImageData(0, 0, w, h).data;
+            }
+            function consMovieEnded(id){ const m=g_cons_movies[id]; return !m || m.state<0 || m.video.ended ? 1 : 0; }
+            function consMovieClose(id){
+                const m=g_cons_movies[id];
+                if (!m) return;
+                const v=m.video;
+                v.pause();
+                if (v.src && v.src.startsWith('blob:')) URL.revokeObjectURL(v.src);
+                v.removeAttribute('src');
+                v.load();
+                v.remove();
+                delete g_cons_movies[id];
+            }
+
             video.addEventListener('error', function(event) {
                 console.error('The video failed to load: ', event);
                 videoEnded();

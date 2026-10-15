@@ -3385,8 +3385,9 @@ int ONScripter::setplaytimeCommand()
 /* Movies on Linux and macOS (mpegplay, movie): no movie decoder is built
  * in there, so the player's ffmpeg decodes the file. One ffmpeg process
  * scales the video to the game's screen (letterboxed) and writes it as
- * YUV 4:2:0 frames to its stdout, and the sound in the mixer's format to
- * a second pipe (fd 3). Two threads read both into buffers, so ffmpeg
+ * frames in the screen's pixel format to its stdout (shown as the game's
+ * screen, the text window drawn over them when shown), and the sound in
+ * the mixer's format to a second pipe (fd 3). Two threads read both into buffers, so ffmpeg
  * never blocks on one pipe while the other is waited on; the sound plays
  * through Mix_HookMusic at the BGM volume, and its clock times the
  * frames (the wall clock when the movie has no sound). A click, Return,
@@ -3422,42 +3423,26 @@ struct MovieStream {
 };
 
 /* mpeghold's sprite, drawn over the movie with its cells going round. */
+// mpeghold's sprite: the cell it shows (refreshSurface draws it over the frames)
 struct MovieOverlay {
-    SDL_Texture *texture = nullptr;
-    SDL_Rect pos = {0, 0, 0, 0};
+    bool shown = false;
     std::vector<int> durations; // ms each cell shows
     int total = 0;
-    void load(SDL_Renderer *renderer, AnimationInfo *ai)
+    void load(AnimationInfo *ai)
     {
         if (!ai->visible || !ai->image_surface) return;
-        texture = SDL_CreateTextureFromSurface(renderer, ai->image_surface);
-        if (!texture) return;
-        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-        pos = ai->pos;
+        shown = true;
         if (ai->is_animatable && ai->duration_list)
             for (int i = 0; i < ai->num_of_cells; i++) durations.push_back(std::max(ai->duration_list[i], 1));
         for (int d : durations) total += d;
     }
     int cell(Uint32 now) const
     {
-        if (!texture) return -1;
+        if (!shown) return -1;
         if (total == 0) return 0;
         int t = now % total, c = 0;
         while (t >= durations[c]) t -= durations[c++];
         return c;
-    }
-    void draw(SDL_Renderer *renderer, const SDL_Rect &view, int screen_w, int screen_h) const
-    {
-        if (!texture) return;
-        SDL_Rect src = {cell(SDL_GetTicks()) * pos.w, 0, pos.w, pos.h};
-        SDL_Rect dst = {view.x + pos.x * view.w / screen_w, view.y + pos.y * view.h / screen_h,
-                        pos.w * view.w / screen_w, pos.h * view.h / screen_h};
-        SDL_RenderCopy(renderer, texture, &src, &dst);
-    }
-    void free()
-    {
-        if (texture) SDL_DestroyTexture(texture);
-        texture = nullptr;
     }
 };
 
@@ -3530,10 +3515,11 @@ pid_t spawnPipes(char *const argv[], int *out_fd, int *sound_fd, int *err_fd)
 
 /* What `ffmpeg -i` says about the file: the frame rate (0 if it has no
  * video) and whether it has sound. */
-void probeMovie(const char *ffmpeg, const char *path, double *fps, bool *has_sound)
+void probeMovie(const char *ffmpeg, const char *path, double *fps, bool *has_sound, int *w = NULL, int *h = NULL)
 {
     *fps = 0;
     *has_sound = false;
+    if (w) *w = *h = 0;
     const char *argv[] = {ffmpeg, "-nostdin", "-hide_banner", "-i", path, NULL};
     int fd;
     pid_t pid = spawnPipes((char *const *)argv, NULL, NULL, &fd);
@@ -3550,6 +3536,16 @@ void probeMovie(const char *ffmpeg, const char *path, double *fps, bool *has_sou
         std::string line = text.substr(at, end == std::string::npos ? std::string::npos : end - at);
         if (line.find("Audio:") != std::string::npos) *has_sound = true;
         if (line.find("Video:") != std::string::npos && *fps == 0) {
+            // "..., 1024x576 [SAR ...", "..., 1024x576, ..."
+            for (size_t x = line.find('x'); w && x != std::string::npos; x = line.find('x', x + 1)) {
+                size_t s = x;
+                while (s > 0 && isdigit((unsigned char)line[s - 1])) s--;
+                if (s == x || s == 0 || line[s - 1] != ' ' || !isdigit((unsigned char)line[x + 1])) continue;
+                *w = atoi(line.c_str() + s); // (not "0x31637661", a codec tag)
+                *h = atoi(line.c_str() + x + 1);
+                if (*w > 0 && *h > 0) break;
+                *w = *h = 0;
+            }
             // "..., 29.97 fps, ..." (or only "30 tbr")
             for (const char *unit : {" fps", " tbr"}) {
                 size_t u = line.find(unit);
@@ -3562,6 +3558,17 @@ void probeMovie(const char *ffmpeg, const char *path, double *fps, bool *has_sou
         }
         at = end == std::string::npos ? text.size() : end;
     }
+}
+
+// ffmpeg's name for the screen's pixel format, byte by byte
+const char *moviePixelFormat(Uint32 texture_format)
+{
+    bool abgr = texture_format == SDL_PIXELFORMAT_ABGR8888;
+#if SDL_BYTEORDER == SDL_LIL_ENDIAN
+    return abgr ? "rgba" : "bgra";
+#else
+    return abgr ? "abgr" : "argb";
+#endif
 }
 
 int readVideo(void *data)
@@ -3676,9 +3683,9 @@ int ONScripter::playMovieFFmpeg(const char *path, bool click_flag, bool loop_fla
                        (format == AUDIO_S16SYS || format == AUDIO_F32SYS)))
         has_sound = false;
 
-    int w = screen_width & ~1, h = screen_height & ~1; // 4:2:0 needs even sizes
+    int w = screen_width, h = screen_height;
     char vf[256], rate[16], chans[16];
-    snprintf(vf, sizeof(vf), "scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:-1:-1:black,format=yuv420p", w, h, w, h);
+    snprintf(vf, sizeof(vf), "scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:-1:-1:black,format=%s", w, h, w, h, moviePixelFormat(texture_format));
     snprintf(rate, sizeof(rate), "%d", freq);
     snprintf(chans, sizeof(chans), "%d", channels);
     const char *sample_format = format == AUDIO_F32SYS ? (SDL_BYTEORDER == SDL_LIL_ENDIAN ? "f32le" : "f32be")
@@ -3692,22 +3699,22 @@ int ONScripter::playMovieFFmpeg(const char *path, bool click_flag, bool loop_fla
     }
     argv.push_back(NULL);
 
-    SDL_Texture *frame_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING, w, h);
-    if (!frame_texture) {
-        utils::printError("can't play the movie [%s]: %s\n", path, SDL_GetError());
-        return 0;
-    }
+    // The frames are the game's screen while it plays: the text window, when
+    // shown, is drawn over them (refreshSurface)
+    screen_movie = AnimationInfo::allocSurface(w, h, texture_format);
+    SDL_Rect whole = {0, 0, w, h};
     MovieOverlay overlay;
-    if (movie_hold && movie_hold->sprite >= 0 && movie_hold->sprite < MAX_SPRITE_NUM)
-        overlay.load(renderer, &sprite_info[movie_hold->sprite]);
-    int overlay_cell = -1;
+    AnimationInfo *hold_sprite = movie_hold && movie_hold->sprite >= 0 && movie_hold->sprite < MAX_SPRITE_NUM
+        ? &sprite_info[movie_hold->sprite] : NULL;
+    if (hold_sprite) overlay.load(hold_sprite);
+    int overlay_cell = -1, hold_cell = hold_sprite ? hold_sprite->current_cell : 0;
     int ret = 0;
     bool done = false;
     while (!done) {
         MovieStream m;
         m.lock = SDL_CreateMutex();
         m.cond = SDL_CreateCond();
-        m.frame_size = (size_t)w * h * 3 / 2;
+        m.frame_size = (size_t)w * h * 4;
         m.frames.resize(m.frame_size * m.slots);
         m.sound.resize(has_sound ? (size_t)freq * channels * (format == AUDIO_F32SYS ? 4 : 2) * 4 : 1); // 4 s
         m.volume = musicVolume();
@@ -3759,8 +3766,9 @@ int ONScripter::playMovieFFmpeg(const char *path, bool click_flag, bool loop_fla
                     m.count--;
                     shown++;
                 }
-                const unsigned char *y = m.frames.data() + m.first * m.frame_size;
-                SDL_UpdateYUVTexture(frame_texture, NULL, y, w, y + w * h, w / 2, y + w * h * 5 / 4, w / 2);
+                const unsigned char *f = m.frames.data() + m.first * m.frame_size;
+                for (int row = 0; row < h; row++)
+                    memcpy((unsigned char *)screen_movie->pixels + row * screen_movie->pitch, f + (size_t)row * w * 4, w * 4);
                 m.first = (m.first + 1) % m.slots;
                 m.count--;
                 shown++;
@@ -3771,15 +3779,8 @@ int ONScripter::playMovieFFmpeg(const char *path, bool click_flag, bool loop_fla
             int cell = overlay.cell(now);
             if (cell != overlay_cell) { overlay_cell = cell; due = shown > 0; }
             if (due) {
-                SDL_RenderClear(renderer);
-                SDL_Rect view = render_view_rect;
-                if ((stretch_mode && fullscreen_mode) || (force_window_height && force_window_width)) {
-                    view.x = view.y = 0;
-                    SDL_GetRendererOutputSize(renderer, &view.w, &view.h);
-                }
-                SDL_RenderCopy(renderer, frame_texture, NULL, &view);
-                overlay.draw(renderer, view, screen_width, screen_height);
-                SDL_RenderPresent(renderer);
+                if (overlay_cell >= 0) hold_sprite->setCell(overlay_cell);
+                flushDirect(whole, refreshMode());
             } else {
                 SDL_Delay(2);
             }
@@ -3799,8 +3800,9 @@ int ONScripter::playMovieFFmpeg(const char *path, bool click_flag, bool loop_fla
         SDL_DestroyMutex(m.lock);
         if (!loop_flag) break;
     }
-    SDL_DestroyTexture(frame_texture);
-    overlay.free();
+    SDL_FreeSurface(screen_movie);
+    screen_movie = NULL;
+    if (hold_sprite) hold_sprite->setCell(hold_cell);
     // The game's screen again.
     dirty_rect.fill(screen_width, screen_height);
     flush(refreshMode());
@@ -3987,6 +3989,377 @@ void ONScripter::playMovieHoldWeb( const char *path )
     SDL_FlushEvents( SDL_KEYDOWN, SDL_KEYUP );
 }
 #endif
+
+/* Movies as pictures: a movie file (.mp4, .webm, .mpg, .mpeg, .ogv, .mov,
+ * .mkv, .avi, .wmv) given to lsp, lsp2, bg or ld plays in the picture's
+ * place, without its sound, while the game waits: the sprite's order, the
+ * tag's transparency (":a" takes the right half as the alpha), spalpha,
+ * spzoom and the text window over it work as for a picture.
+ *     lsp 10,":c;movie\cut.mp4",0,0         plays once, stays on its last frame
+ *     lsp 10,":c/1,0,0;movie\loop.mp4",0,0  loops
+ * csp (or another picture) stops it; a save keeps the picture's name, so a
+ * load starts it again. Linux and macOS decode it with ffmpeg (as
+ * mpegplay), the web build with a hidden <video>; auto-play shows its first
+ * frame only. */
+bool ONScripter::isMovieFile( const char *name )
+{
+    const char *ext = name ? strrchr( name, '.' ) : NULL;
+    if (!ext) return false;
+    for (const char *e : {".mp4", ".m4v", ".webm", ".mpg", ".mpeg", ".ogv", ".mov", ".mkv", ".avi", ".wmv"})
+        if (!strcasecmp( ext, e )) return true;
+    return false;
+}
+
+struct SpriteMovie {
+    AnimationInfo *anim = nullptr;
+    std::string name;                // the picture it is (anim's surface_name)
+    int w = 0, h = 0;
+    double fps = 30;
+    bool loop = false, ended = false;
+    Uint32 start = 0;                // when frame 0 showed
+    int shown = 0;                   // frames shown (or skipped)
+    std::vector<unsigned char> frame; // the last frame, w*h in the screen's format
+#if CONS_FFMPEG_MOVIES
+    MovieStream m;
+    pid_t pid = -1;
+    SDL_Thread *thread = nullptr;
+#elif defined(WEB)
+    int id = 0;
+#endif
+};
+
+namespace {
+
+#if CONS_FFMPEG_MOVIES
+bool movieStart(SpriteMovie *s, const char *path, Uint32 texture_format)
+{
+    const char *ffmpeg = ffmpegPath();
+    if (!ffmpeg) return false;
+    bool has_sound;
+    probeMovie(ffmpeg, path, &s->fps, &has_sound, &s->w, &s->h);
+    if (s->fps <= 0 || s->w <= 0 || s->h <= 0) return false;
+    std::vector<const char *> argv = {ffmpeg, "-nostdin", "-loglevel", "error"};
+    if (s->loop) argv.insert(argv.end(), {"-stream_loop", "-1"});
+    argv.insert(argv.end(), {"-i", path, "-map", "0:v:0", "-pix_fmt", moviePixelFormat(texture_format),
+                             "-f", "rawvideo", "pipe:1", (const char *)NULL});
+    s->m.frame_size = (size_t)s->w * s->h * 4;
+    s->m.frames.resize(s->m.frame_size * s->m.slots);
+    s->pid = spawnPipes((char *const *)argv.data(), &s->m.video_fd, NULL, NULL);
+    if (s->pid < 0) return false;
+    s->m.lock = SDL_CreateMutex();
+    s->m.cond = SDL_CreateCond();
+    s->thread = SDL_CreateThread(readVideo, "sprite movie", &s->m);
+    return true;
+}
+
+// Frame `due` (or the newest before it) into s->frame; false when none is new.
+bool movieFrame(SpriteMovie *s, int due)
+{
+    bool got = false;
+    SDL_LockMutex(s->m.lock);
+    while (s->m.count > 1 && s->shown < due) { // late: drop
+        s->m.first = (s->m.first + 1) % s->m.slots;
+        s->m.count--;
+        s->shown++;
+    }
+    if (s->m.count > 0 && s->shown <= due) {
+        memcpy(s->frame.data(), s->m.frames.data() + s->m.first * s->m.frame_size, s->m.frame_size);
+        s->m.first = (s->m.first + 1) % s->m.slots;
+        s->m.count--;
+        s->shown++;
+        got = true;
+        SDL_CondBroadcast(s->m.cond);
+    }
+    else if (s->m.count == 0 && s->m.video_eof)
+        s->ended = true;
+    SDL_UnlockMutex(s->m.lock);
+    return got;
+}
+
+// Waits for the first frame (up to 5 s).
+bool movieFirstFrame(SpriteMovie *s)
+{
+    Uint32 until = SDL_GetTicks() + 5000;
+    SDL_LockMutex(s->m.lock);
+    while (s->m.count == 0 && !s->m.video_eof && SDL_GetTicks() < until)
+        SDL_CondWaitTimeout(s->m.cond, s->m.lock, 50);
+    SDL_UnlockMutex(s->m.lock);
+    return movieFrame(s, 0);
+}
+
+void movieStop(SpriteMovie *s)
+{
+    if (s->pid < 0) return;
+    kill(s->pid, SIGKILL);
+    SDL_LockMutex(s->m.lock);
+    s->m.stop = true;
+    SDL_CondBroadcast(s->m.cond);
+    SDL_UnlockMutex(s->m.lock);
+    SDL_WaitThread(s->thread, NULL);
+    close(s->m.video_fd);
+    waitpid(s->pid, NULL, 0);
+    SDL_DestroyCond(s->m.cond);
+    SDL_DestroyMutex(s->m.lock);
+    s->pid = -1;
+}
+#elif defined(WEB)
+bool movieStart(SpriteMovie *s, const char *path, Uint32)
+{
+    s->id = EM_ASM_INT(return consMovieOpen(UTF8ToString($0), $1, 0, 0, 0);, path, s->loop);
+    if (s->id <= 0) return false;
+    int state;
+    while ((state = EM_ASM_INT(return consMovieState($0);, s->id)) == 0) SDL_Delay(5);
+    if (state < 0) { EM_ASM(consMovieClose($0);, s->id); return false; }
+    s->w = EM_ASM_INT(return g_cons_movies[$0].video.videoWidth;, s->id);
+    s->h = EM_ASM_INT(return g_cons_movies[$0].video.videoHeight;, s->id);
+    return s->w > 0 && s->h > 0;
+}
+
+bool movieFrame(SpriteMovie *s, int)
+{
+    bool got = EM_ASM_INT({
+        var d = consMovieFrame($0, $2, $3);
+        if (!d) return 0;
+        HEAPU8.set(d, $1);
+        return 1;
+    }, s->id, s->frame.data(), s->w, s->h);
+    if (!got && EM_ASM_INT(return consMovieEnded($0);, s->id)) s->ended = true;
+    return got;
+}
+
+bool movieFirstFrame(SpriteMovie *s)
+{
+    for (int i = 0; i < 1000 && !s->ended; i++) {
+        if (movieFrame(s, 0)) return true;
+        SDL_Delay(5);
+    }
+    return false;
+}
+
+void movieStop(SpriteMovie *s)
+{
+    if (s->id > 0) EM_ASM(consMovieClose($0);, s->id);
+    s->id = 0;
+}
+#else
+bool movieStart(SpriteMovie *, const char *, Uint32) { return false; }
+bool movieFrame(SpriteMovie *, int) { return false; }
+bool movieFirstFrame(SpriteMovie *) { return false; }
+void movieStop(SpriteMovie *) {}
+#endif
+
+// The canvas gives RGBA bytes; the screen may be BGRA.
+void movieToScreenFormat(SpriteMovie *s, Uint32 texture_format)
+{
+#if defined(WEB)
+    if (texture_format == SDL_PIXELFORMAT_ABGR8888) return;
+    unsigned char *p = s->frame.data();
+    for (size_t i = 0; i < s->frame.size(); i += 4) std::swap(p[i], p[i + 2]);
+#else
+    (void)s; (void)texture_format;
+#endif
+}
+
+SDL_Surface *movieSurface(SpriteMovie *s, Uint32 texture_format)
+{
+    SDL_Surface *surface = AnimationInfo::allocSurface(s->w, s->h, texture_format);
+    for (int row = 0; row < s->h; row++)
+        memcpy((unsigned char *)surface->pixels + row * surface->pitch, s->frame.data() + (size_t)row * s->w * 4, s->w * 4);
+    return surface;
+}
+
+} // namespace
+
+#if defined(WEB)
+/* mpegplay on the web with the text window shown: the movie (with its
+ * sound) plays in a hidden <video>, its frames drawn as the game's screen
+ * under the window. */
+int ONScripter::playMovieLayered( const char *path, bool click_flag, bool loop_flag )
+{
+    SpriteMovie s;
+    s.loop = loop_flag;
+    s.id = EM_ASM_INT(return consMovieOpen(UTF8ToString($0), $1, 1, $2, $3);, path, loop_flag, screen_width, screen_height);
+    int state = 0;
+    while (s.id > 0 && (state = EM_ASM_INT(return consMovieState($0);, s.id)) == 0) SDL_Delay(5);
+    if (s.id <= 0 || state < 0){
+        movieStop( &s );
+        return 0;
+    }
+    s.w = screen_width;
+    s.h = screen_height;
+    s.frame.assign( (size_t)s.w * s.h * 4, 0 );
+    screen_movie = AnimationInfo::allocSurface( s.w, s.h, texture_format );
+    SDL_Rect whole = {0, 0, s.w, s.h};
+    int ret = 0;
+    bool done = false;
+    while (!done && !s.ended){
+        SDL_Event event;
+        while (SDL_PollEvent( &event )){
+            bool skip = false;
+            if (event.type == SDL_QUIT){ ret = 1; done = true; }
+            else if (event.type == SDL_MOUSEBUTTONUP || event.type == SDL_FINGERUP) skip = true;
+            else if (event.type == SDL_KEYUP){
+                SDL_Keycode k = event.key.keysym.sym;
+                skip = k == SDLK_RETURN || k == SDLK_SPACE || k == SDLK_ESCAPE || k == SDLK_KP_ENTER;
+            }
+            if (skip && click_flag) done = movie_skipped = true;
+        }
+        if (!done && movieFrame( &s, 0 )){
+            movieToScreenFormat( &s, texture_format );
+            for (int row = 0; row < s.h; row++)
+                memcpy( (unsigned char *)screen_movie->pixels + row * screen_movie->pitch, s.frame.data() + (size_t)row * s.w * 4, s.w * 4 );
+            flushDirect( whole, refreshMode() );
+        }
+        SDL_Delay( 5 );
+    }
+    movieStop( &s );
+    SDL_FreeSurface( screen_movie );
+    screen_movie = NULL;
+    dirty_rect.fill( screen_width, screen_height );
+    flush( refreshMode() );
+    return ret;
+}
+#endif
+
+SpriteMovie *ONScripter::findSpriteMovie( AnimationInfo *anim )
+{
+    for (SpriteMovie *s : sprite_movies)
+        if (s->anim == anim) return s;
+    return NULL;
+}
+
+void ONScripter::closeSpriteMovie( size_t i )
+{
+    movieStop( sprite_movies[i] );
+    delete sprite_movies[i];
+    sprite_movies.erase( sprite_movies.begin() + i );
+}
+
+// The movie anim's file names, as its first frame; NULL when it can't play.
+SDL_Surface *ONScripter::openSpriteMovie( AnimationInfo *anim )
+{
+    for (size_t i = 0; i < sprite_movies.size(); i++)
+        if (sprite_movies[i]->anim == anim){ closeSpriteMovie( i ); break; }
+
+    SpriteMovie *s = new SpriteMovie;
+    s->anim = anim;
+    s->name = anim->file_name;
+    s->loop = anim->duration_list && anim->loop_mode == 0; // ":c/1,0,0;"
+    anim->is_animatable = false; // the frames come from here, not the cells
+
+    std::string path = std::string( archive_path ) + anim->file_name;
+    for (char &c : path) if (c == '/' || c == '\\') c = DELIMITER;
+    FILE *fp = fopen( path.c_str(), "rb" ); // (the web build fetches it here)
+    if (fp) fclose( fp );
+    else{
+        utils::printError( " *** can't find file [%s] ***\n", anim->file_name );
+        if (trace_fp) traceWarn( "missing movie", anim->file_name );
+        delete s;
+        return NULL;
+    }
+    if (!movieStart( s, path.c_str(), texture_format )){
+        utils::printError( "can't play the movie [%s] as a picture\n", anim->file_name );
+        if (trace_fp) traceWarn( "broken movie", anim->file_name );
+        movieStop( s );
+        delete s;
+        return NULL;
+    }
+    s->frame.assign( (size_t)s->w * s->h * 4, 0 );
+    s->ended = !movieFirstFrame( s );
+    movieToScreenFormat( s, texture_format );
+    s->start = SDL_GetTicks();
+    SDL_Surface *surface = movieSurface( s, texture_format );
+    if (s->ended || auto_play_flag){ // the first frame stays
+        movieStop( s );
+        delete s;
+    }
+    else
+        sprite_movies.push_back( s );
+    return surface;
+}
+
+int ONScripter::nextSpriteMovieTime()
+{
+    int min = 0, now = SDL_GetTicks();
+    for (SpriteMovie *s : sprite_movies){
+        int t = s->start + (int)(s->shown * 1000 / s->fps);
+        if (t <= now) t = now + 1; // behind (after an mpegplay): catch up
+        if (min == 0 || t < min) min = t;
+    }
+    return min;
+}
+
+// Each movie's frame due now, drawn; a movie whose picture is gone stops.
+void ONScripter::proceedSpriteMovies( int current_time )
+{
+    for (size_t i = 0; i < sprite_movies.size(); ){
+        SpriteMovie *s = sprite_movies[i];
+        AnimationInfo *anim = s->anim;
+        if (!anim->image_surface || !anim->surface_name || s->name != anim->surface_name){
+            closeSpriteMovie( i );
+            continue;
+        }
+        int due = (int)((Uint32)current_time - s->start) * s->fps / 1000;
+        if (movieFrame( s, due )){
+            movieToScreenFormat( s, texture_format );
+            anim->deleteSurface( false );
+            setAnimImage( anim, movieSurface( s, texture_format ), NULL, false, BaseReader::ARCHIVE_TYPE_NONE );
+            if (anim->visible){
+                SDL_Rect rect = anim->pos;
+                for (int n = 0; n < MAX_SPRITE_NUM; n++)
+                    if (anim == &sprite_info[n]){ rect = drawnRect( *anim ); break; }
+                if (anim == &bg_info) rect = screen_rect;
+                flushDirect( rect, refreshMode() | (draw_cursor_flag ? REFRESH_CURSOR_MODE : 0) );
+            }
+        }
+        if (s->ended){ // on its last frame
+            closeSpriteMovie( i );
+            continue;
+        }
+        i++;
+    }
+}
+
+/* spmoviewait n[,click]
+ *   Waits until the movie in sprite n (lsp of a movie file) has ended; with
+ *   click 1 a click, skip or auto-play (moviestop overrides the flag) ends
+ *   the wait, the movie stopping on the frame shown and the sounds started
+ *   since the last wait (its own) with it. A looping movie, or none,
+ *   returns at once. */
+int ONScripter::spmoviewaitCommand()
+{
+    int no = script_h.readInt();
+    bool click = false;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA)
+        click = script_h.readInt() == 1;
+    if (movie_stop >= 0) click = movie_stop == 1;
+    if (no < 0 || no >= MAX_SPRITE_NUM) return RET_CONTINUE;
+    AnimationInfo *anim = &sprite_info[no];
+    SpriteMovie *s = findSpriteMovie( anim );
+    if (!s && auto_play_flag && click && isMovieFile( anim->surface_name ) &&
+        !(anim->duration_list && anim->loop_mode == 0)){ // shown as its first frame: skipped
+        stopFreshChannels();
+        return RET_CONTINUE;
+    }
+    if (!s || s->loop) return RET_CONTINUE;
+    unsigned long long fresh = fresh_channels; // the waits below clear it
+    for (;;){
+        bool skipped = click && (auto_play_flag || skip_mode & (SKIP_NORMAL | SKIP_TO_EOL) || ctrl_pressed_status);
+        if (skipped){ // on the frame shown
+            for (size_t i = 0; i < sprite_movies.size(); i++)
+                if (sprite_movies[i]->anim == anim){ closeSpriteMovie( i ); break; }
+            fresh_channels = fresh;
+            stopFreshChannels();
+            break;
+        }
+        if (!findSpriteMovie( anim )) break;
+        int next = nextSpriteMovieTime() - (int)SDL_GetTicks();
+        event_mode = WAIT_TIMER_MODE | (click ? WAIT_INPUT_MODE : 0);
+        if (waitEvent( next < 1 ? 1 : next > 100 ? 100 : next )) return RET_CONTINUE;
+    }
+    event_mode = IDLE_EVENT_MODE;
+    return RET_CONTINUE;
+}
 
 /* logrows %n,columns
  *   Lays the text history out as rows, oldest first, and puts how many

@@ -730,6 +730,17 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
     }
 
     int i, top;
+    if (screen_movie){ // CONscripter: a movie playing; only the text window over it
+        SDL_BlitSurface( screen_movie, &clip, surface, &clip );
+        if (refresh_mode & REFRESH_SHADOW_MODE)
+            shadowTextDisplay( surface, clip );
+        if (refresh_mode & REFRESH_TEXT_MODE)
+            text_info.blendOnSurface( surface, 0, 0, clip );
+        if (movie_hold && movie_hold->sprite >= 0 && movie_hold->sprite < MAX_SPRITE_NUM &&
+            sprite_info[movie_hold->sprite].visible) // mpeghold's prompt
+            drawTaggedSurface( surface, &sprite_info[movie_hold->sprite], clip );
+        return;
+    }
     SDL_BlitSurface( bg_info.image_surface, &clip, surface, &clip );
     
     if ( !all_sprite_hide_flag ){

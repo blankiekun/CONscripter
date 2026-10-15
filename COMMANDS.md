@@ -855,7 +855,28 @@ Impl `ONScripter::clickvoicestopCommand`, `autovoicewaitCommand`.
 third argument 1 keeps the music playing. [cons] A click that stops it
 also stops the `dwave` sounds started since the last wait (the movie's own).
 Linux/macOS play through ffmpeg
-(`CONS_FFMPEG`, else `PATH`). Impl `ONScripter::mpegplayCommand`.
+(`CONS_FFMPEG`, else `PATH`). [cons] The text window, when shown, is drawn
+over the movie (nothing else). Impl `ONScripter::mpegplayCommand`.
+
+### Movies as pictures [cons]
+A movie file (`.mp4`, `.m4v`, `.webm`, `.mpg`, `.mpeg`, `.ogv`, `.mov`,
+`.mkv`, `.avi`, `.wmv`, a loose file, not in an archive) given to `lsp`,
+`lsp2`, `bg` or `ld` plays in the picture's place, without its sound, while
+the game waits: the sprite order, the tag's transparency (`:a` takes the
+right half as the alpha), `spalpha`, `spzoom` and the text window over it
+work as for a picture. `":c;movie\cut.mp4"` plays once and stays on its last
+frame, `":c/1,0,0;movie\loop.mp4"` loops. `csp` (or another picture) stops
+it; a save keeps the name, so a load starts it again. Under `--auto-play`
+only its first frame shows. Linux/macOS decode through ffmpeg, the web build
+through a hidden `<video>`. Impl `ONScripter::openSpriteMovie`,
+`proceedSpriteMovies`.
+
+### spmoviewait [cons]
+`spmoviewait n[,click]` — waits until the movie in sprite n has ended; with
+click 1 a click, skip or auto-play ends the wait (`moviestop` overrides the
+flag), the movie stopping on the frame shown and the `dwave` sounds started
+since the last wait stopping with it. A looping movie, or none, returns at
+once. Impl `ONScripter::spmoviewaitCommand`.
 
 ### mpeghold [cons]
 `mpeghold "file"[,sp[,ch,"sound",fade_ms]]` — a movie that plays only while

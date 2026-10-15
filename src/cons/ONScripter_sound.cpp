@@ -404,6 +404,8 @@ int ONScripter::playMPEG(const char *filename, bool click_flag, bool loop_flag)
     playVideoAndroid(absolute_filename);
 #elif defined(WEB)
     if (movie_hold) playMovieHoldWeb(absolute_filename); // CONscripter: mpeghold
+    // CONscripter: with the text window shown, frames drawn under it
+    else if (display_mode & DISPLAY_MODE_TEXT) ret = playMovieLayered(absolute_filename, click_flag, loop_flag);
     else movie_skipped = playVideoWeb(absolute_filename, click_flag, loop_flag);
 #elif CONS_FFMPEG_MOVIES
     ret = playMovieFFmpeg(absolute_filename, click_flag, loop_flag);
