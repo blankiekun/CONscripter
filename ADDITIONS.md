@@ -58,7 +58,10 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   fade stays when `lsp` changes the image and is removed by `csp`; a save
   keeps the sprite's own alpha, so a load shows it at the end of its fade.
   `lsp 60,":a;noise.png",0,0,200:spfade 60,2000:print 1` brings static up
-  to 200 over two seconds.
+  to 200 over two seconds. A sprite loaded without an alpha fades too
+  (it was drawn at nothing until the fade's end: fixed), and the sprites
+  that fade or move (`spmotion`) at one step are drawn in one screen
+  update, so a bar's buttons faded together come up together.
 - **`spz num[,over]`**: draws `lsp` sprite `num` right over sprite
   `over`, as if its number were between `over` and `over - 1`, instead of
   at its own number; `spz num` puts it back. For a picture that goes in

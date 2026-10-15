@@ -338,6 +338,11 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
 
 void ONScripter::proceedSpriteMotions( int current_time )
 {
+    // Every sprite that changed is drawn in one flush: a flush per sprite
+    // takes long enough, with the software renderer, that sprites fading
+    // in together appeared one after another.
+    DirtyRect changed;
+    changed.setDimension(screen_width, screen_height);
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
         // spfade
@@ -354,10 +359,8 @@ void ONScripter::proceedSpriteMotions( int current_time )
             }
             else
                 ai.fade_alpha = ai.fade_from + (256 - ai.fade_from) * t / ai.fade_ms;
-            if (ai.visible && ai.image_surface && alpha != ai.fade_alpha){
-                SDL_Rect r = drawnRect( ai );
-                flushDirect( r, refreshMode() | (draw_cursor_flag ? REFRESH_CURSOR_MODE : 0) );
-            }
+            if (ai.visible && ai.image_surface && alpha != ai.fade_alpha)
+                changed.add( drawnRect( ai ) );
         }
         if (ai.motion_keys == 0 || ai.motion_next > current_time) continue;
         // After a long stop (a menu, a load) go on from now.
@@ -376,8 +379,10 @@ void ONScripter::proceedSpriteMotions( int current_time )
         int x2 = (r.x + r.w > r2.x + r2.w) ? r.x + r.w : r2.x + r2.w;
         int y2 = (r.y + r.h > r2.y + r2.h) ? r.y + r.h : r2.y + r2.h;
         SDL_Rect both = {x1, y1, x2 - x1, y2 - y1};
-        flushDirect( both, refreshMode() | (draw_cursor_flag ? REFRESH_CURSOR_MODE : 0) );
+        changed.add( both );
     }
+    if (changed.bounding_box.w > 0 && changed.bounding_box.h > 0)
+        flushDirect( changed.bounding_box, refreshMode() | (draw_cursor_flag ? REFRESH_CURSOR_MODE : 0) );
 }
 
 // Where an lsp sprite's picture is drawn: zoomed (spzoom), moved (spmotion).
