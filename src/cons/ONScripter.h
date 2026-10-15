@@ -359,6 +359,7 @@ public:
     int dwavefadeinCommand();
     int chvolfadeCommand();
     int bgmvolfadeCommand();
+    int bgmlaterCommand();
     int dwaveCommand();
     int dvCommand();
     int drawtextCommand();
@@ -873,6 +874,11 @@ private:
     void applyMusicVolume();
     int nextSoundFadeTime();
     void proceedSoundFades( int current_time );
+    // CONscripter: bgmlater, a music to start at a time (name NULL: none)
+    char *bgm_later_name = NULL;
+    bool bgm_later_loop = true;
+    Uint32 bgm_later_time = 0;
+    void cancelLaterBGM();
     void cutChannel( int channel );
     std::string trace_sound;         // the sound the command being run plays, as JSON fields
 

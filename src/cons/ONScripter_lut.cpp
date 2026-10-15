@@ -404,6 +404,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"br",				&ONScripter::brCommand},
     {"blt",				&ONScripter::bltCommand},
     {"bgmvolfade",		&ONScripter::bgmvolfadeCommand},
+    {"bgmlater",		&ONScripter::bgmlaterCommand},
     {"bgmvol",			&ONScripter::mp3volCommand},
     {"bgmstop",			&ONScripter::mp3stopCommand},
     {"bgmonce",			&ONScripter::mp3Command}, 

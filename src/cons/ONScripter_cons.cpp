@@ -46,11 +46,12 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 13 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
+#define CONS_SAVE_VERSION 14 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
                             // 5: + strsp sprites, looping dwave sounds; 6: + strsp sprites in the screen stack;
                             // 7: + sprite zooms; 8: + script volumes (chvolfade, bgmvolfade);
                             // 9: + sprite motions; 10: + sprite orders (spz); 11: + play time;
                             // 12: + keyed sprite alphas (spalpha); 13: + motions' zooms, angles, keep (spmotion2)
+                            // 14: + the music bgmlater will start
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
 
@@ -1058,17 +1059,56 @@ void ONScripter::applyMusicVolume()
     if (wave_sample[MIX_BGM_CHANNEL]) Mix_Volume( MIX_BGM_CHANNEL, musicVolume() * MIX_MAX_VOLUME / 100 );
 }
 
-// The ticks of the next step of bgmvolfade's ramp, 0 when none runs.
-// (chvolfade's ramps are stepped by the mixer.)
+/* bgmlater ms,"file"[,loop]
+ *   Plays file as the music ms milliseconds from now, while the script
+ *   goes on (through waits, text and click waits): as bgm, or as bgmonce
+ *   with loop 0. A music command before then (bgm, bgmonce, mp3..., play,
+ *   bgmstop, playstop), reset and a load cancel it. Kept in a save (the
+ *   time left).
+ *   A piece whose loop starts a set time after its intro, or music that
+ *   comes in some seconds after a line:
+ *       bgmonce "bgm\intro.ogg":bgmlater 7720,"bgm\loop.ogg" */
+int ONScripter::bgmlaterCommand()
+{
+    int ms = script_h.readInt();
+    const char *buf = script_h.readStr();
+    setStr( &bgm_later_name, buf[0] ? buf : NULL ); // before readInt reuses buf
+    bool loop = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() != 0 : true;
+    bgm_later_loop = loop;
+    bgm_later_time = SDL_GetTicks() + (ms > 0 ? ms : 0);
+    return RET_CONTINUE;
+}
+
+void ONScripter::cancelLaterBGM()
+{
+    setStr( &bgm_later_name, NULL );
+}
+
+// The ticks of the next step of bgmvolfade's ramp or of bgmlater's start,
+// 0 when there is none. (chvolfade's ramps are stepped by the mixer.)
 int ONScripter::nextSoundFadeTime()
 {
-    if (bgm_script_ms <= 0) return 0;
-    if (SDL_GetTicks() - bgm_script_start >= (Uint32)bgm_script_ms + 20) return 0;
-    return SDL_GetTicks() + 20;
+    int t = 0;
+    if (bgm_script_ms > 0 && SDL_GetTicks() - bgm_script_start < (Uint32)bgm_script_ms + 20)
+        t = SDL_GetTicks() + 20;
+    if (bgm_later_name && (t == 0 || (int)bgm_later_time < t))
+        t = bgm_later_time > SDL_GetTicks() ? bgm_later_time : SDL_GetTicks() + 1;
+    return t;
 }
 
 void ONScripter::proceedSoundFades( int current_time )
 {
+    if (bgm_later_name && SDL_GetTicks() >= bgm_later_time){
+        // as mp3Command plays it
+        char *name = bgm_later_name;
+        bgm_later_name = NULL;
+        stopBGM( false );
+        mp3save_flag = music_play_loop_flag = bgm_later_loop;
+        music_loopback_offset = 0.0;
+        music_file_name = name;
+        playSound( music_file_name, SOUND_MUSIC | SOUND_MIDI | SOUND_CHUNK,
+                   music_play_loop_flag, MIX_BGM_CHANNEL );
+    }
     if (bgm_script_ms <= 0) return;
     applyMusicVolume();
     if (SDL_GetTicks() - bgm_script_start >= (Uint32)bgm_script_ms){
@@ -1937,6 +1977,12 @@ void ONScripter::saveSaveFileCons( bool output_flag )
             writeInt( ai->motion_key[k][5], output_flag );
         }
     }
+
+    // Version 14: bgmlater's music ("" for none), the time left and loop.
+    writeStr( bgm_later_name, output_flag );
+    Uint32 now = SDL_GetTicks();
+    writeInt( bgm_later_name && bgm_later_time > now ? bgm_later_time - now : 0, output_flag );
+    writeInt( bgm_later_loop ? 1 : 0, output_flag );
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -2433,6 +2479,11 @@ void ONScripter::loadSaveFileCons()
         }
         stepSpriteMotion( *ai, ai->motion_start );
     }
+
+    if (version < 14) return;
+    readStr( &bgm_later_name );
+    bgm_later_time = SDL_GetTicks() + readInt();
+    bgm_later_loop = readInt() != 0;
 }
 
 /* --save-dir path: makes the folder, and the folders it is in, if they

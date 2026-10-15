@@ -1282,6 +1282,7 @@ int ONScripter::printCommand()
 
 int ONScripter::playstopCommand()
 {
+    cancelLaterBGM(); // CONscripter
     stopBGM( false );
 
     return RET_CONTINUE;
@@ -1289,6 +1290,7 @@ int ONScripter::playstopCommand()
 
 int ONScripter::playCommand()
 {
+    cancelLaterBGM(); // CONscripter
     bool loop_flag = true;
     if ( script_h.isName( "playonce" ) )
         loop_flag = false;
@@ -1439,6 +1441,7 @@ int ONScripter::mp3volCommand()
 
 int ONScripter::mp3stopCommand()
 {
+    cancelLaterBGM(); // CONscripter
     if (Mix_PlayingMusic() == 1 && timer_bgmfade_id && mp3fadeout_duration_internal > 0) // already in fadeout
         return RET_CONTINUE;
     

@@ -207,6 +207,7 @@ char *ONScripter::readSaveStrFromFile( int no )
 
 int ONScripter::loadSaveFile( int no )
 {
+    cancelLaterBGM(); // CONscripter: bgmlater
     char filename[32];
     sprintf( filename, "save%d.dat", no );
     if (loadFileIOBuf( filename ) == 0){
