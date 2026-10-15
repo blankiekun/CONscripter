@@ -664,6 +664,8 @@ void ONScripter::traceMovie( bool script_click )
     trace_sound += click ? ",\"skip\":true" : ",\"skip\":false";
     if (movie_stop >= 0 && click != script_click)
         trace_sound += ",\"moviestop\":" + std::to_string( movie_stop );
+    // The movie covers the whole screen, the text window too
+    if (display_mode & DISPLAY_MODE_TEXT) trace_sound += ",\"window\":true";
 }
 
 // An effect as {"no","type","ms"} with its "mask" (types 15, 18) or

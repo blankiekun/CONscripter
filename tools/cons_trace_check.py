@@ -39,7 +39,8 @@ by kind, each finding at the script line ("*label:line") to look at:
                taking a lot of it (--trace-max-image)
   movie        a screen change made after a movie but before the next print
                (the screen from before the movie shows in between); a movie
-               the script lets a click stop that moviestop 0 makes unskippable
+               the script lets a click stop that moviestop 0 makes unskippable; a movie
+               started with the text window shown, which it covers
   button       a btnwait button that can't be seen: off the screen, hidden,
                at alpha 0 or under an opaque sprite
   coverage     (--script) labels the run never reached
@@ -497,6 +498,9 @@ class Checker:
             if r.get('skip') is False and 'moviestop' in r:
                 self.add('movie', ('skip', r.get('at')), r.get('at'),
                          'a click can\'t stop the movie: moviestop %s overrides the script\'s flag' % r['moviestop'])
+            if r.get('window'):
+                self.add('movie', ('window', r.get('at')), r.get('at'),
+                         'the movie plays over the text window, still shown as it starts: hide it first (textoff, or a print with erasetextwindow 1)')
             self.after_movie = [r, []]
         elif self.after_movie:
             if cmd == 'print' or r.get('effect') or r.get('t') == 'page':
