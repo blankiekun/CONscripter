@@ -4798,3 +4798,367 @@ int ONScripter::setplaytimeCommand()
     setPlaytime( script_h.readInt() );
     return RET_CONTINUE;
 }
+
+/* Movies on Linux and macOS (mpegplay, movie): no movie decoder is built
+ * in there, so the player's ffmpeg decodes the file. One ffmpeg process
+ * scales the video to the game's screen (letterboxed) and writes it as
+ * YUV 4:2:0 frames to its stdout, and the sound in the mixer's format to
+ * a second pipe (fd 3). Two threads read both into buffers, so ffmpeg
+ * never blocks on one pipe while the other is waited on; the sound plays
+ * through Mix_HookMusic at the BGM volume, and its clock times the
+ * frames (the wall clock when the movie has no sound). A click, Return,
+ * Space or Escape skips it when the script allows; closing the window
+ * stops it. Without ffmpeg the movie is skipped with a message. */
+#if CONS_FFMPEG_MOVIES
+#include <fcntl.h>
+#include <spawn.h>
+#include <sys/wait.h>
+#include <unistd.h>
+extern char **environ;
+
+namespace {
+
+struct MovieStream {
+    // frames: a ring of `slots` buffers of frame_size bytes
+    SDL_mutex *lock = nullptr;
+    SDL_cond *cond = nullptr;
+    std::vector<unsigned char> frames;
+    size_t frame_size = 0;
+    int slots = 6, first = 0, count = 0;
+    bool video_eof = false;
+    // sound: a ring of bytes, and how many the mixer has played
+    std::vector<unsigned char> sound;
+    size_t sound_first = 0, sound_count = 0;
+    Uint64 played = 0;
+    bool sound_eof = false;
+    bool stop = false;
+    int volume = 100; // percent
+    bool float_samples = false;
+    int video_fd = -1, sound_fd = -1;
+};
+
+/* The ffmpeg to run: CONS_FFMPEG, else ffmpeg from PATH, else Homebrew's
+ * (a macOS app started from the Finder has a short PATH). */
+const char *ffmpegPath()
+{
+    const char *env = getenv("CONS_FFMPEG");
+    if (env && *env) return access(env, X_OK) == 0 ? env : nullptr;
+    const char *path = getenv("PATH");
+    std::string dirs = path ? path : "";
+    dirs += ":/opt/homebrew/bin:/usr/local/bin:/usr/bin";
+    static std::string found;
+    size_t start = 0;
+    while (start <= dirs.size()) {
+        size_t end = dirs.find(':', start);
+        if (end == std::string::npos) end = dirs.size();
+        std::string candidate = dirs.substr(start, end - start) + "/ffmpeg";
+        if (end > start && access(candidate.c_str(), X_OK) == 0) {
+            found = candidate;
+            return found.c_str();
+        }
+        start = end + 1;
+    }
+    return nullptr;
+}
+
+/* Starts `argv` with its stdout on *out_fd and, when sound_fd is not
+ * null, a second output pipe as its fd 3; stderr is discarded unless
+ * err_fd asks for it (then stdout is not kept). Returns the pid, or -1. */
+pid_t spawnPipes(char *const argv[], int *out_fd, int *sound_fd, int *err_fd)
+{
+    int out[2], snd[2] = {-1, -1};
+    if (pipe(out) != 0) return -1;
+    if (sound_fd && pipe(snd) != 0) { close(out[0]); close(out[1]); return -1; }
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_addopen(&fa, 0, "/dev/null", O_RDONLY, 0);
+    if (err_fd) {
+        posix_spawn_file_actions_addopen(&fa, 1, "/dev/null", O_WRONLY, 0);
+        posix_spawn_file_actions_adddup2(&fa, out[1], 2);
+    } else {
+        posix_spawn_file_actions_adddup2(&fa, out[1], 1);
+        posix_spawn_file_actions_addopen(&fa, 2, "/dev/null", O_WRONLY, 0);
+    }
+    if (sound_fd) posix_spawn_file_actions_adddup2(&fa, snd[1], 3);
+    // The pipes' other ends must not stay open in the child, or the
+    // readers never see the end of the data.
+    posix_spawn_file_actions_addclose(&fa, out[0]);
+    posix_spawn_file_actions_addclose(&fa, out[1]);
+    if (sound_fd) {
+        posix_spawn_file_actions_addclose(&fa, snd[0]);
+        posix_spawn_file_actions_addclose(&fa, snd[1]);
+    }
+    pid_t pid;
+    int rc = posix_spawn(&pid, argv[0], &fa, NULL, argv, environ);
+    posix_spawn_file_actions_destroy(&fa);
+    close(out[1]);
+    if (sound_fd) close(snd[1]);
+    if (rc != 0) {
+        close(out[0]);
+        if (sound_fd) close(snd[0]);
+        return -1;
+    }
+    fcntl(out[0], F_SETFD, FD_CLOEXEC);
+    if (err_fd) *err_fd = out[0]; else *out_fd = out[0];
+    if (sound_fd) { fcntl(snd[0], F_SETFD, FD_CLOEXEC); *sound_fd = snd[0]; }
+    return pid;
+}
+
+/* What `ffmpeg -i` says about the file: the frame rate (0 if it has no
+ * video) and whether it has sound. */
+void probeMovie(const char *ffmpeg, const char *path, double *fps, bool *has_sound)
+{
+    *fps = 0;
+    *has_sound = false;
+    const char *argv[] = {ffmpeg, "-nostdin", "-hide_banner", "-i", path, NULL};
+    int fd;
+    pid_t pid = spawnPipes((char *const *)argv, NULL, NULL, &fd);
+    if (pid < 0) return;
+    std::string text;
+    char buf[4096];
+    ssize_t n;
+    while ((n = read(fd, buf, sizeof(buf))) > 0) text.append(buf, n);
+    close(fd);
+    waitpid(pid, NULL, 0);
+    size_t at = 0;
+    while ((at = text.find("Stream #", at)) != std::string::npos) {
+        size_t end = text.find('\n', at);
+        std::string line = text.substr(at, end == std::string::npos ? std::string::npos : end - at);
+        if (line.find("Audio:") != std::string::npos) *has_sound = true;
+        if (line.find("Video:") != std::string::npos && *fps == 0) {
+            // "..., 29.97 fps, ..." (or only "30 tbr")
+            for (const char *unit : {" fps", " tbr"}) {
+                size_t u = line.find(unit);
+                if (u == std::string::npos) continue;
+                size_t s = line.rfind(' ', u - 1);
+                double v = atof(line.c_str() + s + 1);
+                if (v > 0) { *fps = v; break; }
+            }
+            if (*fps == 0) *fps = 30;
+        }
+        at = end == std::string::npos ? text.size() : end;
+    }
+}
+
+int readVideo(void *data)
+{
+    MovieStream *m = (MovieStream *)data;
+    std::vector<unsigned char> frame(m->frame_size);
+    for (;;) {
+        size_t got = 0;
+        while (got < m->frame_size) {
+            ssize_t n = read(m->video_fd, frame.data() + got, m->frame_size - got);
+            if (n <= 0) break;
+            got += n;
+        }
+        SDL_LockMutex(m->lock);
+        if (got < m->frame_size) {
+            m->video_eof = true;
+            SDL_CondBroadcast(m->cond);
+            SDL_UnlockMutex(m->lock);
+            return 0;
+        }
+        while (m->count == m->slots && !m->stop) SDL_CondWait(m->cond, m->lock);
+        if (m->stop) { SDL_UnlockMutex(m->lock); return 0; }
+        int slot = (m->first + m->count) % m->slots;
+        memcpy(m->frames.data() + slot * m->frame_size, frame.data(), m->frame_size);
+        m->count++;
+        SDL_CondBroadcast(m->cond);
+        SDL_UnlockMutex(m->lock);
+    }
+}
+
+int readSound(void *data)
+{
+    MovieStream *m = (MovieStream *)data;
+    unsigned char buf[8192];
+    for (;;) {
+        ssize_t n = read(m->sound_fd, buf, sizeof(buf));
+        SDL_LockMutex(m->lock);
+        if (n <= 0) {
+            m->sound_eof = true;
+            SDL_CondBroadcast(m->cond);
+            SDL_UnlockMutex(m->lock);
+            return 0;
+        }
+        for (ssize_t done = 0; done < n;) {
+            while (m->sound_count == m->sound.size() && !m->stop) SDL_CondWait(m->cond, m->lock);
+            if (m->stop) { SDL_UnlockMutex(m->lock); return 0; }
+            size_t tail = (m->sound_first + m->sound_count) % m->sound.size();
+            size_t room = std::min(m->sound.size() - m->sound_count, m->sound.size() - tail);
+            size_t take = std::min(room, (size_t)(n - done));
+            memcpy(m->sound.data() + tail, buf + done, take);
+            m->sound_count += take;
+            done += take;
+        }
+        SDL_UnlockMutex(m->lock);
+    }
+}
+
+void mixMovieSound(void *data, Uint8 *stream, int len)
+{
+    MovieStream *m = (MovieStream *)data;
+    SDL_LockMutex(m->lock);
+    size_t take = std::min((size_t)len, m->sound_count);
+    for (size_t done = 0; done < take;) {
+        size_t chunk = std::min(take - done, m->sound.size() - m->sound_first);
+        memcpy(stream + done, m->sound.data() + m->sound_first, chunk);
+        m->sound_first = (m->sound_first + chunk) % m->sound.size();
+        m->sound_count -= chunk;
+        done += chunk;
+    }
+    m->played += take;
+    int volume = m->volume;
+    bool float_samples = m->float_samples;
+    SDL_CondBroadcast(m->cond);
+    SDL_UnlockMutex(m->lock);
+    memset(stream + take, 0, len - take); // the hook writes the whole buffer
+    if (volume >= 100) return;
+    if (float_samples) {
+        float *s = (float *)stream;
+        for (size_t i = 0; i < take / 4; i++) s[i] *= volume / 100.0f;
+    } else {
+        Sint16 *s = (Sint16 *)stream;
+        for (size_t i = 0; i < take / 2; i++) s[i] = (Sint16)(s[i] * volume / 100);
+    }
+}
+
+} // namespace
+
+int ONScripter::playMovieFFmpeg(const char *path, bool click_flag, bool loop_flag)
+{
+    const char *ffmpeg = ffmpegPath();
+    if (!ffmpeg) {
+        utils::printError("can't play the movie [%s]: ffmpeg is not installed (or set CONS_FFMPEG to it)\n", path);
+        if (trace_fp) traceWarn("no ffmpeg for the movie", path);
+        return 0;
+    }
+    double fps;
+    bool has_sound;
+    probeMovie(ffmpeg, path, &fps, &has_sound);
+    if (fps <= 0) {
+        utils::printError("can't play the movie [%s]: ffmpeg finds no video in it\n", path);
+        if (trace_fp) traceWarn("broken movie", path);
+        return 0;
+    }
+    int freq = 0, channels = 0;
+    Uint16 format = 0;
+    if (has_sound && !(audio_open_flag && Mix_QuerySpec(&freq, &format, &channels) &&
+                       (format == AUDIO_S16SYS || format == AUDIO_F32SYS)))
+        has_sound = false;
+
+    int w = screen_width & ~1, h = screen_height & ~1; // 4:2:0 needs even sizes
+    char vf[256], rate[16], chans[16];
+    snprintf(vf, sizeof(vf), "scale=%d:%d:force_original_aspect_ratio=decrease,pad=%d:%d:-1:-1:black,format=yuv420p", w, h, w, h);
+    snprintf(rate, sizeof(rate), "%d", freq);
+    snprintf(chans, sizeof(chans), "%d", channels);
+    const char *sample_format = format == AUDIO_F32SYS ? (SDL_BYTEORDER == SDL_LIL_ENDIAN ? "f32le" : "f32be")
+                                                       : (SDL_BYTEORDER == SDL_LIL_ENDIAN ? "s16le" : "s16be");
+    std::vector<const char *> argv = {ffmpeg, "-nostdin", "-loglevel", "error", "-i", path,
+                                      "-map", "0:v:0", "-vf", vf, "-f", "rawvideo", "pipe:1"};
+    if (has_sound) {
+        for (const char *a : {"-map", "0:a:0", "-ac", (const char *)chans, "-ar", (const char *)rate,
+                              "-f", sample_format, "pipe:3"})
+            argv.push_back(a);
+    }
+    argv.push_back(NULL);
+
+    SDL_Texture *frame_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING, w, h);
+    if (!frame_texture) {
+        utils::printError("can't play the movie [%s]: %s\n", path, SDL_GetError());
+        return 0;
+    }
+    int ret = 0;
+    bool done = false;
+    while (!done) {
+        MovieStream m;
+        m.lock = SDL_CreateMutex();
+        m.cond = SDL_CreateCond();
+        m.frame_size = (size_t)w * h * 3 / 2;
+        m.frames.resize(m.frame_size * m.slots);
+        m.sound.resize(has_sound ? (size_t)freq * channels * (format == AUDIO_F32SYS ? 4 : 2) * 4 : 1); // 4 s
+        m.volume = musicVolume();
+        m.float_samples = format == AUDIO_F32SYS;
+        pid_t pid = spawnPipes((char *const *)argv.data(), &m.video_fd, has_sound ? &m.sound_fd : NULL, NULL);
+        if (pid < 0) {
+            utils::printError("can't play the movie [%s]: can't start %s\n", path, ffmpeg);
+            SDL_DestroyCond(m.cond);
+            SDL_DestroyMutex(m.lock);
+            break;
+        }
+        SDL_Thread *video_thread = SDL_CreateThread(readVideo, "movie video", &m);
+        SDL_Thread *sound_thread = has_sound ? SDL_CreateThread(readSound, "movie sound", &m) : NULL;
+        if (has_sound) Mix_HookMusic(mixMovieSound, &m);
+        Uint32 start = SDL_GetTicks();
+        int shown = 0;
+        bool finished = false;
+        while (!finished && !done) {
+            SDL_Event event;
+            while (SDL_PollEvent(&event)) {
+                bool skip = false;
+                if (event.type == SDL_QUIT) { ret = 1; done = true; }
+                else if (event.type == SDL_MOUSEBUTTONUP || event.type == SDL_FINGERUP) skip = true;
+                else if (event.type == SDL_KEYUP) {
+                    SDL_Keycode k = event.key.keysym.sym;
+                    skip = k == SDLK_RETURN || k == SDLK_SPACE || k == SDLK_ESCAPE || k == SDLK_KP_ENTER;
+                    if (k == SDLK_RCTRL) ctrl_pressed_status &= ~0x01;
+                    if (k == SDLK_LCTRL) ctrl_pressed_status &= ~0x02;
+                }
+                if (skip && click_flag) done = true;
+            }
+            if (done) break;
+            SDL_LockMutex(m.lock);
+            double clock = has_sound && !m.sound_eof
+                ? m.played / (double)(freq * channels * (m.float_samples ? 4 : 2))
+                : (SDL_GetTicks() - start) / 1000.0;
+            if (has_sound && m.sound_eof && m.sound_count == 0) clock = 1e9; // the sound ended: show what is left
+            bool due = m.count > 0 && clock >= shown / fps;
+            if (due) {
+                // Late frames are dropped, but not the last one queued.
+                while (m.count > 1 && clock >= (shown + 1) / fps) {
+                    m.first = (m.first + 1) % m.slots;
+                    m.count--;
+                    shown++;
+                }
+                const unsigned char *y = m.frames.data() + m.first * m.frame_size;
+                SDL_UpdateYUVTexture(frame_texture, NULL, y, w, y + w * h, w / 2, y + w * h * 5 / 4, w / 2);
+                m.first = (m.first + 1) % m.slots;
+                m.count--;
+                shown++;
+                SDL_CondBroadcast(m.cond);
+            }
+            finished = m.video_eof && m.count == 0 && (!has_sound || m.sound_eof);
+            SDL_UnlockMutex(m.lock);
+            if (due) {
+                SDL_RenderClear(renderer);
+                if ((stretch_mode && fullscreen_mode) || (force_window_height && force_window_width))
+                    SDL_RenderCopy(renderer, frame_texture, NULL, NULL);
+                else
+                    SDL_RenderCopy(renderer, frame_texture, NULL, &render_view_rect);
+                SDL_RenderPresent(renderer);
+            } else {
+                SDL_Delay(2);
+            }
+        }
+        if (has_sound) Mix_HookMusic(NULL, NULL);
+        kill(pid, SIGKILL);
+        SDL_LockMutex(m.lock);
+        m.stop = true;
+        SDL_CondBroadcast(m.cond);
+        SDL_UnlockMutex(m.lock);
+        SDL_WaitThread(video_thread, NULL);
+        if (sound_thread) SDL_WaitThread(sound_thread, NULL);
+        close(m.video_fd);
+        if (has_sound) close(m.sound_fd);
+        waitpid(pid, NULL, 0);
+        SDL_DestroyCond(m.cond);
+        SDL_DestroyMutex(m.lock);
+        if (!loop_flag) break;
+    }
+    SDL_DestroyTexture(frame_texture);
+    // The game's screen again.
+    dirty_rect.fill(screen_width, screen_height);
+    flush(refreshMode());
+    return ret;
+}
+#endif // CONS_FFMPEG_MOVIES

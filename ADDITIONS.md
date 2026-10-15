@@ -302,6 +302,15 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   player saved afterwards. The web build now writes the global variables
   at a click wait when they changed (at most every 2 seconds), and the
   read marks every 30 seconds or with them, then syncs the save directory.
+- **Movies on Linux and macOS**: `mpegplay` and `movie` printed
+  "mpegplay command is disabled" there. They now play in the game window
+  through the player's ffmpeg (`CONS_FFMPEG`, else `ffmpeg` on `PATH`,
+  `/opt/homebrew/bin`, `/usr/local/bin`): any format ffmpeg reads, scaled
+  to the screen and letterboxed, the sound at the music setting and the
+  pictures timed by it. A click, Return, Space or Escape skips the movie
+  when the script allows (`mpegplay "f",1`, `movie "f",click`); `movie`'s
+  `loop` repeats it. Without ffmpeg the movie is skipped with a message
+  (and a trace warning). The file must be loose, as on the other builds.
 - **Text hooks (web build)**: the engine calls these functions on the
   page's global scope (`self`) when they are defined, so the page can lay
   selectable text over the game:

@@ -46,8 +46,8 @@ CONscripter is the engine behind two companion projects:
 |---|---|---|
 | Web | Emscripten (WebAssembly) | Saves in IndexedDB, zip export/import of saves, lazy loading of game files, touch and a web menu on phones, WebP images, video in a `<video>` element |
 | Windows | x86, x64 (MinGW, static); x86, x64, ARM64 (MSVC + vcpkg) | Video through the system player |
-| Linux | x86, x64, arm, aarch64 | Static or dynamic link |
-| macOS | x64, arm64 | |
+| Linux | x86, x64, arm, aarch64 | Static or dynamic link; video in the window through the player's ffmpeg |
+| macOS | x64, arm64 | Video in the window through the player's ffmpeg |
 | Android | API 22+ (Android 5.1) | SD cards through SAF, scoped storage, non-English paths, video through the system player, 16 KB pages |
 | RetroArch | libretro core `conscripter_libretro` | |
 

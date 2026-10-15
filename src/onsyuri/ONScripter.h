@@ -68,6 +68,12 @@
 #define DEFAULT_VOLUME 100
 #define ONS_MIX_CHANNELS 50
 #define ONS_MIX_EXTRA_CHANNELS 4
+// CONscripter: movies through the player's ffmpeg where nothing else plays them
+#if !defined(_WIN32) && !defined(IOS) && !defined(ANDROID) && !defined(WEB) && !defined(__LIBRETRO__) && !defined(USE_SMPEG)
+#define CONS_FFMPEG_MOVIES 1
+#else
+#define CONS_FFMPEG_MOVIES 0
+#endif
 #define ONS_MIX_FADE_CHANNELS 8 // CONscripter: after the others, for the fade of a cut sound
 #define MIX_WAVE_CHANNEL (ONS_MIX_CHANNELS+0)
 #define MIX_BGM_CHANNEL (ONS_MIX_CHANNELS+1)
@@ -1099,6 +1105,9 @@ private:
     int playMIDI(bool loop_flag);
     
     int playMPEG(const char *filename, bool click_flag, bool loop_flag=false);
+#if CONS_FFMPEG_MOVIES
+    int playMovieFFmpeg(const char *path, bool click_flag, bool loop_flag); // CONscripter: Linux, macOS
+#endif
     int playAVI( const char *filename, bool click_flag );
     enum { WAVE_PLAY        = 0,
            WAVE_PRELOAD     = 1,

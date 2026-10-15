@@ -392,6 +392,8 @@ int ONScripter::playMPEG(const char *filename, bool click_flag, bool loop_flag)
     playVideoAndroid(absolute_filename);
 #elif defined(WEB)
     playVideoWeb(absolute_filename, click_flag, loop_flag);
+#elif CONS_FFMPEG_MOVIES
+    ret = playMovieFFmpeg(absolute_filename, click_flag, loop_flag);
 #else
     utils::printError( "mpegplay command is disabled.\n" );
 #endif
