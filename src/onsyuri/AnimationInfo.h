@@ -148,6 +148,12 @@ public:
     int motion_next;           // ticks of the next step
     int motion_dx, motion_dy;  // the offset drawn now
 
+    /* CONscripter: a fade in (spfade): the sprite is drawn at fade_alpha
+       (0-256) of its own alpha, going from fade_from to 256 over fade_ms,
+       stepped by the timer. Stays across lsp; reset by remove(). */
+    int fade_ms;               // 0: no fade
+    int fade_from, fade_start, fade_next, fade_alpha;
+
     int font_size_xy[2]; // used by prnum and lsp string
     int font_pitch[2]; // used by lsp string
     int next_time;

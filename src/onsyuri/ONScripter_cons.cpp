@@ -236,6 +236,37 @@ int ONScripter::spmotionCommand()
     return RET_CONTINUE;
 }
 
+/* spfade num,ms[,from]
+ *   Fades sprite num (an lsp sprite) in by itself: it is drawn at from/256
+ *   (0-256, default 0) of its alpha, rising to its alpha over ms, stepped
+ *   about every 16 ms by the timer while the script goes on (the text, a
+ *   click wait). "spfade num,0" ends it at once. The fade stays when lsp
+ *   changes the image and is removed by csp; a save keeps the sprite's
+ *   own alpha, so a load shows it at the end of its fade.
+ *   "lsp 60,":a;noise.png",0,0,200:spfade 60,2000:print 1" brings static
+ *   up to 200 over two seconds. */
+int ONScripter::spfadeCommand()
+{
+    int no = script_h.readInt();
+    int ms = script_h.readInt();
+    int from = 0;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA) from = script_h.readInt();
+    if (no < 0 || no >= MAX_SPRITE_NUM){
+        utils::printError("spfade: sprite %d out of range\n", no);
+        return RET_CONTINUE;
+    }
+    AnimationInfo &ai = sprite_info[no];
+    if (from < 0) from = 0;
+    if (from > 256) from = 256;
+    ai.fade_ms = ms > 0 ? ms : 0;
+    ai.fade_from = from;
+    ai.fade_alpha = ai.fade_ms > 0 ? from : 256;
+    ai.fade_start = ai.fade_next = SDL_GetTicks();
+    if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+
+    return RET_CONTINUE;
+}
+
 // Sets a motion's offset for the time; ends a motion that ran once.
 void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
 {
@@ -268,6 +299,25 @@ void ONScripter::proceedSpriteMotions( int current_time )
 {
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
+        // spfade
+        if (ai.fade_ms > 0 && ai.fade_next <= current_time){
+            if (current_time - ai.fade_next > 1000){
+                ai.fade_start += current_time - ai.fade_next;
+                ai.fade_next = current_time;
+            }
+            while (ai.fade_next <= current_time) ai.fade_next += 16;
+            int alpha = ai.fade_alpha, t = current_time - ai.fade_start;
+            if (t >= ai.fade_ms){
+                ai.fade_ms = 0;
+                ai.fade_alpha = 256;
+            }
+            else
+                ai.fade_alpha = ai.fade_from + (256 - ai.fade_from) * t / ai.fade_ms;
+            if (ai.visible && ai.image_surface && alpha != ai.fade_alpha){
+                SDL_Rect r = drawnRect( ai );
+                flushDirect( r, refreshMode() | (draw_cursor_flag ? REFRESH_CURSOR_MODE : 0) );
+            }
+        }
         if (ai.motion_keys == 0 || ai.motion_next > current_time) continue;
         // After a long stop (a menu, a load) go on from now.
         if (current_time - ai.motion_next > 1000){
@@ -314,6 +364,7 @@ int ONScripter::nextSpriteMotionTime()
     int min = 0;
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
+        if (ai.fade_ms > 0 && (min == 0 || min > ai.fade_next)) min = ai.fade_next;
         if (ai.motion_keys == 0) continue;
         if (min == 0 || min > ai.motion_next) min = ai.motion_next;
     }

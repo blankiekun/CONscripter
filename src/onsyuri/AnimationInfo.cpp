@@ -68,6 +68,8 @@ AnimationInfo::AnimationInfo()
     motion_loop = false;
     motion_start = motion_next = 0;
     motion_dx = motion_dy = 0;
+    fade_ms = fade_from = fade_start = fade_next = 0;
+    fade_alpha = 256;
 
     if (!is_inv_alpha_lut_initialized){
         inv_alpha_lut[0] = 255;
@@ -199,6 +201,8 @@ void AnimationInfo::remove()
     zoom_x = zoom_y = 100;
     motion_keys = 0;
     motion_dx = motion_dy = 0;
+    fade_ms = 0;
+    fade_alpha = 256;
 }
 
 void AnimationInfo::clearFilters()

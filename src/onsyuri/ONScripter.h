@@ -207,6 +207,7 @@ public:
     int spfilterCommand();
     int spzoomCommand();
     int spmotionCommand();
+    int spfadeCommand();
     int screenflashCommand();
     int screenfilterCommand();
     int screenshakeCommand();

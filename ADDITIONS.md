@@ -51,6 +51,14 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   bobs sprite 10 twice a second; a one-shot list of shrinking offsets
   shakes it. While a sprite is zoomed or moving, each refresh redraws the
   whole screen, and `csp` redraws where it was drawn.
+- **`spfade num,ms[,from]`**: fades `lsp` sprite `num` in by itself: it
+  is drawn at `from`/256 (0-256, default 0) of its alpha, rising to its
+  alpha over `ms`, stepped about every 16 ms by the timer while the script
+  goes on (text and click waits too). `spfade num,0` ends it at once. The
+  fade stays when `lsp` changes the image and is removed by `csp`; a save
+  keeps the sprite's own alpha, so a load shows it at the end of its fade.
+  `lsp 60,":a;noise.png",0,0,200:spfade 60,2000:print 1` brings static up
+  to 200 over two seconds.
 - **`screenfilter slot,kind[,blend[,strength[,p1,p2,p3]]]`**: the same
   filters on the whole picture: the background and the sprites behind the
   text window (numbers above `humanz`), where `monocro` applies; not the
