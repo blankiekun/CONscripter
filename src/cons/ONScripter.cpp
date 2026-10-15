@@ -37,12 +37,7 @@
 extern Coding2UTF16 *coding2utf16;
 extern "C" void waveCallback(int channel);
 
-#if defined(WEB)
-// web audio is filled on the main thread: a bigger buffer rides out file reads and slow frames
-#define DEFAULT_AUDIOBUF  8192
-#else
 #define DEFAULT_AUDIOBUF  4096
-#endif
 
 #define FONT_FILE "default.ttf"
 #define REGISTRY_FILE "registry.txt"
