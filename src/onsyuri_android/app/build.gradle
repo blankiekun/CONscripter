@@ -27,8 +27,8 @@ android {
                 arguments "-Wno-dev",  "-DANDROID_ARM_NEON=TRUE"
             }
         }
-        versionCode 25
-        versionName '0.20.0'
+        versionCode 26
+        versionName '0.21.0'
     }
     signingConfigs {
         release {
