@@ -2691,6 +2691,25 @@ bool ONScripter::breakAtSpace( const char *buf, FontInfo *info )
     return info->isEndOfLine(0, w - 1);
 }
 
+/* True when the character at text would be drawn past the window's last
+ * line, or would start a line past it: the caller waits for a click and
+ * goes on on a new page (the English Muramasa's paragraphs outgrow its
+ * small window), instead of drawing outside the window. */
+bool ONScripter::pastPage( const char *text )
+{
+    FontInfo *f = &sentence_font;
+    if (f->num_xy[0] <= 0 || f->num_xy[1] <= 0) return false;
+    bool yoko = f->getTateyokoMode() == FontInfo::YOKO_MODE;
+    if (yoko ? f->xy[1]/2 >= f->num_xy[1] : f->xy[0] < 0) return true;
+    if (yoko ? f->xy[1]/2 < f->num_xy[1] - 1 : f->xy[0] >= 2) return false;
+    // on the last line: drawChar's own line break
+    FontInfo scaled_font;
+    FontInfo *glyph_info = textSizeFont(f, scaled_font);
+    if (IS_TWO_BYTE(text[0])) return f->isEndOfLine();
+    return f->isEndOfLine() || (!f->isLineEmpty() && isProportional(glyph_info) &&
+                                f->isEndOfLine(1, hankakuExtra(glyph_info, text[0]) - 1));
+}
+
 // The numbers after the '/' of an effect's dll name ("cons_zoom.dll/0,5100").
 static int readDllParams( const char *name, int *param, int max )
 {

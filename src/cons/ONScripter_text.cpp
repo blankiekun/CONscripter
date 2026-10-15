@@ -771,7 +771,7 @@ bool ONScripter::clickWait( char *out_text )
     return true;
 }
 
-bool ONScripter::clickNewPage( char *out_text )
+bool ONScripter::clickNewPage( char *out_text, bool consume )
 {
     if ( out_text ){
         drawChar( out_text, &sentence_font, true, true, accumulation_surface, &text_info );
@@ -786,10 +786,16 @@ bool ONScripter::clickNewPage( char *out_text )
     flush( REFRESH_NONE_MODE );
     skip_mode &= ~SKIP_TO_EOL;
     
-    if (script_h.checkClickstr(script_h.getStringBuffer() + string_buffer_offset) != 1) string_buffer_offset++;
-    string_buffer_offset++;
+    // CONscripter: not on a page break of its own (pastPage), which waits
+    // without textgosub: its return would go on after the line's next
+    // click wait, not here
+    const char *gosub_label = consume ? textgosub_label : NULL;
+    if (consume){
+        if (script_h.checkClickstr(script_h.getStringBuffer() + string_buffer_offset) != 1) string_buffer_offset++;
+        string_buffer_offset++;
+    }
 
-    if ( (skip_mode & SKIP_NORMAL || ctrl_pressed_status) && !textgosub_label  ){
+    if ( (skip_mode & SKIP_NORMAL || ctrl_pressed_status) && !gosub_label  ){
         num_chars_in_sentence = 0;
         clickstr_state = CLICK_NEWPAGE;
 
@@ -801,7 +807,7 @@ bool ONScripter::clickNewPage( char *out_text )
                 script_h.getStringBuffer()[ string_buffer_offset ] == ' ') ||
                script_h.getStringBuffer()[ string_buffer_offset ] == '\t' ) string_buffer_offset ++;
 
-        if ( textgosub_label ){
+        if ( gosub_label ){
             saveon_flag = false;
 
             textgosub_clickstr_state = CLICK_NEWPAGE;
@@ -1070,6 +1076,8 @@ bool ONScripter::processText()
                 sentence_font.advanceCharInHankaku(2);
             }
         }
+        // CONscripter: text past the window goes on on a new page
+        if (pastPage(script_h.getStringBuffer() + string_buffer_offset)) return clickNewPage(NULL, false);
         
 
         if(coding2utf16->force_utf8) {
@@ -1264,6 +1272,8 @@ bool ONScripter::processText()
     }
     else{
         out_text[0] = ch;
+        // CONscripter: text past the window goes on on a new page
+        if (pastPage(&ch)) return clickNewPage(NULL, false);
         
         int matched_len = script_h.checkClickstr(script_h.getStringBuffer() + string_buffer_offset);
 

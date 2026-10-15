@@ -986,6 +986,8 @@ Text handling [cons]:
 - A `!` that starts no tag is drawn as text ("Hey! You!").
 - A new page erases the old text over the window's text area even when the
   window picture is smaller.
+- Text that would be drawn past the window's last line waits for a click
+  and goes on on a new page (built in: `textgosub` isn't called there).
 
 ## Transitions (effect 99)
 

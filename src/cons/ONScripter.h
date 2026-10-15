@@ -798,6 +798,7 @@ private:
     bool isProportional( FontInfo *info );
     int hankakuExtra( FontInfo *glyph_info, char c );
     bool breakAtSpace( const char *buf, FontInfo *info );
+    bool pastPage( const char *text );
 
     // CONscripter: debug trace (--trace or CONS_TRACE), one JSON record per
     // line: the state at every text page, missing files and script errors
@@ -1283,7 +1284,7 @@ private:
     void leaveTextDisplayMode(bool force_leave_flag = false);
     bool doClickEnd();
     bool clickWait( char *out_text );
-    bool clickNewPage( char *out_text );
+    bool clickNewPage( char *out_text, bool consume = true );
     void startRuby(const char *buf, FontInfo &info);
     void endRuby(bool flush_flag, bool lookback_flag, SDL_Surface *surface, AnimationInfo *cache_info);
     int  textCommand();
