@@ -82,7 +82,8 @@ extern Coding2UTF16 *coding2utf16;
      (*(x) == (char)0x81 && *((x)+1) >= 0x5b && *((x)+1) <= 0x5d) ||    \
      (*(x) == (char)0x81 && *((x)+1) >= 0x60 && *((x)+1) <= 0x64) ||    \
      (*(x) == (char)0x81 && *((x)+1) >= 0x69 && *((x)+1) <= 0x7a) ||    \
-     (*(x) == (char)0x81 && *((x)+1) == (char)0x80) )
+     (*(x) == (char)0x81 && *((x)+1) == (char)0x80) ||                  \
+     (*(x) == (char)0x81 && (unsigned char)*((x)+1) >= 0xa8 && (unsigned char)*((x)+1) <= 0xab) )
 
 #define IS_TRANSLATION_REQUIRED(x)	\
         ( *(x) == (char)0x81 && *((x)+1) >= 0x41 && *((x)+1) <= 0x44 )

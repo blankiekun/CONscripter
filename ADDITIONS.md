@@ -379,6 +379,11 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   glyph as if it weren't turned: 《 sat high and left of the column, 「
   left, ― right. The glyph now turns about the centre of its cell, so ︽
   sits on the text it opens and ﹁ at the top right, as in print.
+- **Arrows are turned in vertical text.** In `tateyoko 1` (and `vstrsp`),
+  ← → ↑ ↓ are now turned a quarter turn clockwise with the other marks,
+  as a vertical font draws them: → points down the column. A figure
+  drawn with them in 装甲悪鬼村正's vertical text box (`おれ→`, pointing
+  at what follows) pointed sideways.
 - **Cut sounds fade out instead of popping.** A sound stopped while it
   plays (a voice cut by the next one, `dwavestop`, `wavestop`, `stop`,
   `loopbgmstop`, a load) used to stop mid-wave, a step in the output
