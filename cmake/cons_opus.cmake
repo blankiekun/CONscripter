@@ -36,6 +36,12 @@ function(cons_opus TARGET_NAME)
     set(OPUS_INSTALL_CMAKE_CONFIG_MODULE OFF CACHE BOOL "" FORCE)
     if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
         set(OPUS_DISABLE_INTRINSICS ON CACHE BOOL "" FORCE)
+    endif()
+    # libopus builds with -fstack-protector-strong and _FORTIFY_SOURCE by
+    # default: with MinGW both need libssp-0.dll, which a lone .exe doesn't
+    # have (0.21.0's Windows builds didn't start without it), and the web
+    # build has neither
+    if(CMAKE_SYSTEM_NAME MATCHES "Emscripten" OR MINGW)
         set(OPUS_STACK_PROTECTOR OFF CACHE BOOL "" FORCE)
         set(OPUS_FORTIFY_SOURCE OFF CACHE BOOL "" FORCE)
     endif()

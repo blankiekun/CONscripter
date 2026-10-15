@@ -350,7 +350,9 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   downloads libogg 1.3.5, libopus 1.5.2 and opusfile 0.12 when the build
   is configured and compiles them in (`-DCONS_OPUS=OFF` leaves them out).
   Music is decoded whole (about 11 MB a minute), so long music is better
-  left as Vorbis.
+  left as Vorbis. libopus is compiled without its stack protector and
+  `_FORTIFY_SOURCE` in the MinGW builds: with them 0.21.0's Windows
+  `.exe` needed `libssp-0.dll` and didn't start without it.
 - **Movies on Linux and macOS**: `mpegplay` and `movie` printed
   "mpegplay command is disabled" there. They now play in the game window
   through the player's ffmpeg (`CONS_FFMPEG`, else `ffmpeg` on `PATH`,
