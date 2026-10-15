@@ -70,7 +70,10 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   `spmotion2 10,1,0,0,0,100,0,256,1000,0,0,100,360,256` spins sprite 10
   once a second; `spmotion2 10,2,0,0,0,100,0,256,500,300,0,100,0,0`
   slides it 300 pixels right as it fades out, and it stays gone (the
-  next `lsp` on it shows it again).
+  next `lsp` on it shows it again). Motions, `spfade` and `spalpha` go on
+  during a `print` effect, which draws them as they are at each step
+  (they stood still until its end, then jumped): a picture panning while
+  a white flash fades out pans all along.
 - **`spfade num,ms[,from]`**: fades `lsp` sprite `num` in by itself: it
   is drawn at `from`/256 (0-256, default 0) of its alpha, rising to its
   alpha over `ms`, stepped about every 16 ms by the timer while the script

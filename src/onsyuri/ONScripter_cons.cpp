@@ -462,7 +462,9 @@ void ONScripter::stepSpriteAlpha( AnimationInfo &ai, int current_time )
     ai.key_alpha = alpha;
 }
 
-void ONScripter::proceedSpriteMotions( int current_time )
+// Steps the sprites' fades, keyed alphas and motions; draws what changed
+// (draw false: only says whether something did, for an effect running).
+bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
 {
     // Every sprite that changed is drawn in one flush: a flush per sprite
     // takes long enough, with the software renderer, that sprites fading
@@ -519,8 +521,10 @@ void ONScripter::proceedSpriteMotions( int current_time )
         SDL_Rect both = {x1, y1, x2 - x1, y2 - y1};
         changed.add( both );
     }
-    if (changed.bounding_box.w > 0 && changed.bounding_box.h > 0)
+    if (changed.bounding_box.w <= 0 || changed.bounding_box.h <= 0) return false;
+    if (draw)
         flushDirect( changed.bounding_box, refreshMode() | (draw_cursor_flag ? REFRESH_CURSOR_MODE : 0) );
+    return true;
 }
 
 // Where an lsp sprite's picture is drawn: zoomed (spzoom), moved (spmotion).

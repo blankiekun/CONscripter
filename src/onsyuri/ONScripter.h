@@ -585,7 +585,7 @@ private:
     void stepSpriteMotion(AnimationInfo &ai, int current_time);
     void endKeptMotion(AnimationInfo &ai);
     void stepSpriteAlpha(AnimationInfo &ai, int current_time);
-    void proceedSpriteMotions(int current_time);
+    bool proceedSpriteMotions(int current_time, bool draw = true);
     int nextSpriteMotionTime();
     // CONscripter: lsp sprites from hi down to lo in drawing order, with
     // the ones spz moves drawn right over their sprite
