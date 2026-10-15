@@ -67,6 +67,15 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   (it was drawn at nothing until the fade's end: fixed), and the sprites
   that fade or move (`spmotion`) at one step are drawn in one screen
   update, so a bar's buttons faded together come up together.
+- **`spalpha num[,loop,t1,a1,t2,a2,...]`**: draws `lsp` sprite `num` at
+  a changing part of its alpha by itself: `a`/256 (0-256) at `t` ms from
+  now, straight from key to key, stepped about every 16 ms by the timer
+  (text and click waits too). `loop` 1 starts again after the last key;
+  `loop` 0 stops there and the sprite keeps that alpha. `spalpha num`
+  stops it and draws the sprite at its own alpha. Up to 32 keys. The keys
+  stay when `lsp` changes the image, are removed by `csp` and are kept in
+  save files (restarted). `spalpha 20,1,0,0,600,256,1100,256,1700,0,2200,0`
+  makes sprite 20 glow in and out, as a fire does.
 - **`spz num[,over]`**: draws `lsp` sprite `num` right over sprite
   `over`, as if its number were between `over` and `over - 1`, instead of
   at its own number; `spz num` puts it back. For a picture that goes in

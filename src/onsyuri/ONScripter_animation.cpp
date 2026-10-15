@@ -476,7 +476,9 @@ void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
     // CONscripter: spfade draws the sprite fainter while it fades in
     int trans = anim->trans;
     // (an lsp without an alpha has trans -1, drawn opaque)
-    if (anim->fade_ms > 0) anim->trans = (trans < 0 ? 255 : trans) * anim->fade_alpha / 256;
+    // and spalpha at its keyed alpha
+    int factor = (anim->fade_ms > 0 ? anim->fade_alpha : 256) * anim->key_alpha / 256;
+    if (factor != 256) anim->trans = (trans < 0 ? 255 : trans) * factor / 256;
     if (!anim->affine_flag && (anim->zoom_x != 100 || anim->zoom_y != 100))
         drawZoomedSurface( dst_surface, anim, poly_rect, clip );
     else if (!anim->affine_flag)

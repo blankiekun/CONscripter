@@ -46,10 +46,11 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 11 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
+#define CONS_SAVE_VERSION 12 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
                             // 5: + strsp sprites, looping dwave sounds; 6: + strsp sprites in the screen stack;
                             // 7: + sprite zooms; 8: + script volumes (chvolfade, bgmvolfade);
-                            // 9: + sprite motions; 10: + sprite orders (spz); 11: + play time
+                            // 9: + sprite motions; 10: + sprite orders (spz); 11: + play time;
+                            // 12: + keyed sprite alphas (spalpha)
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
 
@@ -282,6 +283,50 @@ int ONScripter::spfadeCommand()
     return RET_CONTINUE;
 }
 
+/* spalpha num[,loop,t1,a1,t2,a2,...]
+ *   Draws sprite num (an lsp sprite) at a changing part of its alpha by
+ *   itself: a/256 (0-256) at t ms from now, straight from key to key,
+ *   stepped about every 16 ms by the timer while the script goes on (the
+ *   text, a click wait). loop 1 starts again after the last key (put the
+ *   first key's alpha there for a smooth loop); loop 0 stops at the last
+ *   key and the sprite keeps that alpha. "spalpha num" stops it and draws
+ *   the sprite at its own alpha. Up to 32 keys. The keys stay when lsp
+ *   changes the image, are removed by csp and are kept in save files
+ *   (restarted). "spalpha 20,1,0,0,600,256,1100,256,1700,0,2200,0"
+ *   flickers sprite 20 in and out (a fire's glow). */
+int ONScripter::spalphaCommand()
+{
+    int no = script_h.readInt();
+    if (no < 0 || no >= MAX_SPRITE_NUM){
+        utils::printError("spalpha: sprite %d out of range\n", no);
+        while (script_h.getEndStatus() & ScriptHandler::END_COMMA) script_h.readInt();
+        return RET_CONTINUE;
+    }
+    AnimationInfo *ai = &sprite_info[no];
+    ai->alpha_keys = 0;
+    ai->key_alpha = 256;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
+        ai->alpha_loop = script_h.readInt() != 0;
+        while (script_h.getEndStatus() & ScriptHandler::END_COMMA){
+            int t = script_h.readInt();
+            int a = script_h.readInt();
+            if (ai->alpha_keys == AnimationInfo::MAX_MOTION_KEYS){
+                utils::printError("spalpha: more than %d keys\n", AnimationInfo::MAX_MOTION_KEYS);
+                continue;
+            }
+            if (a < 0) a = 0;
+            if (a > 256) a = 256;
+            int *k = ai->alpha_key[ai->alpha_keys++];
+            k[0] = speedTime( t ); k[1] = a; // gamespeed
+        }
+        ai->alpha_start = ai->alpha_next = SDL_GetTicks();
+        stepSpriteAlpha( *ai, ai->alpha_start );
+    }
+    if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
+
+    return RET_CONTINUE;
+}
+
 /* spz num[,over]
  *   Draws lsp sprite num right over sprite over (just as if its number
  *   were between over and over - 1) instead of at its own number; "spz
@@ -351,6 +396,31 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
     ai.motion_dy = y * screen_ratio1 / screen_ratio2;
 }
 
+// Sets a keyed alpha (spalpha) for the time; stops one that ran once, at
+// its last key's alpha.
+void ONScripter::stepSpriteAlpha( AnimationInfo &ai, int current_time )
+{
+    if (ai.alpha_keys == 0) return;
+    int last = ai.alpha_key[ai.alpha_keys-1][0];
+    int t = current_time - ai.alpha_start;
+    if (ai.alpha_loop && last > 0) t %= last;
+    else if (t >= last){
+        ai.key_alpha = ai.alpha_key[ai.alpha_keys-1][1];
+        ai.alpha_keys = 0;
+        return;
+    }
+    int i = 0;
+    while (i + 1 < ai.alpha_keys && ai.alpha_key[i+1][0] <= t) i++;
+    int *a = ai.alpha_key[i];
+    int alpha = a[1];
+    if (i + 1 < ai.alpha_keys && t > a[0]){
+        int *b = ai.alpha_key[i+1];
+        int span = b[0] - a[0];
+        if (span > 0) alpha += (b[1] - a[1]) * (t - a[0]) / span;
+    }
+    ai.key_alpha = alpha;
+}
+
 void ONScripter::proceedSpriteMotions( int current_time )
 {
     // Every sprite that changed is drawn in one flush: a flush per sprite
@@ -375,6 +445,18 @@ void ONScripter::proceedSpriteMotions( int current_time )
             else
                 ai.fade_alpha = ai.fade_from + (256 - ai.fade_from) * t / ai.fade_ms;
             if (ai.visible && ai.image_surface && alpha != ai.fade_alpha)
+                changed.add( drawnRect( ai ) );
+        }
+        // spalpha
+        if (ai.alpha_keys > 0 && ai.alpha_next <= current_time){
+            if (current_time - ai.alpha_next > 1000){
+                ai.alpha_start += current_time - ai.alpha_next;
+                ai.alpha_next = current_time;
+            }
+            while (ai.alpha_next <= current_time) ai.alpha_next += 16;
+            int alpha = ai.key_alpha;
+            stepSpriteAlpha( ai, current_time );
+            if (ai.visible && ai.image_surface && alpha != ai.key_alpha)
                 changed.add( drawnRect( ai ) );
         }
         if (ai.motion_keys == 0 || ai.motion_next > current_time) continue;
@@ -426,6 +508,7 @@ int ONScripter::nextSpriteMotionTime()
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
         if (ai.fade_ms > 0 && (min == 0 || min > ai.fade_next)) min = ai.fade_next;
+        if (ai.alpha_keys > 0 && (min == 0 || min > ai.alpha_next)) min = ai.alpha_next;
         if (ai.motion_keys == 0) continue;
         if (min == 0 || min > ai.motion_next) min = ai.motion_next;
     }
@@ -1712,6 +1795,24 @@ void ONScripter::saveSaveFileCons( bool output_flag )
     // puts the time of the save there, at playtime_offset.
     if (output_flag) playtime_offset = file_io_buf_ptr;
     writeInt( playtimeSeconds(), output_flag );
+
+    // Version 12: the keyed alphas (spalpha): the count, then per sprite
+    // its number, alpha now, loop, key count and keys (ms, alpha). Running
+    // keys restart on load.
+    num = 0;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (sprite_info[i].alpha_keys > 0 || sprite_info[i].key_alpha != 256) num++;
+    writeInt( num, output_flag );
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        AnimationInfo *ai = &sprite_info[i];
+        if (ai->alpha_keys == 0 && ai->key_alpha == 256) continue;
+        writeInt( i, output_flag );
+        writeInt( ai->key_alpha, output_flag );
+        writeInt( ai->alpha_loop ? 1 : 0, output_flag );
+        writeInt( ai->alpha_keys, output_flag );
+        for (int k=0 ; k<ai->alpha_keys ; k++)
+            for (int j=0 ; j<2 ; j++) writeInt( ai->alpha_key[k][j], output_flag );
+    }
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -2166,6 +2267,28 @@ void ONScripter::loadSaveFileCons()
 
     if (version < 11) return;
     setPlaytime( readInt() );
+
+    if (version < 12) return;
+    num = readInt();
+    for (int n=0 ; n<num ; n++){
+        int no = readInt();
+        int alpha = readInt();
+        bool loop = readInt() != 0;
+        int keys = readInt();
+        AnimationInfo dummy;
+        AnimationInfo *ai = (no >= 0 && no < MAX_SPRITE_NUM) ? &sprite_info[no] : &dummy;
+        ai->key_alpha = alpha;
+        ai->alpha_keys = 0;
+        ai->alpha_loop = loop;
+        for (int k=0 ; k<keys ; k++){
+            int t = readInt(), a = readInt();
+            if (k >= AnimationInfo::MAX_MOTION_KEYS) continue;
+            ai->alpha_key[k][0] = t; ai->alpha_key[k][1] = a;
+            ai->alpha_keys++;
+        }
+        ai->alpha_start = ai->alpha_next = SDL_GetTicks();
+        stepSpriteAlpha( *ai, ai->alpha_start );
+    }
 }
 
 /* --save-dir path: makes the folder, and the folders it is in, if they

@@ -218,6 +218,7 @@ public:
     int spzCommand();
     int spmotionCommand();
     int spfadeCommand();
+    int spalphaCommand();
     int screenflashCommand();
     int screenfilterCommand();
     int screenshakeCommand();
@@ -579,6 +580,7 @@ private:
     SDL_Rect drawnRect(const AnimationInfo &ai);
     bool spriteZoomOrMotion();
     void stepSpriteMotion(AnimationInfo &ai, int current_time);
+    void stepSpriteAlpha(AnimationInfo &ai, int current_time);
     void proceedSpriteMotions(int current_time);
     int nextSpriteMotionTime();
     // CONscripter: lsp sprites from hi down to lo in drawing order, with
