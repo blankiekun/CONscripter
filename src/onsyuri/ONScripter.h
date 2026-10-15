@@ -224,6 +224,11 @@ public:
     int windowtransCommand();
     int getkeyCommand();
     int getplaytimeCommand();
+    int logrowsCommand();
+    int getlogrowCommand();
+    // CONscripter: the text history as rows (logrows, getlogrow)
+    struct LogRow { std::string text, voice; };
+    std::vector<LogRow> log_rows;
     int setplaytimeCommand();
     int spbtnCommand();
     int skipoffCommand();

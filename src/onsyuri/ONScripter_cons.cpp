@@ -3514,7 +3514,10 @@ void ONScripter::soundCommand( int channel, const char *name, bool play )
     if (play && name){
         std::string file;
         traceString( file, name, -1, false ); // UTF-8
-        if (channel == 0 && current_page) setStr( &current_page->voice, file.c_str() ); // for onsyuriBacklog
+        if (channel == 0 && current_page){
+            setStr( &current_page->voice, file.c_str() ); // for onsyuriBacklog
+            setStr( &current_page->voice_file, name );    // for getlogrow
+        }
 #if defined(WEB)
         EM_ASM({ if (self.onsyuriVoice) self.onsyuriVoice($0, UTF8ToString($1)); }, channel, file.c_str());
 #endif
@@ -5162,3 +5165,95 @@ int ONScripter::playMovieFFmpeg(const char *path, bool click_flag, bool loop_fla
     return ret;
 }
 #endif // CONS_FFMPEG_MOVIES
+
+/* logrows %n,columns
+ *   Lays the text history out as rows, oldest first, and puts how many
+ *   there are in %n: each page's lines, cut at columns full-width
+ *   characters (a half-width one takes half), with ruby shown as its
+ *   base text. A page with no text has no rows.
+ * getlogrow $text,$voice,row
+ *   The text of row row (0 = the oldest) as logrows laid it out, "" past
+ *   the last; $voice is the voice the row's page played on channel 0
+ *   (as dwave named it) on the page's first row, "" on the others.
+ *       logrows %1,26:getlogrow $1,$2,%1-1   (the newest row)
+ *   For a backlog scrolled a line at a time, a row per strsp. */
+int ONScripter::logrowsCommand()
+{
+    script_h.readInt();
+    script_h.pushVariable();
+    int columns = script_h.readInt();
+    if (columns < 1) columns = 1;
+
+    log_rows.clear();
+    bool utf8 = coding2utf16->force_utf8;
+    Page *page = start_page;
+    while (1){
+        const char *p = page->text, *end = page->text + page->text_count;
+        std::string row;
+        int units = 0;
+        bool first = true, any = false;
+        auto put = [&](){
+            LogRow r;
+            r.text = row;
+            if (first && page->voice_file) r.voice = page->voice_file;
+            log_rows.push_back( r );
+            first = false;
+            row.clear();
+            units = 0;
+        };
+        while (p && p < end){
+            if (*p == 0x0a){
+                put();
+                any = false;
+                p++;
+                continue;
+            }
+            // ruby, "(base/ruby)": the base
+            if (*p == '('){
+                const char *slash = (const char*)memchr( p, '/', end - p );
+                const char *close = slash ? (const char*)memchr( slash, ')', end - slash ) : NULL;
+                if (close){
+                    p++;
+                    const char *base_end = slash;
+                    while (p < base_end){
+                        int n = utf8 ? UTF8_N_BYTE(*p) : (IS_TWO_BYTE(*p) ? 2 : 1);
+                        int w = (n > 1) ? 2 : 1;
+                        if (units + w > columns * 2) put();
+                        row.append( p, n );
+                        units += w;
+                        p += n;
+                    }
+                    p = close + 1;
+                    any = true;
+                    continue;
+                }
+            }
+            int n = utf8 ? UTF8_N_BYTE(*p) : (IS_TWO_BYTE(*p) ? 2 : 1);
+            if (n < 1 || p + n > end) n = 1;
+            int w = (n > 1) ? 2 : 1;
+            if (units + w > columns * 2) put();
+            row.append( p, n );
+            units += w;
+            p += n;
+            any = true;
+        }
+        if (any) put();
+        if (page == current_page) break;
+        page = page->next;
+    }
+    script_h.setInt( &script_h.pushed_variable, (int)log_rows.size() );
+    return RET_CONTINUE;
+}
+
+int ONScripter::getlogrowCommand()
+{
+    script_h.readVariable();
+    int text_var = script_h.current_variable.var_no;
+    script_h.readVariable();
+    int voice_var = script_h.current_variable.var_no;
+    int row = script_h.readInt();
+    bool in = row >= 0 && row < (int)log_rows.size();
+    setStr( &script_h.getVariableData( text_var ).str, in ? log_rows[row].text.c_str() : NULL );
+    setStr( &script_h.getVariableData( voice_var ).str, in && !log_rows[row].voice.empty() ? log_rows[row].voice.c_str() : NULL );
+    return RET_CONTINUE;
+}

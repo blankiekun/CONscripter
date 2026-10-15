@@ -180,6 +180,16 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   showing each save's play time (`getplaytime %1` before `savegame2`,
   into the label); a new game after the title starts at
   `setplaytime 0`.
+- **`logrows %n,columns`** / **`getlogrow $text,$voice,row`**: the text
+  history as rows, for a backlog scrolled a line at a time. `logrows`
+  lays out every page kept, oldest first: each of its lines, cut every
+  `columns` full-width characters (half-width ones count half), ruby
+  shown as its base text, and puts the number of rows in `%n`.
+  `getlogrow` gives row `row` (0 = the oldest; "" past the last) and in
+  `$voice` the voice its page played on channel 0, as the `dwave` named
+  it, on the page's first row ("" on the others). `logrows %1,26`, then
+  a `strsp` for each row shown; clicking the voice icon plays
+  `dwave 0,$voice`.
 - **`spbtn num,no,pressed_cell`**: a third argument to `spbtn` names the
   cell sprite `num` shows while the left mouse button is held on it (the
   hover cell is 1, as before). It goes back to the hover cell when the

@@ -365,17 +365,20 @@ protected:
 
         char *tag;
         char *voice; // CONscripter: the last sound dwave played on channel 0 for this page
+        char *voice_file; // CONscripter: the same as the script named it (getlogrow)
 
         Page(){
             text = NULL;
             text_count = 0;
             tag = NULL;
             voice = NULL;
+            voice_file = NULL;
         }
         ~Page(){
             if (text) delete[] text;
             if (tag)  delete[] tag;
             if (voice) delete[] voice;
+            if (voice_file) delete[] voice_file;
         }
         char add(char ch){
             if (text_count >= max_text){
