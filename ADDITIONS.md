@@ -290,6 +290,11 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
   builds it) and decodes WebP itself, lossy and lossless, with alpha. The
   other builds read WebP through SDL_image when it was built with
   libwebp (vcpkg's Windows build and most Linux packages are).
+- **`ons_args` in a lazily loaded web game**: the web build read it with
+  a plain `fopen`, which finds nothing until the page has fetched the
+  file, so a game packed with `--lazyload` lost its options: without
+  `--enc:sjis` its Shift-JIS script was read as GBK (the text garbled).
+  It is now fetched like the game's other files.
 - **Text hooks (web build)**: the engine calls these functions on the
   page's global scope (`self`) when they are defined, so the page can lay
   selectable text over the game:

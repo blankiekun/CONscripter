@@ -727,15 +727,22 @@ int main(int argc, char *argv[])
         ONS_VERSION, NSC_VERSION / 100, NSC_VERSION % 100);
 
     const char *argfilename = "ons_args";
+#if defined(WEB)
+    // CONscripter: through the lazy loader, as the game's files (a plain
+    // fopen finds nothing until the page has fetched the file)
+    FILE *(*open_args)(const char *, const char *) = fopen_ons;
+#else
+    FILE *(*open_args)(const char *, const char *) = fopen;
+#endif
     FILE *fp = NULL;
     if (ons.getArchivePath()) {
         size_t len = strlen(ons.getArchivePath()) + strlen(argfilename) + 1;
         char *full_path = new char[len];
         sprintf(full_path, "%s%s", ons.getArchivePath(), argfilename);
-        fp = fopen(full_path, "r");
+        fp = open_args(full_path, "r");
         delete[] full_path;
     }
-    else fp = fopen(argfilename, "r");
+    else fp = open_args(argfilename, "r");
     if (fp) {
         char **args = new char*[16];
         int argn = 0;
