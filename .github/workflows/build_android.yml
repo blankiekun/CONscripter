@@ -27,11 +27,11 @@ jobs:
       run: |
         # openssl base64 < sign.jks | tr -d '\n' | tee sign.txt
         if [ -n "$SIGN_JKS_BASE64" ]; then
-          echo "$SIGN_JKS_BASE64" | base64 --decode > src/onsyuri_android/app/sign.jks
-          ls -la src/onsyuri_android/app
+          echo "$SIGN_JKS_BASE64" | base64 --decode > src/cons_android/app/sign.jks
+          ls -la src/cons_android/app
         fi
         if [ -z "$(echo ${{  github.ref_name }} | grep merge)" ]; then 
-          sed -i -E 's/#define CONSCRIPTER_VERSION "(.+?)"/#define CONSCRIPTER_VERSION "${{  github.ref_name }}"/g' src/onsyuri/version.h
+          sed -i -E 's/#define CONSCRIPTER_VERSION "(.+?)"/#define CONSCRIPTER_VERSION "${{  github.ref_name }}"/g' src/cons/version.h
         fi
         cd script 
         bash ./cross_android.sh

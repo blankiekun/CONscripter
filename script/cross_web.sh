@@ -43,7 +43,7 @@ if ! [ -f "$PORTBUILD_PATH/.$LUA_NAME" ]; then build_lua && touch "$PORTBUILD_PA
 fetch_webp
 if ! [ -f "$PORTBUILD_PATH/.$WEBP_NAME" ]; then build_webp && touch "$PORTBUILD_PATH/.$WEBP_NAME"; fi
 embuilder build sdl2 sdl2_ttf sdl2_image sdl2_mixer bzip2 ogg vorbis mpg123
-emcc $CMAKELISTS_PATH/src/onsyuri_web/dummy.c \
+emcc $CMAKELISTS_PATH/src/cons_web/dummy.c \
     -o $BUILD_PATH/dummy.js \
     -sUSE_SDL=2 -sUSE_SDL_IMAGE=2 -sUSE_SDL_MIXER=2 \
     -sSDL2_IMAGE_FORMATS=bmp,png,jpg \

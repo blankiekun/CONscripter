@@ -10,41 +10,41 @@ check_symbol_exists(__ARM_NEON "stdint.h" HAVE_NEON)
 
 set(SOURCES
   libretro.cpp
-  ../onsyuri/AnimationInfo.cpp
-  ../onsyuri/coding2utf16.cpp
-  ../onsyuri/DirectReader.cpp
-  ../onsyuri/DirtyRect.cpp
-  ../onsyuri/FontInfo.cpp
-  ../onsyuri/gbk2utf16.cpp
-  ../onsyuri/LUAHandler.cpp
-  ../onsyuri/NsaReader.cpp
-  ../onsyuri/ONScripter.cpp
-  ../onsyuri/ONScripter_animation.cpp
-  ../onsyuri/ONScripter_command.cpp
-  ../onsyuri/ONScripter_cons.cpp
-  ../onsyuri/ONScripter_trace.cpp
-  ../onsyuri/ONScripter_effect.cpp
-  ../onsyuri/ONScripter_effect_breakup.cpp
-  ../onsyuri/ONScripter_event.cpp
-  ../onsyuri/ONScripter_file.cpp
-  ../onsyuri/ONScripter_file2.cpp
-  ../onsyuri/ONScripter_image.cpp
-  ../onsyuri/ONScripter_lut.cpp
-  ../onsyuri/ONScripter_rmenu.cpp
-  ../onsyuri/ONScripter_sound.cpp
-  ../onsyuri/ONScripter_text.cpp
-  ../onsyuri/Parallel.cpp
-  ../onsyuri/resize_image.cpp
-  ../onsyuri/SarReader.cpp
-  ../onsyuri/ScriptHandler.cpp
-  ../onsyuri/ScriptParser.cpp
-  ../onsyuri/ScriptParser_command.cpp
-  ../onsyuri/sjis2utf16.cpp
-  ../onsyuri/renderer/gles_renderer.cpp
-  ../onsyuri/builtin_dll/layer_oldmovie.cpp
-  ../onsyuri/builtin_dll/layer_snow.cpp
-  ../onsyuri/builtin_dll/ONScripter_effect_cascade.cpp
-  ../onsyuri/builtin_dll/ONScripter_effect_trig.cpp
+  ../cons/AnimationInfo.cpp
+  ../cons/coding2utf16.cpp
+  ../cons/DirectReader.cpp
+  ../cons/DirtyRect.cpp
+  ../cons/FontInfo.cpp
+  ../cons/gbk2utf16.cpp
+  ../cons/LUAHandler.cpp
+  ../cons/NsaReader.cpp
+  ../cons/ONScripter.cpp
+  ../cons/ONScripter_animation.cpp
+  ../cons/ONScripter_command.cpp
+  ../cons/ONScripter_cons.cpp
+  ../cons/ONScripter_trace.cpp
+  ../cons/ONScripter_effect.cpp
+  ../cons/ONScripter_effect_breakup.cpp
+  ../cons/ONScripter_event.cpp
+  ../cons/ONScripter_file.cpp
+  ../cons/ONScripter_file2.cpp
+  ../cons/ONScripter_image.cpp
+  ../cons/ONScripter_lut.cpp
+  ../cons/ONScripter_rmenu.cpp
+  ../cons/ONScripter_sound.cpp
+  ../cons/ONScripter_text.cpp
+  ../cons/Parallel.cpp
+  ../cons/resize_image.cpp
+  ../cons/SarReader.cpp
+  ../cons/ScriptHandler.cpp
+  ../cons/ScriptParser.cpp
+  ../cons/ScriptParser_command.cpp
+  ../cons/sjis2utf16.cpp
+  ../cons/renderer/gles_renderer.cpp
+  ../cons/builtin_dll/layer_oldmovie.cpp
+  ../cons/builtin_dll/layer_snow.cpp
+  ../cons/builtin_dll/ONScripter_effect_cascade.cpp
+  ../cons/builtin_dll/ONScripter_effect_trig.cpp
 )
 
 # configure SDL2 for libretro
@@ -346,7 +346,7 @@ target_link_libraries(conscripter_libretro
 )
 
 target_include_directories(conscripter_libretro PRIVATE
-  ../onsyuri
+  ../cons
   deps
 )
 target_compile_definitions(conscripter_libretro PRIVATE

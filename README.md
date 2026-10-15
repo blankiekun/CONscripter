@@ -204,7 +204,7 @@ or pick any folder through SAF. The package id is still ONScripter-Yuri's
 
 ### (6) RetroArch
 
-Build `src/onsyuri_libretro` (see its `CMakeLists.txt`) and load
+Build `src/cons_libretro` (see its `CMakeLists.txt`) and load
 `conscripter_libretro` with a game's `0.txt`, `00.txt`, `nscript.dat` or folder.
 Script encoding and mouse emulation are core options.
 
@@ -389,7 +389,7 @@ sh ./cross_android.sh
 cd -
 
 # use ANDROID_HOME or local.properties for sdk
-cd src/onsyuri_android/
+cd src/cons_android/
 chmod +x ./gradlew && ./gradlew assembleDebug
 ```
 

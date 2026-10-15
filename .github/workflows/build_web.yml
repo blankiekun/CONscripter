@@ -47,7 +47,7 @@ jobs:
     - name: build conscripter_web
       run: |
         if [ "${{ github.ref_type }}" = tag ]; then
-          sed -i -E 's/#define CONSCRIPTER_VERSION "(.+?)"/#define CONSCRIPTER_VERSION "${{  github.ref_name }}"/g' src/onsyuri/version.h
+          sed -i -E 's/#define CONSCRIPTER_VERSION "(.+?)"/#define CONSCRIPTER_VERSION "${{  github.ref_name }}"/g' src/cons/version.h
         fi
         cd script
         bash ./cross_web.sh

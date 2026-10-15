@@ -467,9 +467,9 @@ function(config_platform TARGET_NAME)
         config_web(${TARGET_NAME})
         add_custom_command(TARGET ${TARGET_NAME} PRE_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy 
-                ${CMAKE_SOURCE_DIR}/src/onsyuri_web/*.html ${CMAKE_BINARY_DIR}
+                ${CMAKE_SOURCE_DIR}/src/cons_web/*.html ${CMAKE_BINARY_DIR}
             COMMAND ${CMAKE_COMMAND} -E copy 
-                ${CMAKE_SOURCE_DIR}/src/onsyuri_web/*.py ${CMAKE_BINARY_DIR}
+                ${CMAKE_SOURCE_DIR}/src/cons_web/*.py ${CMAKE_BINARY_DIR}
             COMMAND ${CMAKE_COMMAND} -E copy 
                 ${CMAKE_SOURCE_DIR}/asset/icon1.ico ${CMAKE_BINARY_DIR}/favicon.ico
         )
@@ -484,42 +484,42 @@ endfunction()
 
 set(CMAKE_CXX_STANDARD 11)
 set(CONSCRIPTER_CODE
-    src/onsyuri/AnimationInfo.cpp
-    src/onsyuri/coding2utf16.cpp
-    src/onsyuri/DirectReader.cpp
-    src/onsyuri/DirtyRect.cpp
-    src/onsyuri/FontInfo.cpp
-    src/onsyuri/gbk2utf16.cpp
-    src/onsyuri/LUAHandler.cpp
-    src/onsyuri/NsaReader.cpp
-    src/onsyuri/ONScripter.cpp
-    src/onsyuri/ONScripter_animation.cpp
-    src/onsyuri/ONScripter_command.cpp
-    src/onsyuri/ONScripter_cons.cpp
-    src/onsyuri/ONScripter_trace.cpp
-    src/onsyuri/ONScripter_effect.cpp
-    src/onsyuri/ONScripter_effect_breakup.cpp
-    src/onsyuri/ONScripter_event.cpp
-    src/onsyuri/ONScripter_file.cpp
-    src/onsyuri/ONScripter_file2.cpp
-    src/onsyuri/ONScripter_image.cpp
-    src/onsyuri/ONScripter_lut.cpp
-    src/onsyuri/onscripter_main.cpp
-    src/onsyuri/ONScripter_rmenu.cpp
-    src/onsyuri/ONScripter_sound.cpp
-    src/onsyuri/ONScripter_text.cpp
-    src/onsyuri/Parallel.cpp
-    src/onsyuri/resize_image.cpp
-    src/onsyuri/SarReader.cpp
-    src/onsyuri/ScriptHandler.cpp
-    src/onsyuri/ScriptParser.cpp
-    src/onsyuri/ScriptParser_command.cpp
-    src/onsyuri/sjis2utf16.cpp
-    src/onsyuri/renderer/gles_renderer.cpp
-    src/onsyuri/builtin_dll/layer_oldmovie.cpp
-    src/onsyuri/builtin_dll/layer_snow.cpp
-    src/onsyuri/builtin_dll/ONScripter_effect_cascade.cpp
-    src/onsyuri/builtin_dll/ONScripter_effect_trig.cpp
+    src/cons/AnimationInfo.cpp
+    src/cons/coding2utf16.cpp
+    src/cons/DirectReader.cpp
+    src/cons/DirtyRect.cpp
+    src/cons/FontInfo.cpp
+    src/cons/gbk2utf16.cpp
+    src/cons/LUAHandler.cpp
+    src/cons/NsaReader.cpp
+    src/cons/ONScripter.cpp
+    src/cons/ONScripter_animation.cpp
+    src/cons/ONScripter_command.cpp
+    src/cons/ONScripter_cons.cpp
+    src/cons/ONScripter_trace.cpp
+    src/cons/ONScripter_effect.cpp
+    src/cons/ONScripter_effect_breakup.cpp
+    src/cons/ONScripter_event.cpp
+    src/cons/ONScripter_file.cpp
+    src/cons/ONScripter_file2.cpp
+    src/cons/ONScripter_image.cpp
+    src/cons/ONScripter_lut.cpp
+    src/cons/onscripter_main.cpp
+    src/cons/ONScripter_rmenu.cpp
+    src/cons/ONScripter_sound.cpp
+    src/cons/ONScripter_text.cpp
+    src/cons/Parallel.cpp
+    src/cons/resize_image.cpp
+    src/cons/SarReader.cpp
+    src/cons/ScriptHandler.cpp
+    src/cons/ScriptParser.cpp
+    src/cons/ScriptParser_command.cpp
+    src/cons/sjis2utf16.cpp
+    src/cons/renderer/gles_renderer.cpp
+    src/cons/builtin_dll/layer_oldmovie.cpp
+    src/cons/builtin_dll/layer_snow.cpp
+    src/cons/builtin_dll/ONScripter_effect_cascade.cpp
+    src/cons/builtin_dll/ONScripter_effect_trig.cpp
 )
 set(CONSCRIPTER_DEFINES
     USE_LUA

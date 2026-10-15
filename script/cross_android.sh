@@ -32,7 +32,7 @@ fi
 if [ -z "$BUILD_TYPE" ]; then BUILD_TYPE=MinSizeRel; fi
 if [ -z "$TARGETS" ]; then TARGETS=assembleRelease; fi
 
-pushd ${CMAKELISTS_PATH}/src/onsyuri_android
+pushd ${CMAKELISTS_PATH}/src/cons_android
 echo "ANDROID_HOME=$ANDROID_HOME" 
 chmod +x ./gradlew && ./gradlew $TARGETS --no-daemon
 popd

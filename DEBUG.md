@@ -385,7 +385,7 @@ file too.
 
 The web build writes the same records, and passes each one to the page
 as `self.onsyuriTrace(line)` when the page defines it. The engine's own
-page (`src/onsyuri_web/conscripter.html`) does this when its URL has
+page (`src/cons_web/conscripter.html`) does this when its URL has
 `?trace`. It keeps the records, and its menu (F9) gets a **trace** button
 (**F7**) that downloads them as `trace.jsonl`. The other options can go
 in the URL too:

@@ -9,8 +9,8 @@ on, and so do fixes to behaviour that is wrong (text drawn in the
 wrong place, characters dropped, a click in the sound: half-width
 characters, cut sounds, spaces, vertical marks, music volume). New
 commands and tags take effect where a script uses them. The code
-is in `src/onsyuri/ONScripter_cons.cpp` where possible; the debug trace,
-auto-play and the run options of `DEBUG.md` in `src/onsyuri/ONScripter_trace.cpp`.
+is in `src/cons/ONScripter_cons.cpp` where possible; the debug trace,
+auto-play and the run options of `DEBUG.md` in `src/cons/ONScripter_trace.cpp`.
 
 - **`spfilter num,kind[,blend[,strength[,p1,p2,p3]]]`**: colour filters
   on an `lsp` sprite, applied when its image is loaded (no cost per

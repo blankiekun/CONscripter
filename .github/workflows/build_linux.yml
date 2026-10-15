@@ -36,7 +36,7 @@ jobs:
     - name: build conscripter_${{ matrix.arch.suffix }}_linux
       run: |
         if [ "${{ github.ref_type }}" = tag ]; then 
-          sed -i -E 's/#define CONSCRIPTER_VERSION "(.+?)"/#define CONSCRIPTER_VERSION "${{  github.ref_name }}"/g' src/onsyuri/version.h
+          sed -i -E 's/#define CONSCRIPTER_VERSION "(.+?)"/#define CONSCRIPTER_VERSION "${{  github.ref_name }}"/g' src/cons/version.h
         fi
         cd script
         SKIP_PORTS=yes bash cross_linux${{ matrix.arch.suffix2 }}.sh

@@ -13,10 +13,10 @@ save
 local.properties
 sign.properties
 sign.jks
-src/onsyuri_android/.gradle
-src/onsyuri_android/.idea/*
-src/onsyuri_android/local.properties
-src/onsyuri_android/app/cpp/thirdparty/**
-src/onsyuri_android/app/.cxx/**
-src/onsyuri_android/app/debug/**
-src/onsyuri_android/app/release/**
+src/cons_android/.gradle
+src/cons_android/.idea/*
+src/cons_android/local.properties
+src/cons_android/app/cpp/thirdparty/**
+src/cons_android/app/.cxx/**
+src/cons_android/app/debug/**
+src/cons_android/app/release/**
