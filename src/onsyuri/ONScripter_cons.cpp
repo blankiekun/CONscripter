@@ -2657,6 +2657,132 @@ void ONScripter::effectMelt( const char *params, int duration )
 #endif
 }
 
+// A row (y) of src into out, shifted right by dx pixels (edges repeated),
+// or with columns (vertical) shifted down by dx: one pixel of out.
+static inline const Uint8 *shiftedPixel( SDL_Surface *src, int x, int y, int dx, bool vertical )
+{
+    int w = src->w, h = src->h;
+    if (vertical){
+        int sy = y - dx;
+        sy = sy < 0 ? 0 : sy >= h ? h - 1 : sy;
+        return (const Uint8*)src->pixels + sy * src->pitch + x * 4;
+    }
+    int sx = x - dx;
+    sx = sx < 0 ? 0 : sx >= w ? w - 1 : sx;
+    return (const Uint8*)src->pixels + y * src->pitch + sx * 4;
+}
+
+/* effect num,99,duration,"cons_wave.dll/direction,amplitude,waves"
+ *   A cross-fade with the pictures' rows waving sideways (direction 0 or
+ *   2; 1 or 3: the columns up and down; 2 and 3 the other way): each row
+ *   is shifted by amplitude/1000 of the screen's width times
+ *   sin(pi p) (none at the ends, the most halfway) times
+ *   sin(2 pi (waves/10 * y / height + p)), p the progress 0 to 1. For the
+ *   MAGES engine's InOut_Act 1. */
+void ONScripter::effectWave( const char *params, int duration )
+{
+#if defined(BPP16)
+    alphaBlend( NULL, ALPHA_BLEND_CONST, 256 * effect_counter / duration, &dirty_rect.bounding_box );
+#else
+    int param[3] = {0, 80, 15};
+    readDllParams(params, param, 3);
+    bool vertical = param[0] & 1;
+    float sign = param[0] >= 2 ? -1.0f : 1.0f;
+    float p = duration > 0 ? (float)effect_counter / duration : 1.0f;
+    if (p > 1.0f) p = 1.0f;
+    int alpha = (int)(256 * p);
+    int w = accumulation_surface->w, h = accumulation_surface->h;
+    float amp = sign * param[1] / 1000.0f * (vertical ? h : w) * sinf(3.14159265f * p);
+    int len = vertical ? w : h;
+    SDL_LockSurface(effect_src_surface);
+    SDL_LockSurface(effect_dst_surface);
+    SDL_LockSurface(accumulation_surface);
+    for (int y=0 ; y<h ; y++){
+        Uint8 *out = (Uint8*)accumulation_surface->pixels + y * accumulation_surface->pitch;
+        int row_dx = vertical ? 0 : (int)lroundf(amp * sinf(6.2831853f * (param[2] / 10.0f * y / len + p)));
+        for (int x=0 ; x<w ; x++, out+=4){
+            int dx = vertical ? (int)lroundf(amp * sinf(6.2831853f * (param[2] / 10.0f * x / len + p))) : row_dx;
+            const Uint8 *a = shiftedPixel(effect_src_surface, x, y, dx, vertical);
+            const Uint8 *b = shiftedPixel(effect_dst_surface, x, y, dx, vertical);
+            for (int c=0 ; c<4 ; c++) out[c] = (Uint8)((a[c] * (256 - alpha) + b[c] * alpha) >> 8);
+        }
+    }
+    SDL_UnlockSurface(accumulation_surface);
+    SDL_UnlockSurface(effect_dst_surface);
+    SDL_UnlockSurface(effect_src_surface);
+#endif
+}
+
+// src blurred sideways by a box of 2 radius + 1 pixels (edges repeated)
+// into the rows of dst.
+static void blurRows( SDL_Surface *src, SDL_Surface *dst, int radius )
+{
+    int w = src->w, h = src->h;
+    if (radius <= 0){
+        SDL_BlitSurface(src, NULL, dst, NULL);
+        return;
+    }
+    int n = 2 * radius + 1;
+    SDL_LockSurface(src);
+    SDL_LockSurface(dst);
+    for (int y=0 ; y<h ; y++){
+        const Uint8 *row = (const Uint8*)src->pixels + y * src->pitch;
+        Uint8 *out = (Uint8*)dst->pixels + y * dst->pitch;
+        int sum[4] = {0, 0, 0, 0};
+        for (int k=-radius ; k<=radius ; k++){
+            int sx = k < 0 ? 0 : k >= w ? w - 1 : k;
+            for (int c=0 ; c<4 ; c++) sum[c] += row[sx * 4 + c];
+        }
+        for (int x=0 ; x<w ; x++){
+            for (int c=0 ; c<4 ; c++) out[x * 4 + c] = (Uint8)(sum[c] / n);
+            int add = x + radius + 1, sub = x - radius;
+            add = add >= w ? w - 1 : add;
+            sub = sub < 0 ? 0 : sub;
+            for (int c=0 ; c<4 ; c++) sum[c] += row[add * 4 + c] - row[sub * 4 + c];
+        }
+    }
+    SDL_UnlockSurface(dst);
+    SDL_UnlockSurface(src);
+}
+
+/* effect num,99,duration,"cons_blur.dll/radius,new_only"
+ *   A cross-fade with the pictures blurred sideways, by a box of up to
+ *   radius pixels either side halfway (none at the ends); new_only 1
+ *   blurs only the new picture. For the MAGES engine's InOut_Act 6. */
+void ONScripter::effectBlur( const char *params, int duration )
+{
+#if defined(BPP16)
+    alphaBlend( NULL, ALPHA_BLEND_CONST, 256 * effect_counter / duration, &dirty_rect.bounding_box );
+#else
+    int param[2] = {24, 0};
+    readDllParams(params, param, 2);
+    float p = duration > 0 ? (float)effect_counter / duration : 1.0f;
+    if (p > 1.0f) p = 1.0f;
+    int radius = (int)lroundf(param[0] * (1.0f - fabsf(2 * p - 1)));
+    int alpha = (int)(256 * p);
+    static SDL_Surface *tmp = NULL;
+    if (tmp && (tmp->w != accumulation_surface->w || tmp->h != accumulation_surface->h)){
+        SDL_FreeSurface(tmp);
+        tmp = NULL;
+    }
+    if (!tmp) tmp = SDL_ConvertSurface(accumulation_surface, accumulation_surface->format, 0);
+    // The old picture (blurred unless new_only) into the accumulation,
+    // the new one blurred into tmp, then tmp over it at the progress.
+    blurRows(effect_src_surface, accumulation_surface, param[1] ? 0 : radius);
+    blurRows(effect_dst_surface, tmp, radius);
+    int w = accumulation_surface->w, h = accumulation_surface->h;
+    SDL_LockSurface(tmp);
+    SDL_LockSurface(accumulation_surface);
+    for (int y=0 ; y<h ; y++){
+        Uint8 *out = (Uint8*)accumulation_surface->pixels + y * accumulation_surface->pitch;
+        const Uint8 *b = (const Uint8*)tmp->pixels + y * tmp->pitch;
+        for (int x=0 ; x<w * 4 ; x++) out[x] = (Uint8)((out[x] * (256 - alpha) + b[x] * alpha) >> 8);
+    }
+    SDL_UnlockSurface(accumulation_surface);
+    SDL_UnlockSurface(tmp);
+#endif
+}
+
 /* WebP images, for builds whose SDL_image has no WebP decoder (the
  * emscripten port). Returns NULL for anything that isn't WebP, or when
  * built without USE_WEBP, so the caller falls back to IMG_Load_RW. */

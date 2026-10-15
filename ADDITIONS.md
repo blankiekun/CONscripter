@@ -283,6 +283,15 @@ is in `src/onsyuri/ONScripter_cons.cpp` where possible.
     the end. A falling column is stretched by 1 + `stretch`/100 × the
     fraction of the height it has fallen. `seed` (non-zero) fixes the
     curve; by default it is new each time.
+  - `effect num,99,ms,"cons_wave.dll/direction,amplitude,waves"`: a
+    cross-fade with the pictures' rows waving sideways (`direction` 0 or
+    2; 1 or 3 the columns up and down; 2 and 3 the other way): each row
+    shifted by `amplitude`/1000 of the width × sin(π p) × sin(2π(`waves`/10
+    × y / height + p)), p the progress. For the MAGES engine's InOut_Act 1.
+  - `effect num,99,ms,"cons_blur.dll/radius[,new_only]"`: a cross-fade
+    with the pictures blurred sideways by a box of up to `radius` pixels
+    either side, the most halfway and none at the ends; `new_only` 1
+    blurs only the new picture. For the MAGES engine's InOut_Act 6.
   `effect 20,99,800,"cons_slide.dll/0,-1,0"` slides the new picture in from
   the right.
 - **Text size tag `!zNNN`**: the text that follows is drawn at `NNN`

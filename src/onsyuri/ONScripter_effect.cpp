@@ -444,6 +444,10 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
                 effectCube(effect->anim.image_name, effect_duration);
             else if (!strncmp(effect->anim.image_name, "cons_melt.dll", 13))
                 effectMelt(effect->anim.image_name, effect_duration);
+            else if (!strncmp(effect->anim.image_name, "cons_wave.dll", 13))
+                effectWave(effect->anim.image_name, effect_duration);
+            else if (!strncmp(effect->anim.image_name, "cons_blur.dll", 13))
+                effectBlur(effect->anim.image_name, effect_duration);
             else {
                 // do crossfade
                 height = 256 * effect_counter / effect_duration;

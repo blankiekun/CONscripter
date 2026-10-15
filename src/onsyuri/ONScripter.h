@@ -621,6 +621,8 @@ private:
     void effectFlip( const char *params, int duration );
     void effectCube( const char *params, int duration );
     void effectMelt( const char *params, int duration );
+    void effectWave( const char *params, int duration );
+    void effectBlur( const char *params, int duration );
 
 #ifdef USE_BUILTIN_EFFECTS
     //cascade
