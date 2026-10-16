@@ -1778,11 +1778,7 @@ int ONScripter::lspCommand()
     int no = script_h.readInt();
     AnimationInfo *ai = &sprite_info[no];
     endKeptMotion( *ai ); // CONscripter: spmotion's loop 2
-    if (ai->fade_out){ // CONscripter: a new picture ends spfade's fade out
-        ai->fade_out = false;
-        ai->fade_ms = 0;
-        ai->fade_alpha = 256;
-    }
+    if (ai->motion_keys > 0 && ai->motion_leave) ai->stopMotion(); // CONscripter: a new picture stays (spmotion loop 3)
 
     if (ai->image_surface && ai->visible)
         dirty_rect.add( ai->pos );

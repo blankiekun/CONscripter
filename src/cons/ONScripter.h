@@ -230,7 +230,6 @@ public:
     int bitandCommand();
     int spgrabCommand();
     int spmotionCommand();
-    int spfadeCommand();
     int spcurveCommand();
     int spmotionwaitCommand();
     int screenflashCommand();

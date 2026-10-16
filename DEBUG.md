@@ -59,7 +59,7 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy conscripter --root . --save-dir /tmp
   fades. Vsync is turned off, since otherwise each character drawn would
   wait for the screen.
 - Movies are skipped, but a missing movie is still reported.
-- With `--real-time`, effects, timed waits, `spfade` and BGM fades take
+- With `--real-time`, effects, timed waits, `spmotion` and BGM fades take
   their real time instead, so sprite movement and fades play out as a
   player sees them (for `--shot-after` mid-effect, or watching; `--shot-effects`
   films effects without it
@@ -565,11 +565,10 @@ Each sprite in `sp`:
 | `zoom` | `[x,y]`, its `spzoom` in percent (omitted at 100) |
 | `rot` | its `sprot` angle in degrees, counterclockwise (omitted at 0) |
 | `anim` | `true` for a sprite that steps its own cells (its picture changes with time) |
-| `motion` | `"loop"`, `"once"` or `"keep"` (loop mode 2) while an `spmotion` moves it (the box is its place, without the motion) |
+| `motion` | `"loop"`, `"once"`, `"keep"` (loop mode 2) or `"leave"` (3: removed at its end) while an `spmotion` moves it (the box is its place, without the motion) |
 | `over` | The sprite `spz` draws it right over |
 | `trail` | `[passes,alpha,lag]`, its `sptrail` (lag in ms at game speed) |
-| `fade` | `true` while `spfade` fades it in |
-| `shown` | The alpha it is drawn at, when `spfade` or `spmotion`'s keys make it differ from `alpha` |
+| `shown` | The alpha it is drawn at, when `spmotion`'s keys make it differ from `alpha` |
 | `since` | The page where it last appeared, or changed its image, position, size, opacity, cell, `spz`, or an `spmotion` starting or ending (an animation stepping its own cells, or a fade or motion moving, doesn't count) |
 
 `since` makes lingering sprites easy to spot: a character still up with
@@ -617,7 +616,7 @@ Which commands are written:
   of a sprite that isn't there doesn't appear;
 - **sound and movies** (`bgm`, `mp3`, `play`, `stop`, `dwave`, `wave`,
   `loopbgm`, their stops and fades, `bgmfadein`, `mp3fadein`, `chvolfade`,
-  `dwavefadein`, `chvol`, `mpegplay`, `movie`, `avi`), `spfade`, the
+  `dwavefadein`, `chvol`, `mpegplay`, `movie`, `avi`), the
   player settings a game's settings screen sets (`consset`, `btnse`) and
   **effect definitions** (`effect`): always;
 - **what is laid over the picture** (`screenfilter`, `screenshake`,

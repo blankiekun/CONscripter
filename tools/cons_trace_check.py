@@ -501,8 +501,8 @@ class Checker:
         elif self.after_movie:
             if cmd == 'print' or r.get('effect') or r.get('t') == 'page':
                 self.movie_end(r)
-            # (spmotion and spfade start from what is drawn)
-            elif (r.get('sp') is not None and cmd not in ('spmotion', 'spfade')) or cmd in ('bg', 'bgcopy', 'bgcpy', 'popscreen'):
+            # (spmotion starts from what is drawn)
+            elif (r.get('sp') is not None and cmd != 'spmotion') or cmd in ('bg', 'bgcopy', 'bgcpy', 'popscreen'):
                 self.after_movie[1].append(r)
 
     def movie_end(self, by=None):
@@ -592,8 +592,8 @@ class Checker:
             if s.get('off'):
                 self.add('offscreen', key + (s['x'], s['y']), at, '%s is off the screen at %d,%d (%dx%d)%s'
                          % (name, s['x'], s['y'], s['w'], s['h'], where))
-            # the alpha it is drawn at (spmotion); one fading in or moving in a loop passes 0 on its way
-            if s.get('shown', s.get('alpha')) == 0 and not s.get('fade') and s.get('motion') != 'loop':
+            # the alpha it is drawn at (spmotion); one fading in or out, or moving in a loop, passes 0 on its way
+            if s.get('shown', s.get('alpha')) == 0 and not s.get('motion'):
                 self.add('invisible', key, at, '%s is shown at alpha 0%s' % (name, where))
 
         # a picture covering the whole screen is a background drawn as a sprite, not a character
@@ -920,7 +920,7 @@ def page_state(p):
 
 def moving(p):
     """Something on the page that changes with time, so its picture can differ between two runs."""
-    return bool(p.get('fx')) or any(s.get(k) for s in p.get('sp', []) for k in ('anim', 'fade', 'motion'))
+    return bool(p.get('fx')) or any(s.get(k) for s in p.get('sp', []) for k in ('anim', 'motion'))
 
 
 def diff(old, new, limit):
