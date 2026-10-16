@@ -660,7 +660,7 @@ repeats; 2: once, then the last key's offset/zoom/angle/alpha are applied to
 the sprite; -n: n times, then as 2; 3: once, then the sprite is removed (as
 `csp`; `lsp` on it ends that and keeps it; saves and `pushscreen` leave it
 out). Under `--auto-play` (not `--real-time`) every motion but loop 1 ends at
-once. `spmotion num` stops. Up to 32 keys.
+once. `spmotion num` stops. Up to 64 keys.
 Stays through `lsp`, removed by `csp`, saved (restarted). Another
 `spmotion`, `lsp`, `msp`, `amsp` first finishes a loop 2/-n motion at its
 last key.
