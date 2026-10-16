@@ -2687,8 +2687,9 @@ int ONScripter::copysavegameCommand()
  * itself, or scaled set up at the tag's size. */
 FontInfo *ONScripter::textSizeFont( FontInfo *info, FontInfo &scaled )
 {
-    if (info != &sentence_font || text_size_percent == 100) return info;
+    if (info != &sentence_font || (text_size_percent == 100 && !text_italic)) return info;
     scaled = *info;
+    scaled.is_italic = text_italic;
     for (int i=0 ; i<2 ; i++)
         scaled.font_size_xy[i] = info->font_size_xy[i] * text_size_percent / 100;
     if (scaled.font_size_xy[0] < 1 || scaled.font_size_xy[1] < 1) return info;
@@ -2732,10 +2733,41 @@ bool ONScripter::breakAtSpace( const char *buf, FontInfo *info )
     if (!isProportional(glyph_info)) return false;
     int w = 0;
     for (const char *p = buf; *p && *p != 0x0a && !IS_TWO_BYTE(*p) && (p == buf || *p != ' '); p++){
-        if (*p == '@' || *p == '\\' || *p == '#' || *p == '(' || (*p == '!' && strchr("swdz", p[1]) && p[1])) break;
+        if (*p == '@' || *p == '\\' || *p == '#' || *p == '(' || (*p == '!' && strchr("swdzic", p[1]) && p[1])) break;
         w += info->pitch_xy[0]/2 + hankakuExtra(glyph_info, *p);
     }
     return info->isEndOfLine(0, w - 1);
+}
+
+/* "!c" in text: the rest of the text line (up to its end, '@' or '\\') is
+ * centred in the room left on the window's line, a horizontal one. Tags
+ * take no room; ruby markup is counted as text. */
+void ONScripter::centreLine( const char *buf )
+{
+    FontInfo *f = &sentence_font;
+    if (f->getTateyokoMode() != FontInfo::YOKO_MODE) return;
+    FontInfo scaled_font;
+    FontInfo *glyph_info = textSizeFont(f, scaled_font);
+    const char *p = buf;
+    while (*p == ' ' && f->isLineEmpty()) p++; // leading spaces aren't drawn
+    int w = 0;
+    while (*p && *p != 0x0a && *p != '@' && *p != '\\'){
+        if (*p == '!' && p[1] && strchr("swdzic", p[1])){
+            for (p += 2; *p >= '0' && *p <= '9'; p++);
+            continue;
+        }
+        if (IS_TWO_BYTE(*p)){
+            w += f->pitch_xy[0];
+            p += coding2utf16->force_utf8 ? UTF8_N_BYTE(*p) : 2;
+            continue;
+        }
+        w += f->pitch_xy[0]/2 + hankakuExtra(glyph_info, *p);
+        p++;
+    }
+    int room = f->num_xy[0]*f->pitch_xy[0] - (f->xy[0]*f->pitch_xy[0]/2 + f->hankaku_dx) - w;
+    if (room < 2) return;
+    f->addLineOffset(room/2);
+    f->hankaku_dx += room/2;
 }
 
 /* True when the character at text would be drawn past the window's last

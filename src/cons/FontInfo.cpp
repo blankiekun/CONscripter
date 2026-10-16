@@ -44,6 +44,7 @@ extern int psp_power_resume_number;
 static struct FontContainer{
     FontContainer *next;
     int size;
+    bool italic;
     TTF_Font *font[2];
 #if defined(PSP)
     SDL_RWops *rw_ops;
@@ -53,6 +54,7 @@ static struct FontContainer{
 
     FontContainer(){
         size = 0;
+        italic = false;
         next = NULL;
         font[0] = font[1] = NULL;
 #if defined(PSP)
@@ -77,6 +79,7 @@ FontInfo::FontInfo()
     nofile_color[1] = 0x55;
     nofile_color[2] = 0x99;
     rubyon_flag = false;
+    is_italic = false;
 
     reset();
 }
@@ -103,12 +106,13 @@ void *FontInfo::openFont( char *font_file, int ratio1, int ratio2 )
 
     FontContainer *fc = &root_font_container;
     while( fc->next ){
-        if ( fc->next->size == font_size ) break;
+        if ( fc->next->size == font_size && fc->next->italic == is_italic ) break;
         fc = fc->next;
     }
     if ( !fc->next ){
         fc->next = new FontContainer();
         fc->next->size = font_size;
+        fc->next->italic = is_italic;
         SDL_RWops *rwops = NULL;
         bool useFile = (cache_font_file == NULL || strcmp(cache_font_file, font_file) != 0);
         if (useFile) {
@@ -145,6 +149,10 @@ void *FontInfo::openFont( char *font_file, int ratio1, int ratio2 )
             utils::printError("Open font failed: %s\n", TTF_GetError());
         }
         TTF_SetFontOutline(fc->next->font[1], 1);
+        if (is_italic){
+            TTF_SetFontStyle(fc->next->font[0], TTF_STYLE_ITALIC);
+            if (fc->next->font[1]) TTF_SetFontStyle(fc->next->font[1], TTF_STYLE_ITALIC);
+        }
 
 #endif
     }

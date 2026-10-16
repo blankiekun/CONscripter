@@ -980,6 +980,12 @@ In script text lines:
 - **`!zNNN` [cons]** — text at NNN % of the window font size until the next
   `!z` (`!z`/`!z100` resets; `reset` clears). Sits on the baseline; line
   pitch unchanged; the backlog shows normal size.
+- **`!i1` … `!i0` [cons]** — italic text (the font's synthetic italic)
+  until `!i0` (or `!i`); `reset` clears it; the backlog shows it upright.
+- **`!c` [cons]** — the rest of the text line (to its end, `@` or `\`) is
+  centred in the room left on the window's line (horizontal text).
+- `!i` and `!c` are also read in `` ` `` half-width text, where the other
+  tags are text.
 
 Text handling [cons]:
 

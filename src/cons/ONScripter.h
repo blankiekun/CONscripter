@@ -795,6 +795,8 @@ private:
     void popScreenState();
     // CONscripter: text size tag "!zNNN" (percent of the window's font size)
     int text_size_percent;
+    bool text_italic; // "!i1" ... "!i0"
+    void centreLine( const char *buf );
     FontInfo *textSizeFont( FontInfo *info, FontInfo &scaled );
     bool isProportional( FontInfo *info );
     int hankakuExtra( FontInfo *glyph_info, char c );

@@ -54,6 +54,7 @@ public:
     int pitch_xy[2]; // Width and height of a character
     int wait_time;
     bool is_bold;
+    bool is_italic; // CONscripter: opened in TTF_STYLE_ITALIC
     bool is_shadow;
     int outline; // CONscripter: the shadow is a 1 px outline of this 0xRRGGBB (-1: a shadow)
     bool is_transparent;

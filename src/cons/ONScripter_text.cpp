@@ -1147,9 +1147,10 @@ bool ONScripter::processText()
         return true;
     }
     // CONscripter: a '!' that starts no tag ("Hey! You!") is text
-    else if ( ch == '!' && !(script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) &&
-              script_h.getStringBuffer()[ string_buffer_offset + 1 ] &&
-              strchr("swdz", script_h.getStringBuffer()[ string_buffer_offset + 1 ]) ){
+    // ("!i" and "!c" also in 1-byte text)
+    else if ( ch == '!' && script_h.getStringBuffer()[ string_buffer_offset + 1 ] &&
+              strchr((script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) ? "ic" : "swdzic",
+                     script_h.getStringBuffer()[ string_buffer_offset + 1 ]) ){
         string_buffer_offset++;
         if ( script_h.getStringBuffer()[ string_buffer_offset ] == 's' ){
             string_buffer_offset++;
@@ -1180,6 +1181,18 @@ bool ONScripter::processText()
                 string_buffer_offset++;
             }
             text_size_percent = (t > 0) ? t : 100;
+        }
+        else if ( script_h.getStringBuffer()[ string_buffer_offset ] == 'i' ){
+            // CONscripter: "!i1" draws the following text in italics, "!i0"
+            // or "!i" goes back
+            string_buffer_offset++;
+            text_italic = script_h.getStringBuffer()[ string_buffer_offset ] == '1';
+            while( script_h.getStringBuffer()[ string_buffer_offset ] >= '0' &&
+                   script_h.getStringBuffer()[ string_buffer_offset ] <= '9' ) string_buffer_offset++;
+        }
+        else if ( script_h.getStringBuffer()[ string_buffer_offset ] == 'c' ){
+            string_buffer_offset++;
+            centreLine( script_h.getStringBuffer() + string_buffer_offset );
         }
         else if ( script_h.getStringBuffer()[ string_buffer_offset ] == 'w' ||
                   script_h.getStringBuffer()[ string_buffer_offset ] == 'd' ){
