@@ -420,11 +420,12 @@ tags. Impl `ONScripter::getlogCommand`.
 (`logsp2` with font size and pitch). Impl `ONScripter::logspCommand`.
 
 ### logrows / getlogrow [cons]
-`logrows %n,columns` — lay out the whole history as rows of `columns`
+`logrows %n,columns[,width]` — lay out the whole history as rows of `columns`
 full-width characters (half-width count half, or in a proportional
 horizontal sentence font their own width over the font's size, as the
 text draws them; a half-width word that doesn't fit goes to the next
-row, ruby as its base), oldest first; `%n` = row count. `getlogrow $text,$voice,row` — row text (0 =
+row, ruby as its base; with `width`, rows `width` pixels wide at the
+sentence font's size), oldest first; `%n` = row count. `getlogrow $text,$voice,row` — row text (0 =
 oldest, "" past the end) and, on a page's first row, the channel-0 `dwave`
 voice of that page. Backlogs scrolled a line at a time:
 `logrows %1,26` then `strsp` each row; the voice icon plays `dwave 0,$voice`.

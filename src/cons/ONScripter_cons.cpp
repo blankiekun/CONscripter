@@ -4879,14 +4879,15 @@ int ONScripter::spmoviewaitCommand()
     return RET_CONTINUE;
 }
 
-/* logrows %n,columns
+/* logrows %n,columns[,width]
  *   Lays the text history out as rows, oldest first, and puts how many
  *   there are in %n: each page's lines, cut at columns full-width
  *   characters (a half-width one takes half, or in a proportional
  *   sentence font its own width over the font's size; a row of
  *   half-width text is cut at the space before the word that doesn't
  *   fit), with ruby shown as its base text. A page with no text has no
- *   rows.
+ *   rows. With width, a row is width pixels wide at the sentence font's
+ *   size instead (proportional text drawn in a field of its own width).
  * getlogrow $text,$voice,row
  *   The text of row row (0 = the oldest) as logrows laid it out, "" past
  *   the last; $voice is the voice the row's page played on channel 0
@@ -4899,6 +4900,7 @@ int ONScripter::logrowsCommand()
     script_h.pushVariable();
     int columns = script_h.readInt();
     if (columns < 1) columns = 1;
+    int row_px = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
 
     log_rows.clear();
     bool utf8 = coding2utf16->force_utf8;
@@ -4915,7 +4917,7 @@ int ONScripter::logrowsCommand()
         if (TTF_GlyphMetrics((TTF_Font*)glyph_info->ttf_font[0], (unsigned char)*c, &a, &a, &a, &a, &adv) != 0) return 500;
         return adv * 1000 / em;
     };
-    const int limit = columns * 1000;
+    const int limit = row_px > 0 ? row_px * 1000 / em : columns * 1000;
     Page *page = start_page;
     while (1){
         const char *p = page->text, *end = page->text + page->text_count;
