@@ -81,6 +81,7 @@ AnimationInfo::AnimationInfo()
     alpha_start = alpha_next = 0;
     key_alpha = 256;
     z_over = -1;
+    clip_rect[0] = clip_rect[1] = clip_rect[2] = clip_rect[3] = 0;
 
     if (!is_inv_alpha_lut_initialized){
         inv_alpha_lut[0] = 255;
@@ -222,6 +223,7 @@ void AnimationInfo::remove()
     alpha_keys = 0;
     key_alpha = 256;
     z_over = -1;
+    clip_rect[0] = clip_rect[1] = clip_rect[2] = clip_rect[3] = 0;
 }
 
 void AnimationInfo::clearFilters()

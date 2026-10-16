@@ -219,6 +219,7 @@ public:
     int spzoomCommand();
     int sprotCommand();
     int spzCommand();
+    int spclipCommand();
     int spblendCommand();
     int spmotionCommand();
     int spfadeCommand();
@@ -802,6 +803,7 @@ private:
         int zoom_x, zoom_y;
         int zoom_rot;
         int z_over = -1; // spz
+        int clip_rect[4] = {0, 0, 0, 0}; // spclip
     };
     struct ScreenState {
         char *bg_name;
