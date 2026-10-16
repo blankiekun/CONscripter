@@ -367,6 +367,7 @@ public:
     int chvolfadeCommand();
     int bgmvolfadeCommand();
     int bgmlaterCommand();
+    int getbgmposCommand();
     int autooffCommand();
     int spcutCommand();
     int dwaveCommand();
