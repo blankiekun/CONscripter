@@ -4486,6 +4486,7 @@ int ONScripter::playMovieFFmpeg(const char *path, bool click_flag, bool loop_fla
             if (due) {
                 if (overlay_cell >= 0) hold_sprite->setCell(overlay_cell);
                 flushDirect(whole, refreshMode());
+                presentScreen(); // CONscripter: this loop doesn't go back to the event loop
             } else {
                 SDL_Delay(2);
             }
@@ -4914,6 +4915,7 @@ int ONScripter::playMovieLayered( const char *path, bool click_flag, bool loop_f
             for (int row = 0; row < s.h; row++)
                 memcpy( (unsigned char *)screen_movie->pixels + row * screen_movie->pitch, s.frame.data() + (size_t)row * s.w * 4, s.w * 4 );
             flushDirect( whole, refreshMode() );
+            presentScreen();
         }
         SDL_Delay( 5 );
     }
