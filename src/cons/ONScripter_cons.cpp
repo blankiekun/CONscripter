@@ -492,8 +492,12 @@ int ONScripter::spgrabCommand()
         oy = s->orig_pos.y;
     }
     if (!from) return RET_CONTINUE;
-    if (w < 0) w = from->w - x;
-    if (h < 0) h = from->h - y;
+    // x, y, w, h are script coordinates, the pictures screen pixels; kept inside the picture
+    int fw = from->w * screen_ratio2 / screen_ratio1, fh = from->h * screen_ratio2 / screen_ratio1;
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (w < 0 || w > fw - x) w = fw - x;
+    if (h < 0 || h > fh - y) h = fh - y;
     if (w <= 0 || h <= 0){
         SDL_FreeSurface( from );
         utils::printError("spgrab: nothing to copy\n");
@@ -512,7 +516,8 @@ int ONScripter::spgrabCommand()
     parseTaggedString( ai );
     setupAnimationInfo( ai );
     if (ai->image_surface){
-        SDL_Rect r = {x, y, w, h};
+        SDL_Rect r = {x * screen_ratio1 / screen_ratio2, y * screen_ratio1 / screen_ratio2,
+                      ai->image_surface->w, ai->image_surface->h};
         SDL_SetSurfaceBlendMode( from, SDL_BLENDMODE_NONE );
         SDL_BlitSurface( from, &r, ai->image_surface, NULL );
         if (src < 0){ // the screen has no alpha of its own: opaque
