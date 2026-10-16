@@ -60,6 +60,7 @@
 //#define DEFAULT_BLIT_FLAG (SDL_RLEACCEL)
 
 #define MAX_SPRITE_NUM 1000
+#define SPTRAIL_MAX 32 // CONscripter: sptrail's most copies (128 cost 29 ms a frame for a 1280x720 sprite natively)
 #define MAX_SPRITE2_NUM 256
 #define MAX_TEXTURE_NUM 16
 #define MAX_PARAM_NUM 100
@@ -222,6 +223,7 @@ public:
     int sprotCommand();
     int spzCommand();
     int spclipCommand();
+    int sptrailCommand();
     int spovertextCommand();
     int spblendCommand();
     int bitandCommand();
@@ -598,6 +600,9 @@ private:
     SDL_Rect drawnRect(const AnimationInfo &ai);
     bool spriteZoomOrMotion();
     void stepSpriteMotion(AnimationInfo &ai, int current_time);
+    void motionAt(const AnimationInfo &ai, int keys, int t, int v[7]);
+    bool trailCopyAt(const AnimationInfo &ai, int i, int v[7]);
+    SDL_Rect trailCopies(AnimationInfo &ai, SDL_Surface *surface, SDL_Rect *clip);
     void endKeptMotion(AnimationInfo &ai);
     int curveAt(int curve, int p);
     // spcurve's tables, curves CURVE_FIRST and on

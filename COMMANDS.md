@@ -708,6 +708,18 @@ removed by `csp`, saved, kept by `pushscreen`.
 `lsp 20,"tape.png",262,-220:spclip 20,260,138,100,300`.
 Impl `ONScripter::spclipCommand`.
 
+### sptrail [cons]
+`sptrail num,passes,alpha,lag` — draw `passes` (1-32) copies of sprite num
+under it, each at `alpha` per mille (1-1000) of its alpha; copy i is where
+its `spmotion` had it `lag` × i ms before (a motion trail).
+Before the motion starts the copies sit on its first key; after it ends
+they go on to its end and reach the sprite. A sprite that doesn't move
+shows no copies, and `msp`/`amsp` moves aren't followed. `sptrail num`
+ends it. Stays through `lsp`, removed by `csp`, saved (not by
+`pushscreen`, like the motions).
+`lsp 10,"car.png",0,200:sptrail 10,3,500,40:spmotion 10,0,0,0,0,100,100,0,256,0,1000,800,0,100,100,0,256,0`.
+Impl `ONScripter::sptrailCommand`.
+
 ### spz [cons]
 `spz num[,over]` — draw sprite `num` just over sprite `over` (between `over`
 and `over-1`); `spz num` resets. `spz 70,61` draws 70 over 61-69, under 60.

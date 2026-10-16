@@ -160,6 +160,18 @@ public:
     int motion_rot;            // degrees, counterclockwise as lsp2's
     int motion_alpha;          // 0-256 of the sprite's alpha
 
+    /* CONscripter: a trail (sptrail): trail_passes copies drawn under the
+       sprite, copy i where its motion had it trail_lag * i ms before, at
+       trail_alpha per mille of its alpha. After a motion ends its keys
+       (trail_keys of motion_key) are followed until the copies reach the
+       sprite. Stays across lsp; reset by remove(). */
+    int trail_passes;          // 0: no trail
+    int trail_alpha;           // per mille
+    int trail_lag;             // ms between two copies (at game speed)
+    int trail_keys;            // the ended motion's keys still followed
+    int trail_time;            // ticks the motion was last stepped at
+    SDL_Rect trail_rect;       // where the copies were drawn (w 0: none)
+
     /* CONscripter: a fade in (spfade): the sprite is drawn at fade_alpha
        (0-256) of its own alpha, going from fade_from to 256 over fade_ms,
        stepped by the timer. Stays across lsp; reset by remove().

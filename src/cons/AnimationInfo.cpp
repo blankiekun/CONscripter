@@ -74,6 +74,8 @@ AnimationInfo::AnimationInfo()
     motion_zoom = motion_zoom_y = 100;
     motion_rot = 0;
     motion_alpha = 256;
+    trail_passes = trail_alpha = trail_lag = trail_keys = trail_time = 0;
+    trail_rect.x = trail_rect.y = trail_rect.w = trail_rect.h = 0;
     fade_ms = fade_from = fade_start = fade_next = 0;
     fade_alpha = 256;
     fade_out = false;
@@ -214,6 +216,8 @@ void AnimationInfo::remove()
     motion_zoom = motion_zoom_y = 100;
     motion_rot = 0;
     motion_alpha = 256;
+    trail_passes = trail_alpha = trail_lag = trail_keys = trail_time = 0;
+    trail_rect.x = trail_rect.y = trail_rect.w = trail_rect.h = 0;
     fade_ms = 0;
     fade_alpha = 256;
     fade_out = false;
