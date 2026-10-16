@@ -442,6 +442,21 @@ int ONScripter::spcutCommand()
     return RET_CONTINUE;
 }
 
+/* bitand %var,a,b / bitor %var,a,b / bitxor %var,a,b
+ *   %var = a & b, a | b, a ^ b, as 32-bit integers: flags packed in one
+ *   variable, which NScripter's arithmetic reaches only a bit at a time
+ *   with div and mod. "bitand %0,%5,4:if %0 != 0 ..." tests bit 2. */
+int ONScripter::bitandCommand()
+{
+    bool is_or = script_h.isName("bitor"), is_xor = script_h.isName("bitxor");
+    script_h.readInt();
+    script_h.pushVariable();
+    int a = script_h.readInt();
+    int b = script_h.readInt();
+    script_h.setInt( &script_h.pushed_variable, is_or ? (a | b) : is_xor ? (a ^ b) : (a & b) );
+    return RET_CONTINUE;
+}
+
 /* spblend num,mode
  *   Draws sprite num (an lsp sprite) adding its colours to what is under
  *   it (mode 1), times its alpha, or blended as usual (mode 0): a white

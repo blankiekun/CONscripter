@@ -396,6 +396,9 @@ static ONScripter::FuncLUT func_lut[] = {
     {"caption",			&ONScripter::captionCommand},
 
     {"btrans",			&ONScripter::transbtnCommand},
+    {"bitand",			&ONScripter::bitandCommand},
+    {"bitor",			&ONScripter::bitandCommand},
+    {"bitxor",			&ONScripter::bitandCommand},
     {"btnse",			&ONScripter::btnseCommand},
     {"btnwait2",		&ONScripter::btnwaitCommand},
     {"btnwait",			&ONScripter::btnwaitCommand},
