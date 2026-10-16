@@ -337,7 +337,7 @@ int ONScripter::spfadeCommand()
  *   Waits until sprite num's motion (spmotion) has ended; num -1: every
  *   motion that ends (looping ones are left out). click 1: a click ends
  *   the wait. Whatever is left when it ends (a click, skipping, an
- *   --auto-play run, which doesn't wait) jumps to the motion's end, as if
+ *   --auto-play run, whose autoPlayWait cuts the wait to 1 ms) jumps to the motion's end, as if
  *   its time had passed, and the screen is drawn. For a move that must end
  *   before the script goes on, in place of a loop of waits:
  *       spmotion 10,2,0,0,0,100,100,0,256,0,500,200,0,100,100,0,256,3:spmotionwait 10 */
