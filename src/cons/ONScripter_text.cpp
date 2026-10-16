@@ -732,6 +732,7 @@ bool ONScripter::clickWait( char *out_text )
 
     if (script_h.checkClickstr(script_h.getStringBuffer() + string_buffer_offset) != 1) string_buffer_offset++;
     string_buffer_offset++;
+    char *wait_at = rgosub_label ? script_h.getWaitAt( string_buffer_offset, &rgosub_1byte ) : NULL; // CONscripter: rgosub
 
     if ( (skip_mode & (SKIP_NORMAL | SKIP_TO_EOP) || ctrl_pressed_status) && !textgosub_label ){
         clickstr_state = CLICK_NONE;
@@ -783,7 +784,8 @@ bool ONScripter::clickWait( char *out_text )
             line_enter_status = 0;
 
         clickstr_state = CLICK_WAIT;
-        if (doClickEnd()) return false;
+        rgosub_return = wait_at;
+        if (clickEndRgosub( doClickEnd() )) return false;
 
         clickstr_state = CLICK_NONE;
 
@@ -813,9 +815,11 @@ bool ONScripter::clickNewPage( char *out_text, bool consume )
     // without textgosub: its return would go on after the line's next
     // click wait, not here
     const char *gosub_label = consume ? textgosub_label : NULL;
+    char *wait_at = NULL;
     if (consume){
         if (script_h.checkClickstr(script_h.getStringBuffer() + string_buffer_offset) != 1) string_buffer_offset++;
         string_buffer_offset++;
+        wait_at = rgosub_label ? script_h.getWaitAt( string_buffer_offset, &rgosub_1byte ) : NULL; // CONscripter: rgosub
     }
 
     if ( (skip_mode & SKIP_NORMAL || ctrl_pressed_status) && !gosub_label  ){
@@ -847,7 +851,8 @@ bool ONScripter::clickNewPage( char *out_text, bool consume )
             line_enter_status = 0;
 
         clickstr_state = CLICK_NEWPAGE;
-        if (doClickEnd()) return false;
+        rgosub_return = wait_at;
+        if (clickEndRgosub( doClickEnd() )) return false;
     }
 
     newPage();

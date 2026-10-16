@@ -220,7 +220,8 @@ protected:
            SYSTEM_MENU        = 7,
            SYSTEM_YESNO       = 8,
            SYSTEM_AUTOMODE    = 9,
-           SYSTEM_END         = 10
+           SYSTEM_END         = 10,
+           SYSTEM_RGOSUB      = 11 // CONscripter: rgosub's label at a click wait
     };
     enum { RET_NOMATCH   = 0,
            RET_SKIP_LINE = 1,

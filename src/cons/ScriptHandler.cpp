@@ -180,11 +180,31 @@ void ScriptHandler::setKeyTable( const unsigned char *key_table )
     }
 }
 
+// CONscripter: the wait at script address at, just added to the string buffer
+void ScriptHandler::markWait( char *at, bool in_1byte )
+{
+    if (wait_marks == MAX_WAIT_MARKS) return;
+    wait_mark_offset[wait_marks] = string_counter;
+    wait_mark_1byte[wait_marks] = in_1byte;
+    wait_mark_script[wait_marks++] = at;
+}
+
+char *ScriptHandler::getWaitAt( int offset, bool *in_1byte )
+{
+    for (int i=0 ; i<wait_marks ; i++)
+        if (wait_mark_offset[i] == offset){
+            *in_1byte = wait_mark_1byte[i];
+            return wait_mark_script[i];
+        }
+    return NULL;
+}
+
 // basic parser function
 const char *ScriptHandler::readToken()
 {
     current_script = next_script;
     wait_script = NULL;
+    wait_marks = 0;
     char *buf = current_script;
     end_status = END_NONE;
     current_variable.type = VAR_NONE;
@@ -197,14 +217,16 @@ const char *ScriptHandler::readToken()
   readTokenTop:
     string_counter = 0;
     char ch = *buf;
-    if (ch == ';'){ // comment
+    bool resume_1byte = backquote_resume && buf == backquote_resume; // CONscripter: rgosub came back into a ` string
+    if (resume_1byte) backquote_resume = NULL;
+    if (ch == ';' && !resume_1byte){ // comment
         addStringBuffer( ch );
         do{
             ch = *++buf;
             addStringBuffer( ch );
         } while ( ch != 0x0a && ch != '\0' );
     }
-    else if (ch & 0x80 ||
+    else if (!resume_1byte && (ch & 0x80 ||
              (ch >= '0' && ch <= '9') ||
              ch == '@' || ch == '\\' || ch == '/' ||
              ch == '%' || ch == '?' || ch == '$' ||
@@ -213,7 +235,7 @@ const char *ScriptHandler::readToken()
              ch == '`' ||
 #endif             
              (!english_mode && ch == '>') ||
-             ch == '!' || ch == '#' || ch == ',' || ch == '"'){ // text
+             ch == '!' || ch == '#' || ch == ',' || ch == '"')){ // text
         bool ignore_clickstr_flag = false;
         while(1){
             if ( IS_TWO_BYTE(ch) ){
@@ -247,6 +269,7 @@ const char *ScriptHandler::readToken()
                     buf++;
                     if (ch == '_') ignore_clickstr_flag = true;
                     if (!wait_script && (ch == '@' || ch == '\\')) wait_script = buf;
+                    if (ch == '@' || ch == '\\') markWait( buf-1, false );
                 }
             }
             ch = *buf;
@@ -255,14 +278,15 @@ const char *ScriptHandler::readToken()
         text_flag = true;
     }
 #ifdef ENABLE_1BYTE_CHAR
-    else if (ch == '`'){
-        ch = *++buf;
+    else if (ch == '`' || resume_1byte){
+        if (!resume_1byte) ch = *++buf;
         while (ch != '`' && ch != 0x0a && ch !='\0'){
             if ( IS_TWO_BYTE(ch) ){
                 addStringBuffer( ch );
                 ch = *++buf;
             }
             addStringBuffer( ch );
+            if (ch == '@' || ch == '\\') markWait( buf, true ); // CONscripter: rgosub
             ch = *++buf;
         }
         if (ch == '`') buf++;

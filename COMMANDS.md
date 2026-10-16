@@ -76,6 +76,15 @@ Impl `ScriptParser::defsubCommand`.
 `textgosub *label` — call `*label` at every `@` and `\` instead of waiting.
 Impl `ScriptParser::textgosubCommand`.
 
+### rgosub [cons]
+`rgosub *label` — a right click (or Esc, where `rmode` allows the menu) at a
+text click wait (`@`, `\`) gosubs to `*label` instead of the right-click menu;
+its `return` comes back to the same wait, which waits again, the text as it
+was. `rgosub ""` turns it off. A `clickstr` wait and button waits keep the
+menu; with `textgosub` its routine does the waiting. Not saved: set it at
+startup. `rgosub *menu` … `*menu:gosub *game_menu:return`.
+Impl `ONScripter::rgosubCommand`, `clickEndRgosub`.
+
 ### pretextgosub (define)
 `pretextgosub *label` — call `*label` before each text line (read the
 `[tag]` with `gettag`). Impl `ScriptParser::pretextgosubCommand`.

@@ -135,6 +135,9 @@ public:
     inline char *getCurrent(bool use_script=false){ return (use_script && !is_internal_script)?last_script_context->current_script:current_script; };
     inline char *getNext(){ return next_script; };
     inline char *getWait(){ return wait_script?wait_script:next_script; };
+    char *getWaitAt( int offset, bool *in_1byte ); // CONscripter: the wait ending at that string buffer offset, NULL if none
+    void markWait( char *at, bool in_1byte );
+    char *backquote_resume = NULL; // CONscripter: text read from here on is a ` string's rest
     void setCurrent(char *pos);
     void pushCurrent( char *pos );
     void popCurrent();
@@ -370,6 +373,13 @@ private:
     char *current_script;
     char *next_script;
     char *wait_script; // address where '@' or '//' appears
+    // CONscripter: each '@' and '\\' of the text token: the string buffer's
+    // length after it, and the script address of the wait itself (rgosub)
+    enum { MAX_WAIT_MARKS = 64 };
+    int wait_mark_offset[MAX_WAIT_MARKS];
+    char *wait_mark_script[MAX_WAIT_MARKS];
+    bool wait_mark_1byte[MAX_WAIT_MARKS]; // in a ` string
+    int wait_marks;
 
     char *pushed_current_script;
     char *pushed_next_script;
