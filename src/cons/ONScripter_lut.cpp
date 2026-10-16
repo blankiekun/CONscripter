@@ -245,6 +245,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"logsp2",			&ONScripter::logspCommand},
     {"logsp",			&ONScripter::logspCommand},
     {"logrows",		&ONScripter::logrowsCommand},
+    {"logadd",		&ONScripter::logaddCommand},
     {"locate",			&ONScripter::locateCommand},
     {"loadgosub",		&ONScripter::loadgosubCommand},
     {"loadgame",		&ONScripter::loadgameCommand},

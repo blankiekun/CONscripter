@@ -246,6 +246,7 @@ public:
     int getplaytimeCommand();
     int logrowsCommand();
     int getlogrowCommand();
+    int logaddCommand();
     // CONscripter: the text history as rows (logrows, getlogrow)
     struct LogRow { std::string text, voice; };
     std::vector<LogRow> log_rows;

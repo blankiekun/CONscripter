@@ -4686,6 +4686,49 @@ int ONScripter::getlogrowCommand()
     return RET_CONTINUE;
 }
 
+/* logadd "text"[,"voice"]
+ *   Adds a page with text to the text history, before the page being
+ *   written (so what is on screen stays as it is); voice is the voice
+ *   getlogrow gives for it. Lines the story puts in the backlog without
+ *   showing them. */
+int ONScripter::logaddCommand()
+{
+    std::string text = script_h.readStr();
+    const char *voice = NULL;
+    std::string v;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
+        v = script_h.readStr();
+        if (!v.empty()) voice = v.c_str();
+    }
+    if (text.empty()) return RET_CONTINUE;
+
+    // The oldest page (or a free one) becomes the page being written,
+    // which takes over its contents; the old place gets the new text.
+    Page *next = current_page->next;
+    if (start_page == next) start_page = start_page->next;
+    std::swap( next->text, current_page->text );
+    std::swap( next->max_text, current_page->max_text );
+    std::swap( next->text_count, current_page->text_count );
+    std::swap( next->tag, current_page->tag );
+    std::swap( next->voice, current_page->voice );
+    std::swap( next->voice_file, current_page->voice_file );
+    Page *added = current_page;
+    current_page = next;
+    if (cached_page == added) cached_page = current_page;
+
+    if (added->text) delete[] added->text;
+    added->max_text = (int)text.size() + 1;
+    added->text = new char[added->max_text];
+    memcpy( added->text, text.data(), text.size() );
+    added->text_count = (int)text.size();
+    setStr( &added->tag, NULL );
+    std::string file;
+    if (voice) traceString( file, voice, -1, false ); // UTF-8, as dwave keeps it
+    setStr( &added->voice, voice ? file.c_str() : NULL );
+    setStr( &added->voice_file, voice );
+    return RET_CONTINUE;
+}
+
 /* Opus sounds: SDL_mixer plays Opus only when it was built with
  * opusfile, which none of our builds' is, so the engine decodes them
  * itself (cmake/cons_opus.cmake builds opusfile into every build) and

@@ -428,6 +428,12 @@ voice of that page. Backlogs scrolled a line at a time:
 `logrows %1,26` then `strsp` each row; the voice icon plays `dwave 0,$voice`.
 Impl `ONScripter::logrowsCommand`, `getlogrowCommand`.
 
+### logadd [cons]
+`logadd "text"[,"voice"]` — add a page with `text` to the history, before
+the page being written (the screen is left as it is); `voice` is the voice
+`getlogrow` gives for it. Lines a story puts in the backlog without showing
+them. Impl `ONScripter::logaddCommand`.
+
 ## Pictures: background, standing pictures, effects
 
 ### bg
