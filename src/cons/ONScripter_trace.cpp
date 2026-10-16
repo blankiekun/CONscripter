@@ -1535,6 +1535,10 @@ bool ONScripter::autoPlayWait( int &count )
                     dirty_rect.fill( screen_width, screen_height );
                 }
             }
+            // and toward gettimer/waittimer: a loop timed by gettimer
+            // (a sprite moved step by step) ends after as many waits as
+            // in real time, not 20000 of them
+            internal_timer -= count - 1;
             count = 1;
         }
         return false;
