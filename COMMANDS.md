@@ -702,7 +702,7 @@ taken: src -1 (default) the screen as sprites and background draw it now
 (no text window, sprite num left out), src n sprite n's picture (its cell
 now; x, y in that picture); default all of it. The picture under it can
 then change while the copy fades or moves away by itself: a cross-fade the
-script doesn't wait for, `spgrab 20:bg "b.png",1:spfade 20,-800`. Not kept
+script doesn't wait for, `spgrab 20:bg "b.png",1:spmotion 20,3,0,0,0,100,100,0,256,0,800,0,0,100,100,0,0,0`. Not kept
 in saves (a load leaves it empty) or by `pushscreen`; the trace names it
 `(spgrab)`. Impl `ONScripter::spgrabCommand`.
 
@@ -975,7 +975,7 @@ voice); `autovoicewait` (0: auto mode doesn't wait for the voice; default
 1); `selectkeep` (1: auto and skip continue after a `select`); `moviestop`
 (1 a click always stops a movie, 0 never, -1 as the script says);
 `gamespeed` (10-10000 %, 100: script times — `wait`, `delay`, timers,
-effects, `spfade`, `spmotion`, `screenshake` — run at that speed; text
+effects, `spmotion`, `screenshake` — run at that speed; text
 speed, auto wait and sounds unaffected); `sysevol` (volume of `wave`'s
 channel: menu sounds, `selectvoice`, `btnse`; -1 = `sevol`); `effectoff`
 (1: every `print`/`bg`/`ld`/`cl` effect drawn at once); `textshadow` (0: no
