@@ -528,7 +528,7 @@ handles the wait.
 | `bgm` | The music last started with `bgm`/`mp3`/`ogg`/`play`/`midi` and not stopped (it may have finished if it doesn't loop); `null` for none |
 | `loopbgm` | `[intro, loop]` when `loopbgm` is playing (omitted otherwise) |
 | `bgmvol` | The music's volume as heard, in percent, when below 100: the player's setting, `soundmute`, a fade, `bgmvol`, `bgmvolfade` |
-| `se` | The sound channels still playing (`dwave`, `wave`, voices): channel, file, `loop` for a looping one, and `vol`, its volume as heard in percent (the setting, `chvol`, `soundmute`, a channel fade), when below 100 (omitted when none) |
+| `se` | The sound channels still playing (`dwave`, `wave`, voices): channel, file, `loop` for a looping one, `vol`, its volume as heard in percent (the setting, `chvol`, `soundmute`, a channel fade), when below 100, and `freq`, its `chfreq` rate per mille, when not 1000 (omitted when none) |
 | `wait` | The milliseconds the script asked to wait since the last page: text drawn a character at a time, `wait`, `delay`, effects. Auto-play skips them, so this is what a player would wait |
 | `px` | A checksum of the screen as shown (FNV-1a of its pixels), for `--diff` |
 | `window` | Whether the text window is shown |

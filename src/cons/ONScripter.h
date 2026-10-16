@@ -146,6 +146,7 @@ public:
     // CONscripter: calls from the web page, as ONS_WEB_EVENT events (ONScripter_cons.cpp)
 #define ONS_WEB_EVENT (SDL_USEREVENT+7)
 #define ONS_SHOT_EVENT (SDL_USEREVENT+8) // CONscripter: a --shot-after time came
+#define ONS_FREQ_END_EVENT (SDL_USEREVENT+9) // CONscripter: a chfreq sound came to its end
     enum { WEB_SET_AUTO = 1, WEB_SET_SKIP = 2, WEB_SET_RUBY = 3, WEB_SET_TEXT_SPEED = 4 };
     void setStartGoto(const char *label); // CONscripter: --goto, --vars, --dump-vars
     void setStartVars(const char *path);
@@ -365,6 +366,7 @@ public:
     int dwavefadeoutCommand();
     int dwavefadeinCommand();
     int chvolfadeCommand();
+    int chfreqCommand();
     int bgmvolfadeCommand();
     int bgmlaterCommand();
     int getbgmposCommand();
@@ -892,6 +894,7 @@ private:
     // CONscripter: a sound cut off fades out instead of stopping mid-wave (a pop)
     void playChannel( int channel, Mix_Chunk *chunk, int loops );
     int channelPlayedMs( int channel ); // -1: nothing playing
+    void endFreqChannel( int channel ); // CONscripter: chfreq's sound ended
     int dwave_fade_in_ms = 0;   // CONscripter: dwavefadein, for the next dwave
     int automode_char_time = 0; // CONscripter: automode_time's ms per character
     int automodeWait();

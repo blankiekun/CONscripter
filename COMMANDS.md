@@ -863,6 +863,14 @@ script's own % on top, ramped, stays with the channel, saved, `reset` → 100.
 `chvolfade 3,30:dwaveloop 3,"se\rain.ogg"`. Impl `ONScripter::chvolCommand`,
 `chvolfadeCommand`.
 
+### chfreq [cons]
+`chfreq ch,rate[,ms]` — the sound playing on dwave channel ch at rate/1000 of
+its speed and pitch (100-4000), ramped from its rate now over ms (gamespeed
+applies). A looping sound stays at it; one that doesn't ends sooner or later.
+The next sound on the channel plays at its own rate; not saved. No sound: no
+effect. `dwave 10,"se\shot.ogg":chfreq 10,1100,1000`. Impl
+`ONScripter::chfreqCommand`.
+
 ### sevol / voicevol / getsevol / getvoicevol
 Volumes 0-100. Impl `ONScripter::sevolCommand` etc.
 

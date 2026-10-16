@@ -42,6 +42,7 @@
 
 // A channel's volume as heard (ONScripter_cons.cpp), 0-4096.
 int trackGain( int channel );
+int trackFreq( int channel );
 
 /* Debug trace (--trace file, or CONS_TRACE=file): one JSON object per line,
  * flushed as it is written, for finding bugs in a converted game without
@@ -591,7 +592,7 @@ static const struct { const char *name; int kind; } trace_commands[] = {
     {"wave",2}, {"waveloop",2}, {"wavestop",2}, {"dwave",2}, {"dwaveloop",2},
     {"dwavestop",2}, {"dwaveplay",2}, {"dwaveplayloop",2}, {"dwavefadeout",2},
     {"mpegplay",2}, {"movie",2}, {"avi",2}, {"spfade",2}, {"spalpha",2},
-    {"mp3fadein",2}, {"bgmfadein",2}, {"bgmvolfade",2}, {"bgmlater",2}, {"dwavefadein",2}, {"chvol",2},
+    {"mp3fadein",2}, {"bgmfadein",2}, {"bgmvolfade",2}, {"bgmlater",2}, {"dwavefadein",2}, {"chvol",2}, {"chfreq",2},
     {"soundmute",2}, {"clickvoicestop",2}, {"autovoicewait",2}, {"selectkeep",2}, {"moviestop",2},
     {"gamespeed",2}, {"effectoff",2}, {"textshadow",2}, {"sysevol",2}, {"btnse",2},
     {"screenfilter",5}, {"screenshake",5}, {"screenripple",5}, {"screenpulse",5}, {"screenzoom",5},
@@ -842,6 +843,10 @@ void ONScripter::tracePage( bool dump )
         int vol = Mix_Volume( ch, -1 ) * 100 / MIX_MAX_VOLUME * trackGain( ch ) / 4096; // as heard: soundmute, chvolfade
         if (vol < 100){
             snprintf( buf, sizeof(buf), ",\"vol\":%d", vol );
+            r += buf;
+        }
+        if (trackFreq( ch ) != 1000){ // chfreq
+            snprintf( buf, sizeof(buf), ",\"freq\":%d", trackFreq( ch ) );
             r += buf;
         }
         r += '}';
