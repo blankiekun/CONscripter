@@ -2703,7 +2703,7 @@ void ONScripter::loadSaveFileCons()
     for (int n=0 ; n<num ; n++){
         int no = readInt(), mode = readInt();
         if (no >= 0 && no < MAX_SPRITE_NUM)
-            sprite_info[no].blending_mode = (mode >= AnimationInfo::BLEND_NORMAL && mode <= AnimationInfo::BLEND_MUL) ? mode : AnimationInfo::BLEND_NORMAL;
+            sprite_info[no].blending_mode = (mode >= AnimationInfo::BLEND_NORMAL && mode <= AnimationInfo::BLEND_SCREEN) ? mode : AnimationInfo::BLEND_NORMAL;
     }
 
     num = readInt();
