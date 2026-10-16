@@ -439,6 +439,104 @@ int ONScripter::bitandCommand()
     return RET_CONTINUE;
 }
 
+/* spgrab num[,src[,x,y,w,h]]
+ *   Puts a copy of a picture into lsp sprite num, which is shown where the
+ *   copy was taken: src -1 (default) the screen as the sprites and the
+ *   background draw it now (without the text window, sprite num left
+ *   out), src n lsp sprite n's picture (its cell now), each from (x, y)
+ *   for w x h (default: all of it; for a sprite, x, y are in its picture).
+ *   Then the picture under it can change while the copy covers it, and the
+ *   copy can fade or move away by itself (spmotion), a cross-fade the
+ *   script doesn't wait for:
+ *       spgrab 20:bg "b.png",1:spmotion 20,2,0,0,0,100,100,0,256,0,800,0,0,100,100,0,0,0
+ *   or stand for an object an engine draws into a texture. The copy isn't
+ *   kept in save files (a load leaves the sprite empty), nor by pushscreen. */
+int ONScripter::spgrabCommand()
+{
+    leaveTextDisplayMode();
+
+    int no = script_h.readInt();
+    int src = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : -1;
+    int x = 0, y = 0, w = -1, h = -1;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
+        x = script_h.readInt(); y = script_h.readInt();
+        w = script_h.readInt(); h = script_h.readInt();
+    }
+    if (no < 0 || no >= MAX_SPRITE_NUM || src >= MAX_SPRITE_NUM || (src >= 0 && !sprite_info[src].image_surface)){
+        utils::printError("spgrab: sprite %d or source %d can't be used\n", no, src);
+        return RET_CONTINUE;
+    }
+    AnimationInfo *ai = &sprite_info[no];
+
+    // The source picture, and where its (0, 0) is on the screen
+    SDL_Surface *from;
+    int ox = 0, oy = 0;
+    if (src < 0){
+        from = SDL_ConvertSurface( accumulation_surface, accumulation_surface->format, 0 );
+        bool visible = ai->visible;
+        ai->visible = false;
+        SDL_Rect all = {0, 0, screen_width, screen_height};
+        refreshSurface( from, &all, REFRESH_NORMAL_MODE );
+        ai->visible = visible;
+    }
+    else{
+        AnimationInfo *s = &sprite_info[src];
+        int cw = s->image_surface->w / (s->num_of_cells > 0 ? s->num_of_cells : 1);
+        SDL_Rect cell = {cw * s->current_cell, 0, cw, s->image_surface->h};
+        from = SDL_CreateRGBSurfaceWithFormat( 0, cw, s->image_surface->h, 32, s->image_surface->format->format );
+        if (from){
+            SDL_SetSurfaceBlendMode( s->image_surface, SDL_BLENDMODE_NONE );
+            SDL_BlitSurface( s->image_surface, &cell, from, NULL );
+        }
+        ox = s->orig_pos.x;
+        oy = s->orig_pos.y;
+    }
+    if (!from) return RET_CONTINUE;
+    if (w < 0) w = from->w - x;
+    if (h < 0) h = from->h - y;
+    if (w <= 0 || h <= 0){
+        SDL_FreeSurface( from );
+        utils::printError("spgrab: nothing to copy\n");
+        return RET_CONTINUE;
+    }
+
+    if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
+    char name[64];
+    snprintf( name, sizeof(name), ":c;>%d,%d,#000000", w, h );
+    ai->visible = true;
+    ai->setImageName( name );
+    ai->orig_pos.x = ox + x;
+    ai->orig_pos.y = oy + y;
+    ai->scalePosXY( screen_ratio1, screen_ratio2 );
+    ai->trans = -1;
+    parseTaggedString( ai );
+    setupAnimationInfo( ai );
+    if (ai->image_surface){
+        SDL_Rect r = {x, y, w, h};
+        SDL_SetSurfaceBlendMode( from, SDL_BLENDMODE_NONE );
+        SDL_BlitSurface( from, &r, ai->image_surface, NULL );
+        if (src < 0){ // the screen has no alpha of its own: opaque
+            SDL_LockSurface( ai->image_surface );
+            Uint32 amask = ai->image_surface->format->Amask;
+            for (int j=0 ; j<ai->image_surface->h ; j++){
+                Uint32 *row = (Uint32*)((Uint8*)ai->image_surface->pixels + j * ai->image_surface->pitch);
+                for (int i=0 ; i<ai->image_surface->w ; i++) row[i] |= amask;
+            }
+            SDL_UnlockSurface( ai->image_surface );
+        }
+    }
+    SDL_FreeSurface( from );
+    // no file to load it from again: saves leave it out, and a later lsp of
+    // the same rectangle mustn't take this surface for its own
+    ai->deleteImageName();
+    delete[] ai->surface_name;
+    ai->surface_name = NULL;
+    setStr( &ai->file_name, "(spgrab)" ); // as the trace names it
+    dirty_rect.add( drawnRect( *ai ) );
+
+    return RET_CONTINUE;
+}
+
 /* spblend num,mode
  *   Draws sprite num (an lsp sprite) adding its colours to what is under
  *   it (mode 1), times its alpha, multiplying it by them (mode 2: white

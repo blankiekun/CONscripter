@@ -227,6 +227,7 @@ public:
     int spovertextCommand();
     int spblendCommand();
     int bitandCommand();
+    int spgrabCommand();
     int spmotionCommand();
     int spfadeCommand();
     int spcurveCommand();
