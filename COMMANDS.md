@@ -143,7 +143,11 @@ coroutine resumed once a frame (~16 ms) while the script goes on;
 the same name again restarts it. `cons_process_stop(name)`,
 `cons_process_running(name)`. Saved by name, function and arguments; a load
 (or `reset`, which stops them) can't keep a coroutine's place, so a load
-starts each again from the top: keep progress in globals.
+starts each again from the top: keep progress in globals. A process waits
+only with `cons_frame()`: a waiting command run through `NSExec` (`wait`,
+`delay`, an effect) holds the whole game, script and processes, for its time.
+A save's Lua state is read as data (text, no globals reachable); a save
+holding anything else is refused whole, its globals left as they were.
 `function blink(n) while true do t = (t or 0) + 1 ... cons_frame() end end`
 then `cons_process("blink", "blink", 5)`. Impl `LUAHandler::saveState`,
 `stepProcesses`.
