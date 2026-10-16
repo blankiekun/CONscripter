@@ -167,10 +167,11 @@ int ONScripter::spfilterCommand()
     return RET_CONTINUE;
 }
 
-/* spzoom num, zoom_x[, zoom_y]
+/* spzoom num, zoom_x[, zoom_y[, angle]]
  *   Draws sprite num (an lsp sprite) zoomed by zoom_x and zoom_y percent
- *   (100 = its size; zoom_y defaults to zoom_x) about the centre of its
- *   place, which amsp and msp move as usual. Unlike lsp2, the sprite keeps
+ *   (100 = its size; zoom_y defaults to zoom_x) and turned counterclockwise
+ *   by angle degrees (as lsp2; left as it was when not given) about the
+ *   centre of its place, which amsp and msp move as usual. Unlike lsp2, the sprite keeps
  *   its place among the other sprites. The zoom stays when lsp changes the
  *   image and is reset by csp. A zoomed sprite's buttons keep their
  *   unzoomed place. spzoom redraws the whole screen at the next print:
@@ -185,6 +186,8 @@ int ONScripter::spzoomCommand()
     int zy = zx;
     if (script_h.getEndStatus() & ScriptHandler::END_COMMA)
         zy = script_h.readInt();
+    bool turn = script_h.getEndStatus() & ScriptHandler::END_COMMA;
+    int deg = turn ? script_h.readInt() : 0;
 
     if (no < 0 || no >= MAX_SPRITE_NUM){
         utils::printError("spzoom: sprite %d out of range\n", no);
@@ -193,32 +196,9 @@ int ONScripter::spzoomCommand()
     AnimationInfo *ai = &sprite_info[no];
     ai->zoom_x = zx;
     ai->zoom_y = zy;
+    if (turn) ai->zoom_rot = deg;
     // Where the zoomed picture was isn't known after an amsp: redraw it all.
     if (ai->visible) dirty_rect.fill( screen_width, screen_height );
-
-    return RET_CONTINUE;
-}
-
-/* sprot num, degrees
- *   Draws sprite num (an lsp sprite) turned counterclockwise by degrees (as
- *   lsp2) about the centre of its place, keeping its place among the
- *   sprites. Kept, reset and redrawn as spzoom's zoom, and saved; a motion's
- *   angle (spmotion) adds to it, and loop 2 leaves its last angle there.
- *   "sprot 10,-15:print 1". */
-int ONScripter::sprotCommand()
-{
-    leaveTextDisplayMode();
-
-    int no = script_h.readInt();
-    int deg = script_h.readInt();
-    if (no < 0 || no >= MAX_SPRITE_NUM){
-        utils::printError("sprot: sprite %d out of range\n", no);
-        return RET_CONTINUE;
-    }
-    AnimationInfo *ai = &sprite_info[no];
-    if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
-    ai->zoom_rot = deg;
-    if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
 
     return RET_CONTINUE;
 }
@@ -227,7 +207,7 @@ int ONScripter::sprotCommand()
  *   Moves sprite num (an lsp sprite) by itself along keys from its place:
  *   at t ms from now the offset x,y (pixels), the zoom zx,zy (percent,
  *   times spzoom's), the angle (degrees counterclockwise, added to
- *   sprot's), both about the centre of its place, and the alpha (0-256 of
+ *   spzoom's), both about the centre of its place, and the alpha (0-256 of
  *   the sprite's). curve is how a key is reached from the one before: 0
  *   straight, 1 ease in, 2 ease out, 3 ease in and out, 4 jump at the key,
  *   10-73 a table defined by spcurve. Stepped about every 16 ms by the
@@ -235,7 +215,7 @@ int ONScripter::sprotCommand()
  *   last key; loop 0 ends at the last key with the sprite back at its
  *   place; loop 2 runs once and leaves the sprite at the last key (its
  *   offset added to the place as msp, its zoom to spzoom, its angle to
- *   sprot, its alpha to the sprite's); loop -n runs n times, then does as
+ *   spzoom's angle, its alpha to the sprite's); loop -n runs n times, then does as
  *   loop 2. "spmotion num" stops it. Up to 32 keys. The motion stays when
  *   lsp changes the image, is removed by csp and is kept in save files
  *   (restarted). Another spmotion, lsp, msp or amsp first ends a loop 2
@@ -641,7 +621,7 @@ int ONScripter::nextSpriteMotionTime()
 }
 
 // The box a sprite's picture covers, zoomed (spzoom, a motion's zoom) and
-// turned (sprot, a motion's angle) about its centre.
+// turned (spzoom's angle, a motion's) about its centre.
 SDL_Rect ONScripter::zoomedRect( const AnimationInfo &ai )
 {
     SDL_Rect r = ai.pos;
@@ -2114,7 +2094,7 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         writeInt( sprite_info[i].blending_mode, output_flag );
     }
 
-    // Version 16: the sprite angles (sprot): the count, then per sprite its
+    // Version 16: the sprite angles (spzoom's): the count, then per sprite its
     // number and angle; then the number of pushscreen states and per state,
     // oldest first, the same for the sprites it saved.
     num = 0;
