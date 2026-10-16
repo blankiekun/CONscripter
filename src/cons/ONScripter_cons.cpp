@@ -282,8 +282,10 @@ int ONScripter::spmotionCommand()
         ai->motion_start = ai->motion_next = SDL_GetTicks();
         stepSpriteMotion( *ai, ai->motion_start );
         if (auto_play_flag && !auto_play_real && !ai->motion_loop && ai->motion_keys > 0){
+            int end = ai->motion_start + ai->motion_key[ai->motion_keys-1][0] * (ai->motion_passes > 1 ? ai->motion_passes : 1);
             if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
-            stepSpriteMotion( *ai, ai->motion_start + ai->motion_key[ai->motion_keys-1][0] * (ai->motion_passes > 1 ? ai->motion_passes : 1) );
+            stepSpriteMotion( *ai, end );
+            ai->motion_end = end; // gettimer and shakes still count its time at spmotionwait
         }
     }
     if (ai->visible){
@@ -309,7 +311,10 @@ int ONScripter::spmotionwaitCommand()
     int now = SDL_GetTicks(), left = 0;
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
-        if ((no >= 0 && i != no) || ai.motion_keys == 0 || ai.motion_loop) continue;
+        if (no >= 0 && i != no) continue;
+        if (ai.motion_keys == 0 && ai.motion_end - now > left) left = ai.motion_end - now; // ended by --auto-play
+        ai.motion_end = 0;
+        if (ai.motion_keys == 0 || ai.motion_loop) continue;
         int end = ai.motion_start + ai.motion_key[ai.motion_keys-1][0] * (ai.motion_passes > 1 ? ai.motion_passes : 1);
         if (end - now > left) left = end - now;
     }
