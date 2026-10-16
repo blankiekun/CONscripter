@@ -776,6 +776,7 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
             shadowTextDisplay( surface, clip );
         if (refresh_mode & REFRESH_TEXT_MODE)
             blendTextLayer( surface, clip );
+        drawOverTextSprites( surface, clip );
     }
 
     if ( !all_sprite_hide_flag ){
@@ -817,6 +818,7 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
             shadowTextDisplay( surface, clip );
         if (refresh_mode & REFRESH_TEXT_MODE)
             blendTextLayer( surface, clip );
+        drawOverTextSprites( surface, clip );
     }
 
     if ( refresh_mode & REFRESH_CURSOR_MODE && !textgosub_label ){

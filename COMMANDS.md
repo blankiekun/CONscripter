@@ -678,6 +678,14 @@ Impl `ONScripter::spclipCommand`.
 and `over-1`); `spz num` resets. `spz 70,61` draws 70 over 61-69, under 60.
 Saved, kept by `pushscreen`, removed by `csp`. Impl `ONScripter::spzCommand`.
 
+### spovertext [cons]
+`spovertext num[,on]` — draw sprite `num` over the text window and its text
+(and the bars), under the sprites `windowback`/`humanz` put over the window;
+several in their numbers' order. `spovertext num,0` (or `spz num`) puts it
+back. Saved, kept by `pushscreen`, removed by `csp` (as `spz`). Subtitles
+over a text box: `lsp 400,"sub.png",0,480:spovertext 400:print 1`.
+Impl `ONScripter::spovertextCommand`.
+
 ### pushscreen / popscreen [cons]
 `pushscreen first,last` — push background, sprites first..last (image, pos,
 visibility, cell, filters, strsp text), screen filters and BGM (32 deep);

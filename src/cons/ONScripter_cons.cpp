@@ -514,6 +514,37 @@ int ONScripter::spclipCommand()
     return RET_CONTINUE;
 }
 
+/* spovertext num[,on]
+ *   Draws lsp sprite num over the text window and its text (and the bars),
+ *   under the sprites windowback and humanz put over the window; "spovertext
+ *   num,0" (or spz num) puts it back at its own number. Several are drawn
+ *   in their numbers' order. Like spz it stays when lsp changes the image,
+ *   is removed by csp and is kept in save files and by pushscreen. */
+int ONScripter::spovertextCommand()
+{
+    int no = script_h.readInt();
+    int on = 1;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA) on = script_h.readInt();
+    if (no < 0 || no >= MAX_SPRITE_NUM){
+        utils::printError("spovertext: sprite %d out of range\n", no);
+        return RET_CONTINUE;
+    }
+    sprite_info[no].z_over = on ? Z_OVER_TEXT : -1;
+    if (sprite_info[no].visible) dirty_rect.add( drawnRect( sprite_info[no] ) );
+
+    return RET_CONTINUE;
+}
+
+void ONScripter::drawOverTextSprites( SDL_Surface *surface, SDL_Rect &clip )
+{
+    if (all_sprite_hide_flag) return;
+    for (int i=MAX_SPRITE_NUM-1 ; i>=0 ; i--){
+        AnimationInfo &ai = sprite_info[i];
+        if (ai.z_over == Z_OVER_TEXT && ai.image_surface && ai.visible)
+            drawTaggedSurface( surface, &ai, clip );
+    }
+}
+
 void ONScripter::drawSpriteRange( SDL_Surface *surface, SDL_Rect &clip, int hi, int lo )
 {
     bool moved = false;

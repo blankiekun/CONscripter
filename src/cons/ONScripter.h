@@ -220,6 +220,7 @@ public:
     int sprotCommand();
     int spzCommand();
     int spclipCommand();
+    int spovertextCommand();
     int spblendCommand();
     int spmotionCommand();
     int spfadeCommand();
@@ -607,6 +608,10 @@ private:
     // CONscripter: lsp sprites from hi down to lo in drawing order, with
     // the ones spz moves drawn right over their sprite
     void drawSpriteRange( SDL_Surface *surface, SDL_Rect &clip, int hi, int lo );
+    // CONscripter: spovertext: z_over's value for a sprite drawn over the
+    // text window; drawn after the text
+    static const int Z_OVER_TEXT = MAX_SPRITE_NUM;
+    void drawOverTextSprites( SDL_Surface *surface, SDL_Rect &clip );
     void stopAnimation(int click);
     void loadCursor(int no, const char *str, int x, int y, bool abs_flag = false);
 
