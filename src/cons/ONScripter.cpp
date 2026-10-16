@@ -862,7 +862,7 @@ void ONScripter::resetSub()
     stopCommand();
     loopbgmstopCommand();
     stopAllDWAVE();
-    resetScriptVolumes(); // CONscripter: chvolfade, bgmvolfade
+    resetScriptVolumes(); // CONscripter: chvolfade
     cancelLaterBGM(); // CONscripter: bgmlater
     setStr(&loop_bgm_name[1], NULL);
 
