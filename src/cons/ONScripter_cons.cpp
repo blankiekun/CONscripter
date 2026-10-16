@@ -47,7 +47,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 18 // only this version's block is read; the "Version n" comments below
+#define CONS_SAVE_VERSION 19 // only this version's block is read; the "Version n" comments below
                             // name the parts in the order they are written
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
@@ -2283,6 +2283,15 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         writeInt( (int)curve_table[c].size(), output_flag );
         for (size_t j=0 ; j<curve_table[c].size() ; j++) writeInt( curve_table[c][j], output_flag );
     }
+
+    // Version 19: the script's Lua globals and running processes, as a
+    // Lua chunk (LUAHandler::saveState; "" without Lua).
+#ifdef USE_LUA
+    std::string lua = lua_handler.saveState();
+    writeStr( (char*)lua.c_str(), output_flag );
+#else
+    writeStr( NULL, output_flag );
+#endif
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -2574,6 +2583,9 @@ void ONScripter::loadSaveFileCons()
     }
     dirty_rect.fill( screen_width, screen_height );
     setPlaytime( 0 ); // older saves have none
+#ifdef USE_LUA
+    lua_handler.loadState( NULL ); // a save without Lua data has no script globals
+#endif
     if (readInt() != CONS_SAVE_MAGIC) return;
     int version = readInt();
     if (version != CONS_SAVE_VERSION){ // older layouts aren't read
@@ -2882,6 +2894,13 @@ void ONScripter::loadSaveFileCons()
         curve_table[c].clear();
         for (int j=0 ; j<n ; j++) curve_table[c].push_back( readInt() );
     }
+
+    char *lua = NULL;
+    readStr( &lua );
+#ifdef USE_LUA
+    lua_handler.loadState( lua );
+#endif
+    delete[] lua;
 }
 
 /* --save-dir path: makes the folder, and the folders it is in, if they
