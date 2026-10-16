@@ -828,7 +828,8 @@ intro. Impl `ONScripter::bgmlaterCommand`.
 ### getbgmpos [cons]
 `getbgmpos %v` — ms the music playing now is through its current pass (a
 looped piece counts from its start again each time round); 0 with no music or
-music played as a sound (.wav). `getbgmpos %1:mov %2,252000-%1:bgmlater
+music played as a sound (.wav); while a `bgmlater` music is still to start,
+minus the ms until it starts. `getbgmpos %1:mov %2,252000-%1:bgmlater
 %2,"next.ogg",0` plays next.ogg when a 252 s song ends. Impl
 `ONScripter::getbgmposCommand`.
 
