@@ -125,6 +125,11 @@ Impl `ScriptParser::luacallCommand`, `luasubCommand`.
 
 ## Variables, strings, maths
 
+### bitand / bitor / bitxor [cons]
+`bitand %var,a,b` — `%var = a & b` (`bitor` |, `bitxor` ^), 32-bit: flags
+packed in one variable. `bitand %0,%5,4:if %0 != 0 ...` tests bit 2.
+Impl `ONScripter::bitandCommand`.
+
 ### mov / mov3 / mov4 / mov5 / mov6 / mov7 / mov8 / mov9 / mov10 / movl
 `mov %a,1` / `mov $s,"x"`; `movN %a,v1,...,vN` sets N consecutive
 variables; `movl ?arr,v1,...` fills an array. Impl `ScriptParser::movCommand`.

@@ -223,6 +223,7 @@ public:
     int spclipCommand();
     int spovertextCommand();
     int spblendCommand();
+    int bitandCommand();
     int spmotionCommand();
     int spfadeCommand();
     int spalphaCommand();
