@@ -640,24 +640,19 @@ Up to 4 stack; `spfilter num,0` removes. Stays through `lsp`, removed by
 Impl `ONScripter::spfilterCommand`.
 
 ### spzoom [cons]
-`spzoom num,zx[,zy]` — zoom % about the centre of its place (negative
-flips), keeping its place among the sprites (unlike `lsp2`). Stays through
+`spzoom num,zx[,zy[,angle]]` — zoom % (negative flips) and turn angle
+degrees counterclockwise (as `lsp2`; kept when left out) about the centre of
+its place, keeping its place among the sprites (unlike `lsp2`). Stays through
 `lsp`, reset by `csp`, saved, kept by `pushscreen`; buttons keep the
 unzoomed place. Redraws the whole screen at the next `print`; call again after
-moving: `amsp 10,x,y:spzoom 10,150:print 1`. Animated sprites cycle cells.
+moving: `amsp 10,x,y:spzoom 10,150:print 1`; `spzoom 10,100,100,-15`
+tilts it. An `spmotion` angle adds to it; loop 2 leaves its last angle here. Animated sprites cycle cells.
 Impl `ONScripter::spzoomCommand`.
-
-### sprot [cons]
-`sprot num,degrees` — turn counterclockwise (as `lsp2`) about the centre of
-its place, keeping its place among the sprites. Kept and reset as `spzoom`,
-saved, kept by `pushscreen`. A `spmotion` angle adds to it; loop 2 leaves
-its last angle here. `sprot 10,-15:print 1`.
-Impl `ONScripter::sprotCommand`.
 
 ### spmotion [cons]
 `spmotion num[,loop,t,x,y,zx,zy,angle,alpha,curve,...]` — keys from its
 place: offset x,y, zoom zx,zy % (times `spzoom`), angle (degrees CCW, added
-to `sprot`), alpha 0-256, at `t` ms from now; `curve` is how the key is
+to `spzoom`'s), alpha 0-256, at `t` ms from now; `curve` is how the key is
 reached from the one before: 0 straight, 1 ease in, 2 ease out, 3 ease in
 and out, 4 jump at the key, 10-73 an `spcurve` table. Stepped every ~16 ms
 by the timer (also during waits). loop 0: ends, back at its place; 1:
