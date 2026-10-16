@@ -545,8 +545,9 @@ int ONScripter::spgrabCommand()
 /* spblend num,mode
  *   Draws sprite num (an lsp sprite) adding its colours to what is under
  *   it (mode 1), times its alpha, multiplying it by them (mode 2: white
- *   leaves it, black darkens it, times its alpha) or blended as usual
- *   (mode 0): a white additive sprite at alpha a lightens the screen by a,
+ *   leaves it, black darkens it, times its alpha), subtracting its
+ *   colours (mode 3), screening (mode 4: lightens, never past white) or
+ *   blended as usual (mode 0): a white additive sprite at alpha a lightens the screen by a,
  *   as a flash of light. It
  *   keeps its place among the sprites (unlike lsp2add, drawn over all of
  *   them). It stays when lsp changes the image, is removed by csp and is
@@ -562,7 +563,9 @@ int ONScripter::spblendCommand()
         return RET_CONTINUE;
     }
     AnimationInfo *ai = &sprite_info[no];
-    ai->blending_mode = (mode == 1) ? AnimationInfo::BLEND_ADD : (mode == 2) ? AnimationInfo::BLEND_MUL : AnimationInfo::BLEND_NORMAL;
+    static const int modes[] = {AnimationInfo::BLEND_NORMAL, AnimationInfo::BLEND_ADD, AnimationInfo::BLEND_MUL,
+                                 AnimationInfo::BLEND_SUB, AnimationInfo::BLEND_SCREEN};
+    ai->blending_mode = (mode >= 0 && mode <= 4) ? modes[mode] : AnimationInfo::BLEND_NORMAL;
     if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
 
     return RET_CONTINUE;
@@ -3107,7 +3110,7 @@ void ONScripter::loadSaveFileCons()
     for (int n=0 ; n<num ; n++){
         int no = readInt(), mode = readInt();
         if (no >= 0 && no < MAX_SPRITE_NUM)
-            sprite_info[no].blending_mode = (mode >= AnimationInfo::BLEND_NORMAL && mode <= AnimationInfo::BLEND_MUL) ? mode : AnimationInfo::BLEND_NORMAL;
+            sprite_info[no].blending_mode = (mode >= AnimationInfo::BLEND_NORMAL && mode <= AnimationInfo::BLEND_SCREEN) ? mode : AnimationInfo::BLEND_NORMAL;
     }
 
     num = readInt();
