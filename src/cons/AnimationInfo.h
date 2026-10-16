@@ -149,9 +149,13 @@ public:
        key's offset, zoom and alpha), or motion_passes times then kept,
        or, motion_leave (loop 3), once and then the sprite is removed (lsp
        ends that). Stays across lsp; reset by remove(). */
-    enum { MAX_MOTION_KEYS = 32 };
+    enum { MAX_MOTION_KEYS = 64 };
     int motion_keys;           // 0: no motion
-    int motion_key[MAX_MOTION_KEYS][8]; // ms, x, y, zoom x, angle, alpha, zoom y, curve
+    // ms, x, y, zoom x, angle, alpha, zoom y, curve; MAX_MOTION_KEYS of
+    // them, made by a sprite's first motion (NULL before: 2 KB each would
+    // add 2.5 MB over all sprites)
+    int (*motion_key)[8];
+    void allocMotionKeys(){ if (!motion_key) motion_key = new int[MAX_MOTION_KEYS][8]; }
     bool motion_loop;
     bool motion_keep;
     bool motion_leave;
