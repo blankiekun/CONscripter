@@ -1082,6 +1082,8 @@ static const struct luaL_Reg module_dpshadow[] = {
 LUAHandler::LUAHandler()
 {
     state = NULL;
+    has_processes = false;
+    process_next = 0;
 
     is_animatable = false;
     duration_time  = 15;
@@ -1116,6 +1118,9 @@ extern "C" int luaopen_dpshadow(lua_State *state)
 }
 #endif
 
+static int cons_wake(lua_State *state); // CONscripter, below
+extern const char *cons_prelude;
+
 void LUAHandler::init(ONScripter *ons, ScriptHandler *sh,
                       int screen_ratio1, int screen_ratio2)
 {
@@ -1143,6 +1148,173 @@ void LUAHandler::init(ONScripter *ons, ScriptHandler *sh,
     
     lua_pushlightuserdata(state, this);
     lua_setglobal(state, ONS_LUA_HANDLER_PTR);
+
+    has_processes = false;
+    process_next = 0;
+    lua_pushcfunction(state, cons_wake);
+    lua_setglobal(state, "__cons_wake");
+    if (luaL_loadstring(state, cons_prelude) || lua_pcall(state, 0, 0, 0)){
+        printf("cons lua prelude: %s\n", lua_tostring(state, -1));
+        lua_pop(state, 1);
+    }
+}
+
+/* CONscripter: run once at init, before system.lua, so every global there
+ * is now (libraries, the NS functions) is the engine's and the rest are the
+ * script's.
+ *
+ * Saves: the script's globals that hold data (numbers, strings, booleans,
+ * tables of them; functions and coroutines are left out, a table met again
+ * inside itself too) go into the save file as a Lua chunk; a load sets
+ * them back and clears the data globals the save didn't have.
+ *
+ * Processes, for an engine's parallel processes (Nitroplus CreateProcess):
+ *   cons_process(name, "function", args...) runs the global function as a
+ *   coroutine, resumed once a frame (about 16 ms) while the script goes on;
+ *   it gives up the frame with coroutine.yield() (cons_frame()) and ends by
+ *   returning. Starting a running name again restarts it.
+ *   cons_process_stop(name), cons_process_running(name).
+ * A coroutine's place in its function can't be saved: a load starts each
+ * running process again from the top with its arguments, so a process
+ * keeps what it has done in globals (saved) and goes on from them. */
+const char *cons_prelude =
+"local base = {}\n"
+"for k in pairs(_G) do base[k] = true end\n"
+"local procs, order = {}, {}\n"
+"local load = loadstring or load\n"
+"local unpack = table.unpack or unpack\n"
+"local function ser(v, path)\n"
+"  local t = type(v)\n"
+"  if t == 'number' then\n"
+"    if v ~= v then return '0/0' elseif v == math.huge then return '1/0' elseif v == -math.huge then return '-1/0' end\n"
+"    if math.type and math.type(v) == 'integer' then return string.format('%d', v) end\n"
+"    local s = string.format('%.17g', v)\n"
+"    if not s:find('[%.eE]') then s = s .. '.0' end\n"
+"    return s\n"
+"  elseif t == 'string' then return string.format('%q', v)\n"
+"  elseif t == 'boolean' then return tostring(v)\n"
+"  elseif t == 'table' then\n"
+"    if path[v] then return nil end\n"
+"    path[v] = true\n"
+"    local out = {}\n"
+"    for k, x in pairs(v) do\n"
+"      local ks, xs = ser(k, path), ser(x, path)\n"
+"      if ks and xs then out[#out+1] = '[' .. ks .. ']=' .. xs end\n"
+"    end\n"
+"    path[v] = nil\n"
+"    return '{' .. table.concat(out, ',') .. '}'\n"
+"  end\n"
+"end\n"
+"local function isdata(v) local t = type(v) return t ~= 'function' and t ~= 'thread' and t ~= 'userdata' end\n"
+"function __cons_save()\n"
+"  local g = {}\n"
+"  for k, v in pairs(_G) do if not base[k] and isdata(v) then g[k] = v end end\n"
+"  local p = {}\n"
+"  for i, name in ipairs(order) do local x = procs[name] p[i] = {name, x.fn, x.args} end\n"
+"  return 'return ' .. (ser(g, {}) or '{}') .. ',' .. (ser(p, {}) or '{}')\n"
+"end\n"
+"function __cons_load(chunk)\n"
+"  local f = assert(load(chunk))\n"
+"  local g, p = f()\n"
+"  local old = {}\n"
+"  for k, v in pairs(_G) do if not base[k] and isdata(v) then old[#old+1] = k end end\n"
+"  for _, k in ipairs(old) do _G[k] = nil end\n"
+"  for k, v in pairs(g) do _G[k] = v end\n"
+"  procs, order = {}, {}\n"
+"  for _, x in ipairs(p) do cons_process(x[1], x[2], unpack(x[3])) end\n"
+"end\n"
+"function cons_process(name, fn, ...)\n"
+"  if not procs[name] then order[#order+1] = name end\n"
+"  procs[name] = {fn = fn, args = {...}}\n"
+"  __cons_wake()\n"
+"end\n"
+"function cons_process_stop(name)\n"
+"  if not procs[name] then return end\n"
+"  procs[name] = nil\n"
+"  for i, n in ipairs(order) do if n == name then table.remove(order, i) break end end\n"
+"end\n"
+"function cons_process_running(name) return procs[name] ~= nil end\n"
+"cons_frame = coroutine.yield\n"
+"function __cons_reset() procs, order = {}, {} end\n"
+"function __cons_step()\n"
+"  local names = {}\n"
+"  for i, n in ipairs(order) do names[i] = n end\n"
+"  for _, name in ipairs(names) do\n"
+"    local x = procs[name]\n"
+"    if x then\n"
+"      local ok, err\n"
+"      if not x.co then\n"
+"        local fn = _G[x.fn]\n"
+"        if type(fn) ~= 'function' then error('cons_process ' .. tostring(name) .. ': no function ' .. tostring(x.fn)) end\n"
+"        x.co = coroutine.create(fn)\n"
+"        ok, err = coroutine.resume(x.co, unpack(x.args))\n"
+"      else\n"
+"        ok, err = coroutine.resume(x.co)\n"
+"      end\n"
+"      if not ok then error('cons_process ' .. tostring(name) .. ': ' .. tostring(err)) end\n"
+"      if procs[name] == x and coroutine.status(x.co) == 'dead' then cons_process_stop(name) end\n"
+"    end\n"
+"  end\n"
+"  return #order > 0\n"
+"end\n";
+
+// cons_process started one: the engine steps processes from the next frame.
+static int cons_wake(lua_State *state)
+{
+    lua_getglobal(state, ONS_LUA_HANDLER_PTR);
+    LUAHandler *lh = (LUAHandler*)lua_topointer(state, -1);
+    lua_pop(state, 1);
+    if (!lh->has_processes) lh->process_next = SDL_GetTicks();
+    lh->has_processes = true;
+    return 0;
+}
+
+std::string LUAHandler::saveState()
+{
+    lua_getglobal(state, "__cons_save");
+    if (lua_pcall(state, 0, 1, 0) != 0){
+        utils::printError("lua save: %s\n", lua_tostring(state, -1));
+        lua_pop(state, 1);
+        return "";
+    }
+    std::string s = lua_tostring(state, -1) ? lua_tostring(state, -1) : "";
+    lua_pop(state, 1);
+    return s;
+}
+
+void LUAHandler::loadState(const char *chunk)
+{
+    lua_getglobal(state, "__cons_load");
+    lua_pushstring(state, chunk ? chunk : "return {},{}");
+    if (lua_pcall(state, 1, 0, 0) != 0){
+        utils::printError("lua load: %s\n", lua_tostring(state, -1));
+        lua_pop(state, 1);
+    }
+    has_processes = true; // the next step says whether any are left
+    process_next = SDL_GetTicks();
+}
+
+void LUAHandler::resetProcesses()
+{
+    if (!state) return;
+    lua_getglobal(state, "__cons_reset");
+    lua_pcall(state, 0, 0, 0);
+    has_processes = false;
+}
+
+bool LUAHandler::stepProcesses()
+{
+    lua_getglobal(state, "__cons_step");
+    if (lua_pcall(state, 0, 1, 0) != 0){
+        strncpy(error_str, lua_tostring(state, -1), sizeof(error_str) - 1);
+        error_str[sizeof(error_str) - 1] = 0;
+        lua_pop(state, 1);
+        has_processes = false;
+        return false;
+    }
+    has_processes = lua_toboolean(state, -1) != 0;
+    lua_pop(state, 1);
+    return true;
 }
 
 void LUAHandler::loadInitScript()

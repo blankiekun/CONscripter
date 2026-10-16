@@ -122,6 +122,22 @@ run a system menu function. Impl `ONScripter::systemcallCommand`.
 `luacall *label` — call Lua function `NSCALL_label` from script events;
 `luasub name` — a command implemented by Lua `NSCOM_name`.
 Impl `ScriptParser::luacallCommand`, `luasubCommand`.
+[cons] Lua's state is saved: the script's global data (numbers, strings,
+booleans, tables of them; not functions, coroutines or a table inside
+itself) goes into save files and a load puts it back, clearing data
+globals the save didn't have. Globals made before `system.lua` (the
+libraries, the NS functions) aren't saved.
+[cons] Processes, for an engine's parallel processes:
+`cons_process(name, "func", args...)` runs global function `func` as a
+coroutine resumed once a frame (~16 ms) while the script goes on;
+`cons_frame()` (= `coroutine.yield`) ends its frame, returning ends it;
+the same name again restarts it. `cons_process_stop(name)`,
+`cons_process_running(name)`. Saved by name, function and arguments; a load
+(or `reset`, which stops them) can't keep a coroutine's place, so a load
+starts each again from the top: keep progress in globals.
+`function blink(n) while true do t = (t or 0) + 1 ... cons_frame() end end`
+then `cons_process("blink", "blink", 5)`. Impl `LUAHandler::saveState`,
+`stepProcesses`.
 
 ## Variables, strings, maths
 
