@@ -602,7 +602,7 @@ private:
     void endKeptMotion(AnimationInfo &ai);
     int curveAt(int curve, int p);
     // spcurve's tables, curves CURVE_FIRST and on
-    enum { CURVE_FIRST = 10, MAX_CURVES = 64 };
+    enum { CURVE_FIRST = 10, MAX_CURVES = 64, MAX_CURVE_VALUES = 1025 };
     std::vector<int> curve_table[MAX_CURVES];
     bool proceedSpriteMotions(int current_time, bool draw = true);
     int nextSpriteMotionTime();

@@ -343,8 +343,8 @@ int ONScripter::spcurveCommand()
     int id = script_h.readInt();
     std::vector<int> v;
     while (script_h.getEndStatus() & ScriptHandler::END_COMMA) v.push_back( script_h.readInt() );
-    if (id < CURVE_FIRST || id >= CURVE_FIRST + MAX_CURVES || v.size() < 2){
-        utils::printError("spcurve: curve %d out of range or fewer than 2 values\n", id);
+    if (id < CURVE_FIRST || id >= CURVE_FIRST + MAX_CURVES || v.size() < 2 || v.size() > MAX_CURVE_VALUES){
+        utils::printError("spcurve: curve %d out of range, or fewer than 2 or more than %d values\n", id, MAX_CURVE_VALUES);
         return RET_CONTINUE;
     }
     curve_table[id - CURVE_FIRST] = v;
@@ -2699,7 +2699,8 @@ void ONScripter::loadSaveFileCons()
     num = readInt();
     for (int n=0 ; n<num ; n++){
         int no = readInt(), mode = readInt();
-        if (no >= 0 && no < MAX_SPRITE_NUM) sprite_info[no].blending_mode = mode;
+        if (no >= 0 && no < MAX_SPRITE_NUM)
+            sprite_info[no].blending_mode = (mode >= AnimationInfo::BLEND_NORMAL && mode <= AnimationInfo::BLEND_MUL) ? mode : AnimationInfo::BLEND_NORMAL;
     }
 
     num = readInt();
@@ -2739,6 +2740,7 @@ void ONScripter::loadSaveFileCons()
     }
     for (int c=0 ; c<MAX_CURVES ; c++){
         int n = readInt();
+        if (n < 0 || n > MAX_CURVE_VALUES) n = 0; // a bad save
         curve_table[c].clear();
         for (int j=0 ; j<n ; j++) curve_table[c].push_back( readInt() );
     }
