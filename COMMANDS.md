@@ -113,7 +113,7 @@ Impl `ONScripter::texecCommand`.
 ### reset
 `reset` — back to the start of the script, variables cleared. [cons]: also
 clears `screenfilter`, `screenflash`, screen effects, `chvolfade`
-volumes, `windowtrans`, `!z`, play time and the `pushscreen` stack.
+volumes, `chpan` pans, `windowtrans`, `!z`, play time and the `pushscreen` stack.
 Impl `ONScripter::resetCommand`.
 
 ### definereset
@@ -922,6 +922,13 @@ ch -1 is the music (`bgmfadein`/`bgmfadeout` fade to and from it; `chvolfade
 stops (its volume stays for the next sounds; a looping one fading out isn't
 saved). `chvolfade 3,30:dwaveloop 3,"se\rain.ogg"`; `chvolfade 3,0,1500,1`.
 Impl `ONScripter::chvolCommand`, `chvolfadeCommand`.
+
+### chpan [cons]
+`chpan ch,pan[,ms]` — dwave channel ch's pan, -1000 (left only) .. 0 (centre)
+.. 1000 (right only), lowering the other side; over ms (default 0) while the
+script goes on. Stays with the channel, saved, `reset` → 0; stereo output
+only; not the music. `chpan 2,-1000:dwave 2,"se\shot.ogg"`; `chpan 2,1000,1500`.
+Impl `ONScripter::chpanCommand`.
 
 ### sevol / voicevol / getsevol / getvoicevol
 Volumes 0-100. Impl `ONScripter::sevolCommand` etc.

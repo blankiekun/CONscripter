@@ -366,6 +366,7 @@ public:
     int dwavestopCommand();
     int dwavefadeinCommand();
     int chvolfadeCommand();
+    int chpanCommand();
     int rgosubCommand();
     int bgmlaterCommand();
     int getbgmposCommand();

@@ -47,7 +47,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 20 // only this version's block is read; the "Version n" comments below
+#define CONS_SAVE_VERSION 21 // only this version's block is read; the "Version n" comments below
                             // name the parts in the order they are written
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
@@ -60,7 +60,10 @@ extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
  * use, stays theirs. It stays with the channel, for the next sounds too,
  * so a script can set it before the sound starts; reset sets 100. */
 static struct { volatile int from, to, ms; volatile Uint32 start; int last; } track_gain[ONS_MIX_CHANNELS];
-static bool track_gain_s16 = false;
+static bool track_gain_s16 = false, track_stereo = false;
+/* chpan: each dwave channel's pan, -1000 (left) .. 1000 (right), ramped
+ * as track_gain; the track effect lowers the other side (stereo only). */
+static struct { volatile int from, to, ms; volatile Uint32 start; int last; } track_pan[ONS_MIX_CHANNELS];
 
 static int scriptVolumeAt( int from, int to, int ms, Uint32 start, Uint32 now )
 {
@@ -85,6 +88,13 @@ static bool channelMuted( int channel )
 
 // Appends text (as JSON when json) to out (ONScripter_trace.cpp).
 void traceString( std::string &out, const char *text, int len=-1, bool json=true );
+
+// chpan's pan on channel now, -1000..1000.
+static int trackPan( int channel )
+{
+    return scriptVolumeAt( track_pan[channel].from, track_pan[channel].to, track_pan[channel].ms,
+                           track_pan[channel].start, SDL_GetTicks() );
+}
 
 int trackGain( int channel ) // 0-4096; the trace reads it too
 {
@@ -1212,6 +1222,35 @@ int ONScripter::chvolfadeCommand()
     return RET_CONTINUE;
 }
 
+/* chpan ch,pan[,ms]
+ *   Pans dwave channel ch's sound: pan -1000 (only the left speaker)
+ *   .. 0 (centre, default) .. 1000 (only the right), lowering the other
+ *   side; over ms milliseconds (default 0, at once) while the script goes
+ *   on, from where it is now. Like chvolfade's volume it stays with the
+ *   channel for its next sounds, so set it before dwave; reset centres
+ *   every channel. Kept in a save. Stereo output only.
+ *       chpan 2,-1000:dwave 2,"se\shot.ogg"   (from the left)
+ *       chpan 2,1000,1500                     (to the right in 1.5 s)
+ *   Only dwave channels: SDL_mixer can't pan its music stream alone. */
+int ONScripter::chpanCommand()
+{
+    int ch = script_h.readInt();
+    int pan = script_h.readInt();
+    int ms = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
+    if (ch < 0 || ch >= ONS_MIX_CHANNELS){
+        utils::printError("chpan: channel %d out of range\n", ch);
+        return RET_CONTINUE;
+    }
+    if (pan < -1000) pan = -1000; else if (pan > 1000) pan = 1000;
+    int from = trackPan( ch );
+    track_pan[ch].ms = 0; // the mixer reads these as they change
+    track_pan[ch].from = from;
+    track_pan[ch].start = SDL_GetTicks();
+    track_pan[ch].to = pan;
+    track_pan[ch].ms = ms > 0 ? ms : 0;
+    return RET_CONTINUE;
+}
+
 /* Player settings, for a game's settings screen. None is saved: the game
  * keeps its settings and sets them again at startup.
  *
@@ -1368,6 +1407,8 @@ void ONScripter::resetScriptVolumes()
         track_gain[i].ms = 0;
         track_gain[i].from = track_gain[i].to = 100;
         track_gain[i].last = 4096;
+        track_pan[i].ms = 0;
+        track_pan[i].from = track_pan[i].to = track_pan[i].last = 0;
     }
     bgm_script_from = bgm_script_to = 100;
     bgm_script_ms = 0;
@@ -2461,6 +2502,12 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         writeInt( ai.trail_alpha, output_flag );
         writeInt( ai.trail_lag, output_flag );
     }
+
+    // Version 21: the dwave channels' pans (chpan), where their ramps go:
+    // the number of channels, then each one's.
+    writeInt( ONS_MIX_CHANNELS, output_flag );
+    for (int i=0 ; i<ONS_MIX_CHANNELS ; i++)
+        writeInt( track_pan[i].to, output_flag );
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -2657,6 +2704,18 @@ static void cutTrackEffect( int channel, void *stream, int len, void *udata )
                 s[i] = (Sint16)(s[i] * g / 4096);
             }
         }
+        // chpan: the other side lowered, ramped across the buffer
+        int plast = track_pan[channel].last, pan = trackPan( channel );
+        track_pan[channel].last = pan;
+        if ((plast != 0 || pan != 0) && track_stereo){
+            Sint16 *s = (Sint16*)stream;
+            int n = len / 4;
+            for (int i=0 ; i<n ; i++){
+                int p = plast + (int)((long long)(pan - plast) * i / n);
+                if (p > 0) s[2*i] = (Sint16)(s[2*i] * (1000 - p) / 1000);
+                else if (p < 0) s[2*i+1] = (Sint16)(s[2*i+1] * (1000 + p) / 1000);
+            }
+        }
     }
     Mix_Chunk *chunk = cut_track[channel].chunk;
     if (!chunk || chunk->alen == 0 || inner) return;
@@ -2678,9 +2737,12 @@ void ONScripter::playChannel( int channel, Mix_Chunk *chunk, int loops )
     cut_track[channel].loop_start = next_loop_start;
     cut_track[channel].loop_end = next_loop_end <= chunk->alen ? next_loop_end : 0;
     next_loop_start = next_loop_end = 0;
-    if (channel < ONS_MIX_CHANNELS) // the ramp from where it is
+    if (channel < ONS_MIX_CHANNELS){ // the ramps from where they are
         track_gain[channel].last = trackGain( channel );
+        track_pan[channel].last = trackPan( channel );
+    }
     track_gain_s16 = audio_format.format == AUDIO_S16SYS;
+    track_stereo = audio_format.channels == 2;
     Mix_RegisterEffect( channel, cutTrackEffect, NULL, NULL ); // reset when a sound ends
 }
 
@@ -3081,6 +3143,14 @@ void ONScripter::loadSaveFileCons()
         ai.trail_passes = passes < SPTRAIL_MAX ? passes : SPTRAIL_MAX;
         ai.trail_alpha = alpha;
         ai.trail_lag = lag;
+    }
+
+    num = readInt();
+    for (int i=0 ; i<num ; i++){
+        int pan = readInt();
+        if (i >= ONS_MIX_CHANNELS) continue;
+        track_pan[i].ms = 0;
+        track_pan[i].from = track_pan[i].to = pan;
     }
 }
 
