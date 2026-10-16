@@ -825,6 +825,13 @@ loop 0. A music command before then (`bgm`, `bgmonce`, `mp3`…, `play`,
 `bgmonce "intro.ogg":bgmlater 7720,"loop.ogg"` starts a loop 7.7 s after its
 intro. Impl `ONScripter::bgmlaterCommand`.
 
+### getbgmpos [cons]
+`getbgmpos %v` — ms the music playing now is through its current pass (a
+looped piece counts from its start again each time round); 0 with no music or
+music played as a sound (.wav). `getbgmpos %1:mov %2,252000-%1:bgmlater
+%2,"next.ogg",0` plays next.ogg when a 252 s song ends. Impl
+`ONScripter::getbgmposCommand`.
+
 ### loopbgm / loopbgmstop
 `loopbgm "intro","loop"`; `loopbgmstop`. Impl `ONScripter::loopbgmCommand`,
 `loopbgmstopCommand`.

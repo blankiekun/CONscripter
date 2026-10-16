@@ -320,6 +320,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"getcselnum",		&ONScripter::getcselnumCommand},
     {"getbtntimer",		&ONScripter::gettimerCommand},
     {"getbgmvol",		&ONScripter::getmp3volCommand},
+    {"getbgmpos",		&ONScripter::getbgmposCommand},
     {"gamespeed",		&ONScripter::gamespeedCommand},
     {"game",			&ONScripter::gameCommand},
 

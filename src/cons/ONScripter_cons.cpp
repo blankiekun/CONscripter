@@ -1228,6 +1228,28 @@ int ONScripter::bgmlaterCommand()
     return RET_CONTINUE;
 }
 
+/* getbgmpos %v
+ *   Sets %v to how far (ms) the music playing now is through its current
+ *   pass (a looped piece counts again from its start each time round); 0
+ *   with no music, or music played as a sound (a .wav).
+ *   The rest of a song for a roll timed to its end:
+ *       getbgmpos %1:mov %2,252000-%1:bgmlater %2,"bgm\next.ogg",0 */
+int ONScripter::getbgmposCommand()
+{
+    script_h.readInt();
+    int ms = 0;
+#ifdef SDL_MIXER_VERSION_ATLEAST
+#if SDL_MIXER_VERSION_ATLEAST(2,6,0) // (older mixers: 0)
+    if (music_info && Mix_PlayingMusic()){
+        double s = Mix_GetMusicPosition( music_info );
+        if (s > 0) ms = (int)(s * 1000);
+    }
+#endif
+#endif
+    script_h.setInt( &script_h.current_variable, ms );
+    return RET_CONTINUE;
+}
+
 void ONScripter::cancelLaterBGM()
 {
     setStr( &bgm_later_name, NULL );
