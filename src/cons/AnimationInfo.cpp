@@ -219,6 +219,7 @@ void AnimationInfo::stopMotion()
     motion_zoom = motion_zoom_y = 100;
     motion_rot = 0;
     motion_alpha = 256;
+    motion_end = 0;
 }
 
 void AnimationInfo::clearFilters()

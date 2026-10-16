@@ -162,6 +162,7 @@ public:
     int motion_zoom, motion_zoom_y; // percent, 100 = none
     int motion_rot;            // degrees, counterclockwise as lsp2's
     int motion_alpha;          // 0-256 of the sprite's alpha
+    int motion_end;            // ticks a motion ended at once by --auto-play would have ended: spmotionwait still passes that time
 
     /* CONscripter: a trail (sptrail): trail_passes copies drawn under the
        sprite, copy i where its motion had it trail_lag * i ms before, at
