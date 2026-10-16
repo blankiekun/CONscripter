@@ -318,6 +318,11 @@ bool ONScripter::waitEvent( int count )
         waitEventSub( count );
         webStateHook();
         if ( system_menu_mode == SYSTEM_NULL ) break;
+        if ( system_menu_mode == SYSTEM_RGOSUB ){ // CONscripter: the click wait ends for rgosub's label
+            system_menu_mode = SYSTEM_NULL;
+            rgosub_pending = true;
+            return true;
+        }
         int ret = executeSystemCall();
         if      (ret == 1) return true;
         else if (ret == 2) return false;
@@ -428,10 +433,7 @@ bool ONScripter::mousePressEvent( SDL_MouseButtonEvent *event )
         current_button_state.button = -1;
         sprintf(current_button_state.str, "RCLICK");
         if (event_mode & WAIT_TEXT_MODE){
-            if (root_rmenu_link.next)
-                system_menu_mode = SYSTEM_MENU;
-            else
-                system_menu_mode = SYSTEM_WINDOWERASE;
+            system_menu_mode = rclickMenuMode(); // CONscripter: rgosub
         }
     }
     else if ( event->button == SDL_BUTTON_LEFT &&
@@ -931,10 +933,7 @@ bool ONScripter::keyPressEvent( SDL_KeyboardEvent *event )
             current_button_state.button  = -1;
             sprintf(current_button_state.str, "RCLICK");
             if (rmode_flag && event_mode & WAIT_TEXT_MODE){
-                if (root_rmenu_link.next)
-                    system_menu_mode = SYSTEM_MENU;
-                else
-                    system_menu_mode = SYSTEM_WINDOWERASE;
+                system_menu_mode = rclickMenuMode(); // CONscripter: rgosub
             }
         }
         else if ( useescspc_flag && event->keysym.sym == SDLK_ESCAPE ){

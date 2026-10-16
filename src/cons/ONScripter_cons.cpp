@@ -1039,6 +1039,43 @@ void ONScripter::stopFreshChannels()
     fresh_channels = 0;
 }
 
+/* rgosub *label
+ *   A right click (or Esc) at a text click wait, '@' or '\\' (where rmode
+ *   lets it open the right-click menu), gosubs to label instead; its return
+ *   comes back to that click wait, waiting again, with the text as it was
+ *   (nothing drawn again or skipped). The game's own menu in place of the
+ *   system one: "rgosub *menu" ... "*menu:...:return". rgosub "" turns it
+ *   off. Waits on a clickstr character, and button waits, keep the
+ *   right-click menu. Not saved: set it at startup. */
+int ONScripter::rgosubCommand()
+{
+    const char *label = script_h.readStr();
+    setStr( &rgosub_label, label[0] == '*' ? label + 1 : (label[0] ? label : NULL) );
+
+    return RET_CONTINUE;
+}
+
+// What a right click at a text wait opens: rgosub's label, the menu, or the window erased.
+int ONScripter::rclickMenuMode()
+{
+    if (rgosub_label && rgosub_return) return SYSTEM_RGOSUB;
+    return root_rmenu_link.next ? SYSTEM_MENU : SYSTEM_WINDOWERASE;
+}
+
+// After a click wait (ended: it stopped the text): goes to rgosub's label
+// when a right click asked for it, to come back to the same wait.
+bool ONScripter::clickEndRgosub( bool ended )
+{
+    char *back = rgosub_return;
+    rgosub_return = NULL;
+    if (!ended || !rgosub_pending) return ended;
+    rgosub_pending = false;
+    clickstr_state = CLICK_NONE;
+    gosubReal( rgosub_label, back );
+    if (rgosub_1byte) script_h.backquote_resume = back; // read on as the ` string it is in
+    return true;
+}
+
 /* chvolfade ch,vol[,ms]
  *   Sets the volume of dwave channel ch's sound to vol percent (0-100)
  *   of the sound effect or voice setting, over ms milliseconds (default

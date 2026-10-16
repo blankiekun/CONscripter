@@ -369,6 +369,7 @@ public:
     int dwavefadeoutCommand();
     int dwavefadeinCommand();
     int chvolfadeCommand();
+    int rgosubCommand();
     int bgmvolfadeCommand();
     int bgmlaterCommand();
     int getbgmposCommand();
@@ -1329,6 +1330,13 @@ private:
     void enterTextDisplayMode(bool text_flag = true);
     void leaveTextDisplayMode(bool force_leave_flag = false);
     bool doClickEnd();
+    // CONscripter: rgosub
+    char *rgosub_label = NULL;
+    char *rgosub_return = NULL; // the click wait waiting now, as script text
+    bool rgosub_pending = false;
+    bool rgosub_1byte = false; // the wait is in a ` string
+    int rclickMenuMode();
+    bool clickEndRgosub( bool ended );
     bool clickWait( char *out_text );
     bool clickNewPage( char *out_text, bool consume = true );
     void startRuby(const char *buf, FontInfo &info);
