@@ -558,12 +558,11 @@ Each sprite in `sp`:
 | `zoom` | `[x,y]`, its `spzoom` in percent (omitted at 100) |
 | `rot` | its `sprot` angle in degrees, counterclockwise (omitted at 0) |
 | `anim` | `true` for a sprite that steps its own cells (its picture changes with time) |
-| `motion` | `"loop"`, `"once"` or `"keep"` (loop mode 2) while an `spmotion` or `spmotion2` moves it (the box is its place, without the motion) |
+| `motion` | `"loop"`, `"once"` or `"keep"` (loop mode 2) while an `spmotion` moves it (the box is its place, without the motion) |
 | `over` | The sprite `spz` draws it right over |
 | `fade` | `true` while `spfade` fades it in |
-| `keyed` | `"loop"` or `"once"` while `spalpha` keys its alpha |
-| `shown` | The alpha it is drawn at, when `spfade`, `spalpha` or `spmotion2`'s keys make it differ from `alpha` |
-| `since` | The page where it last appeared, or changed its image, position, size, opacity, cell, `spz` or `spalpha` keys (an animation stepping its own cells, or a fade or keyed alpha moving, doesn't count) |
+| `shown` | The alpha it is drawn at, when `spfade` or `spmotion`'s keys make it differ from `alpha` |
+| `since` | The page where it last appeared, or changed its image, position, size, opacity, cell, `spz`, or an `spmotion` starting or ending (an animation stepping its own cells, or a fade or motion moving, doesn't count) |
 
 `since` makes lingering sprites easy to spot: a character still up with
 a `since` far below the current `pg`, especially across a `bg` change.
@@ -610,7 +609,7 @@ Which commands are written:
   of a sprite that isn't there doesn't appear;
 - **sound and movies** (`bgm`, `mp3`, `play`, `stop`, `dwave`, `wave`,
   `loopbgm`, their stops and fades, `bgmfadein`, `mp3fadein`, `bgmvolfade`,
-  `dwavefadein`, `chvol`, `mpegplay`, `movie`, `avi`), `spfade`, `spalpha`, the
+  `dwavefadein`, `chvol`, `mpegplay`, `movie`, `avi`), `spfade`, the
   player settings a game's settings screen sets (`soundmute`, `clickvoicestop`,
   `autovoicewait`, `selectkeep`, `moviestop`, `gamespeed`, `effectoff`,
   `textshadow`, `sysevol`, `btnse`) and
@@ -699,7 +698,7 @@ Schema 2 adds these, with their own fields:
 |---|---|---|
 | `long wait` | `cmd`, `ms` | a command asks to wait longer than `--trace-long-wait` (10000 ms): an effect (`print 10,270000`), `wait`, `delay`, `waittimer` (the time left), a fade, a `quake`, or a `btnwait` with a long `btntime`. `ms` is what the script asked for, even when auto-play shortened it |
 | `large image` | `file`, `w`, `h`, `mb` | a picture, as kept after scaling to the screen, takes more memory than `--trace-max-image` (64 MB); once per file. `file` is the tag for a picture without a file (a colour), `null` if none. Every build, the web one too, decodes and draws pictures in software, so a picture's width and height aren't limited (a 24000x600 animation strip works in a browser), only the memory it takes |
-| `save/load mismatch` | `diff` | `--roundtrip-every` found the state changed by saving and loading; `at` is the page compared, `pg` the page after the round trip. `diff` has up to 40 strings `"field: before -> after"` (`none` when absent; a long value is cut to 100 bytes around where the two differ, with `...`): `at`, `text`, `tag`, `bg`, `bgm`, `loopbgm` (` (stopped)` after the names when it no longer plays, or its intro plays with the loop gone), `se <ch>` (looping sounds, with ` vol n` when quieter than 100), `window`, `windowtrans`, `monocro`, `nega`, `flash`, `filter <slot>`, `fx <slot>`, `sprites_hidden`, `sprites2_hidden`, `pushscreen`, `sp <kind> <n>` (the image, then `x,y wxh alpha a cell c filters f`, and `over z` for `spz`, `keyed loop`, `keyed once` or `keyed a` for `spalpha`), `%n`, `$n`; `["can't save or load"]` if that failed |
+| `save/load mismatch` | `diff` | `--roundtrip-every` found the state changed by saving and loading; `at` is the page compared, `pg` the page after the round trip. `diff` has up to 40 strings `"field: before -> after"` (`none` when absent; a long value is cut to 100 bytes around where the two differ, with `...`): `at`, `text`, `tag`, `bg`, `bgm`, `loopbgm` (` (stopped)` after the names when it no longer plays, or its intro plays with the loop gone), `se <ch>` (looping sounds, with ` vol n` when quieter than 100), `window`, `windowtrans`, `monocro`, `nega`, `flash`, `filter <slot>`, `fx <slot>`, `sprites_hidden`, `sprites2_hidden`, `pushscreen`, `sp <kind> <n>` (the image, then `x,y wxh alpha a cell c filters f`, and `over z` for `spz`, `motion loop` or `motion once` while `spmotion` runs), `%n`, `$n`; `["can't save or load"]` if that failed |
 | `replay diverged` | `expected` | `--replay` reached a choice at `at`, where the recorded run's was at `expected` |
 | `replay ended` | | `--replay` ran out of recorded choices |
 | `choice not offered` | `option`, `from`, `options` | the answer `--choose` or `--choices` (`from`) gave isn't one of the `options` offered; the choice goes on to the next way of choosing ("Following a route") |

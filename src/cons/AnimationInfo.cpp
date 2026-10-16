@@ -68,18 +68,15 @@ AnimationInfo::AnimationInfo()
     motion_keys = 0;
     motion_loop = false;
     motion_keep = false;
+    motion_passes = 0;
     motion_start = motion_next = 0;
     motion_dx = motion_dy = 0;
-    motion_zoom = 100;
+    motion_zoom = motion_zoom_y = 100;
     motion_rot = 0;
     motion_alpha = 256;
     fade_ms = fade_from = fade_start = fade_next = 0;
     fade_alpha = 256;
     fade_out = false;
-    alpha_keys = 0;
-    alpha_loop = 0;
-    alpha_start = alpha_next = 0;
-    key_alpha = 256;
     z_over = -1;
 
     if (!is_inv_alpha_lut_initialized){
@@ -213,14 +210,12 @@ void AnimationInfo::remove()
     zoom_rot = 0;
     motion_keys = 0;
     motion_dx = motion_dy = 0;
-    motion_zoom = 100;
+    motion_zoom = motion_zoom_y = 100;
     motion_rot = 0;
     motion_alpha = 256;
     fade_ms = 0;
     fade_alpha = 256;
     fade_out = false;
-    alpha_keys = 0;
-    key_alpha = 256;
     z_over = -1;
 }
 
@@ -457,6 +452,19 @@ static void blend8Pixel32(const Uint32 *src_buffer, Uint32 *__restrict dst_buffe
 //      Uint32 mask_g  = (((*dst_buffer & 0x00ff00) * mask1 +
 //                         (*src_buffer & 0x00ff00) * mask2) >> 8) & 0x00ff00;
 
+// CONscripter: the sprite's colours multiply what is under it (white
+// leaves it, black darkens it), times its alpha (spblend 2)
+#define MULBLEND_PIXEL() do{\
+    Uint32 mask2 = (*alphap * alpha) >> 8;\
+    Uint32 out = 0xff000000;\
+    for (int k=0 ; k<24 ; k+=8){\
+        Uint32 f = 255 - (((255 - ((*src_buffer >> k) & 0xff)) * mask2) >> 8);\
+        out |= ((((*dst_buffer >> k) & 0xff) * f / 255) & 0xff) << k;\
+    }\
+    *dst_buffer = out;\
+    alphap += 4;\
+}while(0)
+
 #define ADDBLEND_PIXEL() do{\
     Uint32 mask2 = (*alphap * alpha) >> 8;\
     Uint32 mask_rb = (*dst_buffer & RBMASK) + ((((*src_buffer & RBMASK) * mask2) >> 8) & RBMASK);\
@@ -558,6 +566,11 @@ void AnimationInfo::blendOnSurface( SDL_Surface *dst_surface, int dst_x, int dst
             if (blendmode == AnimationInfo::BLEND_ADD) {
                 for (int j = dst_rect_w; j != 0; j--, src_buffer++, dst_buffer++) {
                     ADDBLEND_PIXEL();
+                }
+            }
+            else if (blendmode == AnimationInfo::BLEND_MUL) {
+                for (int j = dst_rect_w; j != 0; j--, src_buffer++, dst_buffer++) {
+                    MULBLEND_PIXEL();
                 }
             }
             else
@@ -751,6 +764,17 @@ void AnimationInfo::blendOnSurface2( SDL_Surface *dst_surface, int dst_x, int ds
                         unsigned char *alphap = (unsigned char *)line_buffer;
 #endif
                         ADDBLEND_PIXEL();
+                        ++dst_buffer; ++line_buffer; --size;
+                    }
+                }
+                else if (blending_mode == BLEND_MUL) {
+                    while (size > 0) {
+#if SDL_BYTEORDER == SDL_LIL_ENDIAN
+                        unsigned char* alphap = (unsigned char *)line_buffer + 3;
+#else
+                        unsigned char *alphap = (unsigned char *)line_buffer;
+#endif
+                        MULBLEND_PIXEL();
                         ++dst_buffer; ++line_buffer; --size;
                     }
                 }
