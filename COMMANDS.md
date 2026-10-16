@@ -651,6 +651,13 @@ the last; `spalpha num` stops. Up to 32 keys, saved.
 `spalpha 20,1,0,0,600,256,1100,256,1700,0,2200,0` (glow).
 Impl `ONScripter::spalphaCommand`.
 
+### spcut [cons]
+`spcut num,"mask",x,y` — cut a hole in sprite num's picture (every cell): the
+mask, its top left at screen (x, y), takes opacity away where it is dark
+(black: all of it). Lasts until the picture is loaded again; not saved.
+`getmousepos %0,%1:spcut 52,"hole.png",%0,%1:print 1`.
+Impl `ONScripter::spcutCommand`.
+
 ### spblend [cons]
 `spblend num,mode` — mode 1 adds the sprite's colours (times its alpha) to
 what is under it, keeping its place among the lsp sprites; 0 normal. Stays

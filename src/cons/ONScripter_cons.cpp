@@ -390,6 +390,58 @@ int ONScripter::spalphaCommand()
     return RET_CONTINUE;
 }
 
+/* spcut num,"mask",x,y
+ *   Cuts a hole in sprite num's picture: the mask picture, its top left at
+ *   screen (x, y), takes opacity away where it is dark (black: none left,
+ *   white or transparent: unchanged), in every cell. It lasts until the
+ *   sprite's picture is loaded again (not kept in saves). A bullet hole
+ *   where the player clicked: getmousepos %0,%1:sub %0,47:sub %1,41:
+ *   spcut 52,"hole.png",%0,%1:print 1. */
+int ONScripter::spcutCommand()
+{
+    int no = script_h.readInt();
+    char *name = NULL;
+    setStr( &name, script_h.readStr() ); // readInt reuses the buffer
+    int x = script_h.readInt();
+    int y = script_h.readInt();
+    AnimationInfo *ai = (no >= 0 && no < MAX_SPRITE_NUM) ? &sprite_info[no] : NULL;
+    SDL_Surface *s = ai ? ai->image_surface : NULL;
+    SDL_Surface *loaded = (s && s->format->BitsPerPixel == 32 && s->format->Amask) ? loadImage( name ) : NULL;
+    SDL_Surface *m = loaded ? SDL_ConvertSurfaceFormat( loaded, SDL_PIXELFORMAT_ARGB8888, 0 ) : NULL;
+    if (!m) utils::printError("spcut: sprite %d or mask %s can't be used\n", no, name);
+    delete[] name;
+    if (loaded) SDL_FreeSurface( loaded );
+    if (!m) return RET_CONTINUE;
+
+    int cell_w = s->w / (ai->num_of_cells > 0 ? ai->num_of_cells : 1);
+    int ox = x - ai->orig_pos.x, oy = y - ai->orig_pos.y;
+    Uint32 amask = s->format->Amask;
+    int ashift = s->format->Ashift;
+    SDL_LockSurface( s );
+    for (int my = 0; my < m->h; my++){
+        int sy = oy + my;
+        if (sy < 0 || sy >= s->h) continue;
+        Uint32 *mrow = (Uint32*)((Uint8*)m->pixels + my * m->pitch);
+        Uint32 *srow = (Uint32*)((Uint8*)s->pixels + sy * s->pitch);
+        for (int mx = 0; mx < m->w; mx++){
+            if (ox + mx < 0 || ox + mx >= cell_w) continue;
+            Uint32 p = mrow[mx];
+            int ma = p >> 24, lum = (((p >> 16) & 0xff) + ((p >> 8) & 0xff) + (p & 0xff)) / 3;
+            int keep = 255 - ma * (255 - lum) / 255; // opacity kept, 0-255
+            for (int c = 0; c < ai->num_of_cells || c == 0; c++){
+                Uint32 &d = srow[c * cell_w + ox + mx];
+                Uint32 a = ((d & amask) >> ashift) * keep / 255;
+                d = (d & ~amask) | ((a << ashift) & amask);
+            }
+        }
+    }
+    SDL_UnlockSurface( s );
+    SDL_FreeSurface( m );
+    if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
+
+    return RET_CONTINUE;
+}
+
 /* spblend num,mode
  *   Draws sprite num (an lsp sprite) adding its colours to what is under
  *   it (mode 1), times its alpha, or blended as usual (mode 0): a white

@@ -367,6 +367,7 @@ public:
     int bgmvolfadeCommand();
     int bgmlaterCommand();
     int autooffCommand();
+    int spcutCommand();
     int dwaveCommand();
     int dvCommand();
     int drawtextCommand();
