@@ -872,7 +872,10 @@ is no sound. Impl `ScriptParser::selectvoiceCommand`.
 
 ### bgm / mp3 / mp3loop / bgmonce / mp3save
 `bgm "file"` — loop music; `bgmonce`/`mp3` once; `mp3save` saved with the
-game. [cons] starts at the music setting (was 78 %). Impl `ONScripter::mp3Command`.
+game. [cons] starts at the music setting (was 78 %). [cons] `bgm "file",ms`
+cross-fades: the music playing fades out over ms while the new one fades in
+(not for `.wav`/MIDI music, nor while skipping or under `--auto-play`, where
+the old one stops at once). Impl `ONScripter::mp3Command`, `crossFadeOutBGM`.
 
 ### bgmstop / mp3stop
 Stop music (with `bgmfadeout` fade). [cons] a fade-out during `bgmfadein`

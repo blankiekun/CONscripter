@@ -2731,6 +2731,8 @@ void ONScripter::setChunkLoop( const unsigned char *buf, unsigned long len )
 static struct { Mix_Chunk *chunk; Uint32 pos; bool loop; Uint32 loop_start, loop_end; } cut_track[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS];
 static struct { Mix_Chunk *chunk; Uint8 *buf; } cut_fade[ONS_MIX_FADE_CHANNELS];
 static int cut_fade_next = 0;
+static void playFadeTail( Uint8 *raw, Uint32 bytes, int volume );
+extern bool ext_music_play_once_flag; // ONScripter_event.cpp
 
 static void cutTrackEffect( int channel, void *stream, int len, void *udata )
 {
@@ -2826,16 +2828,67 @@ void ONScripter::cutChannel( int channel )
             buf[f*chans + c] = (Sint16)((Sint32)src[at*chans + c] * gain / 4096 * (Sint32)(frames - f) / (Sint32)frames);
     }
 
+    playFadeTail( raw, frames * frame, Mix_Volume( channel, -1 ) );
+}
+
+// Plays raw (device format, faded already; taken over) once on one of the
+// channels kept for fades, at volume (0-MIX_MAX_VOLUME).
+static void playFadeTail( Uint8 *raw, Uint32 bytes, int volume )
+{
     int n = cut_fade_next++ % ONS_MIX_FADE_CHANNELS;
     int fade_channel = ONS_MIX_CHANNELS + ONS_MIX_EXTRA_CHANNELS + n;
     Mix_HaltChannel( fade_channel );
     if (cut_fade[n].chunk) Mix_FreeChunk( cut_fade[n].chunk );
     delete[] cut_fade[n].buf;
     cut_fade[n].buf = raw;
-    cut_fade[n].chunk = Mix_QuickLoad_RAW( cut_fade[n].buf, frames * frame );
+    cut_fade[n].chunk = Mix_QuickLoad_RAW( cut_fade[n].buf, bytes );
     if (!cut_fade[n].chunk) return;
-    Mix_Volume( fade_channel, Mix_Volume( channel, -1 ) );
+    Mix_Volume( fade_channel, volume );
     Mix_PlayChannel( fade_channel, cut_fade[n].chunk, 0 );
+}
+
+/* bgm "file",ms: the music playing goes on fading out over ms while the
+ * next fades in. SDL_mixer plays one music at a time, so the old one's
+ * next ms are decoded again from its file (kept in music_buffer), from
+ * where its decoder is, faded and played on a fade channel; the music is
+ * halted in the same lock, so the two join without a gap or overlap.
+ * Not for music played as a sound (.wav on the BGM channel) or a MIDI. */
+void ONScripter::crossFadeOutBGM( int ms )
+{
+#if defined(SDL_MIXER_VERSION_ATLEAST) && SDL_MIXER_VERSION_ATLEAST(2,6,0)
+    if (!audio_open_flag || ms <= 0 || !music_info || !music_buffer || Mix_PlayingMusic() != 1 || Mix_PausedMusic() ||
+        timer_bgmfade_id || audio_format.format != AUDIO_S16SYS) return;
+    int volume = Mix_VolumeMusic( -1 );
+    if (volume <= 0) return;
+    Mix_Chunk *whole = Mix_LoadWAV_RW( SDL_RWFromMem( music_buffer, music_buffer_length ), 1 );
+    if (!whole) return;
+    int chans = audio_format.channels, frame = 2 * chans;
+    Uint32 total = whole->alen / frame;
+    Uint32 frames = (Uint32)((long long)audio_format.freq * ms / 1000);
+    const Sint16 *src = (const Sint16*)whole->abuf;
+    SDL_LockAudio();
+    double s = Mix_GetMusicPosition( music_info );
+    Uint32 at = s > 0 ? (Uint32)(s * audio_format.freq) : 0;
+    if (music_play_loop_flag && total > 0) at %= total;
+    if (!music_play_loop_flag) frames = at < total ? (frames < total - at ? frames : total - at) : 0;
+    if (frames >= 2 && total > 0){
+        Uint8 *raw = new Uint8[frames * frame];
+        Sint16 *buf = (Sint16*)raw;
+        for (Uint32 f=0, p=at ; f<frames ; f++, p++){
+            if (p >= total) p = 0; // a looping music goes round
+            for (int c=0 ; c<chans ; c++)
+                buf[f*chans + c] = (Sint16)((Sint32)src[p*chans + c] * (Sint32)(frames - f) / (Sint32)frames);
+        }
+        playFadeTail( raw, frames * frame, volume );
+        Mix_HookMusicFinished( NULL ); // as mp3stop's fade does
+        ext_music_play_once_flag = true;
+        Mix_HaltMusic();
+    }
+    SDL_UnlockAudio();
+    Mix_FreeChunk( whole );
+#else
+    (void)ms;
+#endif
 }
 
 // A dwave channel playing a sound with dwaveloop or dwaveplayloop.
