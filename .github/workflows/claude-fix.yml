@@ -89,11 +89,15 @@ jobs:
         if: ${{ !cancelled() && steps.claude.outcome != 'skipped' }}
         env:
           SESSION: ${{ steps.claude.outputs.execution_file }}
+          KEY: ${{ secrets.REPORT_SECRET }}
         run: |
           [ -f .bug-report/pr.md ] || echo "Claude didn't write pr.md." > .bug-report/pr.md
           mkdir -p /tmp/out
           cp .bug-report/pr.md /tmp/out/pr.md
-          [ ! -f "$SESSION" ] || cp "$SESSION" /tmp/out/session.json
+          # Artifacts of a public repository can be downloaded by anyone, and the session
+          # holds the player's report (and whatever Claude printed): encrypted until the
+          # publish job, on a fresh runner, has checked it for secrets.
+          [ ! -f "$SESSION" ] || openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:KEY -in "$SESSION" -out /tmp/out/session.json.enc
           git add -A
           git diff --cached --binary > /tmp/out/change.patch
 
@@ -130,6 +134,11 @@ jobs:
           CHANGE: ${{ runner.temp }}/change
         run: |
           [[ "$ID" =~ ^[0-9a-f-]{36}$ ]] || { echo "bad report id"; exit 1; }
+          f="$CHANGE/session.json.enc"
+          if [ -f "$f" ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -pass env:REPORT_SECRET -in "$f" -out "$CHANGE/session.json"
+            rm "$f"
+          fi
           # The change goes public and the session to Discord. If a secret got into either
           # (as is, reversed or in base64, which the log's *** masking misses), send nothing.
           for s in "$CLAUDE_TOKEN" "$REPORT_SECRET"; do
