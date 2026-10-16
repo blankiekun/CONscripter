@@ -135,7 +135,10 @@ int ONScripter::playSound(const char *filename, int format, bool loop_flag, int 
             utils::printError("can't load chunk \"%s\": %s\n", filename, Mix_GetError());
             if (trace_fp) traceWarn("broken sound", filename);
         }
-        if (chunk && playWave(chunk, format, loop_flag, channel) == 0){
+        if (chunk && loop_flag) setChunkLoop( buffer, length ); // CONscripter
+        int played = chunk ? playWave(chunk, format, loop_flag, channel) : -1;
+        setChunkLoop( NULL, 0 ); // (a preloaded sound didn't take it)
+        if (played == 0){
             traceSound(channel, filename, loop_flag); // also for the web page's consVoice
             delete[] buffer;
             return SOUND_CHUNK;

@@ -839,7 +839,10 @@ Impl `ONScripter::waveCommand`, `wavestopCommand`.
 ### dwave / dwaveloop / dwaveload / dwaveplay / dwaveplayloop / dwavestop
 `dwave ch,"file"`; `dwaveload` loads, `dwaveplay` plays it; `dwavestop ch`.
 Channel 0 is the voice. [cons] looping channels kept in saves; cut sounds
-fade 10 ms. Impl `ONScripter::dwaveCommand`, `dwavestopCommand`.
+fade 10 ms. [cons] `dwaveloop` loops inside the file when it has a loop:
+`LOOPSTART`/`LOOPEND` (or `LOOPLENGTH`) Ogg Vorbis comments, or a WAV's
+`smpl` loop (as `bgm` does through SDL_mixer); not after `dwaveload` or a
+load. Impl `ONScripter::dwaveCommand`, `dwavestopCommand`, `setChunkLoop`.
 
 ### dwavefadein / dwavefadeout [cons]
 `dwavefadein ms` — the next `dwave*` fades in (once); `dwavefadeout ch,ms`

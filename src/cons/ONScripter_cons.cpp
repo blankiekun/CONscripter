@@ -2294,6 +2294,68 @@ void ONScripter::dropStoppedSoundEvents()
     removeEvent( SDL_USEREVENT+4 ); // ONS_CHUNK_EVENT
 }
 
+/* The loop inside a sound file, in sample frames at its rate: LOOPSTART
+ * and LOOPEND (or LOOPLENGTH) of an Ogg Vorbis file's comments, or the
+ * first loop of a WAV's smpl chunk (decodeOpus writes Opus tags there).
+ * SDL_mixer loops music by these itself, but a chunk (dwaveloop) only
+ * whole: the next playChannel loops inside it (setChunkLoop). */
+// The loop of the next sound playChannel starts (bytes; end 0: the whole).
+static Uint32 next_loop_start = 0, next_loop_end = 0;
+static bool soundLoop( const unsigned char *buf, unsigned long len, Sint64 *start, Sint64 *end, int *rate )
+{
+    auto le32 = [&](unsigned long at) -> Uint32 {
+        return at + 4 <= len ? buf[at] | buf[at+1] << 8 | buf[at+2] << 16 | (Uint32)buf[at+3] << 24 : 0;
+    };
+    *start = *end = -1;
+    if (len > 12 && !memcmp( buf, "RIFF", 4 ) && !memcmp( buf + 8, "WAVE", 4 )){
+        for (unsigned long at = 12; at + 8 <= len; at += 8 + ((le32(at+4) + 1) & ~1u)){
+            if (!memcmp( buf + at, "fmt ", 4 )) *rate = (int)le32(at + 12);
+            if (!memcmp( buf + at, "smpl", 4 ) && le32(at + 8 + 28) > 0){
+                *start = le32(at + 8 + 36 + 8);
+                *end = (Sint64)le32(at + 8 + 36 + 12) + 1;
+            }
+        }
+        return *start >= 0 && *end > *start && *rate > 0;
+    }
+    if (len < 4 || memcmp( buf, "OggS", 4 )) return false;
+    const unsigned char *id = NULL, *cm = NULL;
+    for (unsigned long i = 0; i + 7 < len && i < 65536 && !cm; i++){
+        if (!memcmp( buf + i, "\x01vorbis", 7 )) id = buf + i;
+        if (!memcmp( buf + i, "\x03vorbis", 7 )) cm = buf + i;
+    }
+    if (!id || !cm) return false;
+    *rate = (int)le32(id - buf + 12);
+    // (A comment header split over pages isn't read: tags sit early.)
+    unsigned long at = cm - buf + 7;
+    at += 4 + le32(at);
+    Uint32 count = le32(at);
+    at += 4;
+    Sint64 length = -1;
+    for (Uint32 i = 0; i < count && at + 4 <= len; i++){
+        Uint32 n = le32(at);
+        if (at + 4 + n > len) break;
+        std::string tag( (const char*)buf + at + 4, n );
+        for (auto &c : tag) if (c == '=') break; else c = toupper(c);
+        if (!tag.compare( 0, 10, "LOOPSTART=" )) *start = atoll( tag.c_str() + 10 );
+        if (!tag.compare( 0, 8, "LOOPEND=" )) *end = atoll( tag.c_str() + 8 );
+        if (!tag.compare( 0, 11, "LOOPLENGTH=" )) length = atoll( tag.c_str() + 11 );
+        at += 4 + n;
+    }
+    if (*start >= 0 && *end < 0 && length > 0) *end = *start + length;
+    return *start >= 0 && *end > *start && *rate > 0;
+}
+
+void ONScripter::setChunkLoop( const unsigned char *buf, unsigned long len )
+{
+    Sint64 start, end;
+    int rate = 0;
+    next_loop_start = next_loop_end = 0;
+    if (!soundLoop( buf, len, &start, &end, &rate )) return;
+    int frame = audio_format.channels * (SDL_AUDIO_BITSIZE( audio_format.format ) / 8);
+    next_loop_start = (Uint32)(start * audio_format.freq / rate) * frame;
+    next_loop_end = (Uint32)(end * audio_format.freq / rate) * frame;
+}
+
 /* A sound cut off (a voice by the next one, dwavestop, stop, a load) used
  * to stop at once, mid-wave: a step in the output, heard as a pop. Instead,
  * the next CUT_FADE_MS of it fade out on a channel of their own, starting
@@ -2303,13 +2365,30 @@ void ONScripter::dropStoppedSoundEvents()
  * buffer, ~90 ms, too coarse to help). Music (Mix_Music) can't be read
  * ahead, so it still stops at once. */
 #define CUT_FADE_MS 10
-static struct { Mix_Chunk *chunk; Uint32 pos; bool loop; } cut_track[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS];
+static struct { Mix_Chunk *chunk; Uint32 pos; bool loop; Uint32 loop_start, loop_end; } cut_track[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS];
 static struct { Mix_Chunk *chunk; Uint8 *buf; } cut_fade[ONS_MIX_FADE_CHANNELS];
 static int cut_fade_next = 0;
 
 static void cutTrackEffect( int channel, void *stream, int len, void *udata )
 {
     if (channel < 0 || channel >= ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS) return;
+    // A loop inside the sound (LOOPSTART/LOOPEND): what SDL_mixer took
+    // from the whole is replaced from where the loop has got to.
+    Mix_Chunk *looped = cut_track[channel].chunk;
+    bool inner = looped && cut_track[channel].loop && cut_track[channel].loop_end > cut_track[channel].loop_start;
+    if (inner){
+        Uint32 end = cut_track[channel].loop_end, p = cut_track[channel].pos;
+        Uint8 *s = (Uint8*)stream;
+        for (int done = 0; done < len; ){
+            if (p >= end) p = cut_track[channel].loop_start;
+            Uint32 n = end - p;
+            if (n > (Uint32)(len - done)) n = len - done;
+            memcpy( s + done, looped->abuf + p, n );
+            done += n;
+            p += n;
+        }
+        cut_track[channel].pos = p;
+    }
     if (channel < ONS_MIX_CHANNELS && track_gain_s16){
         int last = track_gain[channel].last, gain = trackGain( channel );
         track_gain[channel].last = gain;
@@ -2323,7 +2402,7 @@ static void cutTrackEffect( int channel, void *stream, int len, void *udata )
         }
     }
     Mix_Chunk *chunk = cut_track[channel].chunk;
-    if (!chunk || chunk->alen == 0) return;
+    if (!chunk || chunk->alen == 0 || inner) return;
     Uint32 pos = cut_track[channel].pos + len;
     if (pos >= chunk->alen) pos = cut_track[channel].loop ? pos % chunk->alen : chunk->alen;
     cut_track[channel].pos = pos;
@@ -2339,6 +2418,9 @@ void ONScripter::playChannel( int channel, Mix_Chunk *chunk, int loops )
     cut_track[channel].chunk = chunk;
     cut_track[channel].pos = 0;
     cut_track[channel].loop = loops != 0;
+    cut_track[channel].loop_start = next_loop_start;
+    cut_track[channel].loop_end = next_loop_end <= chunk->alen ? next_loop_end : 0;
+    next_loop_start = next_loop_end = 0;
     if (channel < ONS_MIX_CHANNELS) // the ramp from where it is
         track_gain[channel].last = trackGain( channel );
     track_gain_s16 = audio_format.format == AUDIO_S16SYS;

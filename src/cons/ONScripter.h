@@ -1205,6 +1205,7 @@ private:
     int playSound(const char *filename, int format, bool loop_flag, int channel=0);
     void playCDAudio();
     int playWave(Mix_Chunk *chunk, int format, bool loop_flag, int channel);
+    void setChunkLoop( const unsigned char *buf, unsigned long len ); // CONscripter: LOOPSTART/LOOPEND of a chunk
     int playMIDI(bool loop_flag);
     
     int playMPEG(const char *filename, bool click_flag, bool loop_flag=false);
