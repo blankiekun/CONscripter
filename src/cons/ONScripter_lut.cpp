@@ -384,6 +384,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"click",			&ONScripter::clickCommand},
     {"cl",				&ONScripter::clCommand},
     {"chvolfade",		&ONScripter::chvolfadeCommand},
+    {"chfreq",			&ONScripter::chfreqCommand},
     {"chvol",			&ONScripter::chvolCommand},
     {"chpan",			&ONScripter::chpanCommand},
     {"checkpage",		&ONScripter::checkpageCommand},

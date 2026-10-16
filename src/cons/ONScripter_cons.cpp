@@ -2779,13 +2779,65 @@ static struct { Mix_Chunk *chunk; Uint32 pos; bool loop; Uint32 loop_start, loop
 static struct { Mix_Chunk *chunk; Uint8 *buf; } cut_fade[ONS_MIX_FADE_CHANNELS];
 static int cut_fade_next = 0;
 
+/* chfreq: a dwave channel's sound played at rate/1000 of its speed (and
+ * pitch), ramped linearly from `from` to `to` over `ms` from `start` as
+ * chvolfade's volume is. While `on`, the track effect makes the channel's
+ * output itself from the sound at `pos` (sample frames, between samples
+ * read straight between them), going on by the rate each frame; SDL_mixer
+ * plays the sound looped underneath (so a slowed sound isn't cut at its
+ * old length) and only its position is ignored. A sound that doesn't loop
+ * ends with ONS_FREQ_END_EVENT, which halts the channel. A new sound on the
+ * channel plays at its own rate again. */
+static struct { volatile bool on; volatile int from, to, ms; volatile Uint32 start; int last; double pos; bool ended; } track_freq[ONS_MIX_CHANNELS];
+static int track_chans = 2;
+
+static void freqTrackEffect( int channel, Sint16 *out, int len )
+{
+    Mix_Chunk *chunk = cut_track[channel].chunk;
+    int chans = track_chans, frame = 2 * chans, frames = len / frame;
+    Uint32 total = chunk ? chunk->alen / frame : 0;
+    bool inner = cut_track[channel].loop && cut_track[channel].loop_end > cut_track[channel].loop_start;
+    double lstart = inner ? cut_track[channel].loop_start / frame : 0;
+    double lend = inner ? cut_track[channel].loop_end / frame : total;
+    int last = track_freq[channel].last;
+    int rate = scriptVolumeAt( track_freq[channel].from, track_freq[channel].to, track_freq[channel].ms, track_freq[channel].start, SDL_GetTicks() );
+    track_freq[channel].last = rate;
+    const Sint16 *src = chunk ? (const Sint16*)chunk->abuf : NULL;
+    double pos = track_freq[channel].pos;
+    for (int f=0 ; f<frames ; f++){
+        if (src && pos >= lend && (cut_track[channel].loop || inner)) pos -= lend - lstart;
+        if (!src || track_freq[channel].ended || pos >= lend || pos < 0){
+            for (int c=0 ; c<chans ; c++) out[f*chans + c] = 0;
+            if (src && !track_freq[channel].ended){
+                track_freq[channel].ended = true;
+                SDL_Event event;
+                SDL_zero( event );
+                event.type = ONS_FREQ_END_EVENT;
+                event.user.code = channel;
+                SDL_PushEvent( &event );
+            }
+            continue;
+        }
+        Uint32 a = (Uint32)pos, b = a + 1;
+        if (b >= (Uint32)lend) b = (cut_track[channel].loop || inner) ? (Uint32)lstart : a;
+        double t = pos - a;
+        for (int c=0 ; c<chans ; c++)
+            out[f*chans + c] = (Sint16)(src[a*chans + c] + (src[b*chans + c] - src[a*chans + c]) * t);
+        pos += (last + (double)(rate - last) * f / frames) / 1000.0;
+    }
+    track_freq[channel].pos = pos;
+    cut_track[channel].pos = (Uint32)pos * frame; // for cutChannel and channelPlayedMs
+}
+
 static void cutTrackEffect( int channel, void *stream, int len, void *udata )
 {
     if (channel < 0 || channel >= ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS) return;
     // A loop inside the sound (LOOPSTART/LOOPEND): what SDL_mixer took
     // from the whole is replaced from where the loop has got to.
+    bool freq = channel < ONS_MIX_CHANNELS && track_freq[channel].on && track_gain_s16;
+    if (freq) freqTrackEffect( channel, (Sint16*)stream, len );
     Mix_Chunk *looped = cut_track[channel].chunk;
-    bool inner = looped && cut_track[channel].loop && cut_track[channel].loop_end > cut_track[channel].loop_start;
+    bool inner = !freq && looped && cut_track[channel].loop && cut_track[channel].loop_end > cut_track[channel].loop_start;
     if (inner){
         Uint32 end = cut_track[channel].loop_end, p = cut_track[channel].pos;
         Uint8 *s = (Uint8*)stream;
@@ -2824,7 +2876,7 @@ static void cutTrackEffect( int channel, void *stream, int len, void *udata )
         }
     }
     Mix_Chunk *chunk = cut_track[channel].chunk;
-    if (!chunk || chunk->alen == 0 || inner) return;
+    if (!chunk || chunk->alen == 0 || inner || freq) return;
     Uint32 pos = cut_track[channel].pos + len;
     if (pos >= chunk->alen) pos = cut_track[channel].loop ? pos % chunk->alen : chunk->alen;
     cut_track[channel].pos = pos;
@@ -2843,13 +2895,71 @@ void ONScripter::playChannel( int channel, Mix_Chunk *chunk, int loops )
     cut_track[channel].loop_start = next_loop_start;
     cut_track[channel].loop_end = next_loop_end <= chunk->alen ? next_loop_end : 0;
     next_loop_start = next_loop_end = 0;
-    if (channel < ONS_MIX_CHANNELS){ // the ramps from where they are
+    if (channel < ONS_MIX_CHANNELS){ // the ramps from where they are; the sound's own rate
         track_gain[channel].last = trackGain( channel );
         track_pan[channel].last = trackPan( channel );
+        track_freq[channel].on = false;
     }
+    track_chans = audio_format.channels;
     track_gain_s16 = audio_format.format == AUDIO_S16SYS;
     track_stereo = audio_format.channels == 2;
     Mix_RegisterEffect( channel, cutTrackEffect, NULL, NULL ); // reset when a sound ends
+}
+
+/* chfreq ch,rate[,ms]
+ *   Plays the sound now on dwave channel ch at rate/1000 of its speed,
+ *   which raises or lowers its pitch with it (100-4000; 1000 its own),
+ *   reached over ms (default 0, at once; gamespeed applies) while the
+ *   script goes on, from the rate it has now. A looping sound stays at it,
+ *   one that doesn't ends sooner or later by as much. The next sound on the
+ *   channel plays at its own rate; not kept in saves (a load starts looping
+ *   sounds at their own rate). With no sound playing it does nothing.
+ *       dwave 10,"se\shot.ogg":chfreq 10,1100,1000   (up a tenth in a second) */
+int ONScripter::chfreqCommand()
+{
+    int ch = script_h.readInt();
+    int rate = script_h.readInt();
+    int ms = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
+    if (rate < 100) rate = 100; else if (rate > 4000) rate = 4000;
+    if (ch < 0 || ch >= ONS_MIX_CHANNELS || !audio_open_flag || !wave_sample[ch] || !Mix_Playing( ch ) ||
+        cut_track[ch].chunk != Mix_GetChunk( ch )) return RET_CONTINUE;
+    if (audio_format.format != AUDIO_S16SYS){
+        utils::printError("chfreq: needs 16-bit audio\n");
+        return RET_CONTINUE;
+    }
+    Uint32 now = SDL_GetTicks();
+    SDL_LockAudio();
+    int from = track_freq[ch].on ? scriptVolumeAt( track_freq[ch].from, track_freq[ch].to, track_freq[ch].ms, track_freq[ch].start, now ) : 1000;
+    if (!track_freq[ch].on){
+        track_freq[ch].pos = cut_track[ch].pos / (2 * audio_format.channels);
+        track_freq[ch].ended = false;
+        track_freq[ch].last = from;
+        if (!cut_track[ch].loop){ // looped underneath, so that a slower sound isn't cut short
+            Mix_PlayChannel( ch, cut_track[ch].chunk, -1 ); // (the playing sound's end isn't signalled)
+            Mix_RegisterEffect( ch, cutTrackEffect, NULL, NULL );
+        }
+        track_freq[ch].on = true;
+    }
+    track_freq[ch].from = from;
+    track_freq[ch].start = now;
+    track_freq[ch].to = rate;
+    track_freq[ch].ms = ms > 0 ? speedTime( ms ) : 0;
+    SDL_UnlockAudio();
+    return RET_CONTINUE;
+}
+
+int trackFreq( int channel ) // per mille; the trace reads it
+{
+    if (channel < 0 || channel >= ONS_MIX_CHANNELS || !track_freq[channel].on) return 1000;
+    return scriptVolumeAt( track_freq[channel].from, track_freq[channel].to, track_freq[channel].ms, track_freq[channel].start, SDL_GetTicks() );
+}
+
+// chfreq's sound (not looping) played to its end: stopped as it would have.
+void ONScripter::endFreqChannel( int channel )
+{
+    if (channel < 0 || channel >= ONS_MIX_CHANNELS || !track_freq[channel].on || !track_freq[channel].ended) return;
+    track_freq[channel].on = false;
+    Mix_HaltChannel( channel ); // runs waveCallback, as when SDL_mixer ends it: frees the sound, ends a voice wait
 }
 
 // How long the sound on channel has played, in ms; -1 when none plays.
