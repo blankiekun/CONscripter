@@ -65,20 +65,13 @@ AnimationInfo::AnimationInfo()
     filter_changed = false;
     zoom_x = zoom_y = 100;
     zoom_rot = 0;
-    motion_keys = 0;
     motion_loop = false;
     motion_keep = false;
     motion_passes = 0;
     motion_start = motion_next = 0;
-    motion_dx = motion_dy = 0;
-    motion_zoom = motion_zoom_y = 100;
-    motion_rot = 0;
-    motion_alpha = 256;
+    stopMotion();
     trail_passes = trail_alpha = trail_lag = trail_keys = trail_time = 0;
     trail_rect.x = trail_rect.y = trail_rect.w = trail_rect.h = 0;
-    fade_ms = fade_from = fade_start = fade_next = 0;
-    fade_alpha = 256;
-    fade_out = false;
     z_over = -1;
     clip_rect[0] = clip_rect[1] = clip_rect[2] = clip_rect[3] = 0;
 
@@ -211,18 +204,22 @@ void AnimationInfo::remove()
     clearFilters();
     zoom_x = zoom_y = 100;
     zoom_rot = 0;
+    stopMotion();
+    trail_passes = trail_alpha = trail_lag = trail_keys = trail_time = 0;
+    trail_rect.x = trail_rect.y = trail_rect.w = trail_rect.h = 0;
+    z_over = -1;
+    clip_rect[0] = clip_rect[1] = clip_rect[2] = clip_rect[3] = 0;
+}
+
+void AnimationInfo::stopMotion()
+{
     motion_keys = 0;
+    motion_leave = false;
     motion_dx = motion_dy = 0;
     motion_zoom = motion_zoom_y = 100;
     motion_rot = 0;
     motion_alpha = 256;
-    trail_passes = trail_alpha = trail_lag = trail_keys = trail_time = 0;
-    trail_rect.x = trail_rect.y = trail_rect.w = trail_rect.h = 0;
-    fade_ms = 0;
-    fade_alpha = 256;
-    fade_out = false;
-    z_over = -1;
-    clip_rect[0] = clip_rect[1] = clip_rect[2] = clip_rect[3] = 0;
+    motion_end = 0;
 }
 
 void AnimationInfo::clearFilters()

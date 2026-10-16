@@ -146,13 +146,15 @@ public:
        a zoom and an angle about its centre and a part of its alpha,
        stepped along keys by the timer, each reached by its curve, looping
        or once (then back at its place, or, motion_keep, moved to the last
-       key's offset, zoom and alpha), or motion_passes times then kept.
-       Stays across lsp; reset by remove(). */
+       key's offset, zoom and alpha), or motion_passes times then kept,
+       or, motion_leave (loop 3), once and then the sprite is removed (lsp
+       ends that). Stays across lsp; reset by remove(). */
     enum { MAX_MOTION_KEYS = 32 };
     int motion_keys;           // 0: no motion
     int motion_key[MAX_MOTION_KEYS][8]; // ms, x, y, zoom x, angle, alpha, zoom y, curve
     bool motion_loop;
     bool motion_keep;
+    bool motion_leave;
     int motion_passes;         // keep after this many passes (0, 1: one)
     int motion_start;          // ticks when it started
     int motion_next;           // ticks of the next step
@@ -160,6 +162,7 @@ public:
     int motion_zoom, motion_zoom_y; // percent, 100 = none
     int motion_rot;            // degrees, counterclockwise as lsp2's
     int motion_alpha;          // 0-256 of the sprite's alpha
+    int motion_end;            // ticks a motion ended at once by --auto-play would have ended: spmotionwait still passes that time
 
     /* CONscripter: a trail (sptrail): trail_passes copies drawn under the
        sprite, copy i where its motion had it trail_lag * i ms before, at
@@ -172,15 +175,6 @@ public:
     int trail_keys;            // the ended motion's keys still followed
     int trail_time;            // ticks the motion was last stepped at
     SDL_Rect trail_rect;       // where the copies were drawn (w 0: none)
-
-    /* CONscripter: a fade in (spfade): the sprite is drawn at fade_alpha
-       (0-256) of its own alpha, going from fade_from to 256 over fade_ms,
-       stepped by the timer. Stays across lsp; reset by remove().
-       fade_out (spfade num,-ms): from fade_from down to 0, then the
-       sprite is removed; lsp ends it. */
-    int fade_ms;               // 0: no fade
-    int fade_from, fade_start, fade_next, fade_alpha;
-    bool fade_out;
 
     /* CONscripter: spz: the sprite is drawn right over sprite z_over
        instead of at its own number (-1: at its own). Stays across lsp;
@@ -221,6 +215,7 @@ public:
     void setImageName( const char *name );
     void deleteSurface(bool delete_surface_name=true);
     void remove();
+    void stopMotion(); // CONscripter: no motion, drawn at its place
     void removeTag();
 
     bool proceedAnimation(int current_time);

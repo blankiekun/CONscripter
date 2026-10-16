@@ -657,13 +657,18 @@ reached from the one before: 0 straight, 1 ease in, 2 ease out, 3 ease in
 and out, 4 jump at the key, 10-73 an `spcurve` table. Stepped every ~16 ms
 by the timer (also during waits). loop 0: ends, back at its place; 1:
 repeats; 2: once, then the last key's offset/zoom/angle/alpha are applied to
-the sprite; -n: n times, then as 2. `spmotion num` stops. Up to 32 keys.
+the sprite; -n: n times, then as 2; 3: once, then the sprite is removed (as
+`csp`; `lsp` on it ends that and keeps it; saves and `pushscreen` leave it
+out). Under `--auto-play` (not `--real-time`) every motion but loop 1 ends at
+once. `spmotion num` stops. Up to 32 keys.
 Stays through `lsp`, removed by `csp`, saved (restarted). Another
 `spmotion`, `lsp`, `msp`, `amsp` first finishes a loop 2/-n motion at its
 last key.
 `spmotion 10,1,0,0,0,100,100,0,256,0,250,0,-12,100,100,0,256,3,500,0,0,100,100,0,256,3` (bob);
 `spmotion 10,1,0,0,0,100,100,0,256,0,1000,0,0,100,100,360,256,0` (spin);
-`spmotion 20,1,0,0,0,100,100,0,0,0,600,0,0,100,100,0,256,0,1100,0,0,100,100,0,256,0,1700,0,0,100,100,0,0,0` (glow).
+`spmotion 20,1,0,0,0,100,100,0,0,0,600,0,0,100,100,0,256,0,1100,0,0,100,100,0,256,0,1700,0,0,100,100,0,0,0` (glow);
+`lsp 60,":a;noise.png",0,0,200:spmotion 60,0,0,0,0,100,100,0,0,0,2000,0,0,100,100,0,256,0` (fade in, was `spfade 60,2000`);
+`spmotion 60,3,0,0,0,100,100,0,256,0,300,0,0,100,100,0,0,0` (fade out and remove).
 Impl `ONScripter::spmotionCommand`.
 
 ### spmotionwait [cons]
@@ -679,14 +684,6 @@ Impl `ONScripter::spmotionwaitCommand`.
 between them. For an easing table read from a game's exe, as it is. Saved.
 `spcurve 10,0,40,300,1024`. Impl `ONScripter::spcurveCommand`.
 
-### spfade [cons]
-`spfade num,ms[,from]` — fade in from from/256 (0) to its alpha over ms,
-script continues. `spfade num,0` ends it. Saves keep the final alpha.
-`spfade num,-ms[,from]` fades it out from its alpha to nothing, then removes it
-(as csp); lsp on it ends that; saves leave it out.
-`lsp 60,":a;noise.png",0,0,200:spfade 60,2000:print 1`.
-Impl `ONScripter::spfadeCommand`.
-
 ### spcut [cons]
 `spcut num,"mask",x,y` — cut a hole in sprite num's picture (every cell): the
 mask, its top left at screen (x, y), takes opacity away where it is dark
@@ -700,7 +697,7 @@ taken: src -1 (default) the screen as sprites and background draw it now
 (no text window, sprite num left out), src n sprite n's picture (its cell
 now; x, y in that picture); default all of it. The picture under it can
 then change while the copy fades or moves away by itself: a cross-fade the
-script doesn't wait for, `spgrab 20:bg "b.png",1:spfade 20,-800`. Not kept
+script doesn't wait for, `spgrab 20:bg "b.png",1:spmotion 20,3,0,0,0,100,100,0,256,0,800,0,0,100,100,0,0,0`. Not kept
 in saves (a load leaves it empty) or by `pushscreen`; the trace names it
 `(spgrab)`. Impl `ONScripter::spgrabCommand`.
 
@@ -973,7 +970,7 @@ voice); `autovoicewait` (0: auto mode doesn't wait for the voice; default
 1); `selectkeep` (1: auto and skip continue after a `select`); `moviestop`
 (1 a click always stops a movie, 0 never, -1 as the script says);
 `gamespeed` (10-10000 %, 100: script times — `wait`, `delay`, timers,
-effects, `spfade`, `spmotion`, `screenshake` — run at that speed; text
+effects, `spmotion`, `screenshake` — run at that speed; text
 speed, auto wait and sounds unaffected); `sysevol` (volume of `wave`'s
 channel: menu sounds, `selectvoice`, `btnse`; -1 = `sevol`); `effectoff`
 (1: every `print`/`bg`/`ld`/`cl` effect drawn at once); `textshadow` (0: no
