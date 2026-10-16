@@ -120,7 +120,7 @@ int ONScripter::playSound(const char *filename, int format, bool loop_flag, int 
             utils::printError("can't load music \"%s\": %s\n", filename, Mix_GetError());
             if (trace_fp) traceWarn("broken music", filename);
         }
-        Mix_VolumeMusic( musicVolume() * MIX_MAX_VOLUME / 100 ); // CONscripter: bgmvolfade
+        Mix_VolumeMusic( musicVolume() * MIX_MAX_VOLUME / 100 ); // CONscripter: chvolfade -1
         if ( music_info && Mix_PlayMusic( music_info, (music_play_loop_flag&&music_loopback_offset==0.0)?-1:0 ) == 0 ){
             music_buffer = buffer;
             music_buffer_length = length;
@@ -205,7 +205,7 @@ int ONScripter::playWave(Mix_Chunk *chunk, int format, bool loop_flag, int chann
 
     cutChannel( channel ); // CONscripter: was Mix_Pause
     if      (channel == 0)               Mix_Volume( channel, voice_volume * MIX_MAX_VOLUME / 100 );
-    else if (channel == MIX_BGM_CHANNEL) Mix_Volume( channel, musicVolume() * MIX_MAX_VOLUME / 100 ); // CONscripter: bgmvolfade
+    else if (channel == MIX_BGM_CHANNEL) Mix_Volume( channel, musicVolume() * MIX_MAX_VOLUME / 100 ); // CONscripter: chvolfade -1
     else if (channel == MIX_WAVE_CHANNEL && syse_volume >= 0) Mix_Volume( channel, syse_volume * MIX_MAX_VOLUME / 100 ); // CONscripter: sysevol
     else                                 Mix_Volume( channel, se_volume * MIX_MAX_VOLUME / 100 );
 
@@ -241,7 +241,7 @@ int ONScripter::playMIDI(bool loop_flag)
     if (midi_cmd) midi_looping = 0;
 #endif
     
-    Mix_VolumeMusic( musicVolume() * MIX_MAX_VOLUME / 100 ); // CONscripter: was out of 128; bgmvolfade
+    Mix_VolumeMusic( musicVolume() * MIX_MAX_VOLUME / 100 ); // CONscripter: was out of 128; chvolfade -1
     Mix_PlayMusic(midi_info, midi_looping);
     current_cd_track = -2; 
     

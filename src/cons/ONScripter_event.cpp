@@ -197,7 +197,7 @@ void ONScripter::flushEventSub( SDL_Event &event )
         Uint32 tmp = SDL_GetTicks() - mp3fade_start;
         if ( tmp < cur_fade_duration ) {
             tmp = cur_fade_duration - tmp;
-            tmp *= musicVolume(); // CONscripter: bgmvolfade
+            tmp *= musicVolume(); // CONscripter: chvolfade -1
             tmp /= cur_fade_duration;
 
             Mix_VolumeMusic( tmp * MIX_MAX_VOLUME / 100 );
@@ -220,11 +220,11 @@ void ONScripter::flushEventSub( SDL_Event &event )
         if (skip_mode & (SKIP_NORMAL | SKIP_TO_EOP) ||
             ctrl_pressed_status || (auto_play_flag && !auto_play_real)) {
             cur_fade_duration = 0;
-            Mix_VolumeMusic( musicVolume() * MIX_MAX_VOLUME / 100 ); // CONscripter: bgmvolfade
+            Mix_VolumeMusic( musicVolume() * MIX_MAX_VOLUME / 100 ); // CONscripter: chvolfade -1
         }
         Uint32 tmp = SDL_GetTicks() - mp3fade_start;
         if ( tmp < cur_fade_duration ) {
-            tmp *= musicVolume(); // CONscripter: bgmvolfade
+            tmp *= musicVolume(); // CONscripter: chvolfade -1
             tmp /= cur_fade_duration;
 
             Mix_VolumeMusic( tmp * MIX_MAX_VOLUME / 100 );
@@ -614,7 +614,7 @@ void ONScripter::variableEditMode( SDL_KeyboardEvent *event )
 
           case EDIT_MP3_VOLUME_MODE:
             music_volume = variable_edit_num;
-            Mix_VolumeMusic( musicVolume() * MIX_MAX_VOLUME / 100 ); // CONscripter: bgmvolfade
+            Mix_VolumeMusic( musicVolume() * MIX_MAX_VOLUME / 100 ); // CONscripter: chvolfade -1
             break;
 
           case EDIT_SE_VOLUME_MODE:
