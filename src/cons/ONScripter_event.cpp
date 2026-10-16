@@ -25,6 +25,9 @@
 
 #include "ONScripter.h"
 #include "Utils.h"
+#if defined(WEB)
+#include <emscripten.h>
+#endif
 #if defined(LINUX)
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -46,6 +49,9 @@
 #define EDIT_SELECT_STRING "MP3 vol (m)  SE vol (s)  Voice vol (v)  Numeric variable (n)"
 
 static SDL_TimerID timer_id = 0;
+#if defined(WEB)
+static Uint32 timer_due = 0; // CONscripter: the ticks timer_id fires at
+#endif
 SDL_TimerID timer_cdaudio_id = 0;
 SDL_TimerID timer_bgmfade_id = 0;
 
@@ -1149,10 +1155,16 @@ void ONScripter::timerEvent(bool init_flag)
 
         if (timer_id) SDL_RemoveTimer(timer_id);
         timer_id = SDL_AddTimer(duration, timerCallback, NULL);
+#if defined(WEB)
+        timer_due = SDL_GetTicks() + duration;
+#endif
     }
     else if (remaining_time > 0){
         if (timer_id) SDL_RemoveTimer(timer_id);
         timer_id = SDL_AddTimer(remaining_time, timerCallback, NULL);
+#if defined(WEB)
+        timer_due = SDL_GetTicks() + remaining_time;
+#endif
     }
 }
 
@@ -1189,11 +1201,33 @@ bool ONScripter::convTouchKey(SDL_TouchFingerEvent &finger) {
 }
 #endif
 
+#if defined(WEB)
+// CONscripter: SDL_WaitEvent in the browser polls with SDL_Delay(1): an
+// ASYNCIFY unwind and rewind of the whole stack each browser timer (4 ms),
+// ~250 a second while a game waits for a click. Sleep until the engine's
+// timer is due instead, at most a 60 Hz frame (input waits no longer).
+static int waitNextEvent( SDL_Event *event )
+{
+    while (!SDL_PollEvent( event )){
+        int wait = 16;
+        if (timer_id){
+            int left = (int)(timer_due - SDL_GetTicks());
+            // due: its callback runs any moment (long past: a timer that won't)
+            if (left < wait && left > -100) wait = left > 0 ? left : 1;
+        }
+        emscripten_sleep( wait );
+    }
+    return 1;
+}
+#else
+#define waitNextEvent SDL_WaitEvent
+#endif
+
 void ONScripter::runEventLoop()
 {
     SDL_Event event, tmp_event;
 
-    while ( SDL_WaitEvent(&event) ) {
+    while ( waitNextEvent(&event) ) {
         tmp_event = event; // fix android long click problem
 #if defined(USE_SMPEG)
         // required to repeat the movie
