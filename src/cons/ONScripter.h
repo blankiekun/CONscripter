@@ -142,6 +142,7 @@ public:
     void setTraceShotDir(const char *dir);
     void setTraceShotAt(const char *places); // CONscripter: --shot-at, --shot-after
     void setTraceShotAfter(const char *times);
+    void setTraceShotEffects(const char *percents); // CONscripter: --shot-effects
     void startupFailed(); // CONscripter: records the error just printed, exits with 3
     // CONscripter: calls from the web page, as ONS_WEB_EVENT events (ONScripter_cons.cpp)
 #define ONS_WEB_EVENT (SDL_USEREVENT+7)
@@ -622,6 +623,8 @@ private:
     bool setEffect( EffectLink *effect );
     bool doEffect( EffectLink *effect, bool clear_dirty_region=true );
     void drawEffect( SDL_Rect *dst_rect, SDL_Rect *src_rect, SDL_Surface *surface );
+    bool drawEffectFrame( EffectLink *effect, int effect_no );
+    void traceShotEffect( EffectLink *effect, int effect_no );
     void generateMosaic( SDL_Surface *src_surface, int level );
     
     struct BreakupCell {
@@ -645,6 +648,7 @@ private:
     void effectMelt( const char *params, int duration );
     void effectWave( const char *params, int duration );
     void effectBlur( const char *params, int duration );
+    void effectRule( const char *params, int duration );
 
 #ifdef USE_BUILTIN_EFFECTS
     //cascade
@@ -853,6 +857,8 @@ private:
     std::vector<ShotAt> trace_shot_at; // --shot-at: the lines, found in traceStart
     std::vector<unsigned int> trace_shot_after; // --shot-after: the times, in order
     size_t trace_shot_after_next = 0;
+    std::vector<int> trace_shot_effects; // --shot-effects: the percents of each effect
+    int trace_fx_seq = 0;            // effects filmed so far
     std::string trace_shot_name;     // the next dump's picture, when not dump<pg>-<ms>.png
     const char *trace_dump_why = "F8"; // why the next dump is written
     void traceShotAtSetup();
