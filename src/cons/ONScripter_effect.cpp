@@ -24,6 +24,7 @@
 
 #include "ONScripter.h"
 #include "Utils.h"
+#include <algorithm>
 
 #define EFFECT_STRIPE_WIDTH (16 * screen_ratio1 / screen_ratio2)
 #define EFFECT_STRIPE_CURTAIN_WIDTH (24 * screen_ratio1 / screen_ratio2)
@@ -118,6 +119,14 @@ bool ONScripter::setEffect( EffectLink *effect )
 
 bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
 {
+    // CONscripter: at most one frame per FRAME_MS (a browser asked for one
+    // each 4 ms), and never past the time the effect ends; its progress
+    // still follows the clock, so only frames in between are dropped.
+    if (effect_counter > 0){
+        int next = effect_start_time_old + std::min( (int)FRAME_MS, effect_duration - effect_counter );
+        int wait = next - (int)SDL_GetTicks();
+        if (wait > 0) SDL_Delay( wait );
+    }
     effect_start_time = SDL_GetTicks();
     if ( effect_counter == 0 ) effect_start_time_old = effect_start_time - 1;
     //utils::printInfo("effect_counter %d timer between %d %d\n",effect_counter,effect_start_time,effect_start_time_old);

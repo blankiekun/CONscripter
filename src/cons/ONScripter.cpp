@@ -359,6 +359,7 @@ ONScripter::ONScripter()
 {
     is_script_read = false;
     screen_stack_num = 0;
+    screen_effect_flush_time = 0;
     window_trans = 255;
     text_size_percent = 100;
     text_italic = false;

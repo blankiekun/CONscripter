@@ -754,6 +754,8 @@ private:
         int drawn[4];                    // its look when last flushed (proceedScreenEffects)
     };
     ScreenEffect screen_effect[MAX_SCREEN_EFFECT];
+    enum { FRAME_MS = 16 };              // effects draw at most once per this (60 Hz)
+    int screen_effect_flush_time;        // ticks of the last redraw proceedScreenEffects made
     int screenEffectCommand( int kind, const char *name );
     void startScreenEffect( ScreenEffect &e );
     void stepScreenEffect( ScreenEffect &e );

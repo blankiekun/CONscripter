@@ -1392,11 +1392,15 @@ int ONScripter::nextScreenEffectTime()
         if (e.kind == SCREEN_EFFECT_NONE) continue;
         if (min == 0 || min > e.next_step) min = e.next_step;
     }
+    if (min && min - screen_effect_flush_time < FRAME_MS) min = screen_effect_flush_time + FRAME_MS;
     return min;
 }
 
 void ONScripter::proceedScreenEffects( int current_time )
 {
+    // Steps due sooner than a frame after the last redraw wait for the next
+    // one; they run then all the same, so only frames in between are dropped.
+    if (current_time - screen_effect_flush_time < FRAME_MS) return;
     bool changed = false;
     for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
         ScreenEffect &e = screen_effect[i];
@@ -1428,6 +1432,7 @@ void ONScripter::proceedScreenEffects( int current_time )
     if (changed){
         SDL_Rect rect = {0, 0, screen_width, screen_height};
         flushDirect( rect, refreshMode() | (draw_cursor_flag ? REFRESH_CURSOR_MODE : 0) );
+        screen_effect_flush_time = current_time;
     }
 }
 
