@@ -44,6 +44,9 @@ extern "C" void smpegCallback();
 #define CONTINUOUS_PLAY
 
 #include "coding2utf16.h"
+#if defined(KOBO)
+#include "kobo.h"
+#endif
 extern Coding2UTF16 *coding2utf16;
 
 int ONScripter::yesnoboxCommand()
@@ -3826,6 +3829,9 @@ int ONScripter::bltCommand()
         dst_rect.h /= screen_scale_ratio2;
         SDL_RenderCopy(renderer, blt_texture, &src_rect, &dst_rect);
         SDL_RenderPresent(renderer);
+#if defined(KOBO)
+        kobo::present(renderer);
+#endif
 #endif
         dirty_rect.clear();
 

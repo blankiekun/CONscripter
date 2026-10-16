@@ -16,6 +16,12 @@ function(config_linux TARGET_NAME)
         target_compile_options(${TARGET_NAME} PRIVATE "-flto")
         target_link_options(${TARGET_NAME} PRIVATE "-s" "-flto")
     endif()
+    if(KOBO) # CONscripter: Kobo e-readers (script/cross_kobo.sh)
+        target_sources(${TARGET_NAME} PRIVATE src/cons/kobo.cpp)
+        target_compile_definitions(${TARGET_NAME} PRIVATE KOBO)
+        # all static: the Kobo's glibc is older than any toolchain's
+        target_link_options(${TARGET_NAME} PRIVATE -static)
+    endif()
 
     if(STATIC_PORT_ROOT)
         target_include_directories(${TARGET_NAME} PRIVATE
@@ -37,9 +43,12 @@ function(config_linux TARGET_NAME)
             SDL2_ttf
             SDL2_image
             SDL2_mixer
-            -Wl,-Bdynamic
+            $<$<BOOL:${KOBO}>:fbink>
+            $<$<NOT:$<BOOL:${KOBO}>>:-Wl,-Bdynamic>
             dl
+            $<$<BOOL:${KOBO}>:-Wl,--whole-archive>
             pthread
+            $<$<BOOL:${KOBO}>:-Wl,--no-whole-archive>
         )
 
     else()

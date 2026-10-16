@@ -282,7 +282,7 @@ int ONScripter::spmotionCommand()
         }
         ai->motion_start = ai->motion_next = SDL_GetTicks();
         stepSpriteMotion( *ai, ai->motion_start );
-        if (auto_play_flag && !auto_play_real && !ai->motion_loop && ai->motion_keys > 0){
+        if (((auto_play_flag && !auto_play_real) || still_screen) && !ai->motion_loop && ai->motion_keys > 0){
             int end = ai->motion_start + ai->motion_key[ai->motion_keys-1][0] * (ai->motion_passes > 1 ? ai->motion_passes : 1);
             if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
             stepSpriteMotion( *ai, end );
