@@ -59,6 +59,10 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy conscripter --root . --save-dir /tmp
   fades. Vsync is turned off, since otherwise each character drawn would
   wait for the screen.
 - Movies are skipped, but a missing movie is still reported.
+- With `--real-time`, effects, timed waits, `spfade` and BGM fades take
+  their real time instead, so sprite movement and fades play out as a
+  player sees them (for pictures mid-effect, `--shot-after`, or watching
+  in a window); only clicks and choices are still made at once.
 - Sounds still play, so the pages' `se` lists are real.
 
 It stops after `pages` text pages, or when the script ends if `pages` is

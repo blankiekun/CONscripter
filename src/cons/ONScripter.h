@@ -152,6 +152,7 @@ public:
     void setStartLoad(int slot); // CONscripter: --load, --checkpoint-every, --checkpoint-slot
     void setCheckpoints(int pages, int slot);
     void setCheckpointStart(); // CONscripter: --checkpoint-start
+    void setAutoPlayReal(); // CONscripter: --real-time
     void setTraceVars(const char *spec); // CONscripter: --trace-vars
     void setTraceLongWait(int ms); // CONscripter: --trace-long-wait
     void setTraceMaxImage(int mb); // CONscripter: --trace-max-image
@@ -959,6 +960,7 @@ private:
     // CONscripter: --auto-play, a run that plays itself (ONScripter_cons.cpp)
     enum { AUTO_CHOICE_FIRST = 0, AUTO_CHOICE_CYCLE = 1, AUTO_CHOICE_RANDOM = 2, AUTO_CHOICE_UNTAKEN = 3 };
     bool auto_play_flag;
+    bool auto_play_real;             // --real-time
     int auto_play_limit;             // pages, 0 for no limit
     int auto_play_pages;
     int auto_play_waits;             // since the last page

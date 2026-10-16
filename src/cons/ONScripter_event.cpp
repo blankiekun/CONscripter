@@ -190,7 +190,7 @@ void ONScripter::flushEventSub( SDL_Event &event )
              (event.user.code == BGM_FADEOUT)){
         Uint32 cur_fade_duration = mp3fadeout_duration_internal;
         if (skip_mode & (SKIP_NORMAL | SKIP_TO_EOP) ||
-            ctrl_pressed_status || auto_play_flag) {
+            ctrl_pressed_status || (auto_play_flag && !auto_play_real)) {
             cur_fade_duration = 0;
             Mix_VolumeMusic( 0 );
         }
@@ -218,7 +218,7 @@ void ONScripter::flushEventSub( SDL_Event &event )
              (event.user.code == BGM_FADEIN)){
         Uint32 cur_fade_duration = mp3fadein_duration_internal;
         if (skip_mode & (SKIP_NORMAL | SKIP_TO_EOP) ||
-            ctrl_pressed_status || auto_play_flag) {
+            ctrl_pressed_status || (auto_play_flag && !auto_play_real)) {
             cur_fade_duration = 0;
             Mix_VolumeMusic( musicVolume() * MIX_MAX_VOLUME / 100 ); // CONscripter: bgmvolfade
         }

@@ -112,7 +112,7 @@ bool ONScripter::setEffect( EffectLink *effect )
             effect_duration = 1;
         }
     }
-    if (auto_play_flag) effect_duration = 1; // CONscripter: a run that plays itself
+    if (auto_play_flag && !auto_play_real) effect_duration = 1; // CONscripter: a run that plays itself
     
     return false;
 }

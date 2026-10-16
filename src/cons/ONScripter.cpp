@@ -394,6 +394,7 @@ ONScripter::ONScripter()
     trace_shot_every = 0;
     trace_shot_dir = "shots";
     auto_play_flag = false;
+    auto_play_real = false;
     auto_play_limit = 0;
     auto_play_pages = 0;
     auto_play_waits = 0;

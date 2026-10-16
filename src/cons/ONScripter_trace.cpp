@@ -1265,6 +1265,15 @@ void ONScripter::setAutoPlay( int pages )
     setVsyncOff(); // each drawn character would wait for the screen
 }
 
+/* --real-time (with --auto-play): effects, timed waits, spfade and BGM
+ * fades take their real time, so sprite movement and fades play out as
+ * a player sees them (pictures, --shot-after, a window to watch); only
+ * the clicks and choices are made for the player. */
+void ONScripter::setAutoPlayReal()
+{
+    auto_play_real = true;
+}
+
 void ONScripter::setAutoChoice( const char *policy )
 {
     if      (!strcmp( policy, "first" ))  auto_choice = AUTO_CHOICE_FIRST;
@@ -1515,7 +1524,7 @@ bool ONScripter::autoPlayWait( int &count )
 {
     if (++auto_play_waits > 20000) autoPlayStuck( "20000 waits without a new page" );
     if (!(event_mode & (WAIT_INPUT_MODE | WAIT_BUTTON_MODE))){
-        if (count > 1){
+        if (count > 1 && !auto_play_real){
             // the time skipped still counts toward a shake's end
             for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
                 ScreenEffect &e = screen_effect[i];
