@@ -853,7 +853,10 @@ private:
     struct TraceSprite {
         std::string image;           // what was shown, to tell when it changed
         int x, y, w, h, trans, cell;
-        int over, keyed;             // spz's sprite, spmotion running (1 once, 2 loop)
+        int over;                    // spz's sprite
+        unsigned motion;             // the spmotion moving it (traceMotionId), 0 none
+        int trail[3], clip[4], blend; // sptrail, spclip, spblend
+        unsigned running = 0;        // the motion whose start was recorded and end not yet
         int since;                   // the page it last changed
     };
     enum { TRACE_SPRITES = MAX_SPRITE_NUM + MAX_SPRITE2_NUM + 3 }; // lsp, then lsp2, then ld
@@ -890,9 +893,12 @@ private:
     void traceAt( std::string &out, char *address );
     void traceVia( std::string &out );
     AnimationInfo &traceSpriteInfo( int i, const char *&kind, int &no );
+    SDL_Rect traceBox( AnimationInfo &ai, const char *kind );
     int traceSpriteUpdate( int i, int since );
     void traceSprite( std::string &out, int i );
     bool traceChanges( std::string &out );
+    void traceMotion( AnimationInfo &ai, const char *ended );
+    void traceShake( int slot, const char *ended, int ms, const char *quake=NULL );
     int traceCommand( const char *name, FuncList method );
     void traceSelect( int picked );
     void traceButtons( int result );

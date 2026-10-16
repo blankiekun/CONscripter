@@ -477,7 +477,7 @@ writes the `dump` records without the pictures.
 
 Every record has `"t"`, its type. `"pg"` is the number of text pages
 recorded so far, so a warning or error can be placed between two pages.
-Pages and `ev` records also have `"ms"`, the milliseconds since the
+Pages, `ev` and `motion` records also have `"ms"`, the milliseconds since the
 engine started, which shows where time goes (a long effect, a slow
 load).
 
@@ -554,9 +554,9 @@ Each sprite in `sp`:
 | Field | Meaning |
 |---|---|
 | `n`, `kind` | Its number and how it was made: `lsp`, `lsp2` or `ld` |
-| `x`,`y`,`w`,`h` | Its box on the screen in pixels (the current cell; for `lsp2`, the bounding box after scaling and rotation; zoomed by `spzoom`) |
+| `x`,`y`,`w`,`h` | Its box on the screen in pixels (the current cell; for `lsp2`, the bounding box after scaling and rotation; zoomed by `spzoom`, not by an `spmotion`: that is in `mnow`) |
 | `alpha` | 0-255, as set by `lsp`'s opacity or `amsp` |
-| `file` | The image file; `str` instead for a string sprite (its text), `tag` for a sprite without a file (a colour) |
+| `file` | The image file; `str` instead for a string sprite (its text), `tag` for a sprite without a file (a colour); `"(spgrab)"` for a copy of the screen made by `spgrab`, `"(spgrab n)"` for a copy of sprite n |
 | `missing` | `true` if the image couldn't be loaded (no size then) |
 | `cell`, `cells` | The cell shown, for an animated or multi-cell sprite |
 | `edges` | Which screen edges the box touches or crosses: `T`op, `B`ottom, `L`eft, `R`ight (omitted when none) |
@@ -566,10 +566,14 @@ Each sprite in `sp`:
 | `rot` | its `spzoom` angle in degrees, counterclockwise (omitted at 0) |
 | `anim` | `true` for a sprite that steps its own cells (its picture changes with time) |
 | `motion` | `"loop"`, `"once"`, `"keep"` (loop mode 2) or `"leave"` (3: removed at its end) while an `spmotion` moves it (the box is its place, without the motion) |
+| `mid` | With `motion`: the motion's id, as in its `motion` record (the same keys and mode give the same id, in any run) |
+| `mnow` | With `motion`: `[t,x,y,zoom_x,zoom_y,angle,alpha]`, where the motion had it at its last step, `t` ms after it started: the offset in script pixels, zoom in percent, angle in degrees, alpha 0-256 (as its keys) |
+| `clip` | `[x,y,w,h]`, its `spclip` rectangle |
+| `blend` | `"add"`, `"sub"`, `"mul"` or `"screen"`: how `spblend` (or `lsp2add`, `lsp2sub`) draws it |
 | `over` | The sprite `spz` draws it right over |
 | `trail` | `[passes,alpha,lag]`, its `sptrail` (lag in ms at game speed) |
 | `shown` | The alpha it is drawn at, when `spmotion`'s keys make it differ from `alpha` |
-| `since` | The page where it last appeared, or changed its image, position, size, opacity, cell, `spz`, or an `spmotion` starting or ending (an animation stepping its own cells, or a fade or motion moving, doesn't count) |
+| `since` | The page where it last appeared, or changed its image, position, size, opacity, cell, `spz`, `sptrail`, `spclip`, `spblend`, or an `spmotion` starting, ending or replaced (an animation stepping its own cells, or a fade or motion moving, doesn't count). A change to any of these alone writes the sprite in the command's `ev` record |
 
 `since` makes lingering sprites easy to spot: a character still up with
 a `since` far below the current `pg`, especially across a `bg` change.
@@ -645,6 +649,42 @@ elsewhere, negative for right-click, keys or a timeout. A button that
 can't be seen has `blocked`: `off` (its area is off the screen), `hidden`
 (its sprite isn't shown), `alpha 0`, or `under lsp n` (an opaque `lsp`
 sprite in front covers all of it; a click still reaches it).
+
+### `motion`: an `spmotion`, `screenshake` or `quake` starting or ending
+
+```json
+{"t":"motion","pg":3,"ms":604,"n":11,"kind":"lsp","id":"81731c79","mode":"once","keys":[[0,0,0,100,100,0,256,0],[500,50,50,100,100,0,256,0]],"end":1104,"at":"*start:11"}
+{"t":"motion","pg":3,"ms":922,"n":11,"kind":"lsp","id":"81731c79","ended":"replaced","ran":318}
+{"t":"motion","pg":3,"ms":604,"shake":1,"len":300}
+{"t":"motion","pg":4,"ms":905,"shake":1,"ended":"ran out","ran":300}
+{"t":"motion","pg":4,"ms":923,"quake":"quake","amp":4,"len":200}
+```
+
+A sprite's motion (`n`, `kind`, its `id` as the sprite records' `mid`)
+starts with its `mode` (as the sprite records' `motion`), `passes` for
+loop -n, its `keys` as `spmotion` wrote them (`[ms,x,y,zoom_x,zoom_y,angle,alpha,curve]`,
+ms at game speed), the `end` it is due at (`ms`; none for a loop) and
+`at`, the `spmotion`. It ends with `ended` and `ran`, the ms since it
+started:
+
+| `ended` | Why |
+|---|---|
+| `ran out` | its time is over (loop 3: the sprite is gone too) |
+| `cut short` | it jumped to its end before its time: `spmotionwait` after a click or with skipping, `--auto-play` without `--real-time` (which ends a motion at once, `ran` 0), or a loop 2 motion when `spmotion`, `lsp`, `msp` or `amsp` sets the sprite anew |
+| `stopped` | `spmotion n` |
+| `replaced` | another `spmotion` on the sprite |
+| `lsp` | `lsp` on a loop 3 motion's sprite keeps the sprite and ends the motion |
+| `removed` | anything else, seen at the next record: `csp`, a load, a reset (no `ran`) |
+
+A shake records its `screenshake` slot as `shake` and `len`, its end in
+ms (none: it shakes until stopped); a `quake`, `quakex` or `quakey`
+its command as `quake`, `amp` its amplitude and `len` its time. `ended`
+is `ran out`, `cut short` (a quake shortened by `--auto-play` or a
+click), `stopped` (`screenshake n`, `screenshake 0`) or `replaced` (a
+new `screenshake` in the slot), `ran` how long it shook (for a shake,
+with the time `--auto-play` skipped). A load or reset ending a shake
+records nothing. Sprites left out with `--trace-ignore` have no motion
+records.
 
 ### `label`: the first time a label runs
 

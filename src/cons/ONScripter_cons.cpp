@@ -251,6 +251,7 @@ int ONScripter::spmotionCommand()
     SDL_Rect before = drawnRect( *ai );
     bool shown = ai->visible; // (loop 3 may remove it at once)
     endKeptMotion( *ai );
+    traceMotion( *ai, (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? "replaced" : "stopped" );
     ai->stopMotion();
     ai->trail_keys = 0;
     if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
@@ -273,6 +274,7 @@ int ONScripter::spmotionCommand()
             k[4] = v[5]; k[5] = v[6] < 0 ? 0 : v[6] > 256 ? 256 : v[6]; k[6] = v[4]; k[7] = v[7];
         }
         ai->motion_start = ai->motion_next = SDL_GetTicks();
+        traceMotion( *ai, NULL );
         stepSpriteMotion( *ai, ai->motion_start );
         if (((auto_play_flag && !auto_play_real) || still_screen) && !ai->motion_loop && ai->motion_keys > 0){ // still_screen: e-ink shows only the end
             int end = ai->motion_start + ai->motion_key[ai->motion_keys-1][0] * (ai->motion_passes > 1 ? ai->motion_passes : 1);
@@ -530,7 +532,8 @@ int ONScripter::spgrabCommand()
     ai->deleteImageName();
     delete[] ai->surface_name;
     ai->surface_name = NULL;
-    setStr( &ai->file_name, "(spgrab)" ); // as the trace names it
+    snprintf( name, sizeof(name), src < 0 ? "(spgrab)" : "(spgrab %d)", src ); // as the trace names it: the screen, or the sprite copied
+    setStr( &ai->file_name, name );
     dirty_rect.add( drawnRect( *ai ) );
 
     return RET_CONTINUE;
@@ -736,6 +739,8 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
             ai.zoom_rot += k[4];
             if (k[5] < 256) ai.trans = (ai.trans < 0 ? 255 : ai.trans) * k[5] / 256;
         }
+        // jumped to its end before its time: spmotionwait cut short, --auto-play, a kept motion set anew
+        traceMotion( ai, current_time > (int)SDL_GetTicks() ? "cut short" : "ran out" );
         // (sptrail: the copies follow it on until they reach the sprite)
         ai.trail_keys = ai.trail_passes > 0 ? ai.motion_keys : 0;
         if (ai.motion_leave){ // loop 3: gone, as csp
@@ -1694,6 +1699,8 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
         return RET_CONTINUE;
     }
     if (!set){
+        for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++)
+            if ((slot == 0 || i == slot-1) && screen_effect[i].kind == SCREEN_EFFECT_SHAKE) traceShake( i+1, "stopped", screen_effect[i].ran );
         if (slot == 0) clearScreenEffects();
         else clearScreenEffect( screen_effect[slot-1] );
         dirty_rect.fill( screen_width, screen_height );
@@ -1701,6 +1708,7 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
     }
 
     ScreenEffect &e = screen_effect[slot-1];
+    if (e.kind == SCREEN_EFFECT_SHAKE) traceShake( slot, "replaced", e.ran );
     clearScreenEffect( e );
     e.map_name = map_name;
     for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++) e.param[i] = param[i];
@@ -1710,6 +1718,7 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
         e.param[9] = speedTime( e.param[9] );
     }
     startScreenEffect( e );
+    if (e.kind == SCREEN_EFFECT_SHAKE) traceShake( slot, NULL, e.param[9] );
     dirty_rect.fill( screen_width, screen_height );
 
     return RET_CONTINUE;
@@ -1853,6 +1862,7 @@ void ONScripter::proceedScreenEffects( int current_time )
             stepped = true;
             // a shake given an end clears its slot when it's over
             if (e.kind == SCREEN_EFFECT_SHAKE && e.param[9] > 0 && e.ran >= e.param[9]){
+                traceShake( i+1, "ran out", e.ran );
                 clearScreenEffect( e );
                 changed = true;
                 break;
