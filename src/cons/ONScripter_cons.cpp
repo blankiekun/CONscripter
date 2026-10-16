@@ -1141,7 +1141,7 @@ void ONScripter::applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip )
  *   harder for a second; "screenshake 1" stops it.
  *
  * screenripple slot[, "map", time, interval, opacity0, opacity1, amp0,
- *              amp1, angle, angle_step, phase_step[, blend]]
+ *              amp1, angle, angle_step, phase_step[, blend[, phase]]]
  *   Ripples the same picture through a displacement map (a greyscale
  *   image as large as the screen): each pixel is taken from amp *
  *   sin(2 pi (grey / 256 + phase / 1000)) pixels away in the direction
@@ -1151,7 +1151,7 @@ void ONScripter::applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip )
  *   are dark), at that opacity. Over time ms, opacity
  *   goes from opacity0 to opacity1 and amp from amp0 to amp1; every
  *   interval ms the angle turns by angle_step and the phase moves by
- *   phase_step.
+ *   phase_step, from phase (0 if left out).
  *   "screenripple 1,"wave.png",3000,100,100,150,5,10,3150,20,30"
  *
  * Either command with only a slot (1-8) clears that slot, whatever it
@@ -1698,7 +1698,7 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
     int param[SCREEN_EFFECT_PARAMS] = {0};
     if (set){
         if (kind == SCREEN_EFFECT_RIPPLE) setStr( &map_name, script_h.readStr() );
-        // Nine numbers, then optional ones (screenripple's blend, screenshake's end).
+        // Nine numbers, then optional ones (screenripple's blend and phase, screenshake's end).
         for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++){
             if (i >= 9 && !(script_h.getEndStatus() & ScriptHandler::END_COMMA)) break;
             param[i] = script_h.readInt();
@@ -1776,7 +1776,7 @@ void ONScripter::startScreenEffect( ScreenEffect &e )
         e.opacity = p[2];
         e.amp = p[4] << 16;
         e.angle = p[6];
-        e.phase = 0;
+        e.phase = (p[10] % 1000 + 1000) % 1000;
     }
 }
 
@@ -3288,6 +3288,7 @@ void ONScripter::loadSaveFileCons()
         ScreenEffect &e = (i < MAX_SCREEN_EFFECT) ? screen_effect[i] : dummy;
         int kind = readInt();
         readStr( &e.map_name );
+        for (int k=0 ; k<SCREEN_EFFECT_PARAMS ; k++) e.param[k] = 0; // a save with fewer
         for (int k=0 ; k<params ; k++){
             int n = readInt();
             if (k < SCREEN_EFFECT_PARAMS) e.param[k] = n;
