@@ -283,6 +283,7 @@ int ONScripter::spmotionCommand()
                 utils::printError("spmotion: more than %d keys\n", AnimationInfo::MAX_MOTION_KEYS);
                 continue;
             }
+            ai->allocMotionKeys();
             int *k = ai->motion_key[ai->motion_keys++];
             // stored as ms, x, y, zoom x, angle, alpha, zoom y, curve
             k[0] = speedTime( v[0] ); k[1] = v[1]; k[2] = v[2]; k[3] = v[3]; // gamespeed
@@ -3524,6 +3525,7 @@ void ONScripter::loadSaveFileCons()
             int v[8];
             for (int j=0 ; j<8 ; j++) v[j] = readInt();
             if (k >= AnimationInfo::MAX_MOTION_KEYS) continue;
+            ai->allocMotionKeys();
             for (int j=0 ; j<8 ; j++) ai->motion_key[k][j] = v[j];
             ai->motion_keys++;
         }

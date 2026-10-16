@@ -662,7 +662,7 @@ reached from the one before: 0 straight, 1 ease in, 2 ease out, 3 ease in
 and out, 4 jump at the key, 10-73 an `spcurve` table. Stepped every ~16 ms
 by the timer (also during waits). loop 0: ends, back at its place; 1:
 repeats; 2: once, then the last key's offset/zoom/angle/alpha are applied to
-the sprite; -n: n times, then as 2. `spmotion num` stops. Up to 32 keys.
+the sprite; -n: n times, then as 2. `spmotion num` stops. Up to 64 keys.
 Stays through `lsp`, removed by `csp`, saved (restarted). Another
 `spmotion`, `lsp`, `msp`, `amsp` first finishes a loop 2/-n motion at its
 last key.

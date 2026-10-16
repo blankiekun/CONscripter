@@ -66,6 +66,7 @@ AnimationInfo::AnimationInfo()
     zoom_x = zoom_y = 100;
     zoom_rot = 0;
     motion_keys = 0;
+    motion_key = NULL;
     motion_loop = false;
     motion_keep = false;
     motion_passes = 0;
@@ -94,22 +95,29 @@ AnimationInfo::AnimationInfo()
 
 AnimationInfo::AnimationInfo(const AnimationInfo &anim)
 {
+    motion_key = NULL;
     *this = anim;
 }
 
 AnimationInfo::~AnimationInfo()
 {
     reset();
+    delete[] motion_key;
     if (mutex) SDL_DestroyMutex(mutex);
 }
 
 AnimationInfo& AnimationInfo::operator =(const AnimationInfo &anim)
 {
     if (this != &anim){
+        delete[] motion_key;
         memcpy(this, &anim, sizeof(AnimationInfo));
 
         mutex = SDL_CreateMutex();
 
+        if (motion_key){
+            motion_key = new int[MAX_MOTION_KEYS][8];
+            memcpy(motion_key, anim.motion_key, sizeof(int)*MAX_MOTION_KEYS*8);
+        }
         if (image_name){
             image_name = new char[ strlen(anim.image_name) + 1 ];
             strcpy( image_name, anim.image_name );
