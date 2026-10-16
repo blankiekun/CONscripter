@@ -1013,8 +1013,12 @@ In script text lines:
   until `!i0` (or `!i`); `reset` clears it; the backlog shows it upright.
 - **`!c` [cons]** — the rest of the text line (to its end, `@` or `\`) is
   centred in the room left on the window's line (horizontal text).
-- `!i` and `!c` are also read in `` ` `` half-width text, where the other
-  tags are text.
+- **`!vNNN` [cons]** — waits until the voice (channel 0) has played NNN
+  ms, or has ended, or a click (spaces after the number are skipped,
+  as after `!w`).
+- `!i` and `!c` are also read in `` ` `` half-width text; there `!w`, `!d`,
+  `!z`, `!v` and `!s` are tags only before a number (`!sd` too) and `#`
+  only before six hex digits; other `!` and `#` are text.
 
 Text handling [cons]:
 

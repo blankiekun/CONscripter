@@ -2427,6 +2427,15 @@ void ONScripter::playChannel( int channel, Mix_Chunk *chunk, int loops )
     Mix_RegisterEffect( channel, cutTrackEffect, NULL, NULL ); // reset when a sound ends
 }
 
+// How long the sound on channel has played, in ms; -1 when none plays.
+int ONScripter::channelPlayedMs( int channel )
+{
+    if (!audio_open_flag || channel < 0 || channel >= ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS ||
+        !Mix_Playing( channel ) || !cut_track[channel].chunk) return -1;
+    int bytes_ms = audio_format.freq * audio_format.channels * (SDL_AUDIO_BITSIZE(audio_format.format) / 8) / 1000;
+    return bytes_ms > 0 ? (int)(cut_track[channel].pos / bytes_ms) : -1;
+}
+
 // Stops channel as Mix_Pause did, fading out what it was playing.
 void ONScripter::cutChannel( int channel )
 {
@@ -3022,8 +3031,12 @@ void ONScripter::centreLine( const char *buf )
     while (*p == ' ' && f->isLineEmpty()) p++; // leading spaces aren't drawn
     int w = 0;
     while (*p && *p != 0x0a && *p != '@' && *p != '\\'){
-        if (*p == '!' && p[1] && strchr("swdzic", p[1])){
+        if (*p == '!' && p[1] && strchr("swdzicv", p[1])){
             for (p += 2; *p >= '0' && *p <= '9'; p++);
+            continue;
+        }
+        if (*p == '#' && strspn( p + 1, "0123456789abcdefABCDEF" ) >= 6){ // a colour
+            p += 7;
             continue;
         }
         if (IS_TWO_BYTE(*p)){

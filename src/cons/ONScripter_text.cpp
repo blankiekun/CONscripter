@@ -1145,11 +1145,16 @@ bool ONScripter::processText()
         
         return true;
     }
-    // CONscripter: a '!' that starts no tag ("Hey! You!") is text
-    // ("!i" and "!c" also in 1-byte text)
+    // CONscripter: a '!' that starts no tag ("Hey! You!") is text; in
+    // 1-byte text "!i" and "!c" are tags, and "!w", "!d", "!z", "!v" and
+    // "!s" only before a number ("!sd" too)
     else if ( ch == '!' && script_h.getStringBuffer()[ string_buffer_offset + 1 ] &&
-              strchr((script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) ? "ic" : "swdzic",
-                     script_h.getStringBuffer()[ string_buffer_offset + 1 ]) ){
+              (strchr((script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) ? "ic" : "swdzicv",
+                      script_h.getStringBuffer()[ string_buffer_offset + 1 ]) ||
+               (strchr("swdzv", script_h.getStringBuffer()[ string_buffer_offset + 1 ]) &&
+                (isdigit((unsigned char)script_h.getStringBuffer()[ string_buffer_offset + 2 ]) ||
+                 (script_h.getStringBuffer()[ string_buffer_offset + 1 ] == 's' &&
+                  script_h.getStringBuffer()[ string_buffer_offset + 2 ] == 'd')))) ){
         string_buffer_offset++;
         if ( script_h.getStringBuffer()[ string_buffer_offset ] == 's' ){
             string_buffer_offset++;
@@ -1193,6 +1198,25 @@ bool ONScripter::processText()
             string_buffer_offset++;
             centreLine( script_h.getStringBuffer() + string_buffer_offset );
         }
+        else if ( script_h.getStringBuffer()[ string_buffer_offset ] == 'v' ){
+            // CONscripter: "!vNNN" waits until the voice (channel 0) has
+            // played NNN ms, or ends, or a click
+            string_buffer_offset++;
+            int t = 0;
+            while( script_h.getStringBuffer()[ string_buffer_offset ] >= '0' &&
+                   script_h.getStringBuffer()[ string_buffer_offset ] <= '9' ){
+                t = t*10 + script_h.getStringBuffer()[ string_buffer_offset ] - '0';
+                string_buffer_offset++;
+            }
+            while (script_h.getStringBuffer()[ string_buffer_offset ] == ' ' ||
+                   script_h.getStringBuffer()[ string_buffer_offset ] == '\t') string_buffer_offset++;
+            while (!skip_mode && !ctrl_pressed_status){
+                int played = channelPlayedMs( 0 );
+                if (played < 0 || played >= t) break;
+                event_mode = WAIT_TIMER_MODE | WAIT_INPUT_MODE;
+                if (waitEvent( t - played < 50 ? t - played : 50 )) break;
+            }
+        }
         else if ( script_h.getStringBuffer()[ string_buffer_offset ] == 'w' ||
                   script_h.getStringBuffer()[ string_buffer_offset ] == 'd' ){
             bool flag = false;
@@ -1214,7 +1238,9 @@ bool ONScripter::processText()
         }
         return true;
     }
-    else if ( ch == '#' && !(script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) ){
+    // CONscripter: in 1-byte text only "#" and six hex digits is a colour
+    else if ( ch == '#' && (!(script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) ||
+                            strspn( script_h.getStringBuffer() + string_buffer_offset + 1, "0123456789abcdefABCDEF" ) >= 6) ){
         readColor( &sentence_font.color, script_h.getStringBuffer() + string_buffer_offset );
         readColor( &ruby_font.color, script_h.getStringBuffer() + string_buffer_offset );
         string_buffer_offset += 7;
