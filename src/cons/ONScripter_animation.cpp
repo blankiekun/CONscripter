@@ -511,11 +511,10 @@ void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
         poly_rect.y += sentence_font.y() * screen_ratio1 / screen_ratio2;
     }
 
-    // CONscripter: spfade draws the sprite fainter while it fades in
+    // CONscripter: a motion (spmotion) draws it at its keyed alpha
     int trans = anim->trans;
     // (an lsp without an alpha has trans -1, drawn opaque)
-    // and a motion at its keyed alpha
-    int factor = (anim->fade_ms > 0 ? anim->fade_alpha : 256) * anim->motion_alpha / 256;
+    int factor = anim->motion_alpha;
     if (factor != 256) anim->trans = (trans < 0 ? 255 : trans) * factor / 256;
     if (!anim->affine_flag && (anim->zoom_x != 100 || anim->zoom_y != 100 || anim->motion_zoom != 100 || anim->motion_zoom_y != 100 || anim->motion_rot != 0 || anim->zoom_rot != 0))
         drawZoomedSurface( dst_surface, anim, poly_rect, clip_in );

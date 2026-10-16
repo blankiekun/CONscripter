@@ -226,7 +226,12 @@ int ONScripter::spzoomCommand()
  *   place; loop 2 runs once and leaves the sprite at the last key (its
  *   offset added to the place as msp, its zoom to spzoom, its angle to
  *   spzoom's angle, its alpha to the sprite's); loop -n runs n times, then does as
- *   loop 2. "spmotion num" stops it. Up to 32 keys. The motion stays when
+ *   loop 2; loop 3 runs once and then removes the sprite as csp does (lsp
+ *   on it ends that and keeps the sprite; a save leaves it out): a fade
+ *   out is "spmotion num,3,0,0,0,100,100,0,256,0,ms,0,0,100,100,0,0,0", a
+ *   fade in a loop 0 from alpha 0. Under --auto-play (without --real-time),
+ *   which doesn't wait, a motion that ends (any loop but 1) ends at once.
+ *   "spmotion num" stops it. Up to 32 keys. The motion stays when
  *   lsp changes the image, is removed by csp and is kept in save files
  *   (restarted). Another spmotion, lsp, msp or amsp first ends a loop 2
  *   or -n motion at its last key.
@@ -245,16 +250,13 @@ int ONScripter::spmotionCommand()
     AnimationInfo *ai = &sprite_info[no];
     SDL_Rect before = drawnRect( *ai );
     endKeptMotion( *ai );
-    ai->motion_keys = 0;
+    ai->stopMotion();
     ai->trail_keys = 0;
-    ai->motion_dx = ai->motion_dy = 0;
-    ai->motion_zoom = ai->motion_zoom_y = 100;
-    ai->motion_rot = 0;
-    ai->motion_alpha = 256;
     if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
         int mode = script_h.readInt();
         ai->motion_loop = mode == 1;
         ai->motion_keep = mode == 2 || mode < 0;
+        ai->motion_leave = mode == 3;
         ai->motion_passes = mode < 0 ? -mode : 0;
         while (script_h.getEndStatus() & ScriptHandler::END_COMMA){
             int v[8];
@@ -270,55 +272,15 @@ int ONScripter::spmotionCommand()
         }
         ai->motion_start = ai->motion_next = SDL_GetTicks();
         stepSpriteMotion( *ai, ai->motion_start );
+        if (auto_play_flag && !auto_play_real && !ai->motion_loop && ai->motion_keys > 0){
+            if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
+            stepSpriteMotion( *ai, ai->motion_start + ai->motion_key[ai->motion_keys-1][0] * (ai->motion_passes > 1 ? ai->motion_passes : 1) );
+        }
     }
     if (ai->visible){
         dirty_rect.add( before );
         dirty_rect.add( drawnRect( *ai ) );
     }
-
-    return RET_CONTINUE;
-}
-
-/* spfade num,ms[,from]
- *   Fades sprite num (an lsp sprite) in by itself: it is drawn at from/256
- *   (0-256, default 0) of its alpha, rising to its alpha over ms, stepped
- *   about every 16 ms by the timer while the script goes on (the text, a
- *   click wait). "spfade num,0" ends it at once. The fade stays when lsp
- *   changes the image and is removed by csp; a save keeps the sprite's
- *   own alpha, so a load shows it at the end of its fade.
- *   "spfade num,-ms" fades it out instead, from its alpha (from/256 of it
- *   if given) to nothing, and then removes it as csp does; lsp on it ends
- *   that, and a save leaves it out (a picture leaving while the text goes
- *   on).
- *   "lsp 60,":a;noise.png",0,0,200:spfade 60,2000:print 1" brings static
- *   up to 200 over two seconds. */
-int ONScripter::spfadeCommand()
-{
-    int no = script_h.readInt();
-    int ms = script_h.readInt();
-    int from = ms < 0 ? 256 : 0;
-    if (script_h.getEndStatus() & ScriptHandler::END_COMMA) from = script_h.readInt();
-    if (no < 0 || no >= MAX_SPRITE_NUM){
-        utils::printError("spfade: sprite %d out of range\n", no);
-        return RET_CONTINUE;
-    }
-    AnimationInfo &ai = sprite_info[no];
-    ai.fade_out = ms < 0;
-    if (ai.fade_out) ms = -ms;
-    if (from < 0) from = 0;
-    if (from > 256) from = 256;
-    // gamespeed; at once in --auto-play, which doesn't wait for the timer (unless --real-time)
-    ai.fade_ms = ms > 0 && (!auto_play_flag || auto_play_real) ? speedTime( ms ) : 0;
-    ai.fade_from = from;
-    ai.fade_alpha = ai.fade_ms > 0 ? from : 256;
-    if (ai.fade_out && ai.fade_ms == 0){ // at once
-        if (ai.visible) dirty_rect.add( drawnRect( ai ) );
-        ai.remove();
-        ai.visible = false;
-        return RET_CONTINUE;
-    }
-    ai.fade_start = ai.fade_next = SDL_GetTicks();
-    if (ai.visible) dirty_rect.add( drawnRect( ai ) );
 
     return RET_CONTINUE;
 }
@@ -769,11 +731,11 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
         }
         // (sptrail: the copies follow it on until they reach the sprite)
         ai.trail_keys = ai.trail_passes > 0 ? ai.motion_keys : 0;
-        ai.motion_keys = 0;
-        ai.motion_dx = ai.motion_dy = 0;
-        ai.motion_zoom = ai.motion_zoom_y = 100;
-        ai.motion_rot = 0;
-        ai.motion_alpha = 256;
+        if (ai.motion_leave){ // loop 3: gone, as csp
+            ai.remove();
+            ai.visible = false;
+        }
+        ai.stopMotion();
         return;
     }
     int v[7];
@@ -895,31 +857,6 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
     changed.setDimension(screen_width, screen_height);
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
-        // spfade
-        if (ai.fade_ms > 0 && ai.fade_next <= current_time){
-            if (current_time - ai.fade_next > 1000){
-                ai.fade_start += current_time - ai.fade_next;
-                ai.fade_next = current_time;
-            }
-            while (ai.fade_next <= current_time) ai.fade_next += 16;
-            int alpha = ai.fade_alpha, t = current_time - ai.fade_start;
-            if (t >= ai.fade_ms && ai.fade_out){
-                if (ai.visible && ai.image_surface) changed.add( drawnRect( ai ) );
-                ai.remove();
-                ai.visible = false;
-                continue;
-            }
-            if (t >= ai.fade_ms){
-                ai.fade_ms = 0;
-                ai.fade_alpha = 256;
-            }
-            else if (ai.fade_out)
-                ai.fade_alpha = ai.fade_from * (ai.fade_ms - t) / ai.fade_ms;
-            else
-                ai.fade_alpha = ai.fade_from + (256 - ai.fade_from) * t / ai.fade_ms;
-            if (ai.visible && ai.image_surface && alpha != ai.fade_alpha)
-                changed.add( drawnRect( ai ) );
-        }
         if ((ai.motion_keys == 0 && ai.trail_keys == 0) || ai.motion_next > current_time) continue;
         // After a long stop (a menu, a load) go on from now.
         if (current_time - ai.motion_next > 1000){
@@ -929,6 +866,7 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
         while (ai.motion_next <= current_time) ai.motion_next += 16;
         int dx = ai.motion_dx, dy = ai.motion_dy, zoom = ai.motion_zoom, zoom_y = ai.motion_zoom_y, rot = ai.motion_rot, alpha = ai.motion_alpha;
         SDL_Rect r = drawnRect( ai );
+        bool shown = ai.visible && ai.image_surface;
         stepSpriteMotion( ai, current_time );
         if (ai.trail_passes > 0){
             // sptrail: the copies, until they reach the sprite
@@ -942,7 +880,10 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
             }
             ai.trail_rect = t;
         }
-        if (!ai.visible || !ai.image_surface) continue;
+        if (!ai.visible || !ai.image_surface){
+            if (shown) changed.add( r ); // loop 3 removed it
+            continue;
+        }
         if (dx == ai.motion_dx && dy == ai.motion_dy && zoom == ai.motion_zoom && zoom_y == ai.motion_zoom_y && rot == ai.motion_rot && alpha == ai.motion_alpha && ai.motion_keys > 0) continue;
         SDL_Rect r2 = drawnRect( ai );
         int x1 = (r.x < r2.x) ? r.x : r2.x, y1 = (r.y < r2.y) ? r.y : r2.y;
@@ -990,7 +931,6 @@ int ONScripter::nextSpriteMotionTime()
     int min = 0;
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
-        if (ai.fade_ms > 0 && (min == 0 || min > ai.fade_next)) min = ai.fade_next;
         if (ai.motion_keys == 0 && ai.trail_keys == 0) continue;
         if (min == 0 || min > ai.motion_next) min = ai.motion_next;
     }
@@ -1392,7 +1332,7 @@ int ONScripter::chpanCommand()
  *     0 never, -1 (default) as the script's click flag says.
  *   gamespeed  Script times run at this percent of real speed (100
  *     default, 10-10000): wait, delay, waittimer and gettimer, effects
- *     (print), spfade, spmotion and screenshake's time and end. Text speed,
+ *     (print), spmotion and screenshake's time and end. Text speed,
  *     auto mode's wait and sounds aren't changed.
  *   sysevol  The volume (0-100) of wave's channel, where the menu sounds
  *     play: wave, waveloop, selectvoice's and menuselectvoice's sounds,
@@ -2168,7 +2108,7 @@ int ONScripter::pushscreenCommand()
         }
         sp.x = ai->orig_pos.x;
         sp.y = ai->orig_pos.y;
-        sp.visible = ai->visible;
+        sp.visible = ai->visible && !(ai->motion_keys > 0 && ai->motion_leave); // leaving: as a save
         sp.cell = ai->current_cell;
         sp.trans = ai->trans;
         sp.num_of_filters = ai->num_of_filters;
@@ -2582,11 +2522,11 @@ void ONScripter::saveSaveFileCons( bool output_flag )
     // values. Motions restart on load.
     num = 0;
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
-        if (sprite_info[i].motion_keys > 0) num++;
+        if (sprite_info[i].motion_keys > 0 && !sprite_info[i].motion_leave) num++;
     writeInt( num, output_flag );
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo *ai = &sprite_info[i];
-        if (ai->motion_keys == 0) continue;
+        if (ai->motion_keys == 0 || ai->motion_leave) continue; // leaving: left out with its sprite
         writeInt( i, output_flag );
         writeInt( ai->motion_loop ? 1 : 0, output_flag );
         writeInt( ai->motion_keep ? 1 : 0, output_flag );
@@ -3497,6 +3437,7 @@ void ONScripter::loadSaveFileCons()
         AnimationInfo *ai = (no >= 0 && no < MAX_SPRITE_NUM) ? &sprite_info[no] : &dummy;
         ai->motion_loop = readInt() != 0;
         ai->motion_keep = readInt() != 0;
+        ai->motion_leave = false; // loop 3 isn't saved
         ai->motion_passes = readInt();
         int keys = readInt();
         ai->motion_keys = 0;
