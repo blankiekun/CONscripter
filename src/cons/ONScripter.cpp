@@ -946,11 +946,22 @@ void ONScripter::flushDirect( SDL_Rect &rect, int refresh_mode )
     SDL_UnlockSurface(accumulation_surface);
 
     screen_dirty_flag = false;
+    // CONscripter: while skipping, the screen goes up at most every
+    // SKIP_PRESENT_MS; each present waits for vsync, and a skipped page
+    // flushes several times
+    if ((skip_mode & SKIP_NORMAL || ctrl_pressed_status) && SDL_GetTicks() - present_time < SKIP_PRESENT_MS){
+        present_pending = true;
+        return;
+    }
+    presentScreen();
+}
+
+// CONscripter: shows the texture flushDirect updated (split from it).
+void ONScripter::presentScreen()
+{
+    present_pending = false;
 #if defined(ANDROID) || defined(WEB) // See sdl2 DOCS/README-android.md for more information on this
     SDL_RenderClear(renderer);
-    SDL_Rect *rect_ptr = nullptr;
-#else
-    SDL_Rect *rect_ptr = &dst_rect;
 #endif
 
 #if defined(USE_GLES)
@@ -976,6 +987,7 @@ void ONScripter::flushDirect( SDL_Rect &rect, int refresh_mode )
     }
 #endif
     SDL_RenderPresent(renderer);
+    present_time = SDL_GetTicks(); // after vsync, which the present waits for
 }
 
 #ifdef USE_SMPEG

@@ -306,6 +306,7 @@ bool ONScripter::waitEvent( int count )
         trace_wait_ms += count;
     }
     if (auto_play_flag && autoPlayWait( count )) return false;
+    if (count != 0 && present_pending) presentScreen(); // CONscripter: what skipping held back
     if (count > 0) count += SDL_GetTicks();
     // chimimouryou: the reader may look up sprite text while the game waits for input.
     // shortcut: timed waits (btntime, automode) don't send it; add them if games need it.
