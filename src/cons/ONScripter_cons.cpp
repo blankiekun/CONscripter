@@ -1124,102 +1124,103 @@ int ONScripter::bgmvolfadeCommand()
 /* Player settings, for a game's settings screen. None is saved: the game
  * keeps its settings and sets them again at startup.
  *
- * soundmute bgm,se,voice
- *   1 mutes the music, the sound effects (every dwave channel but 0), the
- *   voice (channel 0), whatever their volume; 0 lets them be heard again.
- *   Muted sounds go on playing unheard, so music unmuted mid-piece goes on
- *   from where it is. Auto mode doesn't wait for a muted voice.
- * clickvoicestop on
- *   1: a click that ends a text wait (a click wait in the text, textbtnwait)
- *   stops the voice (channel 0). 0 (default): it plays on.
- * autovoicewait on
- *   1 (default): auto mode waits for the voice to end before reading on.
- *   0: it reads on after its own time and stops the voice.
- * selectkeep on
- *   1: auto mode and skip go on after a select's option is chosen.
- *   0 (default): a select ends them, as in NScripter.
- * moviestop mode
- *   Whether a click stops a movie (mpegplay, movie): 1 always, 0 never,
- *   -1 (default) as the script's click flag says.
- * gamespeed percent
- *   Script times run at percent of real speed (100 default, 10-10000):
- *   wait, delay, waittimer and gettimer, effects (print), spfade, spmotion
- *   and screenshake's time and end. 200 plays them in half the time. Text
- *   speed, auto mode's wait and sounds aren't changed.
- * sysevol vol
- *   The volume (0-100) of wave's channel, where the menu sounds play:
- *   wave, waveloop, selectvoice's and menuselectvoice's sounds, btnse's.
- *   -1 (default): the sound effects' volume (sevol), as before. A game's
- *   "system volume".
+ * consset "key",value / consget %var,"key"
+ *   Sets or reads one setting:
+ *   mutebgm, mutese, mutevoice  1 mutes the music, the sound effects
+ *     (every dwave channel but 0), the voice (channel 0), whatever their
+ *     volume; muted sounds go on playing unheard. Auto mode doesn't wait
+ *     for a muted voice.
+ *   clickvoicestop  1: a click that ends a text wait (a click wait in the
+ *     text, textbtnwait) stops the voice (channel 0). 0 (default): it
+ *     plays on.
+ *   autovoicewait  1 (default): auto mode waits for the voice to end
+ *     before reading on. 0: it reads on after its own time and stops it.
+ *   selectkeep  1: auto mode and skip go on after a select's option is
+ *     chosen. 0 (default): a select ends them, as in NScripter.
+ *   moviestop  Whether a click stops a movie (mpegplay, movie): 1 always,
+ *     0 never, -1 (default) as the script's click flag says.
+ *   gamespeed  Script times run at this percent of real speed (100
+ *     default, 10-10000): wait, delay, waittimer and gettimer, effects
+ *     (print), spfade, spmotion and screenshake's time and end. Text speed,
+ *     auto mode's wait and sounds aren't changed.
+ *   sysevol  The volume (0-100) of wave's channel, where the menu sounds
+ *     play: wave, waveloop, selectvoice's and menuselectvoice's sounds,
+ *     btnse's. -1 (default): the sound effects' volume (sevol).
+ *   effectoff  1: every print effect (and bg/ld/cl's) is drawn at once, as
+ *     with effect 1; 0 (default): as the script asks.
+ *   textshadow  0: the message text is drawn without a shadow, whatever
+ *     setwindow says; 1 (default): with setwindow's.
+ *   An unknown key is an error. "consset "gamespeed",200" plays script
+ *   times twice as fast.
  * btnse "file"
  *   A sound played on wave's channel when a btnwait, btnwait2 or
  *   textbtnwait ends on a button (a number of 1 or more; not a click
  *   beside the buttons, a right click or a key), the menus' "confirm"
  *   sound. "" (default): none. */
-int ONScripter::soundmuteCommand()
+bool ONScripter::setSetting( const char *key, int v )
 {
-    int m = 0;
-    if (script_h.readInt()) m |= SOUND_MUTE_BGM;
-    if (script_h.readInt()) m |= SOUND_MUTE_SE;
-    if (script_h.readInt()) m |= SOUND_MUTE_VOICE;
-    sound_mute = m;
-    applyMusicVolume();
-    return RET_CONTINUE;
-}
-
-int ONScripter::clickvoicestopCommand()
-{
-    click_voice_stop = script_h.readInt() != 0;
-    return RET_CONTINUE;
-}
-
-int ONScripter::autovoicewaitCommand()
-{
-    auto_voice_wait = script_h.readInt() != 0;
-    return RET_CONTINUE;
-}
-
-int ONScripter::selectkeepCommand()
-{
-    select_keep = script_h.readInt() != 0;
-    return RET_CONTINUE;
-}
-
-/* effectoff on
- *   1 = every print effect (and bg/ld/cl's) is drawn at once, as with
- *   effect 1; 0 (default) = as the script asks. */
-int ONScripter::effectoffCommand()
-{
-    effect_off = script_h.readInt() != 0;
-    return RET_CONTINUE;
-}
-
-/* textshadow on
- *   0 = the message text is drawn without a shadow, whatever setwindow
- *   says; 1 (default) = with setwindow's. */
-int ONScripter::textshadowCommand()
-{
-    bool on = script_h.readInt() != 0;
-    if (on != text_shadow){
-        text_shadow = on;
-        dirty_rect.fill( screen_width, screen_height );
+    int mute = !strcmp( key, "mutebgm" ) ? SOUND_MUTE_BGM : !strcmp( key, "mutese" ) ? SOUND_MUTE_SE :
+               !strcmp( key, "mutevoice" ) ? SOUND_MUTE_VOICE : 0;
+    if (mute){
+        sound_mute = v ? (sound_mute | mute) : (sound_mute & ~mute);
+        applyMusicVolume();
     }
-    return RET_CONTINUE;
+    else if (!strcmp( key, "clickvoicestop" )) click_voice_stop = v != 0;
+    else if (!strcmp( key, "autovoicewait" )) auto_voice_wait = v != 0;
+    else if (!strcmp( key, "selectkeep" )) select_keep = v != 0;
+    else if (!strcmp( key, "moviestop" )) movie_stop = v < 0 ? -1 : v > 0 ? 1 : 0;
+    else if (!strcmp( key, "gamespeed" )) game_speed = v < 10 ? 10 : v > 10000 ? 10000 : v;
+    else if (!strcmp( key, "sysevol" )){
+        syse_volume = v < 0 ? -1 : v > 100 ? 100 : v;
+        if (wave_sample[MIX_WAVE_CHANNEL])
+            Mix_Volume( MIX_WAVE_CHANNEL, (syse_volume >= 0 ? syse_volume : se_volume) * MIX_MAX_VOLUME / 100 );
+    }
+    else if (!strcmp( key, "effectoff" )) effect_off = v != 0;
+    else if (!strcmp( key, "textshadow" )){
+        if ((v != 0) != text_shadow){
+            text_shadow = v != 0;
+            dirty_rect.fill( screen_width, screen_height );
+        }
+    }
+    else return false;
+    return true;
 }
 
-int ONScripter::moviestopCommand()
+bool ONScripter::getSetting( const char *key, int &v )
 {
-    int m = script_h.readInt();
-    movie_stop = m < 0 ? -1 : m > 0 ? 1 : 0;
-    return RET_CONTINUE;
+    if (!strcmp( key, "mutebgm" )) v = (sound_mute & SOUND_MUTE_BGM) != 0;
+    else if (!strcmp( key, "mutese" )) v = (sound_mute & SOUND_MUTE_SE) != 0;
+    else if (!strcmp( key, "mutevoice" )) v = (sound_mute & SOUND_MUTE_VOICE) != 0;
+    else if (!strcmp( key, "clickvoicestop" )) v = click_voice_stop;
+    else if (!strcmp( key, "autovoicewait" )) v = auto_voice_wait;
+    else if (!strcmp( key, "selectkeep" )) v = select_keep;
+    else if (!strcmp( key, "moviestop" )) v = movie_stop;
+    else if (!strcmp( key, "gamespeed" )) v = game_speed;
+    else if (!strcmp( key, "sysevol" )) v = syse_volume;
+    else if (!strcmp( key, "effectoff" )) v = effect_off;
+    else if (!strcmp( key, "textshadow" )) v = text_shadow;
+    else return false;
+    return true;
 }
 
-int ONScripter::sysevolCommand()
+int ONScripter::conssetCommand()
 {
+    std::string key = script_h.readStr();
     int v = script_h.readInt();
-    syse_volume = v < 0 ? -1 : v > 100 ? 100 : v;
-    if (wave_sample[MIX_WAVE_CHANNEL])
-        Mix_Volume( MIX_WAVE_CHANNEL, (syse_volume >= 0 ? syse_volume : se_volume) * MIX_MAX_VOLUME / 100 );
+    if (!setSetting( key.c_str(), v ))
+        errorAndExit( ("consset: no setting " + key).c_str() );
+    return RET_CONTINUE;
+}
+
+int ONScripter::consgetCommand()
+{
+    script_h.readInt();
+    script_h.pushVariable();
+    std::string key = script_h.readStr();
+    int v = 0;
+    if (!getSetting( key.c_str(), v ))
+        errorAndExit( ("consget: no setting " + key).c_str() );
+    script_h.setInt( &script_h.pushed_variable, v );
     return RET_CONTINUE;
 }
 
@@ -1244,13 +1245,6 @@ int ONScripter::btnseCommand()
 {
     const char *name = script_h.readStr();
     setStr( &btn_se_file, name[0] ? name : NULL );
-    return RET_CONTINUE;
-}
-
-int ONScripter::gamespeedCommand()
-{
-    int p = script_h.readInt();
-    game_speed = p < 10 ? 10 : p > 10000 ? 10000 : p;
     return RET_CONTINUE;
 }
 
