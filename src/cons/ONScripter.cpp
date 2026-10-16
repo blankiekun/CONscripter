@@ -1312,7 +1312,7 @@ void ONScripter::deleteButtonLink()
 {
 #ifdef WEB
     // chimimouryou: choices (and menu items) leave the screen.
-    EM_ASM({ if (self.consOverlay) self.consOverlay('choices'); });
+    EM_ASM({ if (self.consOverlay && !Module.consNoTextOverlay) self.consOverlay('choices'); });
 #endif
     ButtonLink *b1 = root_button_link.next;
 
@@ -1468,7 +1468,7 @@ void ONScripter::newPage()
 {
 #ifdef WEB
     // chimimouryou: the page's text leaves the screen; the web page drops its overlay.
-    EM_ASM({ if (self.consOverlay) self.consOverlay('page'); });
+    EM_ASM({ if (self.consOverlay && !Module.consNoTextOverlay) self.consOverlay('page'); });
 #endif
     if ( current_page->text_count != 0 ){
         current_page = current_page->next;
@@ -1517,7 +1517,7 @@ ButtonLink *ONScripter::getSelectableSentence( char *buffer, FontInfo *info, boo
 #ifdef WEB
     // chimimouryou: a choice's text and where it is drawn (screen pixels), for hover lookups.
     EM_ASM({
-        if (self.consChoice)
+        if (self.consChoice && !Module.consNoTextOverlay)
             self.consChoice(HEAPU8.slice($0, $0 + $1), $2, $3, $4, $5);
     }, buffer, strlen(buffer), ai->pos.x, ai->pos.y,
        info->font_size_xy[1] * screen_ratio1 / screen_ratio2,

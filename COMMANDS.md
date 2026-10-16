@@ -1163,6 +1163,10 @@ The engine calls these on `self` when defined:
 | `consMode(auto, skip)` | auto/skip start or stop | 0/1 each |
 | `consWindow(x, y, w, h, shown)` | text window moves, resizes, shows, hides | rectangle, 1/0 |
 
+`--no-text-overlay` (on the command line or in `ons_args`), or `consNoTextOverlay: 1`
+on the module object the page passes to `cons()`, stops `consText`, `consChoice`,
+`consSprites`, `consBacklog` and `consOverlay`: the page draws no text overlay.
+
 The page calls these on the module (`cons()`'s object); acted on at the next
 wait (at once at a click wait):
 

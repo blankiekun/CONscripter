@@ -56,7 +56,7 @@ static void textHook(const char *text, int len, int skipped)
     if (char_box_count && char_boxes[4 * (char_box_count - 1)] >= len) char_box_count = 0;
 #if defined(WEB)
     EM_ASM({
-        if (self.consText)
+        if (self.consText && !Module.consNoTextOverlay)
             self.consText(HEAPU8.slice($0, $0 + $1), $2, HEAP32.slice($3 >> 2, ($3 >> 2) + $4 * 4));
     }, text, len, skipped, char_boxes, char_box_count);
 #endif
@@ -539,7 +539,7 @@ void ONScripter::sendSpriteTexts()
         text += sprite.text;
     }
     EM_ASM({
-        if (self.consSprites)
+        if (self.consSprites && !Module.consNoTextOverlay)
             self.consSprites(HEAPU8.slice($0, $0 + $1), HEAP32.slice($2 >> 2, ($2 >> 2) + $3));
     }, text.data(), text.size(), boxes.data(), boxes.size());
 #endif
@@ -649,7 +649,7 @@ void ONScripter::restoreTextBuffer(SDL_Surface *surface)
     }
 #if defined(WEB)
     EM_ASM({
-        if (self.consBacklog)
+        if (self.consBacklog && !Module.consNoTextOverlay)
             self.consBacklog(HEAPU8.slice($0, $0 + $1), HEAP32.slice($2 >> 2, ($2 >> 2) + $3 * 4),
                                 $4 ? UTF8ToString($4) : null);
     }, current_page->text, current_page->text_count, char_boxes, char_box_count, current_page->voice);
@@ -671,7 +671,7 @@ void ONScripter::enterTextDisplayMode(bool text_flag)
         display_mode = DISPLAY_MODE_TEXT;
 #if defined(WEB)
         // chimimouryou: the text window and its text are back.
-        EM_ASM({ if (self.consOverlay) self.consOverlay('show'); });
+        EM_ASM({ if (self.consOverlay && !Module.consNoTextOverlay) self.consOverlay('show'); });
 #endif
 
         if (setEffect(&window_effect)) return;
@@ -690,7 +690,7 @@ void ONScripter::leaveTextDisplayMode(bool force_leave_flag)
         display_mode = DISPLAY_MODE_NORMAL;
 #if defined(WEB)
         // chimimouryou: the text window is hidden; so is its text.
-        EM_ASM({ if (self.consOverlay) self.consOverlay('hide'); });
+        EM_ASM({ if (self.consOverlay && !Module.consNoTextOverlay) self.consOverlay('hide'); });
 #endif
             
         if (setEffect(&window_effect)) return;
