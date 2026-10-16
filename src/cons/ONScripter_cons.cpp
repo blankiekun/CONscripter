@@ -259,6 +259,7 @@ int ONScripter::spmotionCommand()
     }
     AnimationInfo *ai = &sprite_info[no];
     SDL_Rect before = drawnRect( *ai );
+    bool shown = ai->visible; // (loop 3 may remove it at once)
     endKeptMotion( *ai );
     ai->stopMotion();
     if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
@@ -288,8 +289,8 @@ int ONScripter::spmotionCommand()
             ai->motion_end = end; // gettimer and shakes still count its time at spmotionwait
         }
     }
+    if (shown) dirty_rect.add( before );
     if (ai->visible){
-        dirty_rect.add( before );
         dirty_rect.add( drawnRect( *ai ) );
     }
 
