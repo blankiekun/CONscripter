@@ -333,6 +333,41 @@ int ONScripter::spfadeCommand()
     return RET_CONTINUE;
 }
 
+/* spmotionwait num[,click]
+ *   Waits until sprite num's motion (spmotion) has ended; num -1: every
+ *   motion that ends (looping ones are left out). click 1: a click ends
+ *   the wait. Whatever is left when it ends (a click, skipping, an
+ *   --auto-play run, which doesn't wait) jumps to the motion's end, as if
+ *   its time had passed, and the screen is drawn. For a move that must end
+ *   before the script goes on, in place of a loop of waits:
+ *       spmotion 10,2,0,0,0,100,100,0,256,0,500,200,0,100,100,0,256,3:spmotionwait 10 */
+int ONScripter::spmotionwaitCommand()
+{
+    int no = script_h.readInt();
+    bool click = (script_h.getEndStatus() & ScriptHandler::END_COMMA) && script_h.readInt() == 1;
+    int now = SDL_GetTicks(), left = 0;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        AnimationInfo &ai = sprite_info[i];
+        if ((no >= 0 && i != no) || ai.motion_keys == 0 || ai.motion_loop) continue;
+        int end = ai.motion_start + ai.motion_key[ai.motion_keys-1][0] * (ai.motion_passes > 1 ? ai.motion_passes : 1);
+        if (end - now > left) left = end - now;
+    }
+    if (left > 0 && !(skip_mode & SKIP_NORMAL || ctrl_pressed_status)){
+        event_mode = WAIT_TIMER_MODE | (click ? WAIT_INPUT_MODE : 0);
+        waitEvent( left );
+    }
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        AnimationInfo &ai = sprite_info[i];
+        if ((no >= 0 && i != no) || ai.motion_keys == 0 || ai.motion_loop) continue;
+        if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+        stepSpriteMotion( ai, ai.motion_start + ai.motion_key[ai.motion_keys-1][0] * (ai.motion_passes > 1 ? ai.motion_passes : 1) );
+        if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+    }
+    flush( refreshMode() );
+
+    return RET_CONTINUE;
+}
+
 /* spcurve id,v0,v1,...,vn
  *   Defines curve id (10-73) for spmotion's keys: how far (0-1024) the
  *   way from one key to the next goes, sampled at n+1 even steps of the

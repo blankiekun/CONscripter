@@ -231,6 +231,7 @@ public:
     int spmotionCommand();
     int spfadeCommand();
     int spcurveCommand();
+    int spmotionwaitCommand();
     int screenflashCommand();
     int screenfilterCommand();
     int screenshakeCommand();

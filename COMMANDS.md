@@ -671,6 +671,13 @@ last key.
 `spmotion 20,1,0,0,0,100,100,0,0,0,600,0,0,100,100,0,256,0,1100,0,0,100,100,0,256,0,1700,0,0,100,100,0,0,0` (glow).
 Impl `ONScripter::spmotionCommand`.
 
+### spmotionwait [cons]
+`spmotionwait num[,click]` — wait until sprite num's `spmotion` ends (-1:
+every motion that ends; looping ones are left out); click 1: a click ends
+the wait. What is left (a click, skipping) jumps to the motion's end, and the
+screen is drawn. `spmotion 10,2,...:spmotionwait 10`.
+Impl `ONScripter::spmotionwaitCommand`.
+
 ### spcurve [cons]
 `spcurve id,v0,v1,...,vn` — curve id (10-73) for `spmotion` keys: how far
 (0-1024) from one key to the next at n+1 even steps (2 to 1025 values), straight
