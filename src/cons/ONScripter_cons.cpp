@@ -2778,6 +2778,8 @@ void ONScripter::setChunkLoop( const unsigned char *buf, unsigned long len )
 static struct { Mix_Chunk *chunk; Uint32 pos; bool loop; Uint32 loop_start, loop_end; } cut_track[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS];
 static struct { Mix_Chunk *chunk; Uint8 *buf; } cut_fade[ONS_MIX_FADE_CHANNELS];
 static int cut_fade_next = 0;
+static void playFadeTail( Uint8 *raw, Uint32 bytes, int volume );
+extern bool ext_music_play_once_flag; // ONScripter_event.cpp
 
 /* chfreq: a dwave channel's sound played at rate/1000 of its speed (and
  * pitch), ramped linearly from `from` to `to` over `ms` from `start` as
@@ -2998,16 +3000,172 @@ void ONScripter::cutChannel( int channel )
             buf[f*chans + c] = (Sint16)((Sint32)src[at*chans + c] * gain / 4096 * (Sint32)(frames - f) / (Sint32)frames);
     }
 
+    playFadeTail( raw, frames * frame, Mix_Volume( channel, -1 ) );
+}
+
+// Plays raw (device format, faded already; taken over) once on one of the
+// channels kept for fades, at volume (0-MIX_MAX_VOLUME).
+static void playFadeTail( Uint8 *raw, Uint32 bytes, int volume )
+{
     int n = cut_fade_next++ % ONS_MIX_FADE_CHANNELS;
     int fade_channel = ONS_MIX_CHANNELS + ONS_MIX_EXTRA_CHANNELS + n;
     Mix_HaltChannel( fade_channel );
     if (cut_fade[n].chunk) Mix_FreeChunk( cut_fade[n].chunk );
     delete[] cut_fade[n].buf;
     cut_fade[n].buf = raw;
-    cut_fade[n].chunk = Mix_QuickLoad_RAW( cut_fade[n].buf, frames * frame );
+    cut_fade[n].chunk = Mix_QuickLoad_RAW( cut_fade[n].buf, bytes );
     if (!cut_fade[n].chunk) return;
-    Mix_Volume( fade_channel, Mix_Volume( channel, -1 ) );
+    Mix_Volume( fade_channel, volume );
     Mix_PlayChannel( fade_channel, cut_fade[n].chunk, 0 );
+}
+
+/* A piece of an Ogg Vorbis file, its frames [from, from+count) at the file's
+ * rate, decoded without the rest: SDL_mixer decodes a sound whole (a
+ * 4-minute track is 40 MB and 190 ms native, 290 ms in the web build, on
+ * the main thread). The file's header pages and the audio pages around the
+ * piece are spliced into a short Ogg file (pages renumbered, their CRCs
+ * redone) for Mix_LoadWAV_RW, whichever Vorbis decoder it has. Decoders
+ * give a page's samples up to its granule position, so the piece's last
+ * frame is the last page's granule (marked the end of the stream, a whole
+ * packet ending it): that places its first. Returns the
+ * chunk (device format) and in *skip the frames before `from`; NULL when
+ * the file isn't one Ogg Vorbis stream. */
+static Mix_Chunk *oggPiece( const unsigned char *buf, unsigned long len, Sint64 from, Sint64 count,
+                            int rate, int dev_rate, Uint32 frame, Uint32 *skip )
+{
+    struct Page { unsigned long at, size; Sint64 granule; };
+    std::vector<Page> pages;
+    for (unsigned long at = 0; at + 27 <= len && !memcmp( buf + at, "OggS", 4 ); ){
+        int segs = buf[at+26];
+        unsigned long size = 27 + segs;
+        for (int i = 0; i < segs && at + 27 + i < len; i++) size += buf[at+27+i];
+        if (at + size > len || memcmp( buf + at + 14, buf + 14, 4 )) break; // cut short, or a second stream
+        Sint64 g = 0;
+        for (int i = 7; i >= 0; i--) g = g << 8 | buf[at+6+i];
+        pages.push_back( { at, size, g } );
+        at += size;
+    }
+    size_t h = 0; // the first audio page: headers have granule 0
+    while (h < pages.size() && pages[h].granule == 0) h++;
+    if (h == 0 || h >= pages.size()) return NULL;
+    // From a page before the one `from` is in (the first packet of a piece
+    // gives no samples), and at a page that starts a packet
+    size_t p = h, q;
+    for (size_t i = h; i < pages.size(); i++) if (pages[i].granule > 0 && pages[i].granule <= from) p = i;
+    p = p > h ? p - 1 : h;
+    while (p > h && buf[pages[p].at+5] & 1) p--;
+    for (q = p; q + 1 < pages.size() && (pages[q].granule < from + count || pages[q].granule <= 0 || buf[pages[q+1].at+5] & 1); q++);
+    std::vector<unsigned char> ogg( buf, buf + pages[h].at );
+    Uint32 seq = buf[pages[h-1].at+18] | buf[pages[h-1].at+19] << 8 | buf[pages[h-1].at+20] << 16 | (Uint32)buf[pages[h-1].at+21] << 24;
+    for (size_t i = p; i <= q; i++){
+        size_t at = ogg.size();
+        ogg.insert( ogg.end(), buf + pages[i].at, buf + pages[i].at + pages[i].size );
+        // The last page ends the stream: decoders then stop at its granule
+        // (otherwise some give the last packet's overlap too)
+        if (++seq != (Uint32)(ogg[at+18] | ogg[at+19] << 8 | ogg[at+20] << 16 | (Uint32)ogg[at+21] << 24) || (i == q && !(ogg[at+5] & 4))){
+            ogg[at+5] |= i == q ? 4 : 0;
+            for (int b = 0; b < 4; b++) ogg[at+18+b] = (seq >> 8*b) & 0xff, ogg[at+22+b] = 0;
+            Uint32 crc = 0; // Ogg's CRC-32 (0x04c11db7, not reflected), over the page with its CRC zero
+            for (size_t k = at; k < ogg.size(); k++){
+                crc ^= (Uint32)ogg[k] << 24;
+                for (int b = 0; b < 8; b++) crc = crc & 0x80000000 ? crc << 1 ^ 0x04c11db7 : crc << 1;
+            }
+            for (int b = 0; b < 4; b++) ogg[at+22+b] = (crc >> 8*b) & 0xff;
+        }
+    }
+    Mix_Chunk *chunk = Mix_LoadWAV_RW( SDL_RWFromConstMem( ogg.data(), (int)ogg.size() ), 1 );
+    if (!chunk) return NULL;
+    Sint64 got = (Sint64)(chunk->alen / frame) * rate / dev_rate; // at the file's rate
+    Sint64 first = pages[q].granule - got;
+    *skip = from > first ? (Uint32)((from - first) * dev_rate / rate) : 0;
+    return chunk;
+}
+
+// An Ogg file's length in frames at its rate: its last page's granule position.
+static Sint64 oggLength( const unsigned char *buf, unsigned long len )
+{
+    for (unsigned long at = len >= 27 ? len - 27 : 0; at > 0; at--)
+        if (!memcmp( buf + at, "OggS", 4 ) && buf[at+5] & 4){ // the end of stream page
+            Sint64 g = 0;
+            for (int i = 7; i >= 0; i--) g = g << 8 | buf[at+6+i];
+            return g;
+        }
+    return 0;
+}
+
+/* bgm "file",ms: the music playing goes on fading out over ms while the
+ * next fades in. SDL_mixer plays one music at a time, so the old one's
+ * next ms are decoded again from its file (kept in music_buffer), from
+ * where its decoder is (oggPiece: only those), faded and played on a fade
+ * channel; the music is halted in the same lock, so the two join without a
+ * gap or overlap. Not for music played as a sound (.wav on the BGM
+ * channel) or a MIDI. */
+void ONScripter::crossFadeOutBGM( int ms )
+{
+#if defined(SDL_MIXER_VERSION_ATLEAST) && SDL_MIXER_VERSION_ATLEAST(2,6,0)
+    if (!audio_open_flag || ms <= 0 || !music_info || !music_buffer || Mix_PlayingMusic() != 1 || Mix_PausedMusic() ||
+        timer_bgmfade_id || audio_format.format != AUDIO_S16SYS) return;
+    int volume = Mix_VolumeMusic( -1 );
+    if (volume <= 0) return;
+    int chans = audio_format.channels, frame = 2 * chans, dev_rate = audio_format.freq;
+    Uint32 frames = (Uint32)((long long)dev_rate * ms / 1000);
+    // The decoder goes on while the piece is decoded (~5 ms): take more
+    const int ahead = 250;
+    double s0 = Mix_GetMusicPosition( music_info );
+    std::vector<Sint16> src; // device frames from s0 on
+    const unsigned char *mb = music_buffer;
+    bool vorbis = music_buffer_length >= 44 && !memcmp( mb, "OggS", 4 ) && !memcmp( mb + 28, "\x01vorbis", 7 );
+    int rate = vorbis ? mb[40] | mb[41] << 8 | mb[42] << 16 | mb[43] << 24 : 0;
+    Sint64 total = vorbis ? oggLength( mb, music_buffer_length ) : 0;
+    double length = total > 0 ? (double)total / rate : 0; // s
+    Uint32 skip = 0;
+    Mix_Chunk *piece = NULL;
+    if (rate > 0 && total > 0){
+        Sint64 from = s0 > 0 ? (Sint64)(s0 * rate) : 0, count = (Sint64)rate * (ms + ahead) / 1000;
+        if (music_play_loop_flag) from %= total;
+        while (count > 0 && from < total && (piece = oggPiece( mb, music_buffer_length, from, count, rate, dev_rate, frame, &skip ))){
+            Uint32 n = piece->alen / frame;
+            if (skip < n) src.insert( src.end(), (Sint16*)piece->abuf + skip * chans, (Sint16*)piece->abuf + n * chans );
+            Mix_FreeChunk( piece );
+            count -= total - from;
+            if (!music_play_loop_flag) break;
+            from = 0; // a looping music goes round
+        }
+    }
+    else{ // shortcut: not Ogg Vorbis (WAV, Opus as WAV: quick; MP3: decoded whole)
+        Mix_Chunk *whole = Mix_LoadWAV_RW( SDL_RWFromMem( music_buffer, music_buffer_length ), 1 );
+        if (!whole) return;
+        Uint32 n = whole->alen / frame, at = s0 > 0 ? (Uint32)(s0 * dev_rate) : 0;
+        length = (double)n / dev_rate;
+        if (music_play_loop_flag && n > 0) at %= n;
+        for (Uint32 f = 0; f < frames + (Uint32)dev_rate * ahead / 1000 && n > 0; f++, at++){
+            if (at >= n){ if (!music_play_loop_flag) break; at = 0; }
+            src.insert( src.end(), (Sint16*)whole->abuf + at * chans, (Sint16*)whole->abuf + (at + 1) * chans );
+        }
+        Mix_FreeChunk( whole );
+    }
+    SDL_LockAudio();
+    double s = Mix_GetMusicPosition( music_info );
+    Uint32 total_src = src.size() / chans;
+    if (s < s0 && music_play_loop_flag) s += length; // it went round meanwhile
+    Uint32 at = s > s0 ? (Uint32)((s - s0) * dev_rate) : 0;
+    if (at > total_src) at = total_src;
+    if (frames > total_src - at) frames = total_src - at;
+    if (frames >= 2){
+        Uint8 *raw = new Uint8[frames * frame];
+        Sint16 *buf = (Sint16*)raw;
+        for (Uint32 f=0 ; f<frames ; f++)
+            for (int c=0 ; c<chans ; c++)
+                buf[f*chans + c] = (Sint16)((Sint32)src[(at+f)*chans + c] * (Sint32)(frames - f) / (Sint32)frames);
+        playFadeTail( raw, frames * frame, volume );
+        Mix_HookMusicFinished( NULL ); // as mp3stop's fade does
+        ext_music_play_once_flag = true;
+        Mix_HaltMusic();
+    }
+    SDL_UnlockAudio();
+#else
+    (void)ms;
+#endif
 }
 
 // A dwave channel playing a sound with dwaveloop or dwaveplayloop.
