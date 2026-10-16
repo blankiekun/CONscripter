@@ -37,6 +37,9 @@ extern "C" int mkdir_ons(const char *path, mode_t mode);
 #if defined(WEB)
 extern "C" FILE *fopen_ons(const char *str, const char *mode);
 #define fopen fopen_ons
+extern "C" void webPreload(FILE *fp, size_t offset, size_t length); // CONscripter
+#else
+#define webPreload(fp, offset, length)
 #endif
 
 #ifndef SEEK_END

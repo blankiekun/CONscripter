@@ -367,6 +367,17 @@ FILE *fopen_ons(const char *path, const char *mode)
     return fp;
 }
 
+// CONscripter: a host page that reads game files on demand (the site's player) is
+// asked for the bytes before fread() needs them, and loads them asynchronously
+// while the engine waits: its synchronous read would make Firefox suspend the
+// AudioContext, a gap in the sound at each voice, sound effect or picture.
+extern "C" void webPreload(FILE *fp, size_t offset, size_t length)
+{
+    while (!EM_ASM_INT(return !self.consPreload || self.consPreload($0, $1 >>> 0, $2 >>> 0) ? 1 : 0;,
+                       fileno(fp), offset, length))
+        SDL_Delay(1);
+}
+
 extern "C" bool playVideoWeb(const char *path, bool click_flag, bool loop_flag)
 {
     EM_ASM(

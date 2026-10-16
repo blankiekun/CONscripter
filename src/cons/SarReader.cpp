@@ -334,6 +334,8 @@ size_t SarReader::getFileSub( ArchiveInfo *ai, const char *file_name, unsigned c
     }
 #endif
 
+    webPreload( ai->file_handle, ai->fi_list[i].offset, ai->fi_list[i].length ); // CONscripter
+
     int type = ai->fi_list[i].compression_type;
     if ( type == NO_COMPRESSION ) type = getRegisteredCompressionType( file_name );
 

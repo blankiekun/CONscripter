@@ -373,6 +373,7 @@ size_t DirectReader::getFile( const char *file_name, unsigned char *buffer, int 
     FILE *fp = getFileHandle( file_name, compression_type, &len );
     
     if ( fp ){
+        webPreload( fp, 0, (size_t)-1 ); // CONscripter: the whole file
         if      ( compression_type & NBZ_COMPRESSION ) return decodeNBZ( fp, 0, buffer );
         else if ( compression_type & SPB_COMPRESSION ) return decodeSPB( fp, 0, buffer );
 
@@ -671,6 +672,7 @@ size_t DirectReader::decodeLZSS( struct ArchiveInfo *ai, int no, unsigned char *
 size_t DirectReader::getDecompressedFileLength( int type, FILE *fp, size_t offset )
 {
     size_t length=0;
+    webPreload( fp, offset, 4 ); // CONscripter
     fseek( fp, offset, SEEK_SET );
     
     if ( type == NBZ_COMPRESSION ){
