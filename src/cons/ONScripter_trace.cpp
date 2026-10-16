@@ -438,6 +438,7 @@ int ONScripter::traceSpriteUpdate( int i, int since )
     TraceSprite &ts = trace_sprite[i];
     const char *image = ai.image_name;
     if (!image && ai.trans_mode == AnimationInfo::TRANS_STRING) image = ai.file_name; // strsp: its text
+    if (!image && ai.image_surface && ai.file_name) image = ai.file_name; // spgrab: "(spgrab)"
     if (!ai.visible || !image){
         if (ts.image.empty()) return 0;
         ts.image.clear();
@@ -585,7 +586,7 @@ bool ONScripter::traceChanges( std::string &out )
 static const struct { const char *name; int kind; } trace_commands[] = {
     {"lsp",1}, {"lsph",1}, {"lsp2",1}, {"lsph2",1}, {"lsp2add",1}, {"lsph2add",1},
     {"lsp2sub",1}, {"lsph2sub",1}, {"csp",1}, {"csp2",1}, {"vsp",1}, {"vsp2",1},
-    {"msp",1}, {"msp2",1}, {"amsp",1}, {"amsp2",1}, {"cell",1}, {"spfilter",1}, {"spzoom",1}, {"sprot",1}, {"spmotion",1}, {"spcurve",1},
+    {"msp",1}, {"msp2",1}, {"amsp",1}, {"amsp2",1}, {"cell",1}, {"spfilter",1}, {"spzoom",1}, {"sprot",1}, {"spmotion",1}, {"spcurve",1}, {"spgrab",1},
     {"strsp",1}, {"strsph",1}, {"vstrsp",1}, {"spz",1}, {"spclip",1}, {"sptrail",1}, {"spblend",1}, {"spstr",1}, {"spreload",1}, {"ld",1}, {"cl",1},
     {"bg",1}, {"bgcopy",1}, {"bgcpy",1}, {"popscreen",1},
     {"bgm",2}, {"bgmonce",2}, {"mp3",2}, {"mp3loop",2}, {"mp3save",2}, {"play",2},
