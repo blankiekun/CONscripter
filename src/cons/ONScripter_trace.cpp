@@ -510,6 +510,10 @@ void ONScripter::traceSprite( std::string &out, int i )
         snprintf( buf, sizeof(buf), ",\"zoom\":[%d,%d]", ai.zoom_x, ai.zoom_y );
         out += buf;
     }
+    if (ai.zoom_rot != 0){
+        snprintf( buf, sizeof(buf), ",\"rot\":%d", ai.zoom_rot );
+        out += buf;
+    }
     if (ai.motion_keys > 0){
         snprintf( buf, sizeof(buf), ",\"motion\":%s", ai.motion_loop ? "\"loop\"" : ai.motion_keep ? "\"keep\"" : "\"once\"" );
         out += buf;
@@ -578,7 +582,7 @@ bool ONScripter::traceChanges( std::string &out )
 static const struct { const char *name; int kind; } trace_commands[] = {
     {"lsp",1}, {"lsph",1}, {"lsp2",1}, {"lsph2",1}, {"lsp2add",1}, {"lsph2add",1},
     {"lsp2sub",1}, {"lsph2sub",1}, {"csp",1}, {"csp2",1}, {"vsp",1}, {"vsp2",1},
-    {"msp",1}, {"msp2",1}, {"amsp",1}, {"amsp2",1}, {"cell",1}, {"spfilter",1}, {"spzoom",1}, {"spmotion",1}, {"spmotion2",1},
+    {"msp",1}, {"msp2",1}, {"amsp",1}, {"amsp2",1}, {"cell",1}, {"spfilter",1}, {"spzoom",1}, {"sprot",1}, {"spmotion",1}, {"spmotion2",1},
     {"strsp",1}, {"strsph",1}, {"vstrsp",1}, {"spz",1}, {"spblend",1}, {"spstr",1}, {"spreload",1}, {"ld",1}, {"cl",1},
     {"bg",1}, {"bgcopy",1}, {"bgcpy",1}, {"popscreen",1},
     {"bgm",2}, {"bgmonce",2}, {"mp3",2}, {"mp3loop",2}, {"mp3save",2}, {"play",2},

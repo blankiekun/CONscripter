@@ -215,6 +215,7 @@ public:
     int spclclkCommand();
     int spfilterCommand();
     int spzoomCommand();
+    int sprotCommand();
     int spzCommand();
     int spblendCommand();
     int spmotionCommand();
@@ -782,6 +783,7 @@ private:
         int num_of_filters;
         AnimationInfo::Filter filter[AnimationInfo::MAX_FILTER_NUM];
         int zoom_x, zoom_y;
+        int zoom_rot;
         int z_over = -1; // spz
     };
     struct ScreenState {

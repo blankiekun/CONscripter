@@ -609,11 +609,18 @@ unzoomed place. Redraws the whole screen at the next `print`; call again after
 moving: `amsp 10,x,y:spzoom 10,150:print 1`. Animated sprites cycle cells.
 Impl `ONScripter::spzoomCommand`.
 
+### sprot [cons]
+`sprot num,degrees` — turn counterclockwise (as `lsp2`) about the centre of
+its place, keeping its place among the sprites. Kept and reset as `spzoom`,
+saved, kept by `pushscreen`. A `spmotion2` angle adds to it; loop 2 leaves
+its last angle here. `sprot 10,-15:print 1`.
+Impl `ONScripter::sprotCommand`.
+
 ### spmotion / spmotion2 [cons]
 `spmotion num[,loop,t1,x1,y1,t2,x2,y2,...]` — move by offsets from its place,
 linear between keys (`t` ms from now), stepped every ~16 ms by the timer
 (also during waits). loop 0: ends, back at its place; 1: repeats; 2: once,
-then the last key's offset/zoom/alpha are applied to the sprite.
+then the last key's offset/zoom/angle/alpha are applied to the sprite.
 `spmotion num` stops. Up to 32 keys. Stays through `lsp`, removed by `csp`,
 saved (restarted). Another `spmotion`, `lsp`, `msp`, `amsp` first finishes a
 loop-2 motion at its last key.

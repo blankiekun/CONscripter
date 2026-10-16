@@ -47,12 +47,13 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 15 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
+#define CONS_SAVE_VERSION 16 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
                             // 5: + strsp sprites, looping dwave sounds; 6: + strsp sprites in the screen stack;
                             // 7: + sprite zooms; 8: + script volumes (chvolfade, bgmvolfade);
                             // 9: + sprite motions; 10: + sprite orders (spz); 11: + play time;
                             // 12: + keyed sprite alphas (spalpha); 13: + motions' zooms, angles, keep (spmotion2)
                             // 14: + the music bgmlater will start; 15: + additive sprites (spblend)
+                            // 16: + sprite angles (sprot)
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
 
@@ -203,6 +204,30 @@ int ONScripter::spzoomCommand()
     return RET_CONTINUE;
 }
 
+/* sprot num, degrees
+ *   Draws sprite num (an lsp sprite) turned counterclockwise by degrees (as
+ *   lsp2) about the centre of its place, keeping its place among the
+ *   sprites. Kept, reset and redrawn as spzoom's zoom, and saved; a motion's
+ *   angle (spmotion2) adds to it, and loop 2 leaves its last angle there.
+ *   "sprot 10,-15:print 1". */
+int ONScripter::sprotCommand()
+{
+    leaveTextDisplayMode();
+
+    int no = script_h.readInt();
+    int deg = script_h.readInt();
+    if (no < 0 || no >= MAX_SPRITE_NUM){
+        utils::printError("sprot: sprite %d out of range\n", no);
+        return RET_CONTINUE;
+    }
+    AnimationInfo *ai = &sprite_info[no];
+    if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
+    ai->zoom_rot = deg;
+    if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
+
+    return RET_CONTINUE;
+}
+
 /* spmotion num[,loop,t1,x1,y1,t2,x2,y2,...]
  *   Moves sprite num (an lsp sprite) by itself along offsets from its
  *   place: x,y (pixels) at t ms from now, straight from key to key,
@@ -215,8 +240,8 @@ int ONScripter::spzoomCommand()
  *   files (restarted). "spmotion 10,1,0,0,0,250,0,-12,500,0,0" bobs
  *   sprite 10 up and down twice a second. loop 2 runs once and leaves the
  *   sprite at the last key: its offset is added to the sprite's place (as
- *   msp), its zoom to the spzoom and its alpha to the sprite's; the angle
- *   goes back to 0. Another spmotion or spmotion2 on the sprite (also one
+ *   msp), its zoom to the spzoom, its angle to the sprot and its alpha to
+ *   the sprite's. Another spmotion or spmotion2 on the sprite (also one
  *   that stops it), lsp, msp or amsp first ends such a motion at its last
  *   key.
  *
@@ -442,6 +467,7 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
             ai.scalePosXY( screen_ratio1, screen_ratio2 );
             ai.zoom_x = ai.zoom_x * k[3] / 100;
             ai.zoom_y = ai.zoom_y * k[3] / 100;
+            ai.zoom_rot += k[4];
             if (k[5] < 256) ai.trans = (ai.trans < 0 ? 255 : ai.trans) * k[5] / 256;
         }
         ai.motion_keys = 0;
@@ -574,7 +600,7 @@ bool ONScripter::spriteZoomOrMotion()
 {
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         const AnimationInfo &ai = sprite_info[i];
-        if (ai.visible && ai.image_surface && (ai.motion_keys > 0 || ai.zoom_x != 100 || ai.zoom_y != 100)) return true;
+        if (ai.visible && ai.image_surface && (ai.motion_keys > 0 || ai.zoom_x != 100 || ai.zoom_y != 100 || ai.zoom_rot != 0)) return true;
     }
     return false;
 }
@@ -594,14 +620,14 @@ int ONScripter::nextSpriteMotionTime()
 }
 
 // The box a sprite's picture covers, zoomed (spzoom, a motion's zoom) and
-// turned (a motion's angle) about its centre.
+// turned (sprot, a motion's angle) about its centre.
 SDL_Rect ONScripter::zoomedRect( const AnimationInfo &ai )
 {
     SDL_Rect r = ai.pos;
-    if (ai.zoom_x == 100 && ai.zoom_y == 100 && ai.motion_zoom == 100 && ai.motion_rot == 0) return r;
+    if (ai.zoom_x == 100 && ai.zoom_y == 100 && ai.motion_zoom == 100 && ai.motion_rot == 0 && ai.zoom_rot == 0) return r;
     int w = ai.pos.w * abs(ai.zoom_x) / 100 * abs(ai.motion_zoom) / 100;
     int h = ai.pos.h * abs(ai.zoom_y) / 100 * abs(ai.motion_zoom) / 100;
-    if (ai.motion_rot % 360 != 0) w = h = (int)ceil( sqrt( (double)w * w + (double)h * h ) );
+    if ((ai.zoom_rot + ai.motion_rot) % 360 != 0) w = h = (int)ceil( sqrt( (double)w * w + (double)h * h ) );
     r.x = ai.pos.x + ai.pos.w/2 - w/2 - 1;
     r.y = ai.pos.y + ai.pos.h/2 - h/2 - 1;
     r.w = w + 2;
@@ -625,7 +651,7 @@ void ONScripter::drawZoomedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
     anim->affine_pos.h = pos.h;
     anim->scale_x = anim->zoom_x * anim->motion_zoom / 100;
     anim->scale_y = anim->zoom_y * anim->motion_zoom / 100;
-    anim->rot = anim->motion_rot;
+    anim->rot = anim->zoom_rot + anim->motion_rot;
     anim->calcAffineMatrix();
     anim->blendOnSurface2( dst_surface, anim->pos.x, anim->pos.y, clip, anim->trans );
 
@@ -1682,6 +1708,7 @@ int ONScripter::pushscreenCommand()
         memcpy(sp.filter, ai->filter, sizeof(sp.filter));
         sp.zoom_x = ai->zoom_x;
         sp.zoom_y = ai->zoom_y;
+        sp.zoom_rot = ai->zoom_rot;
         sp.z_over = ai->z_over;
     }
     memcpy(st.screen_filter, screen_filter, sizeof(st.screen_filter));
@@ -1754,6 +1781,7 @@ void ONScripter::popScreenState()
         if (ai->image_surface && ai->visible) dirty_rect.add( zoomedRect( *ai ) ); // the old zoom
         ai->zoom_x = sp.zoom_x;
         ai->zoom_y = sp.zoom_y;
+        ai->zoom_rot = sp.zoom_rot;
         ai->z_over = sp.z_over;
         if (ai->image_surface && ai->visible) dirty_rect.add( zoomedRect( *ai ) );
         if (ai->image_surface && ai->visible) dirty_rect.add( ai->pos );
@@ -2070,6 +2098,32 @@ void ONScripter::saveSaveFileCons( bool output_flag )
     writeInt( num, output_flag );
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
         if (sprite_info[i].blending_mode == AnimationInfo::BLEND_ADD) writeInt( i, output_flag );
+
+    // Version 16: the sprite angles (sprot): the count, then per sprite its
+    // number and angle; then the number of pushscreen states and per state,
+    // oldest first, the same for the sprites it saved.
+    num = 0;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (sprite_info[i].zoom_rot != 0) num++;
+    writeInt( num, output_flag );
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        if (sprite_info[i].zoom_rot == 0) continue;
+        writeInt( i, output_flag );
+        writeInt( sprite_info[i].zoom_rot, output_flag );
+    }
+    writeInt( screen_stack_num, output_flag );
+    for (int n=0 ; n<screen_stack_num ; n++){
+        ScreenState &st = screen_stack[n];
+        num = 0;
+        for (int i=st.first ; i<=st.last ; i++)
+            if (st.sprite[i - st.first].zoom_rot != 0) num++;
+        writeInt( num, output_flag );
+        for (int i=st.first ; i<=st.last ; i++){
+            if (st.sprite[i - st.first].zoom_rot == 0) continue;
+            writeInt( i, output_flag );
+            writeInt( st.sprite[i - st.first].zoom_rot, output_flag );
+        }
+    }
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -2323,6 +2377,7 @@ void ONScripter::loadSaveFileCons()
             sp.visible = false;
             sp.num_of_filters = 0;
             sp.zoom_x = sp.zoom_y = 100;
+            sp.zoom_rot = 0;
         }
         int num = readInt();
         for (int m=0 ; m<num ; m++){
@@ -2425,6 +2480,7 @@ void ONScripter::loadSaveFileCons()
             ScreenSprite sp;
             sp.image_name = NULL;
             sp.zoom_x = sp.zoom_y = 100;
+            sp.zoom_rot = 0;
             sp.x = readInt();
             sp.y = readInt();
             sp.visible = readInt() == 1;
@@ -2580,6 +2636,22 @@ void ONScripter::loadSaveFileCons()
     for (int n=0 ; n<num ; n++){
         int no = readInt();
         if (no >= 0 && no < MAX_SPRITE_NUM) sprite_info[no].blending_mode = AnimationInfo::BLEND_ADD;
+    }
+
+    if (version < 16) return;
+    num = readInt();
+    for (int n=0 ; n<num ; n++){
+        int no = readInt(), rot = readInt();
+        if (no >= 0 && no < MAX_SPRITE_NUM) sprite_info[no].zoom_rot = rot;
+    }
+    depth = readInt();
+    for (int n=0 ; n<depth ; n++){
+        num = readInt();
+        for (int m=0 ; m<num ; m++){
+            int i = readInt(), rot = readInt();
+            ScreenState *st = (n < screen_stack_num) ? &screen_stack[n] : NULL;
+            if (st && i >= st->first && i <= st->last) st->sprite[i - st->first].zoom_rot = rot;
+        }
     }
 }
 

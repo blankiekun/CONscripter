@@ -136,6 +136,9 @@ public:
        about the centre of its place. It stays across lsp and is reset by
        remove(). */
     int zoom_x, zoom_y;
+    /* CONscripter: its angle (sprot), degrees counterclockwise as lsp2's,
+       about the same centre; kept and reset like the zoom. */
+    int zoom_rot;
 
     /* CONscripter: a motion (spmotion, spmotion2): offsets the sprite is
        drawn at, a zoom and an angle about its centre and a part of its

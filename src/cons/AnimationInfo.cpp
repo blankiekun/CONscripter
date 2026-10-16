@@ -64,6 +64,7 @@ AnimationInfo::AnimationInfo()
     num_of_filters = 0;
     filter_changed = false;
     zoom_x = zoom_y = 100;
+    zoom_rot = 0;
     motion_keys = 0;
     motion_loop = false;
     motion_keep = false;
@@ -208,6 +209,7 @@ void AnimationInfo::remove()
     removeTag();
     clearFilters();
     zoom_x = zoom_y = 100;
+    zoom_rot = 0;
     motion_keys = 0;
     motion_dx = motion_dy = 0;
     motion_zoom = 100;

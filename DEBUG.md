@@ -547,6 +547,7 @@ Each sprite in `sp`:
 | `off` | `true` when the box is entirely off the screen |
 | `filters` | The number of `spfilter` filters on it |
 | `zoom` | `[x,y]`, its `spzoom` in percent (omitted at 100) |
+| `rot` | its `sprot` angle in degrees, counterclockwise (omitted at 0) |
 | `anim` | `true` for a sprite that steps its own cells (its picture changes with time) |
 | `motion` | `"loop"`, `"once"` or `"keep"` (loop mode 2) while an `spmotion` or `spmotion2` moves it (the box is its place, without the motion) |
 | `over` | The sprite `spz` draws it right over |
