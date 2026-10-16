@@ -227,11 +227,14 @@ int ONScripter::spzoomCommand()
  *   offset added to the place as msp, its zoom to spzoom, its angle to
  *   spzoom's angle, its alpha to the sprite's); loop -n runs n times, then does as
  *   loop 2; loop 3 runs once and then removes the sprite as csp does (lsp
- *   on it ends that and keeps the sprite; a save leaves it out): a fade
+ *   on it ends that and keeps the sprite; a save leaves it out); loop 4
+ *   is followed by a key number k before the keys: it runs once, then
+ *   repeats from key k (a lead-in, then a loop; as loop 1, it never ends
+ *   by itself, under --auto-play too): a fade
  *   out is "spmotion num,3,0,0,0,100,100,0,256,0,ms,0,0,100,100,0,0,0", a
  *   fade in a loop 0 from alpha 0. Under --auto-play (without --real-time),
- *   which doesn't wait, a motion that ends (any loop but 1) ends at once.
- *   "spmotion num" stops it. Up to 32 keys. The motion stays when
+ *   which doesn't wait, a motion that ends (any loop but 1 and 4) ends at once.
+ *   "spmotion num" stops it. Up to 64 keys. The motion stays when
  *   lsp changes the image, is removed by csp and is kept in save files
  *   (restarted). Another spmotion, lsp, msp or amsp first ends a loop 2
  *   or -n motion at its last key.
@@ -256,10 +259,13 @@ int ONScripter::spmotionCommand()
     ai->trail_keys = 0;
     if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
         int mode = script_h.readInt();
-        ai->motion_loop = mode == 1;
+        ai->motion_loop = mode == 1 || mode == 4;
         ai->motion_keep = mode == 2 || mode < 0;
         ai->motion_leave = mode == 3;
         ai->motion_passes = mode < 0 ? -mode : 0;
+        // loop 4: the key to go back to, then the keys
+        ai->motion_loop_key = 0;
+        int loop_key = mode == 4 && (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
         while (script_h.getEndStatus() & ScriptHandler::END_COMMA){
             int v[8];
             for (int j=0 ; j<8 ; j++) v[j] = script_h.readInt();
@@ -273,6 +279,11 @@ int ONScripter::spmotionCommand()
             k[0] = speedTime( v[0] ); k[1] = v[1]; k[2] = v[2]; k[3] = v[3]; // gamespeed
             k[4] = v[5]; k[5] = v[6] < 0 ? 0 : v[6] > 256 ? 256 : v[6]; k[6] = v[4]; k[7] = v[7];
         }
+        if (loop_key < 0 || (loop_key > 0 && loop_key >= ai->motion_keys - 1)){
+            utils::printError("spmotion: loop key %d out of range\n", loop_key);
+            loop_key = 0;
+        }
+        ai->motion_loop_key = loop_key;
         ai->motion_start = ai->motion_next = SDL_GetTicks();
         traceMotion( *ai, NULL );
         stepSpriteMotion( *ai, ai->motion_start );
@@ -726,7 +737,7 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
     if (ai.motion_keys == 0) return;
     int last = ai.motion_key[ai.motion_keys-1][0];
     int t = current_time - ai.motion_start;
-    if (ai.motion_loop && last > 0) t %= last;
+    if (ai.motion_loop && last > 0) t = ai.loopTime( t );
     else if (ai.motion_passes > 1 && last > 0 && t < last * ai.motion_passes) t %= last;
     else if (t >= last){
         if (ai.motion_keep){
@@ -793,7 +804,7 @@ bool ONScripter::trailCopyAt( const AnimationInfo &ai, int i, int v[7] )
     int last = k[0];
     int t = ai.trail_time - ai.motion_start - i * ai.trail_lag;
     if (t < 0) t = 0; // before the start: on the first key
-    if (ai.motion_loop && last > 0) t %= last;
+    if (ai.motion_loop && last > 0) t = ai.loopTime( t );
     else if (ai.motion_passes > 1 && last > 0 && t < last * ai.motion_passes) t %= last;
     else if (t >= last){
         // past the end: where the sprite is now
@@ -2534,7 +2545,7 @@ void ONScripter::saveSaveFileCons( bool output_flag )
     }
 
     // Version 18: the sprite motions (spmotion): the count, then per sprite
-    // its number, loop, keep, passes, key count and keys (8 values each,
+    // its number, loop (1 + loop 4's key), keep, passes, key count and keys (8 values each,
     // as stored); then the spcurve tables: per curve its value count and
     // values. Motions restart on load.
     num = 0;
@@ -2545,7 +2556,7 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         AnimationInfo *ai = &sprite_info[i];
         if (ai->motion_keys == 0 || ai->motion_leave) continue; // leaving: left out with its sprite
         writeInt( i, output_flag );
-        writeInt( ai->motion_loop ? 1 : 0, output_flag );
+        writeInt( ai->motion_loop ? 1 + ai->motion_loop_key : 0, output_flag ); // loop 4: 1 + its loop key
         writeInt( ai->motion_keep ? 1 : 0, output_flag );
         writeInt( ai->motion_passes, output_flag );
         writeInt( ai->motion_keys, output_flag );
@@ -3452,7 +3463,9 @@ void ONScripter::loadSaveFileCons()
         int no = readInt();
         AnimationInfo dummy;
         AnimationInfo *ai = (no >= 0 && no < MAX_SPRITE_NUM) ? &sprite_info[no] : &dummy;
-        ai->motion_loop = readInt() != 0;
+        int loop = readInt();
+        ai->motion_loop = loop != 0;
+        ai->motion_loop_key = loop > 1 ? loop - 1 : 0;
         ai->motion_keep = readInt() != 0;
         ai->motion_leave = false; // loop 3 isn't saved
         ai->motion_passes = readInt();
@@ -3466,6 +3479,7 @@ void ONScripter::loadSaveFileCons()
             for (int j=0 ; j<8 ; j++) ai->motion_key[k][j] = v[j];
             ai->motion_keys++;
         }
+        if (ai->motion_loop_key >= ai->motion_keys - 1) ai->motion_loop_key = 0;
         ai->motion_start = ai->motion_next = SDL_GetTicks();
         stepSpriteMotion( *ai, ai->motion_start );
     }

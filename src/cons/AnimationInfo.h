@@ -147,6 +147,7 @@ public:
        stepped along keys by the timer, each reached by its curve, looping
        or once (then back at its place, or, motion_keep, moved to the last
        key's offset, zoom and alpha), or motion_passes times then kept,
+       (motion_loop_key, loop 4) once then from a later key on,
        or, motion_leave (loop 3), once and then the sprite is removed (lsp
        ends that). Stays across lsp; reset by remove(). */
     enum { MAX_MOTION_KEYS = 64 };
@@ -157,6 +158,7 @@ public:
     int (*motion_key)[8];
     void allocMotionKeys(){ if (!motion_key) motion_key = new int[MAX_MOTION_KEYS][8]; }
     bool motion_loop;
+    int motion_loop_key;       // loop 4: the key a loop goes back to after the first pass (0: the first)
     bool motion_keep;
     bool motion_leave;
     int motion_passes;         // keep after this many passes (0, 1: one)
@@ -220,6 +222,13 @@ public:
     void deleteSurface(bool delete_surface_name=true);
     void remove();
     void stopMotion(); // CONscripter: no motion, drawn at its place
+    // CONscripter: a looping motion's time t ms from its start, in its
+    // keys (loop 4: after the first pass, from the loop key on)
+    int loopTime( int t ) const {
+        int last = motion_key[motion_keys-1][0], from = motion_key[motion_loop_key][0];
+        if (t < last) return t;
+        return last > from ? from + (t - from) % (last - from) : last;
+    }
     void removeTag();
 
     bool proceedAnimation(int current_time);

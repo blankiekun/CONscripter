@@ -67,6 +67,7 @@ AnimationInfo::AnimationInfo()
     zoom_rot = 0;
     motion_key = NULL;
     motion_loop = false;
+    motion_loop_key = 0;
     motion_keep = false;
     motion_passes = 0;
     motion_start = motion_next = 0;

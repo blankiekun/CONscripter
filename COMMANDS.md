@@ -659,13 +659,15 @@ by the timer (also during waits). loop 0: ends, back at its place; 1:
 repeats; 2: once, then the last key's offset/zoom/angle/alpha are applied to
 the sprite; -n: n times, then as 2; 3: once, then the sprite is removed (as
 `csp`; `lsp` on it ends that and keeps it; saves and `pushscreen` leave it
-out). Under `--auto-play` (not `--real-time`) every motion but loop 1 ends at
+out); 4: `spmotion num,4,k,keys...`, once, then repeats from key k on (a
+lead-in, then a loop: the last key should match key k). Under `--auto-play` (not `--real-time`) every motion but loop 1 ends at
 once. `spmotion num` stops. Up to 64 keys.
 Stays through `lsp`, removed by `csp`, saved (restarted). Another
 `spmotion`, `lsp`, `msp`, `amsp` first finishes a loop 2/-n motion at its
 last key.
 `spmotion 10,1,0,0,0,100,100,0,256,0,250,0,-12,100,100,0,256,3,500,0,0,100,100,0,256,3` (bob);
 `spmotion 10,1,0,0,0,100,100,0,256,0,1000,0,0,100,100,360,256,0` (spin);
+`spmotion 10,4,1,0,0,0,100,100,0,256,0,500,0,40,100,100,0,256,0,1000,0,30,100,100,0,256,3,1500,0,40,100,100,0,256,3` (drop in, then bob);
 `spmotion 20,1,0,0,0,100,100,0,0,0,600,0,0,100,100,0,256,0,1100,0,0,100,100,0,256,0,1700,0,0,100,100,0,0,0` (glow);
 `lsp 60,":a;noise.png",0,0,200:spmotion 60,0,0,0,0,100,100,0,0,0,2000,0,0,100,100,0,256,0` (fade in, was `spfade 60,2000`);
 `spmotion 60,3,0,0,0,100,100,0,256,0,300,0,0,100,100,0,0,0` (fade out and remove).
