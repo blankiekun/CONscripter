@@ -550,10 +550,11 @@ the whole screen. All go through `ONScripter::screenEffectCommand`.
   per ms; mode 1: a fixed 7-point path (next point when speed_x × ms reaches
   65536). `end` > 0 stops it after `end` ms.
   `screenshake 1,500,16,0,1300,1700,10,10,10,10,500`.
-- `screenripple slot,"map",time,interval,opacity0,opacity1,amp0,amp1,angle,angle_step,phase_step[,blend]`
+- `screenripple slot,"map",time,interval,opacity0,opacity1,amp0,amp1,angle,angle_step,phase_step[,blend[,phase]]`
   — each pixel taken from amp × sin(2π(grey/256 + phase/1000)) px away in
   direction `angle` (tenths of a degree, 0 right, 900 down), grey from the
-  greyscale `map`; laid over at opacity, or `blend` 1 multiplies.
+  greyscale `map`; laid over at opacity, or `blend` 1 multiplies. `phase`
+  (1/1000 turn, default 0) is where the phase starts.
 - `screenpulse slot,time,interval,zoom_x,zoom_y,opacity,colour,tint_opacity,tint`
   — a frozen copy, tinted (`tint` 0 none, 1 multiply by `colour` 0xRRGGBB,
   2 lay it over at tint_opacity), scaled 1 + f × zoom/1000 at f × opacity,
