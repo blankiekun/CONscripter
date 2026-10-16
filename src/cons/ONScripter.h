@@ -220,6 +220,7 @@ public:
     int sprotCommand();
     int spzCommand();
     int spblendCommand();
+    int spgrabCommand();
     int spmotionCommand();
     int spfadeCommand();
     int spalphaCommand();

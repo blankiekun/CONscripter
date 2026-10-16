@@ -658,6 +658,16 @@ mask, its top left at screen (x, y), takes opacity away where it is dark
 `getmousepos %0,%1:spcut 52,"hole.png",%0,%1:print 1`.
 Impl `ONScripter::spcutCommand`.
 
+### spgrab [cons]
+`spgrab num[,src[,x,y,w,h]]` — a copy into lsp sprite num, shown where it was
+taken: src -1 (default) the screen as sprites and background draw it now
+(no text window, sprite num left out), src n sprite n's picture (its cell
+now; x, y in that picture); default all of it. The picture under it can
+then change while the copy fades or moves away by itself: a cross-fade the
+script doesn't wait for, `spgrab 20:bg "b.png",1:spfade 20,-800`. Not kept
+in saves (a load leaves it empty) or by `pushscreen`; the trace names it
+`(spgrab)`. Impl `ONScripter::spgrabCommand`.
+
 ### spblend [cons]
 `spblend num,mode` — mode 1 adds the sprite's colours (times its alpha) to
 what is under it, keeping its place among the lsp sprites; 0 normal. Stays
