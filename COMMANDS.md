@@ -688,6 +688,7 @@ Impl `ONScripter::exbtnCommand`.
 ### btnwait / btnwait2 / textbtnwait / selectbtnwait / bexec
 `btnwait %v` — wait for a button; `btnwait2` keeps buttons; `textbtnwait`
 waits for text and buttons; `bexec $s[,%x,%y]` — key string result.
+[cons] `btnwait`/`btnwait2` end auto mode and skip (`textbtnwait` neither).
 Returns: n button, 0 click off buttons, -1 right click, -2/-3 wheel up/down
 (`usewheel`), -10 Esc / -11 Space (`useescspc`), -12/-13 PgUp/PgDn
 (`getpage`), -19 Enter (`getenter`), -20 Tab (`gettab`), -21..-32 F1-F12
@@ -936,6 +937,9 @@ Impl `ONScripter::selectkeepCommand`.
 
 ### skipoff
 `skipoff` — leave skip mode. Impl `ONScripter::skipoffCommand`.
+
+### autooff [cons]
+`autooff` — leave auto mode (as a click would). Impl `ONScripter::autooffCommand`.
 
 ## Saves
 

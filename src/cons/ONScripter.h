@@ -364,6 +364,7 @@ public:
     int chvolfadeCommand();
     int bgmvolfadeCommand();
     int bgmlaterCommand();
+    int autooffCommand();
     int dwaveCommand();
     int dvCommand();
     int drawtextCommand();

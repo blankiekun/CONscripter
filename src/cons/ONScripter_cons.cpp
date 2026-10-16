@@ -1137,6 +1137,13 @@ void ONScripter::applyMusicVolume()
  *   A piece whose loop starts a set time after its intro, or music that
  *   comes in some seconds after a line:
  *       bgmonce "bgm\intro.ogg":bgmlater 7720,"bgm\loop.ogg" */
+int ONScripter::autooffCommand()
+{
+    automode_flag = false;
+    webStateHook();
+    return RET_CONTINUE;
+}
+
 int ONScripter::bgmlaterCommand()
 {
     int ms = script_h.readInt();

@@ -428,6 +428,7 @@ static ONScripter::FuncLUT func_lut[] = {
 
     {"avi",				&ONScripter::aviCommand},
     {"autovoicewait",	&ONScripter::autovoicewaitCommand},
+    {"autooff",			&ONScripter::autooffCommand},
     {"autosaveoff",		&ONScripter::autosaveoffCommand},
     {"automode_time",	&ONScripter::automode_timeCommand},
     {"automode",		&ONScripter::mode_extCommand},

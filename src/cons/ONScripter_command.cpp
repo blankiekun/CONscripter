@@ -3517,6 +3517,9 @@ int ONScripter::btnwaitCommand()
     else{
         shortcut_mouse_line = 0;
         skip_mode &= ~SKIP_NORMAL;
+        // CONscripter: a button wait (a choice, a menu) ends auto mode as it ends skip
+        if (!textbtn_flag && !bexec_flag) automode_flag = false;
+        webStateHook();
 
         flush( refreshMode() );
 
