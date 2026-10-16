@@ -478,6 +478,13 @@ void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
     return;
   }
 #endif
+    // CONscripter: spclip draws it only inside its rectangle.
+    SDL_Rect clip_in = clip;
+    if (anim->clip_rect[2] > 0){
+        SDL_Rect r = { anim->clip_rect[0] * screen_ratio1 / screen_ratio2, anim->clip_rect[1] * screen_ratio1 / screen_ratio2,
+                       anim->clip_rect[2] * screen_ratio1 / screen_ratio2, anim->clip_rect[3] * screen_ratio1 / screen_ratio2 };
+        if (!SDL_IntersectRect( &clip, &r, &clip_in )) return;
+    }
     SDL_Rect poly_rect = anim->pos;
     poly_rect.x += anim->motion_dx; // CONscripter: spmotion
     poly_rect.y += anim->motion_dy;
@@ -493,11 +500,11 @@ void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
     int factor = (anim->fade_ms > 0 ? anim->fade_alpha : 256) * anim->key_alpha / 256 * anim->motion_alpha / 256;
     if (factor != 256) anim->trans = (trans < 0 ? 255 : trans) * factor / 256;
     if (!anim->affine_flag && (anim->zoom_x != 100 || anim->zoom_y != 100 || anim->motion_zoom != 100 || anim->motion_rot != 0 || anim->zoom_rot != 0))
-        drawZoomedSurface( dst_surface, anim, poly_rect, clip );
+        drawZoomedSurface( dst_surface, anim, poly_rect, clip_in );
     else if (!anim->affine_flag)
-        anim->blendOnSurface( dst_surface, poly_rect.x, poly_rect.y, clip, anim->trans );
+        anim->blendOnSurface( dst_surface, poly_rect.x, poly_rect.y, clip_in, anim->trans );
     else
-        anim->blendOnSurface2( dst_surface, poly_rect.x, poly_rect.y, clip, anim->trans );
+        anim->blendOnSurface2( dst_surface, poly_rect.x, poly_rect.y, clip_in, anim->trans );
     anim->trans = trans;
 }
 

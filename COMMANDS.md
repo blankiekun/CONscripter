@@ -665,6 +665,14 @@ through `lsp`, removed by `csp`, saved.
 `lsp 2,":c;>800,600,#ffffff",0,0:spblend 2,1:spalpha 2,5,0,128,80,0` (five flashes).
 Impl `ONScripter::spblendCommand`.
 
+### spclip [cons]
+`spclip num,x,y,w,h` — draw sprite num only inside the screen's rectangle
+(x, y, w, h), wherever the sprite moves (a window its children show
+through); `spclip num` draws it everywhere again. Stays through `lsp`,
+removed by `csp`, saved, kept by `pushscreen`.
+`lsp 20,"tape.png",262,-220:spclip 20,260,138,100,300`.
+Impl `ONScripter::spclipCommand`.
+
 ### spz [cons]
 `spz num[,over]` — draw sprite `num` just over sprite `over` (between `over`
 and `over-1`); `spz num` resets. `spz 70,61` draws 70 over 61-69, under 60.

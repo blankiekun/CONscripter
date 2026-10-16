@@ -47,13 +47,13 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 16 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
+#define CONS_SAVE_VERSION 17 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
                             // 5: + strsp sprites, looping dwave sounds; 6: + strsp sprites in the screen stack;
                             // 7: + sprite zooms; 8: + script volumes (chvolfade, bgmvolfade);
                             // 9: + sprite motions; 10: + sprite orders (spz); 11: + play time;
                             // 12: + keyed sprite alphas (spalpha); 13: + motions' zooms, angles, keep (spmotion2)
                             // 14: + the music bgmlater will start; 15: + additive sprites (spblend)
-                            // 16: + sprite angles (sprot)
+                            // 16: + sprite angles (sprot); 17: + sprite clips (spclip)
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
 
@@ -484,6 +484,32 @@ int ONScripter::spzCommand()
     if (over < 0 || over >= MAX_SPRITE_NUM || over == no) over = -1;
     sprite_info[no].z_over = over;
     if (sprite_info[no].visible) dirty_rect.add( drawnRect( sprite_info[no] ) );
+
+    return RET_CONTINUE;
+}
+
+/* spclip num,x,y,w,h
+ *   Draws lsp sprite num only inside the screen's rectangle x, y, w, h
+ *   (its picture is cut there wherever the sprite moves: a window its
+ *   children show through); "spclip num" draws it everywhere again. It
+ *   stays when lsp changes the image, is removed by csp and is kept in
+ *   save files and by pushscreen.
+ *   lsp 20,"tape.png",262,-220:spclip 20,260,138,100,300 */
+int ONScripter::spclipCommand()
+{
+    int no = script_h.readInt();
+    int r[4] = {0, 0, 0, 0};
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA)
+        for (int k=0 ; k<4 ; k++) r[k] = script_h.readInt();
+    if (no < 0 || no >= MAX_SPRITE_NUM){
+        utils::printError("spclip: sprite %d out of range\n", no);
+        return RET_CONTINUE;
+    }
+    AnimationInfo &ai = sprite_info[no];
+    if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+    for (int k=0 ; k<4 ; k++) ai.clip_rect[k] = r[k];
+    if (ai.clip_rect[2] <= 0 || ai.clip_rect[3] <= 0) ai.clip_rect[2] = ai.clip_rect[3] = 0;
+    if (ai.visible) dirty_rect.add( drawnRect( ai ) );
 
     return RET_CONTINUE;
 }
@@ -1821,6 +1847,7 @@ int ONScripter::pushscreenCommand()
         sp.zoom_y = ai->zoom_y;
         sp.zoom_rot = ai->zoom_rot;
         sp.z_over = ai->z_over;
+        memcpy(sp.clip_rect, ai->clip_rect, sizeof(sp.clip_rect));
     }
     memcpy(st.screen_filter, screen_filter, sizeof(st.screen_filter));
 
@@ -1894,6 +1921,7 @@ void ONScripter::popScreenState()
         ai->zoom_y = sp.zoom_y;
         ai->zoom_rot = sp.zoom_rot;
         ai->z_over = sp.z_over;
+        memcpy(ai->clip_rect, sp.clip_rect, sizeof(ai->clip_rect));
         if (ai->image_surface && ai->visible) dirty_rect.add( zoomedRect( *ai ) );
         if (ai->image_surface && ai->visible) dirty_rect.add( ai->pos );
         delete[] sp.image_name;
@@ -2235,6 +2263,32 @@ void ONScripter::saveSaveFileCons( bool output_flag )
             writeInt( st.sprite[i - st.first].zoom_rot, output_flag );
         }
     }
+
+    // Version 17: the sprite clips (spclip): the count, then per sprite its
+    // number and rectangle; then the number of pushscreen states and per
+    // state, oldest first, the same for the sprites it saved.
+    num = 0;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (sprite_info[i].clip_rect[2] > 0) num++;
+    writeInt( num, output_flag );
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        if (sprite_info[i].clip_rect[2] <= 0) continue;
+        writeInt( i, output_flag );
+        for (int k=0 ; k<4 ; k++) writeInt( sprite_info[i].clip_rect[k], output_flag );
+    }
+    writeInt( screen_stack_num, output_flag );
+    for (int n=0 ; n<screen_stack_num ; n++){
+        ScreenState &st = screen_stack[n];
+        num = 0;
+        for (int i=st.first ; i<=st.last ; i++)
+            if (st.sprite[i - st.first].clip_rect[2] > 0) num++;
+        writeInt( num, output_flag );
+        for (int i=st.first ; i<=st.last ; i++){
+            if (st.sprite[i - st.first].clip_rect[2] <= 0) continue;
+            writeInt( i, output_flag );
+            for (int k=0 ; k<4 ; k++) writeInt( st.sprite[i - st.first].clip_rect[k], output_flag );
+        }
+    }
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -2521,6 +2575,7 @@ void ONScripter::loadSaveFileCons()
     applyMusicVolume();
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         sprite_info[i].z_over = -1;
+        memset(sprite_info[i].clip_rect, 0, sizeof(sprite_info[i].clip_rect)); // older saves have none
         sprite_info[i].blending_mode = AnimationInfo::BLEND_NORMAL; // older saves have none
     }
     dirty_rect.fill( screen_width, screen_height );
@@ -2853,6 +2908,24 @@ void ONScripter::loadSaveFileCons()
             int i = readInt(), rot = readInt();
             ScreenState *st = (n < screen_stack_num) ? &screen_stack[n] : NULL;
             if (st && i >= st->first && i <= st->last) st->sprite[i - st->first].zoom_rot = rot;
+        }
+    }
+
+    if (version < 17) return;
+    num = readInt();
+    for (int n=0 ; n<num ; n++){
+        int no = readInt(), r[4];
+        for (int k=0 ; k<4 ; k++) r[k] = readInt();
+        if (no >= 0 && no < MAX_SPRITE_NUM) memcpy(sprite_info[no].clip_rect, r, sizeof(r));
+    }
+    depth = readInt();
+    for (int n=0 ; n<depth ; n++){
+        num = readInt();
+        for (int m=0 ; m<num ; m++){
+            int i = readInt(), r[4];
+            for (int k=0 ; k<4 ; k++) r[k] = readInt();
+            ScreenState *st = (n < screen_stack_num) ? &screen_stack[n] : NULL;
+            if (st && i >= st->first && i <= st->last) memcpy(st->sprite[i - st->first].clip_rect, r, sizeof(r));
         }
     }
 }
