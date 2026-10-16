@@ -221,7 +221,6 @@ public:
     int spclclkCommand();
     int spfilterCommand();
     int spzoomCommand();
-    int sprotCommand();
     int spzCommand();
     int spclipCommand();
     int sptrailCommand();

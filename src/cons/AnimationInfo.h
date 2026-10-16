@@ -138,7 +138,7 @@ public:
        about the centre of its place. It stays across lsp and is reset by
        remove(). */
     int zoom_x, zoom_y;
-    /* CONscripter: its angle (sprot), degrees counterclockwise as lsp2's,
+    /* CONscripter: its angle (spzoom's 4th number), degrees counterclockwise as lsp2's,
        about the same centre; kept and reset like the zoom. */
     int zoom_rot;
 
