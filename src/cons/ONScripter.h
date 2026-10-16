@@ -221,7 +221,6 @@ public:
     int spzCommand();
     int spblendCommand();
     int spmotionCommand();
-    int spfadeCommand();
     int spcurveCommand();
     int spmotionwaitCommand();
     int screenflashCommand();

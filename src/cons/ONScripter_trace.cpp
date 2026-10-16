@@ -515,7 +515,7 @@ void ONScripter::traceSprite( std::string &out, int i )
         out += buf;
     }
     if (ai.motion_keys > 0){
-        snprintf( buf, sizeof(buf), ",\"motion\":%s", ai.motion_loop ? "\"loop\"" : ai.motion_keep ? "\"keep\"" : "\"once\"" );
+        snprintf( buf, sizeof(buf), ",\"motion\":%s", ai.motion_loop ? "\"loop\"" : ai.motion_keep ? "\"keep\"" : ai.motion_leave ? "\"leave\"" : "\"once\"" );
         out += buf;
     }
     if (ai.is_animatable) out += ",\"anim\":true";
@@ -523,9 +523,8 @@ void ONScripter::traceSprite( std::string &out, int i )
         snprintf( buf, sizeof(buf), ",\"over\":%d", ai.z_over );
         out += buf;
     }
-    if (ai.fade_ms > 0 && ai.fade_alpha < 256) out += ",\"fade\":true";
-    // the alpha it is drawn at, after spfade and spmotion's keys
-    int factor = (ai.fade_ms > 0 ? ai.fade_alpha : 256) * ai.motion_alpha / 256;
+    // the alpha it is drawn at, after spmotion's keys
+    int factor = ai.motion_alpha;
     if (factor != 256){
         snprintf( buf, sizeof(buf), ",\"shown\":%d", (ai.trans < 0 ? 255 : ai.trans) * factor / 256 );
         out += buf;
@@ -589,7 +588,7 @@ static const struct { const char *name; int kind; } trace_commands[] = {
     {"mp3fadeout",2}, {"bgmfadeout",2}, {"loopbgm",2}, {"loopbgmstop",2},
     {"wave",2}, {"waveloop",2}, {"wavestop",2}, {"dwave",2}, {"dwaveloop",2},
     {"dwavestop",2}, {"dwaveplay",2}, {"dwaveplayloop",2}, {"dwavefadeout",2},
-    {"mpegplay",2}, {"movie",2}, {"avi",2}, {"spfade",2},
+    {"mpegplay",2}, {"movie",2}, {"avi",2},
     {"mp3fadein",2}, {"bgmfadein",2}, {"bgmvolfade",2}, {"bgmlater",2}, {"dwavefadein",2}, {"chvol",2},
     {"soundmute",2}, {"clickvoicestop",2}, {"autovoicewait",2}, {"selectkeep",2}, {"moviestop",2},
     {"gamespeed",2}, {"effectoff",2}, {"textshadow",2}, {"sysevol",2}, {"btnse",2},
@@ -761,14 +760,13 @@ std::string ONScripter::traceBlocked( ButtonLink *bl )
     if (no < 0 || no >= MAX_SPRITE_NUM) return "";
     AnimationInfo &ai = sprite_info[no];
     if (!ai.visible || all_sprite_hide_flag) return "hidden";
-    int factor = (ai.fade_ms > 0 ? ai.fade_alpha : 256) * ai.motion_alpha / 256;
-    if (ai.trans == 0 || (ai.fade_ms == 0 && ai.motion_keys == 0 && factor == 0)) return "alpha 0";
+    if (ai.trans == 0 || (ai.motion_keys == 0 && ai.motion_alpha == 0)) return "alpha 0";
     // shortcut: lsp in front only, without spz; lsp2 and ld aren't looked at
     if (ai.z_over >= 0) return "";
     for (int i=0 ; i<no ; i++){
         AnimationInfo &f = sprite_info[i];
         if (!f.visible || !f.image_surface || f.z_over >= 0 || f.trans_mode != AnimationInfo::TRANS_COPY ||
-            (f.trans >= 0 && f.trans < 255) || f.fade_ms > 0 || f.motion_alpha != 256) continue;
+            (f.trans >= 0 && f.trans < 255) || (f.motion_keys > 0 && f.motion_leave) || f.motion_alpha != 256) continue;
         SDL_Rect c = zoomedRect( f );
         if (c.x <= r.x && c.y <= r.y && c.x + c.w >= r.x + r.w && c.y + c.h >= r.y + r.h)
             return "under lsp " + std::to_string( i );
@@ -1264,7 +1262,7 @@ void ONScripter::setAutoPlay( int pages )
     setVsyncOff(); // each drawn character would wait for the screen
 }
 
-/* --real-time (with --auto-play): effects, timed waits, spfade and BGM
+/* --real-time (with --auto-play): effects, timed waits, spmotion and BGM
  * fades take their real time, so sprite movement and fades play out as
  * a player sees them (pictures, --shot-after, a window to watch); only
  * the clicks and choices are made for the player. */

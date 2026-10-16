@@ -65,18 +65,11 @@ AnimationInfo::AnimationInfo()
     filter_changed = false;
     zoom_x = zoom_y = 100;
     zoom_rot = 0;
-    motion_keys = 0;
     motion_loop = false;
     motion_keep = false;
     motion_passes = 0;
     motion_start = motion_next = 0;
-    motion_dx = motion_dy = 0;
-    motion_zoom = motion_zoom_y = 100;
-    motion_rot = 0;
-    motion_alpha = 256;
-    fade_ms = fade_from = fade_start = fade_next = 0;
-    fade_alpha = 256;
-    fade_out = false;
+    stopMotion();
     z_over = -1;
 
     if (!is_inv_alpha_lut_initialized){
@@ -208,15 +201,18 @@ void AnimationInfo::remove()
     clearFilters();
     zoom_x = zoom_y = 100;
     zoom_rot = 0;
+    stopMotion();
+    z_over = -1;
+}
+
+void AnimationInfo::stopMotion()
+{
     motion_keys = 0;
+    motion_leave = false;
     motion_dx = motion_dy = 0;
     motion_zoom = motion_zoom_y = 100;
     motion_rot = 0;
     motion_alpha = 256;
-    fade_ms = 0;
-    fade_alpha = 256;
-    fade_out = false;
-    z_over = -1;
 }
 
 void AnimationInfo::clearFilters()
