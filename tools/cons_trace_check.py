@@ -57,7 +57,9 @@ out). Options given on the command line win.
 
 --diff compares two traces of the same route page by page (before and after
 a fix) and prints the pages whose state differs, and pages whose picture
-differs while their state is the same (nothing animating).
+differs while their state is the same (nothing animating). A sprite moved by
+the same spmotion in both, only sampled at another time, is not a difference;
+one whose motion runs in one trace and is over in the other says so.
 """
 import argparse
 import json
@@ -912,10 +914,47 @@ def overlays(p):
 
 def page_state(p):
     sp = {(s['kind'], s['n']): (s.get('file') or s.get('str') or s.get('tag'), s.get('x'), s.get('y'),
-                                 s.get('w'), s.get('h'), s.get('alpha'), s.get('cell'))
+                                 s.get('w'), s.get('h'), s.get('alpha'), s.get('cell'), s.get('motion'), s.get('mid'))
           for s in p.get('sp', [])}
     rest = {k: p.get(k) for k in ('bg', 'bgm', 'window', 'windowtrans', 'monocro', 'nega', 'filters', 'fx', 'flash')}
     return sp, rest
+
+
+def diff_pages(path):
+    """The page records, each with the motions that had ended on each sprite by then: '_ended', {(kind, n): (id, why)}."""
+    ended = {}
+    for r in records(path):
+        t = r.get('t')
+        if t == 'motion' and 'n' in r:
+            if r.get('ended'):
+                ended[(r.get('kind'), r['n'])] = (r.get('id'), r['ended'])
+            else:
+                ended.pop((r.get('kind'), r['n']), None)
+        elif t == 'page':
+            r['_ended'] = dict(ended)
+            yield r
+
+
+def sprite_diff(k, a, b, pa, pb):
+    """How sprite k differs between pages pa and pb, a and b its page_state (None: not shown)."""
+    fmt = lambda v: 'none' if v is None else '%s at %s,%s %sx%s alpha %s' % v[:6] + (' motion %s' % ' '.join(filter(None, v[7:9])) if v[7] else '')
+    line = '%s %d: %s -> %s' % (k[0], k[1], fmt(a), fmt(b))
+    if not (a and b) or a[0] != b[0]:
+        return line
+    sa = next(s for s in pa['sp'] if (s['kind'], s['n']) == k)
+    sb = next(s for s in pb['sp'] if (s['kind'], s['n']) == k)
+    older = a[7] and ('mnow' not in sa or 'mnow' not in sb)  # a trace before motion ids and "mnow"
+    if older and a[:8] == b[:8]:
+        return None
+    if older and a[7] == b[7] and a[5:7] == b[5:7]:
+        # (its box moved with the motion's zoom and angle then)
+        return '%s %d: the same %s motion, sampled at another time' % (k[0], k[1], a[7])
+    if a[8] and a[8] == b[8]:
+        return line + ' (the same motion %s)' % a[8]
+    for run, other, p in ((a, b, pb), (b, a, pa)):
+        if run[8] and not other[7] and p['_ended'].get(k, (None,))[0] == run[8]:
+            return line + ' (the same motion %s, running in one, over in the other: %s)' % (run[8], p['_ended'][k][1])
+    return line
 
 
 def moving(p):
@@ -924,8 +963,8 @@ def moving(p):
 
 
 def diff(old, new, limit):
-    a = [r for r in records(old) if r.get('t') == 'page']
-    b = [r for r in records(new) if r.get('t') == 'page']
+    a = list(diff_pages(old))
+    b = list(diff_pages(new))
     groups = []  # [first page, last page, at, lines]: the same difference on consecutive pages
     parted = None
     for pa, pb in zip(a, b):
@@ -939,9 +978,9 @@ def diff(old, new, limit):
             if ra.get(k) != rb.get(k):
                 lines.append('%s: %s -> %s' % (k, json.dumps(ra.get(k), ensure_ascii=False), json.dumps(rb.get(k), ensure_ascii=False)))
         for k in sorted(set(spa) | set(spb)):
-            if spa.get(k) != spb.get(k):
-                fmt = lambda v: 'none' if v is None else '%s at %s,%s %sx%s alpha %s' % v[:6]
-                lines.append('%s %d: %s -> %s' % (k[0], k[1], fmt(spa.get(k)), fmt(spb.get(k))))
+            line = spa.get(k) != spb.get(k) and sprite_diff(k, spa.get(k), spb.get(k), pa, pb)
+            if line:
+                lines.append(line)
         if not lines and pa.get('px') and pb.get('px') and pa['px'] != pb['px'] and not (moving(pa) or moving(pb)):
             lines.append('the picture differs, the state the same (px %s -> %s)' % (pa['px'], pb['px']))
         if not lines:

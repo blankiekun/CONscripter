@@ -854,6 +854,15 @@ but whose picture (`px`) differs is listed too, when nothing on it moves by
 itself (an animated, fading or moving sprite, a shake): a drawing change
 between two builds, such as a zoom or an effect drawn differently.
 
+A sprite's `spmotion` is compared by its id (`mid`): the same motion
+sampled at another time is no difference (the box leaves the motion out),
+a different one or one only in one run is, and a sprite whose motion still
+runs in one run and is over in the other (its `motion` record's `ended`)
+says `(the same motion <id>, running in one, over in the other: <why>)`.
+A trace from before motion ids, whose box moved with a motion's zoom and
+angle, gets `the same <mode> motion, sampled at another time` instead.
+`tools/test_cons_trace_check.py` tests this.
+
 The report ends with the pages its findings are on, as a `--shot-pages`
 option for taking their pictures.
 
