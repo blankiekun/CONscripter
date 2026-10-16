@@ -4765,7 +4765,9 @@ SDL_Surface *ONScripter::openSpriteMovie( AnimationInfo *anim )
 
     std::string path = std::string( archive_path ) + anim->file_name;
     for (char &c : path) if (c == '/' || c == '\\') c = DELIMITER;
-    FILE *fp = fopen( path.c_str(), "rb" ); // (the web build fetches it here)
+    // The global fopen: the member adds archive_path again. (The web build
+    // fetches the file here.)
+    FILE *fp = ::fopen( path.c_str(), "rb" );
     if (fp) fclose( fp );
     else{
         utils::printError( " *** can't find file [%s] ***\n", anim->file_name );
