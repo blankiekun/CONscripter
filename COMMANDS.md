@@ -653,7 +653,7 @@ Impl `ONScripter::spmotionCommand`.
 
 ### spcurve [cons]
 `spcurve id,v0,v1,...,vn` — curve id (10-73) for `spmotion` keys: how far
-(0-1024) from one key to the next at n+1 even steps of the time, straight
+(0-1024) from one key to the next at n+1 even steps (2 to 1025 values), straight
 between them. For an easing table read from a game's exe, as it is. Saved.
 `spcurve 10,0,40,300,1024`. Impl `ONScripter::spcurveCommand`.
 
