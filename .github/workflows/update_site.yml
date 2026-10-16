@@ -49,7 +49,10 @@ jobs:
     - name: put the engine on the site
       run: |
         cp conscripter_web/conscripter{.js,.wasm} site/cons/
-        sed -i -E "s/are the v[0-9.]+ web release/are the ${VERSION} web release/" site/cons/player.html
+        # the version also goes on the engine's URLs (?vX.Y.Z) so browsers don't mix
+        # a cached old conscripter.js with the new .wasm, and into the CONscripter window
+        sed -i -E "s/are the v[0-9.]+ web release/are the ${VERSION} web release/; s/\?v[0-9.]+/?${VERSION}/g" site/cons/player.html
+        sed -i -E "s/^const ENGINE_VERSION = 'v[0-9.]+';/const ENGINE_VERSION = '${VERSION}';/" site/js/apps/conscripter.js
         cd site
         if git diff --quiet; then
           echo "the site already has $VERSION"
