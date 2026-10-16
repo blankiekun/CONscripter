@@ -81,6 +81,8 @@ int ONScripter::calcDurationToNextAnimation()
         if (min == 0 || min > lua_handler.next_time)
             min = lua_handler.next_time;
     }
+    if (lua_handler.has_processes && (min == 0 || min > lua_handler.process_next))
+        min = lua_handler.process_next; // CONscripter: cons_process
 #endif
 
     return min;
@@ -129,6 +131,22 @@ void ONScripter::proceedAnimation(int current_time)
         script_h.setCurrent(current);
         readToken();
 
+        string_buffer_offset = tmp_string_buffer_offset;
+        next_time = tmp_next_time;
+        event_mode = tmp_event_mode;
+    }
+    // CONscripter: cons_process coroutines, resumed once a frame
+    if (lua_handler.has_processes && lua_handler.process_next <= current_time && !script_h.isExternalScript()){
+        int tmp_event_mode = event_mode;
+        int tmp_next_time = next_time;
+        int tmp_string_buffer_offset = string_buffer_offset;
+        char *current = script_h.getCurrent();
+        if (current_time - lua_handler.process_next > 1000) lua_handler.process_next = current_time; // after a long stop
+        while (lua_handler.process_next <= current_time) lua_handler.process_next += 16;
+        if (!lua_handler.stepProcesses())
+            errorAndExit( lua_handler.error_str );
+        script_h.setCurrent(current);
+        readToken();
         string_buffer_offset = tmp_string_buffer_offset;
         next_time = tmp_next_time;
         event_mode = tmp_event_mode;

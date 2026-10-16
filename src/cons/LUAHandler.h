@@ -25,6 +25,7 @@
 #define __LUA_HANDLER_H__
 
 #include <lua.hpp>
+#include <string>
 
 class ONScripter;
 class ScriptHandler;
@@ -55,6 +56,15 @@ public:
     int  callFunction(bool is_callback, const char *cmd, void *data=NULL);
 
     bool isCallbackEnabled(int val);
+
+    // CONscripter: the script's Lua globals in save files, and processes
+    // (cons_process) resumed once a frame
+    std::string saveState();
+    void loadState(const char *chunk);
+    void resetProcesses();
+    bool stepProcesses();      // false: none left
+    bool has_processes;
+    int process_next;          // ticks of the next frame
 
     bool is_animatable;
     int duration_time;
