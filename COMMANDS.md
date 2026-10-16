@@ -421,8 +421,8 @@ tags. Impl `ONScripter::getlogCommand`.
 
 ### logrows / getlogrow [cons]
 `logrows %n,columns` — lay out the whole history as rows of `columns`
-full-width characters (half-width count half, ruby as its base), oldest
-first; `%n` = row count. `getlogrow $text,$voice,row` — row text (0 =
+full-width characters (half-width count half, a half-width word that
+doesn't fit goes to the next row, ruby as its base), oldest first; `%n` = row count. `getlogrow $text,$voice,row` — row text (0 =
 oldest, "" past the end) and, on a page's first row, the channel-0 `dwave`
 voice of that page. Backlogs scrolled a line at a time:
 `logrows %1,26` then `strsp` each row; the voice icon plays `dwave 0,$voice`.

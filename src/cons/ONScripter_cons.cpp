@@ -4598,8 +4598,9 @@ int ONScripter::spmoviewaitCommand()
 /* logrows %n,columns
  *   Lays the text history out as rows, oldest first, and puts how many
  *   there are in %n: each page's lines, cut at columns full-width
- *   characters (a half-width one takes half), with ruby shown as its
- *   base text. A page with no text has no rows.
+ *   characters (a half-width one takes half; a row of half-width text
+ *   is cut at the space before the word that doesn't fit), with ruby
+ *   shown as its base text. A page with no text has no rows.
  * getlogrow $text,$voice,row
  *   The text of row row (0 = the oldest) as logrows laid it out, "" past
  *   the last; $voice is the voice the row's page played on channel 0
@@ -4660,7 +4661,29 @@ int ONScripter::logrowsCommand()
             int n = utf8 ? UTF8_N_BYTE(*p) : (IS_TWO_BYTE(*p) ? 2 : 1);
             if (n < 1 || p + n > end) n = 1;
             int w = (n > 1) ? 2 : 1;
-            if (units + w > columns * 2) put();
+            if (units + w > columns * 2){
+                // A word of half-width letters goes whole to the next row,
+                // which starts after the space.
+                size_t sp = row.rfind( ' ' );
+                if (n == 1 && *p != ' ' && sp != std::string::npos && sp > 0){
+                    std::string rest = row.substr( sp + 1 );
+                    row.erase( sp );
+                    put();
+                    row = rest;
+                    for (size_t i = 0; i < rest.size(); ){
+                        int m = utf8 ? UTF8_N_BYTE(rest[i]) : (IS_TWO_BYTE(rest[i]) ? 2 : 1);
+                        if (m < 1) m = 1;
+                        units += (m > 1) ? 2 : 1;
+                        i += m;
+                    }
+                }
+                else
+                    put();
+                if (*p == ' '){
+                    p++;
+                    continue;
+                }
+            }
             row.append( p, n );
             units += w;
             p += n;
