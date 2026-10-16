@@ -75,7 +75,7 @@ AnimationInfo::AnimationInfo()
     fade_ms = fade_from = fade_start = fade_next = 0;
     fade_alpha = 256;
     alpha_keys = 0;
-    alpha_loop = false;
+    alpha_loop = 0;
     alpha_start = alpha_next = 0;
     key_alpha = 256;
     z_over = -1;
@@ -549,18 +549,14 @@ void AnimationInfo::blendOnSurface( SDL_Surface *dst_surface, int dst_x, int dst
 #else
     unsigned char *alphap = (unsigned char *)src_buffer;
 #endif //SDL_BYTEORDER == SDL_LIL_ENDIAN
-#ifdef USE_BUILTIN_LAYER_EFFECTS
+            // CONscripter: an additive lsp sprite (spblend), times its
+            // alpha and the sprite's
             if (blendmode == AnimationInfo::BLEND_ADD) {
-#ifdef USE_SIMD
-                rainAddBlend32(src_buffer, dst_buffer, dst_rect_w);
-#else
                 for (int j = dst_rect_w; j != 0; j--, src_buffer++, dst_buffer++) {
-                    if (*src_buffer != AMASK) rainAddBlendPixel32(src_buffer, dst_buffer);
+                    ADDBLEND_PIXEL();
                 }
-#endif //USE_SIMD
             }
             else
-#endif
 #ifdef USE_SIMD
             {
                 using namespace simd;

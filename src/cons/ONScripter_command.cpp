@@ -3241,6 +3241,7 @@ int ONScripter::cspCommand()
                 si[i].scalePosXY( screen_ratio1, screen_ratio2 );
             }
             if (!csp2_flag) root_button_link.removeSprite(i);
+            if (!csp2_flag) si[i].blending_mode = AnimationInfo::BLEND_NORMAL; // CONscripter: spblend
             si[i].remove();
         }
     else if (no >= 0 && no < MAX_SPRITE_NUM){
@@ -3251,6 +3252,7 @@ int ONScripter::cspCommand()
                 dirty_rect.add( drawnRect( si[no] ) ); // CONscripter: zoomed, moving
         }
         if (!csp2_flag) root_button_link.removeSprite(no);
+        if (!csp2_flag) si[no].blending_mode = AnimationInfo::BLEND_NORMAL; // CONscripter: spblend
         si[no].remove();
     }
 

@@ -631,9 +631,17 @@ Impl `ONScripter::spfadeCommand`.
 
 ### spalpha [cons]
 `spalpha num[,loop,t1,a1,t2,a2,...]` — alpha a/256 keys, linear; loop 1
-repeats, 0 holds the last; `spalpha num` stops. Up to 32 keys, saved.
+repeats, 0 holds the last, n ≥ 2 goes through the keys n times then holds
+the last; `spalpha num` stops. Up to 32 keys, saved.
 `spalpha 20,1,0,0,600,256,1100,256,1700,0,2200,0` (glow).
 Impl `ONScripter::spalphaCommand`.
+
+### spblend [cons]
+`spblend num,mode` — mode 1 adds the sprite's colours (times its alpha) to
+what is under it, keeping its place among the lsp sprites; 0 normal. Stays
+through `lsp`, removed by `csp`, saved.
+`lsp 2,":c;>800,600,#ffffff",0,0:spblend 2,1:spalpha 2,5,0,128,80,0` (five flashes).
+Impl `ONScripter::spblendCommand`.
 
 ### spz [cons]
 `spz num[,over]` — draw sprite `num` just over sprite `over` (between `over`

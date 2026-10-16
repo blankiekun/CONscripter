@@ -216,6 +216,7 @@ public:
     int spfilterCommand();
     int spzoomCommand();
     int spzCommand();
+    int spblendCommand();
     int spmotionCommand();
     int spfadeCommand();
     int spalphaCommand();

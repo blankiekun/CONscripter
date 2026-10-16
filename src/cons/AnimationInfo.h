@@ -164,10 +164,11 @@ public:
     /* CONscripter: a keyed alpha (spalpha): the sprite is drawn at
        key_alpha (0-256) of its own alpha, stepped along keys (ms from the
        start, alpha) by the timer, looping or once (then it keeps the last
-       key's). Stays across lsp; reset by remove(). */
+       key's), or n times (alpha_loop n >= 2). Stays across lsp; reset by
+       remove(). */
     int alpha_keys;            // 0: no keys running
     int alpha_key[MAX_MOTION_KEYS][2];
-    bool alpha_loop;
+    int alpha_loop;            // 0 once, 1 for ever, n: n times
     int alpha_start, alpha_next;
     int key_alpha;
 

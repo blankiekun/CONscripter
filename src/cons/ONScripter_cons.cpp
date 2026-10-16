@@ -46,12 +46,12 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 14 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
+#define CONS_SAVE_VERSION 15 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
                             // 5: + strsp sprites, looping dwave sounds; 6: + strsp sprites in the screen stack;
                             // 7: + sprite zooms; 8: + script volumes (chvolfade, bgmvolfade);
                             // 9: + sprite motions; 10: + sprite orders (spz); 11: + play time;
                             // 12: + keyed sprite alphas (spalpha); 13: + motions' zooms, angles, keep (spmotion2)
-                            // 14: + the music bgmlater will start
+                            // 14: + the music bgmlater will start; 15: + additive sprites (spblend)
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
 
@@ -310,7 +310,9 @@ int ONScripter::spfadeCommand()
  *   stepped about every 16 ms by the timer while the script goes on (the
  *   text, a click wait). loop 1 starts again after the last key (put the
  *   first key's alpha there for a smooth loop); loop 0 stops at the last
- *   key and the sprite keeps that alpha. "spalpha num" stops it and draws
+ *   key and the sprite keeps that alpha; loop n (2 or more) goes through
+ *   the keys n times, then stops as loop 0 does (a light flashing n
+ *   times). "spalpha num" stops it and draws
  *   the sprite at its own alpha. Up to 32 keys. The keys stay when lsp
  *   changes the image, are removed by csp and are kept in save files
  *   (restarted). "spalpha 20,1,0,0,600,256,1100,256,1700,0,2200,0"
@@ -327,7 +329,8 @@ int ONScripter::spalphaCommand()
     ai->alpha_keys = 0;
     ai->key_alpha = 256;
     if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
-        ai->alpha_loop = script_h.readInt() != 0;
+        ai->alpha_loop = script_h.readInt();
+        if (ai->alpha_loop < 0) ai->alpha_loop = 0;
         while (script_h.getEndStatus() & ScriptHandler::END_COMMA){
             int t = script_h.readInt();
             int a = script_h.readInt();
@@ -343,6 +346,29 @@ int ONScripter::spalphaCommand()
         ai->alpha_start = ai->alpha_next = SDL_GetTicks();
         stepSpriteAlpha( *ai, ai->alpha_start );
     }
+    if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
+
+    return RET_CONTINUE;
+}
+
+/* spblend num,mode
+ *   Draws sprite num (an lsp sprite) adding its colours to what is under
+ *   it (mode 1), times its alpha, or blended as usual (mode 0): a white
+ *   sprite at alpha a lightens the screen by a, as a flash of light. It
+ *   keeps its place among the sprites (unlike lsp2add, drawn over all of
+ *   them). It stays when lsp changes the image, is removed by csp and is
+ *   kept in save files. lsp 2,":c;>800,600,#ffffff",0,0:spblend 2,1:
+ *   spalpha 2,5,0,128,80,0 flashes the screen five times. */
+int ONScripter::spblendCommand()
+{
+    int no = script_h.readInt();
+    int mode = script_h.readInt();
+    if (no < 0 || no >= MAX_SPRITE_NUM){
+        utils::printError("spblend: sprite %d out of range\n", no);
+        return RET_CONTINUE;
+    }
+    AnimationInfo *ai = &sprite_info[no];
+    ai->blending_mode = (mode == 1) ? AnimationInfo::BLEND_ADD : AnimationInfo::BLEND_NORMAL;
     if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
 
     return RET_CONTINUE;
@@ -448,12 +474,14 @@ void ONScripter::stepSpriteAlpha( AnimationInfo &ai, int current_time )
     if (ai.alpha_keys == 0) return;
     int last = ai.alpha_key[ai.alpha_keys-1][0];
     int t = current_time - ai.alpha_start;
-    if (ai.alpha_loop && last > 0) t %= last;
-    else if (t >= last){
+    int times = ai.alpha_loop > 1 ? ai.alpha_loop : 1;
+    if (ai.alpha_loop == 1 && last > 0) t %= last;
+    else if (t >= last * times){
         ai.key_alpha = ai.alpha_key[ai.alpha_keys-1][1];
         ai.alpha_keys = 0;
         return;
     }
+    else if (last > 0) t %= last; // loop n: the time into this round
     int i = 0;
     while (i + 1 < ai.alpha_keys && ai.alpha_key[i+1][0] <= t) i++;
     int *a = ai.alpha_key[i];
@@ -1973,7 +2001,7 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         if (ai->alpha_keys == 0 && ai->key_alpha == 256) continue;
         writeInt( i, output_flag );
         writeInt( ai->key_alpha, output_flag );
-        writeInt( ai->alpha_loop ? 1 : 0, output_flag );
+        writeInt( ai->alpha_loop, output_flag );
         writeInt( ai->alpha_keys, output_flag );
         for (int k=0 ; k<ai->alpha_keys ; k++)
             for (int j=0 ; j<2 ; j++) writeInt( ai->alpha_key[k][j], output_flag );
@@ -1997,6 +2025,15 @@ void ONScripter::saveSaveFileCons( bool output_flag )
     Uint32 now = SDL_GetTicks();
     writeInt( bgm_later_name && bgm_later_time > now ? bgm_later_time - now : 0, output_flag );
     writeInt( bgm_later_loop ? 1 : 0, output_flag );
+
+    // Version 15: the additive sprites (spblend): the count, then their
+    // numbers.
+    num = 0;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (sprite_info[i].blending_mode == AnimationInfo::BLEND_ADD) num++;
+    writeInt( num, output_flag );
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (sprite_info[i].blending_mode == AnimationInfo::BLEND_ADD) writeInt( i, output_flag );
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -2190,7 +2227,10 @@ void ONScripter::loadSaveFileCons()
     clearScreenEffects();
     resetScriptVolumes(); // older saves have none: 100
     applyMusicVolume();
-    for (int i=0 ; i<MAX_SPRITE_NUM ; i++) sprite_info[i].z_over = -1;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        sprite_info[i].z_over = -1;
+        sprite_info[i].blending_mode = AnimationInfo::BLEND_NORMAL; // older saves have none
+    }
     dirty_rect.fill( screen_width, screen_height );
     setPlaytime( 0 ); // older saves have none
     if (readInt() != CONS_SAVE_MAGIC) return;
@@ -2465,7 +2505,7 @@ void ONScripter::loadSaveFileCons()
     for (int n=0 ; n<num ; n++){
         int no = readInt();
         int alpha = readInt();
-        bool loop = readInt() != 0;
+        int loop = readInt();
         int keys = readInt();
         AnimationInfo dummy;
         AnimationInfo *ai = (no >= 0 && no < MAX_SPRITE_NUM) ? &sprite_info[no] : &dummy;
@@ -2498,6 +2538,13 @@ void ONScripter::loadSaveFileCons()
     readStr( &bgm_later_name );
     bgm_later_time = SDL_GetTicks() + readInt();
     bgm_later_loop = readInt() != 0;
+
+    if (version < 15) return;
+    num = readInt();
+    for (int n=0 ; n<num ; n++){
+        int no = readInt();
+        if (no >= 0 && no < MAX_SPRITE_NUM) sprite_info[no].blending_mode = AnimationInfo::BLEND_ADD;
+    }
 }
 
 /* --save-dir path: makes the folder, and the folders it is in, if they
