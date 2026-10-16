@@ -61,7 +61,8 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy conscripter --root . --save-dir /tmp
 - Movies are skipped, but a missing movie is still reported.
 - With `--real-time`, effects, timed waits, `spfade` and BGM fades take
   their real time instead, so sprite movement and fades play out as a
-  player sees them (for pictures mid-effect, `--shot-after`, or watching
+  player sees them (for `--shot-after` mid-effect, or watching; `--shot-effects`
+  films effects without it
   in a window); only clicks and choices are still made at once.
 - Sounds still play, so the pages' `se` lists are real.
 
@@ -450,6 +451,12 @@ conscripter --root . --trace trace.jsonl --auto-play 0 --shot-at '*conv_menu:812
   `<shot-dir>/at000412-conv_menu-812-1.png`: the page (`pg`), the label,
   the line and the visit, counted from 1. The `dump`'s `at` is where the
   script goes on, the line after it.
+- `--shot-effects 25,50,75` films every effect as it starts: its frame
+  at each percent of its own time (an `--auto-play` run, which cuts
+  effects to 1 ms, too), saved as `<shot-dir>/fx<pg>-<n>-<pct>.png` (`n`
+  counts the effects filmed) with a dump record each; then the effect runs
+  as it would. With `--shot-pages` or `--shot-every`, only effects on those
+  pages.
 - `--shot-after ms` takes one that many milliseconds after the engine
   started (the trace's `ms`), at the next point the engine gets to: the
   next line of the script, or, while it waits for a click or a button,
@@ -574,7 +581,7 @@ The same fields as a `page`, with `"t":"dump"`, `pg` the last page (a
 dump isn't counted as one), `at` where the script is waiting, natively
 a `shot`, and `vars`: every numbered variable that isn't 0 or empty
 (schema 2), `{"%312":876,"$5":"text"}`. `why` says what wrote it: `F8`,
-or `shot-at` and `shot-after` for a picture those options took (see
+or `shot-at`, `shot-after` and `shot-effect` for a picture those options took (see
 "Pictures of pages").
 
 ### `ev`: a command that changed the screen or the sound

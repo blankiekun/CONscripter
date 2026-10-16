@@ -1025,6 +1025,22 @@ void ONScripter::setTraceShotAfter( const char *times )
     std::sort( trace_shot_after.begin(), trace_shot_after.end() );
 }
 
+// "25,50,75": the points (percent of its time) --shot-effects films
+// each effect at.
+void ONScripter::setTraceShotEffects( const char *percents )
+{
+    for (const char *p = percents ; p && *p ; ){
+        char *end;
+        long pct = strtol( p, &end, 10 );
+        if (end == p || pct < 0 || pct > 100){
+            utils::printError( "--shot-effects: can't read [%s]\n", p );
+            startupFailed();
+        }
+        trace_shot_effects.push_back( (int)pct );
+        p = *end == ',' ? end+1 : NULL;
+    }
+}
+
 // Wakes the event loop when a --shot-after time comes, so a game waiting
 // for a click (a menu, a btnwait) is shot then.
 static Uint32 shotTimerCallback( Uint32 interval, void *param )
@@ -1098,6 +1114,39 @@ void ONScripter::traceShotAfter()
         snprintf( name, sizeof(name), "ms%07u.png", trace_shot_after[trace_shot_after_next++] );
         traceShotDump( "shot-after", name );
     }
+}
+
+// As an effect starts (--shot-effects): its frames at the percents asked,
+// drawn at the effect's own time (an --auto-play run cuts it to 1 ms), each
+// a picture fx<pg>-<n>-<pct>.png (n counts the effects filmed) and a dump
+// record; then the screen is put back and the effect runs as it would.
+// With --shot-pages or --shot-every, only effects on those pages.
+void ONScripter::traceShotEffect( EffectLink *effect, int effect_no )
+{
+    if (!trace_sprite || current_mode == DEFINE_MODE) return;
+    bool wanted = trace_shot_pages.empty() && trace_shot_every == 0;
+    if (trace_shot_every > 0 && trace_page % trace_shot_every == 0) wanted = true;
+    for (size_t i=0 ; i<trace_shot_pages.size() && !wanted ; i++)
+        wanted = trace_page >= trace_shot_pages[i].first && trace_page <= trace_shot_pages[i].second;
+    if (!wanted) return;
+    SDL_Surface *keep = SDL_ConvertSurface( accumulation_surface, accumulation_surface->format, 0 );
+    if (!keep) return;
+    int counter = effect_counter, duration = effect_duration, resolution = effect_timer_resolution;
+    effect_duration = effect->duration > 0 ? effect->duration : 1;
+    trace_fx_seq++;
+    for (size_t i=0 ; i<trace_shot_effects.size() ; i++){
+        effect_counter = effect_duration * trace_shot_effects[i] / 100;
+        effect_timer_resolution = 16;
+        drawEffectFrame( effect, effect_no );
+        char name[64];
+        snprintf( name, sizeof(name), "fx%06d-%d-%03d.png", trace_page, trace_fx_seq, trace_shot_effects[i] );
+        traceShotDump( "shot-effect", name );
+    }
+    SDL_BlitSurface( keep, NULL, accumulation_surface, NULL );
+    SDL_FreeSurface( keep );
+    effect_counter = counter;
+    effect_duration = duration;
+    effect_timer_resolution = resolution;
 }
 
 // A dump record, as F8 writes, with its "why" and its picture's name.

@@ -1081,6 +1081,12 @@ Code: `src/cons/ONScripter_effect.cpp` and `ONScripter_cons.cpp` (grep `cons_sli
   (0/2) or columns (1/3). MAGES InOut_Act 1.
 - `"cons_blur.dll/radius[,new_only]"` — cross-fade with horizontal blur.
   MAGES InOut_Act 6.
+- `"cons_rule.dll/file,cells"` — a transition from data: `file` holds
+  `cells` grey masks side by side (each stretched to the screen), evenly
+  in time, mixed between cells; white shows the new picture, black the old.
+  Bake a game's own wipe or dissolve into it (its kernel run on a black old
+  and white new picture, a frame per cell) instead of writing a plugin.
+  Transitions that move pixels stay plugins.
 
 `effect 20,99,800,"cons_slide.dll/0,-1,0"` slides the new picture in from the right.
 

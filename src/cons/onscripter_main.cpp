@@ -85,6 +85,7 @@ void optionHelp()
     printf( "      --shot-every n\twith --trace, save a picture of every n-th page\n");
     printf( "      --shot-at '*label:line'\twith --trace, a picture and a dump record each time that line has run (comma-separated, repeatable)\n");
     printf( "      --shot-after ms\twith --trace, a picture and a dump record that many ms after the start (comma-separated, repeatable)\n");
+    printf( "      --shot-effects pcts\twith --trace, each effect drawn at these percents of its time (comma-separated; only on --shot-pages/--shot-every pages when given)\n");
     printf( "      --goto label\tstart at this label, once the define section has run\n");
     printf( "      --vars file\tset these variables at the start (lines %%312=876, $5=text; UTF-8)\n");
     printf( "      --load n\t\tstart by loading save slot n\n");
@@ -473,6 +474,11 @@ void parseOption(int argc, char *argv[]) {
                 argc--;
                 argv++;
                 ons.setTraceShotAfter(argv[0]);
+            }
+            else if ( !strcmp( argv[0]+1, "-shot-effects" ) ){
+                argc--;
+                argv++;
+                ons.setTraceShotEffects(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-replay" ) ){
                 argc--;

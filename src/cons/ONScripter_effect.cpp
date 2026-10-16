@@ -145,7 +145,52 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
         generateEffectDst(effect_no);
         update_effect_dst = false;
     }
+    if (effect_counter == 0 && effect_no != 1 && !trace_shot_effects.empty())
+        traceShotEffect( effect, effect_no ); // CONscripter: --shot-effects
     
+    bool not_implemented = drawEffectFrame( effect, effect_no );
+
+    if (effect_counter == 0 && not_implemented)
+        utils::printInfo("effect No. %d not implemented; substituting crossfade\n", effect_no);
+
+    //utils::printInfo("effect conut %d / dur %d\n", effect_counter, effect_duration);
+    
+    effect_counter += effect_timer_resolution;
+
+    event_mode = WAIT_INPUT_MODE;
+    waitEvent(0);
+    if ( !((automode_flag || autoclick_time > 0) ||
+           (usewheel_flag  && current_button_state.button == -5) ||
+           (!usewheel_flag && current_button_state.button == -2)) ){
+        if ( effect_skip_flag )
+            effect_counter = effect_duration; // interrupted
+    }
+
+    if ( effect_counter < effect_duration && effect_no != 1 ){
+        if ( effect_no != 0 ) flush( REFRESH_NONE_MODE, NULL, false );
+    
+        return true;
+    }
+    else{
+        SDL_BlitSurface( effect_dst_surface, &dirty_rect.bounding_box, accumulation_surface, &dirty_rect.bounding_box );
+
+        if ( effect_no != 0 ) flush(REFRESH_NONE_MODE, NULL, clear_dirty_region);
+        if ( effect_no == 1 ) effect_counter = 0;
+        skip_mode &= ~SKIP_TO_EOL;
+
+        event_mode = IDLE_EVENT_MODE;
+        if (effect_blank != 0 && effect_counter != 0)
+            waitEvent(effect_blank);
+        
+        return false;
+    }
+}
+
+// Draws the effect's frame at effect_counter of effect_duration into the
+// accumulation surface; true when the effect is drawn as a cross-fade
+// because it isn't implemented. (--shot-effects draws frames with it too.)
+bool ONScripter::drawEffectFrame( EffectLink *effect, int effect_no )
+{
     int i, amp;
     int width, width2;
     int height, height2;
@@ -464,6 +509,8 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
                 effectWave(effect->anim.image_name, effect_duration);
             else if (!strncmp(effect->anim.image_name, "cons_blur.dll", 13))
                 effectBlur(effect->anim.image_name, effect_duration);
+            else if (!strncmp(effect->anim.image_name, "cons_rule.dll", 13))
+                effectRule(effect->anim.image_name, effect_duration);
             else {
                 // do crossfade
                 height = 256 * effect_counter / effect_duration;
@@ -479,40 +526,7 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
         break;
     }
 
-    if (effect_counter == 0 && not_implemented)
-        utils::printInfo("effect No. %d not implemented; substituting crossfade\n", effect_no);
-
-    //utils::printInfo("effect conut %d / dur %d\n", effect_counter, effect_duration);
-    
-    effect_counter += effect_timer_resolution;
-
-    event_mode = WAIT_INPUT_MODE;
-    waitEvent(0);
-    if ( !((automode_flag || autoclick_time > 0) ||
-           (usewheel_flag  && current_button_state.button == -5) ||
-           (!usewheel_flag && current_button_state.button == -2)) ){
-        if ( effect_skip_flag )
-            effect_counter = effect_duration; // interrupted
-    }
-
-    if ( effect_counter < effect_duration && effect_no != 1 ){
-        if ( effect_no != 0 ) flush( REFRESH_NONE_MODE, NULL, false );
-    
-        return true;
-    }
-    else{
-        SDL_BlitSurface( effect_dst_surface, &dirty_rect.bounding_box, accumulation_surface, &dirty_rect.bounding_box );
-
-        if ( effect_no != 0 ) flush(REFRESH_NONE_MODE, NULL, clear_dirty_region);
-        if ( effect_no == 1 ) effect_counter = 0;
-        skip_mode &= ~SKIP_TO_EOL;
-
-        event_mode = IDLE_EVENT_MODE;
-        if (effect_blank != 0 && effect_counter != 0)
-            waitEvent(effect_blank);
-        
-        return false;
-    }
+    return not_implemented;
 }
 
 void ONScripter::drawEffect(SDL_Rect *dst_rect, SDL_Rect *src_rect, SDL_Surface *surface)
