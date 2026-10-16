@@ -446,7 +446,7 @@ int ONScripter::traceSpriteUpdate( int i, int since )
     SDL_Rect r = (kind[3] == '2') ? ai.bounding_rect : zoomedRect( ai ); // lsp2: its box after scaling and turning
     // an animation steps its cells by itself
     int cell = ai.is_animatable ? -1 : ai.current_cell;
-    int keyed = ai.alpha_keys > 0 ? (ai.alpha_loop == 1 ? 2 : 1) : 0;
+    int keyed = ai.motion_keys > 0 ? (ai.motion_loop ? 2 : 1) : 0; // a motion moves it by itself
     if (ts.image == image && ts.x == r.x && ts.y == r.y && ts.w == r.w && ts.h == r.h &&
         ts.trans == ai.trans && ts.cell == cell && ts.over == ai.z_over && ts.keyed == keyed) return 0;
     ts.image = image;
@@ -524,9 +524,8 @@ void ONScripter::traceSprite( std::string &out, int i )
         out += buf;
     }
     if (ai.fade_ms > 0 && ai.fade_alpha < 256) out += ",\"fade\":true";
-    if (ai.alpha_keys > 0) out += ai.alpha_loop == 1 ? ",\"keyed\":\"loop\"" : ",\"keyed\":\"once\"";
-    // the alpha it is drawn at, after spfade, spalpha and spmotion2's keys
-    int factor = (ai.fade_ms > 0 ? ai.fade_alpha : 256) * ai.key_alpha / 256 * ai.motion_alpha / 256;
+    // the alpha it is drawn at, after spfade and spmotion's keys
+    int factor = (ai.fade_ms > 0 ? ai.fade_alpha : 256) * ai.motion_alpha / 256;
     if (factor != 256){
         snprintf( buf, sizeof(buf), ",\"shown\":%d", (ai.trans < 0 ? 255 : ai.trans) * factor / 256 );
         out += buf;
@@ -582,7 +581,7 @@ bool ONScripter::traceChanges( std::string &out )
 static const struct { const char *name; int kind; } trace_commands[] = {
     {"lsp",1}, {"lsph",1}, {"lsp2",1}, {"lsph2",1}, {"lsp2add",1}, {"lsph2add",1},
     {"lsp2sub",1}, {"lsph2sub",1}, {"csp",1}, {"csp2",1}, {"vsp",1}, {"vsp2",1},
-    {"msp",1}, {"msp2",1}, {"amsp",1}, {"amsp2",1}, {"cell",1}, {"spfilter",1}, {"spzoom",1}, {"sprot",1}, {"spmotion",1}, {"spmotion2",1},
+    {"msp",1}, {"msp2",1}, {"amsp",1}, {"amsp2",1}, {"cell",1}, {"spfilter",1}, {"spzoom",1}, {"sprot",1}, {"spmotion",1}, {"spcurve",1},
     {"strsp",1}, {"strsph",1}, {"vstrsp",1}, {"spz",1}, {"spclip",1}, {"spblend",1}, {"spstr",1}, {"spreload",1}, {"ld",1}, {"cl",1},
     {"bg",1}, {"bgcopy",1}, {"bgcpy",1}, {"popscreen",1},
     {"bgm",2}, {"bgmonce",2}, {"mp3",2}, {"mp3loop",2}, {"mp3save",2}, {"play",2},
@@ -590,7 +589,7 @@ static const struct { const char *name; int kind; } trace_commands[] = {
     {"mp3fadeout",2}, {"bgmfadeout",2}, {"loopbgm",2}, {"loopbgmstop",2},
     {"wave",2}, {"waveloop",2}, {"wavestop",2}, {"dwave",2}, {"dwaveloop",2},
     {"dwavestop",2}, {"dwaveplay",2}, {"dwaveplayloop",2},
-    {"mpegplay",2}, {"movie",2}, {"avi",2}, {"spfade",2}, {"spalpha",2},
+    {"mpegplay",2}, {"movie",2}, {"avi",2}, {"spfade",2},
     {"mp3fadein",2}, {"bgmfadein",2}, {"chvolfade",2}, {"bgmlater",2}, {"dwavefadein",2}, {"chvol",2},
     {"consset",2}, {"btnse",2},
     {"screenfilter",5}, {"screenshake",5}, {"screenripple",5}, {"screenpulse",5}, {"screenzoom",5},
@@ -761,14 +760,14 @@ std::string ONScripter::traceBlocked( ButtonLink *bl )
     if (no < 0 || no >= MAX_SPRITE_NUM) return "";
     AnimationInfo &ai = sprite_info[no];
     if (!ai.visible || all_sprite_hide_flag) return "hidden";
-    int factor = (ai.fade_ms > 0 ? ai.fade_alpha : 256) * ai.key_alpha / 256 * ai.motion_alpha / 256;
-    if (ai.trans == 0 || (ai.fade_ms == 0 && ai.alpha_keys == 0 && factor == 0)) return "alpha 0";
+    int factor = (ai.fade_ms > 0 ? ai.fade_alpha : 256) * ai.motion_alpha / 256;
+    if (ai.trans == 0 || (ai.fade_ms == 0 && ai.motion_keys == 0 && factor == 0)) return "alpha 0";
     // shortcut: lsp in front only, without spz; lsp2 and ld aren't looked at
     if (ai.z_over >= 0) return "";
     for (int i=0 ; i<no ; i++){
         AnimationInfo &f = sprite_info[i];
         if (!f.visible || !f.image_surface || f.z_over >= 0 || f.trans_mode != AnimationInfo::TRANS_COPY ||
-            (f.trans >= 0 && f.trans < 255) || f.fade_ms > 0 || f.key_alpha != 256 || f.motion_alpha != 256) continue;
+            (f.trans >= 0 && f.trans < 255) || f.fade_ms > 0 || f.motion_alpha != 256) continue;
         SDL_Rect c = zoomedRect( f );
         if (c.x <= r.x && c.y <= r.y && c.x + c.w >= r.x + r.w && c.y + c.h >= r.y + r.h)
             return "under lsp " + std::to_string( i );
@@ -2243,8 +2242,7 @@ void ONScripter::roundtripState( std::map<std::string, std::string> &state )
                   ai.trans < 0 ? 255 : ai.trans, ai.current_cell, ai.num_of_filters );
         v += buf;
         if (ai.z_over >= 0) v += " over " + std::to_string( ai.z_over );
-        if (ai.alpha_keys > 0) v += ai.alpha_loop == 1 ? " keyed loop" : " keyed once"; // its alpha moves with the time
-        else if (ai.key_alpha != 256) v += " keyed " + std::to_string( ai.key_alpha );
+        if (ai.motion_keys > 0) v += ai.motion_loop ? " motion loop" : " motion once"; // it moves with the time
     }
     for (int i=0 ; i<script_h.variable_range ; i++){
         ScriptHandler::VariableData &vd = script_h.getVariableData( i );

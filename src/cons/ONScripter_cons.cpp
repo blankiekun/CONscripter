@@ -47,13 +47,8 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 17 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
-                            // 5: + strsp sprites, looping dwave sounds; 6: + strsp sprites in the screen stack;
-                            // 7: + sprite zooms; 8: + script volumes (chvolfade);
-                            // 9: + sprite motions; 10: + sprite orders (spz); 11: + play time;
-                            // 12: + keyed sprite alphas (spalpha); 13: + motions' zooms, angles, keep (spmotion2)
-                            // 14: + the music bgmlater will start; 15: + additive sprites (spblend)
-                            // 16: + sprite angles (sprot); 17: + sprite clips (spclip)
+#define CONS_SAVE_VERSION 18 // only this version's block is read; the "Version n" comments below
+                            // name the parts in the order they are written
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
 
@@ -208,7 +203,7 @@ int ONScripter::spzoomCommand()
  *   Draws sprite num (an lsp sprite) turned counterclockwise by degrees (as
  *   lsp2) about the centre of its place, keeping its place among the
  *   sprites. Kept, reset and redrawn as spzoom's zoom, and saved; a motion's
- *   angle (spmotion2) adds to it, and loop 2 leaves its last angle there.
+ *   angle (spmotion) adds to it, and loop 2 leaves its last angle there.
  *   "sprot 10,-15:print 1". */
 int ONScripter::sprotCommand()
 {
@@ -228,34 +223,29 @@ int ONScripter::sprotCommand()
     return RET_CONTINUE;
 }
 
-/* spmotion num[,loop,t1,x1,y1,t2,x2,y2,...]
- *   Moves sprite num (an lsp sprite) by itself along offsets from its
- *   place: x,y (pixels) at t ms from now, straight from key to key,
- *   stepped about every 16 ms by the timer, during text and click waits
- *   too. loop 1 starts again after the last key (put the first key's
- *   offset there for a smooth loop); loop 0 ends at the last key and the
- *   sprite is back at its place. "spmotion num" stops it there. Up to 32
- *   keys. amsp, msp and spzoom act on the place as usual; the motion stays
- *   when lsp changes the image, is removed by csp and is kept in save
- *   files (restarted). "spmotion 10,1,0,0,0,250,0,-12,500,0,0" bobs
- *   sprite 10 up and down twice a second. loop 2 runs once and leaves the
- *   sprite at the last key: its offset is added to the sprite's place (as
- *   msp), its zoom to the spzoom, its angle to the sprot and its alpha to
- *   the sprite's. Another spmotion or spmotion2 on the sprite (also one
- *   that stops it), lsp, msp or amsp first ends such a motion at its last
- *   key.
- *
- * spmotion2 num[,loop,t1,x1,y1,zoom1,angle1,alpha1,...]
- *   spmotion with a zoom (percent, 100 = its size, times spzoom's) and an
- *   angle (degrees, counterclockwise, as lsp2's), both about the centre of
- *   the sprite's place, and an alpha (0-256 of the sprite's) in each key:
- *   "spmotion2 10,1,0,0,0,100,0,256,1000,0,0,100,360,256" spins sprite 10
- *   once a second. */
+/* spmotion num[,loop,t1,x1,y1,zx1,zy1,angle1,alpha1,curve1,...]
+ *   Moves sprite num (an lsp sprite) by itself along keys from its place:
+ *   at t ms from now the offset x,y (pixels), the zoom zx,zy (percent,
+ *   times spzoom's), the angle (degrees counterclockwise, added to
+ *   sprot's), both about the centre of its place, and the alpha (0-256 of
+ *   the sprite's). curve is how a key is reached from the one before: 0
+ *   straight, 1 ease in, 2 ease out, 3 ease in and out, 4 jump at the key,
+ *   10-73 a table defined by spcurve. Stepped about every 16 ms by the
+ *   timer, during text and click waits too. loop 1 starts again after the
+ *   last key; loop 0 ends at the last key with the sprite back at its
+ *   place; loop 2 runs once and leaves the sprite at the last key (its
+ *   offset added to the place as msp, its zoom to spzoom, its angle to
+ *   sprot, its alpha to the sprite's); loop -n runs n times, then does as
+ *   loop 2. "spmotion num" stops it. Up to 32 keys. The motion stays when
+ *   lsp changes the image, is removed by csp and is kept in save files
+ *   (restarted). Another spmotion, lsp, msp or amsp first ends a loop 2
+ *   or -n motion at its last key.
+ *   "spmotion 10,1,0,0,0,100,100,0,256,0,1000,0,0,100,100,360,256,0"
+ *   spins sprite 10 once a second. */
 int ONScripter::spmotionCommand()
 {
     leaveTextDisplayMode();
 
-    bool two = script_h.isName("spmotion2");
     int no = script_h.readInt();
     if (no < 0 || no >= MAX_SPRITE_NUM){
         utils::printError("spmotion: sprite %d out of range\n", no);
@@ -267,26 +257,25 @@ int ONScripter::spmotionCommand()
     endKeptMotion( *ai );
     ai->motion_keys = 0;
     ai->motion_dx = ai->motion_dy = 0;
-    ai->motion_zoom = 100;
+    ai->motion_zoom = ai->motion_zoom_y = 100;
     ai->motion_rot = 0;
     ai->motion_alpha = 256;
     if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
         int mode = script_h.readInt();
         ai->motion_loop = mode == 1;
-        ai->motion_keep = mode == 2;
+        ai->motion_keep = mode == 2 || mode < 0;
+        ai->motion_passes = mode < 0 ? -mode : 0;
         while (script_h.getEndStatus() & ScriptHandler::END_COMMA){
-            int t = script_h.readInt();
-            int x = script_h.readInt();
-            int y = script_h.readInt();
-            int zoom = two ? script_h.readInt() : 100;
-            int rot = two ? script_h.readInt() : 0;
-            int alpha = two ? script_h.readInt() : 256;
+            int v[8];
+            for (int j=0 ; j<8 ; j++) v[j] = script_h.readInt();
             if (ai->motion_keys == AnimationInfo::MAX_MOTION_KEYS){
                 utils::printError("spmotion: more than %d keys\n", AnimationInfo::MAX_MOTION_KEYS);
                 continue;
             }
             int *k = ai->motion_key[ai->motion_keys++];
-            k[0] = speedTime( t ); k[1] = x; k[2] = y; k[3] = zoom; k[4] = rot; k[5] = alpha; // gamespeed
+            // stored as ms, x, y, zoom x, angle, alpha, zoom y, curve
+            k[0] = speedTime( v[0] ); k[1] = v[1]; k[2] = v[2]; k[3] = v[3]; // gamespeed
+            k[4] = v[5]; k[5] = v[6] < 0 ? 0 : v[6] > 256 ? 256 : v[6]; k[6] = v[4]; k[7] = v[7];
         }
         ai->motion_start = ai->motion_next = SDL_GetTicks();
         stepSpriteMotion( *ai, ai->motion_start );
@@ -343,51 +332,43 @@ int ONScripter::spfadeCommand()
     return RET_CONTINUE;
 }
 
-/* spalpha num[,loop,t1,a1,t2,a2,...]
- *   Draws sprite num (an lsp sprite) at a changing part of its alpha by
- *   itself: a/256 (0-256) at t ms from now, straight from key to key,
- *   stepped about every 16 ms by the timer while the script goes on (the
- *   text, a click wait). loop 1 starts again after the last key (put the
- *   first key's alpha there for a smooth loop); loop 0 stops at the last
- *   key and the sprite keeps that alpha; loop n (2 or more) goes through
- *   the keys n times, then stops as loop 0 does (a light flashing n
- *   times). "spalpha num" stops it and draws
- *   the sprite at its own alpha. Up to 32 keys. The keys stay when lsp
- *   changes the image, are removed by csp and are kept in save files
- *   (restarted). "spalpha 20,1,0,0,600,256,1100,256,1700,0,2200,0"
- *   flickers sprite 20 in and out (a fire's glow). */
-int ONScripter::spalphaCommand()
+/* spcurve id,v0,v1,...,vn
+ *   Defines curve id (10-73) for spmotion's keys: how far (0-1024) the
+ *   way from one key to the next goes, sampled at n+1 even steps of the
+ *   time, straight between samples. A curve read from a game's exe (its
+ *   easing table, or values its function returns) goes here as it is.
+ *   Kept in save files. "spcurve 10,0,40,300,1024" starts slowly. */
+int ONScripter::spcurveCommand()
 {
-    int no = script_h.readInt();
-    if (no < 0 || no >= MAX_SPRITE_NUM){
-        utils::printError("spalpha: sprite %d out of range\n", no);
-        while (script_h.getEndStatus() & ScriptHandler::END_COMMA) script_h.readInt();
+    int id = script_h.readInt();
+    std::vector<int> v;
+    while (script_h.getEndStatus() & ScriptHandler::END_COMMA) v.push_back( script_h.readInt() );
+    if (id < CURVE_FIRST || id >= CURVE_FIRST + MAX_CURVES || v.size() < 2){
+        utils::printError("spcurve: curve %d out of range or fewer than 2 values\n", id);
         return RET_CONTINUE;
     }
-    AnimationInfo *ai = &sprite_info[no];
-    ai->alpha_keys = 0;
-    ai->key_alpha = 256;
-    if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
-        ai->alpha_loop = script_h.readInt();
-        if (ai->alpha_loop < 0) ai->alpha_loop = 0;
-        while (script_h.getEndStatus() & ScriptHandler::END_COMMA){
-            int t = script_h.readInt();
-            int a = script_h.readInt();
-            if (ai->alpha_keys == AnimationInfo::MAX_MOTION_KEYS){
-                utils::printError("spalpha: more than %d keys\n", AnimationInfo::MAX_MOTION_KEYS);
-                continue;
-            }
-            if (a < 0) a = 0;
-            if (a > 256) a = 256;
-            int *k = ai->alpha_key[ai->alpha_keys++];
-            k[0] = speedTime( t ); k[1] = a; // gamespeed
-        }
-        ai->alpha_start = ai->alpha_next = SDL_GetTicks();
-        stepSpriteAlpha( *ai, ai->alpha_start );
-    }
-    if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
+    curve_table[id - CURVE_FIRST] = v;
 
     return RET_CONTINUE;
+}
+
+// How far (0-1024) along from one key to the next a motion is at p (0-1024)
+// of the time between them, by the next key's curve.
+int ONScripter::curveAt( int curve, int p )
+{
+    if (p <= 0) return 0;
+    if (p >= 1024) return 1024;
+    switch (curve){
+      case 1: return p * p / 1024;
+      case 2: return 1024 - (1024 - p) * (1024 - p) / 1024;
+      case 3: return (int)((long long)p * p * (3 * 1024 - 2 * p) / (1024 * 1024));
+      case 4: return 0;
+    }
+    if (curve < CURVE_FIRST || curve >= CURVE_FIRST + MAX_CURVES) return p;
+    const std::vector<int> &v = curve_table[curve - CURVE_FIRST];
+    if (v.size() < 2) return p;
+    int n = (int)v.size() - 1, i = p * n / 1024, r = p * n % 1024;
+    return v[i] + (int)((long long)(v[i+1] - v[i]) * r / 1024);
 }
 
 /* spcut num,"mask",x,y
@@ -459,12 +440,15 @@ int ONScripter::bitandCommand()
 
 /* spblend num,mode
  *   Draws sprite num (an lsp sprite) adding its colours to what is under
- *   it (mode 1), times its alpha, or blended as usual (mode 0): a white
- *   sprite at alpha a lightens the screen by a, as a flash of light. It
+ *   it (mode 1), times its alpha, multiplying it by them (mode 2: white
+ *   leaves it, black darkens it, times its alpha) or blended as usual
+ *   (mode 0): a white additive sprite at alpha a lightens the screen by a,
+ *   as a flash of light. It
  *   keeps its place among the sprites (unlike lsp2add, drawn over all of
  *   them). It stays when lsp changes the image, is removed by csp and is
  *   kept in save files. lsp 2,":c;>800,600,#ffffff",0,0:spblend 2,1:
- *   spalpha 2,5,0,128,80,0 flashes the screen five times. */
+ *   spmotion 2,-5,0,0,0,100,100,0,128,0,80,0,0,100,100,0,0,0 flashes the
+ *   screen five times. */
 int ONScripter::spblendCommand()
 {
     int no = script_h.readInt();
@@ -474,7 +458,7 @@ int ONScripter::spblendCommand()
         return RET_CONTINUE;
     }
     AnimationInfo *ai = &sprite_info[no];
-    ai->blending_mode = (mode == 1) ? AnimationInfo::BLEND_ADD : AnimationInfo::BLEND_NORMAL;
+    ai->blending_mode = (mode == 1) ? AnimationInfo::BLEND_ADD : (mode == 2) ? AnimationInfo::BLEND_MUL : AnimationInfo::BLEND_NORMAL;
     if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
 
     return RET_CONTINUE;
@@ -596,6 +580,7 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
     int last = ai.motion_key[ai.motion_keys-1][0];
     int t = current_time - ai.motion_start;
     if (ai.motion_loop && last > 0) t %= last;
+    else if (ai.motion_passes > 1 && last > 0 && t < last * ai.motion_passes) t %= last;
     else if (t >= last){
         if (ai.motion_keep){
             int *k = ai.motion_key[ai.motion_keys-1];
@@ -603,13 +588,13 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
             ai.orig_pos.y += k[2];
             ai.scalePosXY( screen_ratio1, screen_ratio2 );
             ai.zoom_x = ai.zoom_x * k[3] / 100;
-            ai.zoom_y = ai.zoom_y * k[3] / 100;
+            ai.zoom_y = ai.zoom_y * k[6] / 100;
             ai.zoom_rot += k[4];
             if (k[5] < 256) ai.trans = (ai.trans < 0 ? 255 : ai.trans) * k[5] / 256;
         }
         ai.motion_keys = 0;
         ai.motion_dx = ai.motion_dy = 0;
-        ai.motion_zoom = 100;
+        ai.motion_zoom = ai.motion_zoom_y = 100;
         ai.motion_rot = 0;
         ai.motion_alpha = 256;
         return;
@@ -617,48 +602,24 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
     int i = 0;
     while (i + 1 < ai.motion_keys && ai.motion_key[i+1][0] <= t) i++;
     int *a = ai.motion_key[i];
-    int v[6] = {0, a[1], a[2], a[3], a[4], a[5]};
+    int v[7] = {0, a[1], a[2], a[3], a[4], a[5], a[6]};
     if (i + 1 < ai.motion_keys && t > a[0]){
         int *b = ai.motion_key[i+1];
         int span = b[0] - a[0];
-        if (span > 0)
-            for (int j=1 ; j<6 ; j++) v[j] += (b[j] - a[j]) * (t - a[0]) / span;
+        if (span > 0){
+            int p = curveAt( b[7], (int)((long long)(t - a[0]) * 1024 / span) );
+            for (int j=1 ; j<7 ; j++) v[j] += (int)((long long)(b[j] - a[j]) * p / 1024);
+        }
     }
     ai.motion_dx = v[1] * screen_ratio1 / screen_ratio2;
     ai.motion_dy = v[2] * screen_ratio1 / screen_ratio2;
     ai.motion_zoom = v[3];
+    ai.motion_zoom_y = v[6];
     ai.motion_rot = v[4];
     ai.motion_alpha = v[5];
 }
 
-// Sets a keyed alpha (spalpha) for the time; stops one that ran once, at
-// its last key's alpha.
-void ONScripter::stepSpriteAlpha( AnimationInfo &ai, int current_time )
-{
-    if (ai.alpha_keys == 0) return;
-    int last = ai.alpha_key[ai.alpha_keys-1][0];
-    int t = current_time - ai.alpha_start;
-    int times = ai.alpha_loop > 1 ? ai.alpha_loop : 1;
-    if (ai.alpha_loop == 1 && last > 0) t %= last;
-    else if (t >= last * times){
-        ai.key_alpha = ai.alpha_key[ai.alpha_keys-1][1];
-        ai.alpha_keys = 0;
-        return;
-    }
-    else if (last > 0) t %= last; // loop n: the time into this round
-    int i = 0;
-    while (i + 1 < ai.alpha_keys && ai.alpha_key[i+1][0] <= t) i++;
-    int *a = ai.alpha_key[i];
-    int alpha = a[1];
-    if (i + 1 < ai.alpha_keys && t > a[0]){
-        int *b = ai.alpha_key[i+1];
-        int span = b[0] - a[0];
-        if (span > 0) alpha += (b[1] - a[1]) * (t - a[0]) / span;
-    }
-    ai.key_alpha = alpha;
-}
-
-// Steps the sprites' fades, keyed alphas and motions; draws what changed
+// Steps the sprites' fades and motions; draws what changed
 // (draw false: only says whether something did, for an effect running).
 bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
 {
@@ -694,18 +655,6 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
             if (ai.visible && ai.image_surface && alpha != ai.fade_alpha)
                 changed.add( drawnRect( ai ) );
         }
-        // spalpha
-        if (ai.alpha_keys > 0 && ai.alpha_next <= current_time){
-            if (current_time - ai.alpha_next > 1000){
-                ai.alpha_start += current_time - ai.alpha_next;
-                ai.alpha_next = current_time;
-            }
-            while (ai.alpha_next <= current_time) ai.alpha_next += 16;
-            int alpha = ai.key_alpha;
-            stepSpriteAlpha( ai, current_time );
-            if (ai.visible && ai.image_surface && alpha != ai.key_alpha)
-                changed.add( drawnRect( ai ) );
-        }
         if (ai.motion_keys == 0 || ai.motion_next > current_time) continue;
         // After a long stop (a menu, a load) go on from now.
         if (current_time - ai.motion_next > 1000){
@@ -713,11 +662,11 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
             ai.motion_next = current_time;
         }
         while (ai.motion_next <= current_time) ai.motion_next += 16;
-        int dx = ai.motion_dx, dy = ai.motion_dy, zoom = ai.motion_zoom, rot = ai.motion_rot, alpha = ai.motion_alpha;
+        int dx = ai.motion_dx, dy = ai.motion_dy, zoom = ai.motion_zoom, zoom_y = ai.motion_zoom_y, rot = ai.motion_rot, alpha = ai.motion_alpha;
         SDL_Rect r = drawnRect( ai );
         stepSpriteMotion( ai, current_time );
         if (!ai.visible || !ai.image_surface) continue;
-        if (dx == ai.motion_dx && dy == ai.motion_dy && zoom == ai.motion_zoom && rot == ai.motion_rot && alpha == ai.motion_alpha && ai.motion_keys > 0) continue;
+        if (dx == ai.motion_dx && dy == ai.motion_dy && zoom == ai.motion_zoom && zoom_y == ai.motion_zoom_y && rot == ai.motion_rot && alpha == ai.motion_alpha && ai.motion_keys > 0) continue;
         SDL_Rect r2 = drawnRect( ai );
         int x1 = (r.x < r2.x) ? r.x : r2.x, y1 = (r.y < r2.y) ? r.y : r2.y;
         int x2 = (r.x + r.w > r2.x + r2.w) ? r.x + r.w : r2.x + r2.w;
@@ -757,7 +706,6 @@ int ONScripter::nextSpriteMotionTime()
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
         if (ai.fade_ms > 0 && (min == 0 || min > ai.fade_next)) min = ai.fade_next;
-        if (ai.alpha_keys > 0 && (min == 0 || min > ai.alpha_next)) min = ai.alpha_next;
         if (ai.motion_keys == 0) continue;
         if (min == 0 || min > ai.motion_next) min = ai.motion_next;
     }
@@ -769,9 +717,9 @@ int ONScripter::nextSpriteMotionTime()
 SDL_Rect ONScripter::zoomedRect( const AnimationInfo &ai )
 {
     SDL_Rect r = ai.pos;
-    if (ai.zoom_x == 100 && ai.zoom_y == 100 && ai.motion_zoom == 100 && ai.motion_rot == 0 && ai.zoom_rot == 0) return r;
+    if (ai.zoom_x == 100 && ai.zoom_y == 100 && ai.motion_zoom == 100 && ai.motion_zoom_y == 100 && ai.motion_rot == 0 && ai.zoom_rot == 0) return r;
     int w = ai.pos.w * abs(ai.zoom_x) / 100 * abs(ai.motion_zoom) / 100;
-    int h = ai.pos.h * abs(ai.zoom_y) / 100 * abs(ai.motion_zoom) / 100;
+    int h = ai.pos.h * abs(ai.zoom_y) / 100 * abs(ai.motion_zoom_y) / 100;
     if ((ai.zoom_rot + ai.motion_rot) % 360 != 0) w = h = (int)ceil( sqrt( (double)w * w + (double)h * h ) );
     r.x = ai.pos.x + ai.pos.w/2 - w/2 - 1;
     r.y = ai.pos.y + ai.pos.h/2 - h/2 - 1;
@@ -784,7 +732,7 @@ SDL_Rect ONScripter::zoomedRect( const AnimationInfo &ai )
 // place (poly_rect, its top left on the screen).
 void ONScripter::drawZoomedSurface( SDL_Surface *dst_surface, AnimationInfo *anim, SDL_Rect &poly_rect, SDL_Rect &clip )
 {
-    if (anim->zoom_x == 0 || anim->zoom_y == 0 || anim->motion_zoom == 0) return;
+    if (anim->zoom_x == 0 || anim->zoom_y == 0 || anim->motion_zoom == 0 || anim->motion_zoom_y == 0) return;
     SDL_Rect pos = anim->pos, affine_pos = anim->affine_pos, bounding_rect = anim->bounding_rect;
     int scale_x = anim->scale_x, scale_y = anim->scale_y, rot = anim->rot;
 
@@ -795,7 +743,7 @@ void ONScripter::drawZoomedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
     anim->affine_pos.w = pos.w;
     anim->affine_pos.h = pos.h;
     anim->scale_x = anim->zoom_x * anim->motion_zoom / 100;
-    anim->scale_y = anim->zoom_y * anim->motion_zoom / 100;
+    anim->scale_y = anim->zoom_y * anim->motion_zoom_y / 100;
     anim->rot = anim->zoom_rot + anim->motion_rot;
     anim->calcAffineMatrix();
     anim->blendOnSurface2( dst_surface, anim->pos.x, anim->pos.y, clip, anim->trans );
@@ -2211,22 +2159,6 @@ void ONScripter::saveSaveFileCons( bool output_flag )
     for (int i=0 ; i<ONS_MIX_CHANNELS ; i++)
         writeInt( track_gain[i].to, output_flag );
 
-    // Version 9: the sprite motions (spmotion): the count, then per sprite
-    // its number, loop, key count and keys (ms, x, y). They restart on load.
-    num = 0;
-    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
-        if (sprite_info[i].motion_keys > 0) num++;
-    writeInt( num, output_flag );
-    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
-        AnimationInfo *ai = &sprite_info[i];
-        if (ai->motion_keys == 0) continue;
-        writeInt( i, output_flag );
-        writeInt( ai->motion_loop ? 1 : 0, output_flag );
-        writeInt( ai->motion_keys, output_flag );
-        for (int k=0 ; k<ai->motion_keys ; k++)
-            for (int j=0 ; j<3 ; j++) writeInt( ai->motion_key[k][j], output_flag );
-    }
-
     // Version 10: the sprite orders (spz): the count, then per sprite its
     // number and the sprite it is drawn over; then the number of pushscreen
     // states and per state, oldest first, the same for its sprites.
@@ -2258,51 +2190,23 @@ void ONScripter::saveSaveFileCons( bool output_flag )
     if (output_flag) playtime_offset = file_io_buf_ptr;
     writeInt( playtimeSeconds(), output_flag );
 
-    // Version 12: the keyed alphas (spalpha): the count, then per sprite
-    // its number, alpha now, loop, key count and keys (ms, alpha). Running
-    // keys restart on load.
-    num = 0;
-    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
-        if (sprite_info[i].alpha_keys > 0 || sprite_info[i].key_alpha != 256) num++;
-    writeInt( num, output_flag );
-    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
-        AnimationInfo *ai = &sprite_info[i];
-        if (ai->alpha_keys == 0 && ai->key_alpha == 256) continue;
-        writeInt( i, output_flag );
-        writeInt( ai->key_alpha, output_flag );
-        writeInt( ai->alpha_loop, output_flag );
-        writeInt( ai->alpha_keys, output_flag );
-        for (int k=0 ; k<ai->alpha_keys ; k++)
-            for (int j=0 ; j<2 ; j++) writeInt( ai->alpha_key[k][j], output_flag );
-    }
-
-    // Version 13: the motions' (version 9's, in the same order) keep flag
-    // and each key's zoom, angle and alpha (spmotion2).
-    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
-        AnimationInfo *ai = &sprite_info[i];
-        if (ai->motion_keys == 0) continue;
-        writeInt( ai->motion_keep ? 1 : 0, output_flag );
-        for (int k=0 ; k<ai->motion_keys ; k++){
-            writeInt( ai->motion_key[k][3], output_flag );
-            writeInt( ai->motion_key[k][4], output_flag );
-            writeInt( ai->motion_key[k][5], output_flag );
-        }
-    }
-
     // Version 14: bgmlater's music ("" for none), the time left and loop.
     writeStr( bgm_later_name, output_flag );
     Uint32 now = SDL_GetTicks();
     writeInt( bgm_later_name && bgm_later_time > now ? bgm_later_time - now : 0, output_flag );
     writeInt( bgm_later_loop ? 1 : 0, output_flag );
 
-    // Version 15: the additive sprites (spblend): the count, then their
-    // numbers.
+    // Version 15: the sprites spblend adds or multiplies: the count, then
+    // per sprite its number and blending mode.
     num = 0;
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
-        if (sprite_info[i].blending_mode == AnimationInfo::BLEND_ADD) num++;
+        if (sprite_info[i].blending_mode != AnimationInfo::BLEND_NORMAL) num++;
     writeInt( num, output_flag );
-    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
-        if (sprite_info[i].blending_mode == AnimationInfo::BLEND_ADD) writeInt( i, output_flag );
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        if (sprite_info[i].blending_mode == AnimationInfo::BLEND_NORMAL) continue;
+        writeInt( i, output_flag );
+        writeInt( sprite_info[i].blending_mode, output_flag );
+    }
 
     // Version 16: the sprite angles (sprot): the count, then per sprite its
     // number and angle; then the number of pushscreen states and per state,
@@ -2354,6 +2258,30 @@ void ONScripter::saveSaveFileCons( bool output_flag )
             writeInt( i, output_flag );
             for (int k=0 ; k<4 ; k++) writeInt( st.sprite[i - st.first].clip_rect[k], output_flag );
         }
+    }
+
+    // Version 18: the sprite motions (spmotion): the count, then per sprite
+    // its number, loop, keep, passes, key count and keys (8 values each,
+    // as stored); then the spcurve tables: per curve its value count and
+    // values. Motions restart on load.
+    num = 0;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (sprite_info[i].motion_keys > 0) num++;
+    writeInt( num, output_flag );
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        AnimationInfo *ai = &sprite_info[i];
+        if (ai->motion_keys == 0) continue;
+        writeInt( i, output_flag );
+        writeInt( ai->motion_loop ? 1 : 0, output_flag );
+        writeInt( ai->motion_keep ? 1 : 0, output_flag );
+        writeInt( ai->motion_passes, output_flag );
+        writeInt( ai->motion_keys, output_flag );
+        for (int k=0 ; k<ai->motion_keys ; k++)
+            for (int j=0 ; j<8 ; j++) writeInt( ai->motion_key[k][j], output_flag );
+    }
+    for (int c=0 ; c<MAX_CURVES ; c++){
+        writeInt( (int)curve_table[c].size(), output_flag );
+        for (size_t j=0 ; j<curve_table[c].size() ; j++) writeInt( curve_table[c][j], output_flag );
     }
 }
 
@@ -2648,7 +2576,10 @@ void ONScripter::loadSaveFileCons()
     setPlaytime( 0 ); // older saves have none
     if (readInt() != CONS_SAVE_MAGIC) return;
     int version = readInt();
-    if (version < 1) return;
+    if (version != CONS_SAVE_VERSION){ // older layouts aren't read
+        utils::printError("save: CONscripter data version %d, this build reads %d; left out\n", version, CONS_SAVE_VERSION);
+        return;
+    }
 
     int num = readInt();
     for (int n=0 ; n<num ; n++){
@@ -2669,7 +2600,6 @@ void ONScripter::loadSaveFileCons()
         if (ai != &dummy && ai->image_name) setupAnimationInfo( ai );
     }
 
-    if (version < 2) return;
     int depth = readInt();
     for (int n=0 ; n<depth ; n++){
         ScreenState st;
@@ -2735,7 +2665,6 @@ void ONScripter::loadSaveFileCons()
         }
     }
 
-    if (version < 3) return;
     int slots = readInt();
     for (int n=-1 ; n<screen_stack_num ; n++){
         AnimationInfo::Filter *dst = (n < 0) ? screen_filter : screen_stack[n].screen_filter;
@@ -2749,7 +2678,6 @@ void ONScripter::loadSaveFileCons()
         }
     }
 
-    if (version < 4) return;
     slots = readInt();
     int params = readInt();
     for (int i=0 ; i<slots ; i++){
@@ -2767,7 +2695,6 @@ void ONScripter::loadSaveFileCons()
         if (&e == &dummy) clearScreenEffect( dummy );
     }
 
-    if (version < 5) return;
     num = readInt();
     for (int n=0 ; n<num ; n++){
         int no = readInt();
@@ -2794,7 +2721,6 @@ void ONScripter::loadSaveFileCons()
         delete[] name;
     }
 
-    if (version < 6) return;
     depth = readInt();
     for (int n=0 ; n<depth ; n++){
         num = readInt();
@@ -2836,7 +2762,6 @@ void ONScripter::loadSaveFileCons()
         }
     }
 
-    if (version < 7) return;
     num = readInt();
     for (int n=0 ; n<num ; n++){
         int no = readInt();
@@ -2860,7 +2785,6 @@ void ONScripter::loadSaveFileCons()
         }
     }
 
-    if (version < 8) return;
     bgm_script_from = bgm_script_to = readInt();
     bgm_script_ms = 0;
     applyMusicVolume();
@@ -2872,31 +2796,6 @@ void ONScripter::loadSaveFileCons()
         track_gain[i].from = track_gain[i].to = vol;
     }
 
-    if (version < 9) return;
-    std::vector< std::pair<AnimationInfo*, int> > motions; // version 13 adds to them
-    AnimationInfo motion_dummy;
-    num = readInt();
-    for (int n=0 ; n<num ; n++){
-        int no = readInt();
-        bool loop = readInt() != 0;
-        int keys = readInt();
-        AnimationInfo *ai = (no >= 0 && no < MAX_SPRITE_NUM) ? &sprite_info[no] : &motion_dummy;
-        ai->motion_keys = 0;
-        ai->motion_loop = loop;
-        ai->motion_keep = false;
-        for (int k=0 ; k<keys ; k++){
-            int t = readInt(), x = readInt(), y = readInt();
-            if (k >= AnimationInfo::MAX_MOTION_KEYS) continue;
-            ai->motion_key[k][0] = t; ai->motion_key[k][1] = x; ai->motion_key[k][2] = y;
-            ai->motion_key[k][3] = 100; ai->motion_key[k][4] = 0; ai->motion_key[k][5] = 256;
-            ai->motion_keys++;
-        }
-        ai->motion_start = ai->motion_next = SDL_GetTicks();
-        stepSpriteMotion( *ai, ai->motion_start );
-        motions.push_back( std::make_pair( ai, keys ) );
-    }
-
-    if (version < 10) return;
     num = readInt();
     for (int n=0 ; n<num ; n++){
         int no = readInt(), over = readInt();
@@ -2912,56 +2811,18 @@ void ONScripter::loadSaveFileCons()
         }
     }
 
-    if (version < 11) return;
     setPlaytime( readInt() );
 
-    if (version < 12) return;
-    num = readInt();
-    for (int n=0 ; n<num ; n++){
-        int no = readInt();
-        int alpha = readInt();
-        int loop = readInt();
-        int keys = readInt();
-        AnimationInfo dummy;
-        AnimationInfo *ai = (no >= 0 && no < MAX_SPRITE_NUM) ? &sprite_info[no] : &dummy;
-        ai->key_alpha = alpha;
-        ai->alpha_keys = 0;
-        ai->alpha_loop = loop;
-        for (int k=0 ; k<keys ; k++){
-            int t = readInt(), a = readInt();
-            if (k >= AnimationInfo::MAX_MOTION_KEYS) continue;
-            ai->alpha_key[k][0] = t; ai->alpha_key[k][1] = a;
-            ai->alpha_keys++;
-        }
-        ai->alpha_start = ai->alpha_next = SDL_GetTicks();
-        stepSpriteAlpha( *ai, ai->alpha_start );
-    }
-
-    if (version < 13) return;
-    for (size_t n=0 ; n<motions.size() ; n++){
-        AnimationInfo *ai = motions[n].first;
-        ai->motion_keep = readInt() != 0;
-        for (int k=0 ; k<motions[n].second ; k++){
-            int zoom = readInt(), rot = readInt(), alpha = readInt();
-            if (k >= AnimationInfo::MAX_MOTION_KEYS) continue;
-            ai->motion_key[k][3] = zoom; ai->motion_key[k][4] = rot; ai->motion_key[k][5] = alpha;
-        }
-        stepSpriteMotion( *ai, ai->motion_start );
-    }
-
-    if (version < 14) return;
     readStr( &bgm_later_name );
     bgm_later_time = SDL_GetTicks() + readInt();
     bgm_later_loop = readInt() != 0;
 
-    if (version < 15) return;
     num = readInt();
     for (int n=0 ; n<num ; n++){
-        int no = readInt();
-        if (no >= 0 && no < MAX_SPRITE_NUM) sprite_info[no].blending_mode = AnimationInfo::BLEND_ADD;
+        int no = readInt(), mode = readInt();
+        if (no >= 0 && no < MAX_SPRITE_NUM) sprite_info[no].blending_mode = mode;
     }
 
-    if (version < 16) return;
     num = readInt();
     for (int n=0 ; n<num ; n++){
         int no = readInt(), rot = readInt();
@@ -2977,7 +2838,6 @@ void ONScripter::loadSaveFileCons()
         }
     }
 
-    if (version < 17) return;
     num = readInt();
     for (int n=0 ; n<num ; n++){
         int no = readInt(), r[4];
@@ -2993,6 +2853,32 @@ void ONScripter::loadSaveFileCons()
             ScreenState *st = (n < screen_stack_num) ? &screen_stack[n] : NULL;
             if (st && i >= st->first && i <= st->last) memcpy(st->sprite[i - st->first].clip_rect, r, sizeof(r));
         }
+    }
+
+    num = readInt();
+    for (int n=0 ; n<num ; n++){
+        int no = readInt();
+        AnimationInfo dummy;
+        AnimationInfo *ai = (no >= 0 && no < MAX_SPRITE_NUM) ? &sprite_info[no] : &dummy;
+        ai->motion_loop = readInt() != 0;
+        ai->motion_keep = readInt() != 0;
+        ai->motion_passes = readInt();
+        int keys = readInt();
+        ai->motion_keys = 0;
+        for (int k=0 ; k<keys ; k++){
+            int v[8];
+            for (int j=0 ; j<8 ; j++) v[j] = readInt();
+            if (k >= AnimationInfo::MAX_MOTION_KEYS) continue;
+            for (int j=0 ; j<8 ; j++) ai->motion_key[k][j] = v[j];
+            ai->motion_keys++;
+        }
+        ai->motion_start = ai->motion_next = SDL_GetTicks();
+        stepSpriteMotion( *ai, ai->motion_start );
+    }
+    for (int c=0 ; c<MAX_CURVES ; c++){
+        int n = readInt();
+        curve_table[c].clear();
+        for (int j=0 ; j<n ; j++) curve_table[c].push_back( readInt() );
     }
 }
 
@@ -4610,7 +4496,7 @@ void ONScripter::playMovieHoldWeb( const char *path )
 /* Movies as pictures: a movie file (.mp4, .webm, .mpg, .mpeg, .ogv, .mov,
  * .mkv, .avi, .wmv) given to lsp, lsp2, bg or ld plays in the picture's
  * place, without its sound, while the game waits: the sprite's order, the
- * tag's transparency (":a" takes the right half as the alpha), spalpha,
+ * tag's transparency (":a" takes the right half as the alpha), spmotion,
  * spzoom and the text window over it work as for a picture.
  *     lsp 10,":c;movie\cut.mp4",0,0         plays once, stays on its last frame
  *     lsp 10,":c/1,0,0;movie\loop.mp4",0,0  loops

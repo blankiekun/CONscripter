@@ -226,7 +226,7 @@ public:
     int bitandCommand();
     int spmotionCommand();
     int spfadeCommand();
-    int spalphaCommand();
+    int spcurveCommand();
     int screenflashCommand();
     int screenfilterCommand();
     int screenshakeCommand();
@@ -598,7 +598,10 @@ private:
     bool spriteZoomOrMotion();
     void stepSpriteMotion(AnimationInfo &ai, int current_time);
     void endKeptMotion(AnimationInfo &ai);
-    void stepSpriteAlpha(AnimationInfo &ai, int current_time);
+    int curveAt(int curve, int p);
+    // spcurve's tables, curves CURVE_FIRST and on
+    enum { CURVE_FIRST = 10, MAX_CURVES = 64 };
+    std::vector<int> curve_table[MAX_CURVES];
     bool proceedSpriteMotions(int current_time, bool draw = true);
     int nextSpriteMotionTime();
     // CONscripter: lsp sprites from hi down to lo in drawing order, with
@@ -838,7 +841,7 @@ private:
     struct TraceSprite {
         std::string image;           // what was shown, to tell when it changed
         int x, y, w, h, trans, cell;
-        int over, keyed;             // spz's sprite, spalpha running (1 once, 2 loop)
+        int over, keyed;             // spz's sprite, spmotion running (1 once, 2 loop)
         int since;                   // the page it last changed
     };
     enum { TRACE_SPRITES = MAX_SPRITE_NUM + MAX_SPRITE2_NUM + 3 }; // lsp, then lsp2, then ld
