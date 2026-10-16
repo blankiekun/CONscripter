@@ -465,6 +465,19 @@ static void blend8Pixel32(const Uint32 *src_buffer, Uint32 *__restrict dst_buffe
     alphap += 4;\
 }while(0)
 
+// CONscripter: screen, 255 - (255 - under) * (255 - sprite) / 255 times
+// its alpha: lightens like light added, never past white (spblend 4)
+#define SCREENBLEND_PIXEL() do{\
+    Uint32 mask2 = (*alphap * alpha) >> 8;\
+    Uint32 out = 0xff000000;\
+    for (int k=0 ; k<24 ; k+=8){\
+        Uint32 s = (((*src_buffer >> k) & 0xff) * mask2) >> 8, d = (*dst_buffer >> k) & 0xff;\
+        out |= ((255 - (255 - d) * (255 - s) / 255) & 0xff) << k;\
+    }\
+    *dst_buffer = out;\
+    alphap += 4;\
+}while(0)
+
 #define ADDBLEND_PIXEL() do{\
     Uint32 mask2 = (*alphap * alpha) >> 8;\
     Uint32 mask_rb = (*dst_buffer & RBMASK) + ((((*src_buffer & RBMASK) * mask2) >> 8) & RBMASK);\
@@ -571,6 +584,16 @@ void AnimationInfo::blendOnSurface( SDL_Surface *dst_surface, int dst_x, int dst
             else if (blendmode == AnimationInfo::BLEND_MUL) {
                 for (int j = dst_rect_w; j != 0; j--, src_buffer++, dst_buffer++) {
                     MULBLEND_PIXEL();
+                }
+            }
+            else if (blendmode == AnimationInfo::BLEND_SUB) {
+                for (int j = dst_rect_w; j != 0; j--, src_buffer++, dst_buffer++) {
+                    SUBBLEND_PIXEL();
+                }
+            }
+            else if (blendmode == AnimationInfo::BLEND_SCREEN) {
+                for (int j = dst_rect_w; j != 0; j--, src_buffer++, dst_buffer++) {
+                    SCREENBLEND_PIXEL();
                 }
             }
             else
@@ -775,6 +798,17 @@ void AnimationInfo::blendOnSurface2( SDL_Surface *dst_surface, int dst_x, int ds
                         unsigned char *alphap = (unsigned char *)line_buffer;
 #endif
                         MULBLEND_PIXEL();
+                        ++dst_buffer; ++line_buffer; --size;
+                    }
+                }
+                else if (blending_mode == BLEND_SCREEN) {
+                    while (size > 0) {
+#if SDL_BYTEORDER == SDL_LIL_ENDIAN
+                        unsigned char* alphap = (unsigned char *)line_buffer + 3;
+#else
+                        unsigned char *alphap = (unsigned char *)line_buffer;
+#endif
+                        SCREENBLEND_PIXEL();
                         ++dst_buffer; ++line_buffer; --size;
                     }
                 }

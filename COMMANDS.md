@@ -663,7 +663,8 @@ Impl `ONScripter::spcutCommand`.
 ### spblend [cons]
 `spblend num,mode` — mode 1 adds the sprite's colours (times its alpha) to
 what is under it, mode 2 multiplies what is under it by them (white leaves
-it, black darkens it, times its alpha), keeping its place among the lsp sprites; 0 normal. Stays
+it, black darkens it, times its alpha), mode 3 subtracts its colours, mode 4
+screens (lightens, never past white), keeping its place among the lsp sprites; 0 normal. Stays
 through `lsp`, removed by `csp`, saved.
 `lsp 2,":c;>800,600,#ffffff",0,0:spblend 2,1:spmotion 2,-5,0,0,0,100,100,0,128,0,80,0,0,100,100,0,0,0` (five flashes).
 Impl `ONScripter::spblendCommand`.
