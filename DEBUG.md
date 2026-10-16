@@ -527,7 +527,7 @@ handles the wait.
 | `bg` | The `bg` argument: a file, `black`, `white` or `#rrggbb` |
 | `bgm` | The music last started with `bgm`/`mp3`/`ogg`/`play`/`midi` and not stopped (it may have finished if it doesn't loop); `null` for none |
 | `loopbgm` | `[intro, loop]` when `loopbgm` is playing (omitted otherwise) |
-| `bgmvol` | The music's volume as heard, in percent, when below 100: the player's setting, `soundmute`, a fade, `bgmvol`, `bgmvolfade` |
+| `bgmvol` | The music's volume as heard, in percent, when below 100: the player's setting, `soundmute`, a fade, `bgmvol`, `chvolfade -1` |
 | `se` | The sound channels still playing (`dwave`, `wave`, voices): channel, file, `loop` for a looping one, and `vol`, its volume as heard in percent (the setting, `chvol`, `soundmute`, a channel fade), when below 100 (omitted when none) |
 | `wait` | The milliseconds the script asked to wait since the last page: text drawn a character at a time, `wait`, `delay`, effects. Auto-play skips them, so this is what a player would wait |
 | `px` | A checksum of the screen as shown (FNV-1a of its pixels), for `--diff` |
@@ -609,7 +609,7 @@ Which commands are written:
   `bg`, `popscreen`, ...): only when they changed something, so a `csp`
   of a sprite that isn't there doesn't appear;
 - **sound and movies** (`bgm`, `mp3`, `play`, `stop`, `dwave`, `wave`,
-  `loopbgm`, their stops and fades, `bgmfadein`, `mp3fadein`, `bgmvolfade`,
+  `loopbgm`, their stops and fades, `bgmfadein`, `mp3fadein`, `chvolfade`,
   `dwavefadein`, `chvol`, `mpegplay`, `movie`, `avi`), `spfade`, `spalpha`, the
   player settings a game's settings screen sets (`soundmute`, `clickvoicestop`,
   `autovoicewait`, `selectkeep`, `moviestop`, `gamespeed`, `effectoff`,

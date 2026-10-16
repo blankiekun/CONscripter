@@ -49,7 +49,7 @@
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
 #define CONS_SAVE_VERSION 16 // 1: sprite filters; 2: + screen stack; 3: + screen filters; 4: + screen effects;
                             // 5: + strsp sprites, looping dwave sounds; 6: + strsp sprites in the screen stack;
-                            // 7: + sprite zooms; 8: + script volumes (chvolfade, bgmvolfade);
+                            // 7: + sprite zooms; 8: + script volumes (chvolfade);
                             // 9: + sprite motions; 10: + sprite orders (spz); 11: + play time;
                             // 12: + keyed sprite alphas (spalpha); 13: + motions' zooms, angles, keep (spmotion2)
                             // 14: + the music bgmlater will start; 15: + additive sprites (spblend)
@@ -911,10 +911,7 @@ int ONScripter::screenrippleCommand()
  *   The next dwave, dwaveloop, dwaveplay or dwaveplayloop fades its sound
  *   in over ms milliseconds (0: at once, as before).
  *       dwavefadein 2000:dwaveloop 1,"se\rain.ogg"
- * dwavefadeout ch,ms
- *   Fades the sound of dwave channel ch out over ms milliseconds, then
- *   stops it; the script goes on at once. A looping sound fading out isn't
- *   kept in a save. 0 ms stops it as dwavestop does. */
+ *   (Fading out is chvolfade's stop.) */
 int ONScripter::dwavefadeinCommand()
 {
     dwave_fade_in_ms = script_h.readInt();
@@ -934,25 +931,6 @@ int ONScripter::automodeWait()
     return automode_time + automode_char_time * num_chars_in_sentence;
 }
 
-int ONScripter::dwavefadeoutCommand()
-{
-    int ch = script_h.readInt();
-    int ms = script_h.readInt();
-    if      (ch < 0) ch = 0;
-    else if (ch >= ONS_MIX_CHANNELS) ch = ONS_MIX_CHANNELS-1;
-    if (!wave_sample[ch]) return RET_CONTINUE;
-
-    trace_se_loop[ch] = false; // stopping: not for the save
-    // SDL_mixer won't fade a sound at volume 0 (a fade-in just started):
-    // nothing is heard yet, so stop it as dwavestop does
-    if (ms <= 0 || !audio_open_flag || Mix_Paused( ch ) || Mix_FadeOutChannel( ch, ms ) == 0){
-        cutChannel( ch );
-        Mix_FreeChunk( wave_sample[ch] );
-        wave_sample[ch] = NULL;
-    }
-    return RET_CONTINUE;
-}
-
 // A skipped movie stops the sounds started with it (since the last wait):
 // a sound cut into the movie would play on over what follows.
 void ONScripter::stopFreshChannels()
@@ -967,7 +945,7 @@ void ONScripter::stopFreshChannels()
     fresh_channels = 0;
 }
 
-/* chvolfade ch,vol[,ms]
+/* chvolfade ch,vol[,ms[,stop]]
  *   Sets the volume of dwave channel ch's sound to vol percent (0-100)
  *   of the sound effect or voice setting, over ms milliseconds (default
  *   0, at once) while the script goes on: a fade from where it is now.
@@ -976,17 +954,41 @@ void ONScripter::stopFreshChannels()
  *   quieter; reset puts every channel back to 100. Kept in a save.
  *       chvolfade 3,30:dwaveloop 3,"se\rain.ogg"   (at 30 %)
  *       chvolfade 3,100,2000                       (back up in 2 s)
- * bgmvolfade vol[,ms]
- *   The same for the music (bgm, mp3): vol percent of the music setting,
- *   for the next bgm too. bgmfadein and bgmfadeout fade to and from it.
- *   Kept in a save. */
+ *   ch -1 is the music (bgm, mp3): vol percent of the music setting, for
+ *   the next bgm too; bgmfadein and bgmfadeout fade to and from it.
+ *   stop 1 (dwave channels): the sound fades out over ms and stops, and
+ *   the channel's volume stays as it was for its next sounds (vol is
+ *   ignored); a looping sound fading out isn't kept in a save; 0 ms stops
+ *   it as dwavestop does. "chvolfade 2,0,1500,1" fades the rain out. */
 int ONScripter::chvolfadeCommand()
 {
     int ch = script_h.readInt();
     int vol = script_h.readInt();
     int ms = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
+    bool stop = (script_h.getEndStatus() & ScriptHandler::END_COMMA) && script_h.readInt() == 1;
+    if (ch == -1){ // the music
+        if (vol < 0) vol = 0; else if (vol > 100) vol = 100;
+        bgm_script_from = bgmScriptVolume();
+        bgm_script_start = SDL_GetTicks();
+        bgm_script_to = vol;
+        bgm_script_ms = ms > 0 ? ms : 0;
+        applyMusicVolume();
+        return RET_CONTINUE;
+    }
     if      (ch < 0) ch = 0;
     else if (ch >= ONS_MIX_CHANNELS) ch = ONS_MIX_CHANNELS-1;
+    if (stop){
+        if (!wave_sample[ch]) return RET_CONTINUE;
+        trace_se_loop[ch] = false; // stopping: not for the save
+        // SDL_mixer won't fade a sound at volume 0 (a fade-in just started):
+        // nothing is heard yet, so stop it as dwavestop does
+        if (ms <= 0 || !audio_open_flag || Mix_Paused( ch ) || Mix_FadeOutChannel( ch, ms ) == 0){
+            cutChannel( ch );
+            Mix_FreeChunk( wave_sample[ch] );
+            wave_sample[ch] = NULL;
+        }
+        return RET_CONTINUE;
+    }
     if (vol < 0) vol = 0; else if (vol > 100) vol = 100;
     Uint32 now = SDL_GetTicks();
     int from = scriptVolumeAt( track_gain[ch].from, track_gain[ch].to, track_gain[ch].ms, track_gain[ch].start, now );
@@ -996,19 +998,6 @@ int ONScripter::chvolfadeCommand()
     track_gain[ch].start = now;
     track_gain[ch].to = vol;
     track_gain[ch].ms = ms > 0 ? ms : 0;
-    return RET_CONTINUE;
-}
-
-int ONScripter::bgmvolfadeCommand()
-{
-    int vol = script_h.readInt();
-    int ms = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
-    if (vol < 0) vol = 0; else if (vol > 100) vol = 100;
-    bgm_script_from = bgmScriptVolume();
-    bgm_script_start = SDL_GetTicks();
-    bgm_script_to = vol;
-    bgm_script_ms = ms > 0 ? ms : 0;
-    applyMusicVolume();
     return RET_CONTINUE;
 }
 
@@ -1167,7 +1156,7 @@ void ONScripter::voiceAfterWait()
     wave_sample[0] = NULL;
 }
 
-// chvolfade and bgmvolfade back to 100, at once (reset, startup).
+// chvolfade back to 100, at once (reset, startup).
 void ONScripter::resetScriptVolumes()
 {
     for (int i=0 ; i<ONS_MIX_CHANNELS ; i++){
@@ -1179,13 +1168,13 @@ void ONScripter::resetScriptVolumes()
     bgm_script_ms = 0;
 }
 
-// bgmvolfade's volume now, percent.
+// chvolfade -1's volume now, percent.
 int ONScripter::bgmScriptVolume()
 {
     return scriptVolumeAt( bgm_script_from, bgm_script_to, bgm_script_ms, bgm_script_start, SDL_GetTicks() );
 }
 
-// The music's volume, percent: the setting times bgmvolfade's.
+// The music's volume, percent: the setting times chvolfade -1's.
 int ONScripter::musicVolume()
 {
     if (sound_mute & SOUND_MUTE_BGM) return 0;
@@ -1261,7 +1250,7 @@ void ONScripter::cancelLaterBGM()
     setStr( &bgm_later_name, NULL );
 }
 
-// The ticks of the next step of bgmvolfade's ramp or of bgmlater's start,
+// The ticks of the next step of chvolfade -1's ramp or of bgmlater's start,
 // 0 when there is none. (chvolfade's ramps are stepped by the mixer.)
 int ONScripter::nextSoundFadeTime()
 {
@@ -2110,7 +2099,7 @@ void ONScripter::saveSaveFileCons( bool output_flag )
     }
 
     // Version 8: the script volumes, where their ramps go: the BGM's
-    // (bgmvolfade), then the number of dwave channels and each one's
+    // (chvolfade -1), then the number of dwave channels and each one's
     // (chvolfade; it matters for the looping sounds version 5 restarts).
     writeInt( bgm_script_to, output_flag );
     writeInt( ONS_MIX_CHANNELS, output_flag );

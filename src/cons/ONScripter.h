@@ -362,10 +362,8 @@ public:
     int erasetextwindowCommand();
     int endCommand();
     int dwavestopCommand();
-    int dwavefadeoutCommand();
     int dwavefadeinCommand();
     int chvolfadeCommand();
-    int bgmvolfadeCommand();
     int bgmlaterCommand();
     int getbgmposCommand();
     int autooffCommand();
@@ -896,7 +894,7 @@ private:
     int automode_char_time = 0; // CONscripter: automode_time's ms per character
     int automodeWait();
     int channel_fade_in_ms = 0; // the fade-in of the sound playChannel starts
-    // CONscripter: bgmvolfade, the script's BGM volume (percent) on top of the setting
+    // CONscripter: chvolfade -1, the script's BGM volume (percent) on top of the setting
     int bgm_script_from = 100, bgm_script_to = 100, bgm_script_ms = 0;
     Uint32 bgm_script_start = 0;
     void resetScriptVolumes();

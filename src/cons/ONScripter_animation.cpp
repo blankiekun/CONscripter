@@ -69,7 +69,7 @@ int ONScripter::calcDurationToNextAnimation()
     int motion_time = nextSpriteMotionTime();
     if (motion_time > 0 && (min == 0 || min > motion_time))
         min = motion_time;
-    int fade_time = nextSoundFadeTime(); // CONscripter: bgmvolfade
+    int fade_time = nextSoundFadeTime(); // CONscripter: chvolfade -1
     if (fade_time > 0 && (min == 0 || min > fade_time))
         min = fade_time;
     int movie_time = nextSpriteMovieTime(); // CONscripter: movies as pictures

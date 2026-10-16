@@ -589,9 +589,9 @@ static const struct { const char *name; int kind; } trace_commands[] = {
     {"playonce",2}, {"playstop",2}, {"stop",2}, {"mp3stop",2}, {"bgmstop",2},
     {"mp3fadeout",2}, {"bgmfadeout",2}, {"loopbgm",2}, {"loopbgmstop",2},
     {"wave",2}, {"waveloop",2}, {"wavestop",2}, {"dwave",2}, {"dwaveloop",2},
-    {"dwavestop",2}, {"dwaveplay",2}, {"dwaveplayloop",2}, {"dwavefadeout",2},
+    {"dwavestop",2}, {"dwaveplay",2}, {"dwaveplayloop",2},
     {"mpegplay",2}, {"movie",2}, {"avi",2}, {"spfade",2}, {"spalpha",2},
-    {"mp3fadein",2}, {"bgmfadein",2}, {"bgmvolfade",2}, {"bgmlater",2}, {"dwavefadein",2}, {"chvol",2},
+    {"mp3fadein",2}, {"bgmfadein",2}, {"chvolfade",2}, {"bgmlater",2}, {"dwavefadein",2}, {"chvol",2},
     {"soundmute",2}, {"clickvoicestop",2}, {"autovoicewait",2}, {"selectkeep",2}, {"moviestop",2},
     {"gamespeed",2}, {"effectoff",2}, {"textshadow",2}, {"sysevol",2}, {"btnse",2},
     {"screenfilter",5}, {"screenshake",5}, {"screenripple",5}, {"screenpulse",5}, {"screenzoom",5},
@@ -817,7 +817,7 @@ void ONScripter::tracePage( bool dump )
     }
 
     if (audio_open_flag && (music_file_name || midi_file_name)){
-        // the music as heard: the setting, soundmute, a fade, bgmvolfade
+        // the music as heard: the setting, soundmute, a fade, chvolfade -1
         int vol = (Mix_PlayingMusic() ? Mix_VolumeMusic( -1 ) : Mix_Volume( MIX_BGM_CHANNEL, -1 )) * 100 / MIX_MAX_VOLUME;
         if (vol < 100){
             snprintf( buf, sizeof(buf), ",\"bgmvol\":%d", vol );

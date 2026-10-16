@@ -103,7 +103,7 @@ Impl `ONScripter::texecCommand`.
 
 ### reset
 `reset` — back to the start of the script, variables cleared. [cons]: also
-clears `screenfilter`, `screenflash`, screen effects, `chvolfade`/`bgmvolfade`
+clears `screenfilter`, `screenflash`, screen effects, `chvolfade`
 volumes, `windowtrans`, `!z`, play time and the `pushscreen` stack.
 Impl `ONScripter::resetCommand`.
 
@@ -806,16 +806,11 @@ no longer hangs. Impl `ONScripter::mp3stopCommand`.
 
 ### bgmfadein / mp3fadein / bgmfadeout / mp3fadeout
 `bgmfadein ms`, `bgmfadeout ms` — fades for the next start/stop.
-[cons] fade to/from the `bgmvolfade` volume. Impl `ONScripter::mp3fadeinCommand`,
+[cons] fade to/from the `chvolfade -1` volume. Impl `ONScripter::mp3fadeinCommand`,
 `mp3fadeoutCommand`.
 
 ### bgmvol / mp3vol / getbgmvol / getmp3vol
 Music volume 0-100. Impl `ONScripter::mp3volCommand`, `getmp3volCommand`.
-
-### bgmvolfade [cons]
-`bgmvolfade vol[,ms]` — the script's own music volume (% of the player's
-setting), ramped over ms while the script goes on. `reset` → 100; saved.
-`bgmvolfade 20,500` ducks. Impl `ONScripter::bgmvolfadeCommand`.
 
 ### bgmlater [cons]
 `bgmlater ms,"file"[,loop]` — the music starts ms from now while the script
@@ -852,16 +847,18 @@ fade 10 ms. [cons] `dwaveloop` loops inside the file when it has a loop:
 `smpl` loop (as `bgm` does through SDL_mixer); not after `dwaveload` or a
 load. Impl `ONScripter::dwaveCommand`, `dwavestopCommand`, `setChunkLoop`.
 
-### dwavefadein / dwavefadeout [cons]
-`dwavefadein ms` — the next `dwave*` fades in (once); `dwavefadeout ch,ms`
-fades out then stops; 0 = at once. Impl `ONScripter::dwavefadeinCommand`,
-`dwavefadeoutCommand`.
+### dwavefadein [cons]
+`dwavefadein ms` — the next `dwave*` fades in (once). Fading out:
+`chvolfade ch,0,ms,1`. Impl `ONScripter::dwavefadeinCommand`.
 
 ### chvol / chvolfade [cons]
-`chvol ch,vol` — the setting; [cons] `chvolfade ch,vol[,ms]` — the
+`chvol ch,vol` — the setting; [cons] `chvolfade ch,vol[,ms[,stop]]` — the
 script's own % on top, ramped, stays with the channel, saved, `reset` → 100.
-`chvolfade 3,30:dwaveloop 3,"se\rain.ogg"`. Impl `ONScripter::chvolCommand`,
-`chvolfadeCommand`.
+ch -1 is the music (`bgmfadein`/`bgmfadeout` fade to and from it; `chvolfade
+-1,20,500` ducks). stop 1: the dwave channel's sound fades out over ms and
+stops (its volume stays for the next sounds; a looping one fading out isn't
+saved). `chvolfade 3,30:dwaveloop 3,"se\rain.ogg"`; `chvolfade 3,0,1500,1`.
+Impl `ONScripter::chvolCommand`, `chvolfadeCommand`.
 
 ### sevol / voicevol / getsevol / getvoicevol
 Volumes 0-100. Impl `ONScripter::sevolCommand` etc.
