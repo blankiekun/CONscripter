@@ -160,9 +160,12 @@ public:
 
     /* CONscripter: a fade in (spfade): the sprite is drawn at fade_alpha
        (0-256) of its own alpha, going from fade_from to 256 over fade_ms,
-       stepped by the timer. Stays across lsp; reset by remove(). */
+       stepped by the timer. Stays across lsp; reset by remove().
+       fade_out (spfade num,-ms): from fade_from down to 0, then the
+       sprite is removed; lsp ends it. */
     int fade_ms;               // 0: no fade
     int fade_from, fade_start, fade_next, fade_alpha;
+    bool fade_out;
 
     /* CONscripter: a keyed alpha (spalpha): the sprite is drawn at
        key_alpha (0-256) of its own alpha, stepped along keys (ms from the

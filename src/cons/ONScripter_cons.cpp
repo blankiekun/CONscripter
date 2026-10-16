@@ -306,24 +306,36 @@ int ONScripter::spmotionCommand()
  *   click wait). "spfade num,0" ends it at once. The fade stays when lsp
  *   changes the image and is removed by csp; a save keeps the sprite's
  *   own alpha, so a load shows it at the end of its fade.
+ *   "spfade num,-ms" fades it out instead, from its alpha (from/256 of it
+ *   if given) to nothing, and then removes it as csp does; lsp on it ends
+ *   that, and a save leaves it out (a picture leaving while the text goes
+ *   on).
  *   "lsp 60,":a;noise.png",0,0,200:spfade 60,2000:print 1" brings static
  *   up to 200 over two seconds. */
 int ONScripter::spfadeCommand()
 {
     int no = script_h.readInt();
     int ms = script_h.readInt();
-    int from = 0;
+    int from = ms < 0 ? 256 : 0;
     if (script_h.getEndStatus() & ScriptHandler::END_COMMA) from = script_h.readInt();
     if (no < 0 || no >= MAX_SPRITE_NUM){
         utils::printError("spfade: sprite %d out of range\n", no);
         return RET_CONTINUE;
     }
     AnimationInfo &ai = sprite_info[no];
+    ai.fade_out = ms < 0;
+    if (ai.fade_out) ms = -ms;
     if (from < 0) from = 0;
     if (from > 256) from = 256;
     ai.fade_ms = ms > 0 ? speedTime( ms ) : 0; // gamespeed
     ai.fade_from = from;
     ai.fade_alpha = ai.fade_ms > 0 ? from : 256;
+    if (ai.fade_out && ai.fade_ms == 0){ // at once
+        if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+        ai.remove();
+        ai.visible = false;
+        return RET_CONTINUE;
+    }
     ai.fade_start = ai.fade_next = SDL_GetTicks();
     if (ai.visible) dirty_rect.add( drawnRect( ai ) );
 
@@ -540,10 +552,18 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
             }
             while (ai.fade_next <= current_time) ai.fade_next += 16;
             int alpha = ai.fade_alpha, t = current_time - ai.fade_start;
+            if (t >= ai.fade_ms && ai.fade_out){
+                if (ai.visible && ai.image_surface) changed.add( drawnRect( ai ) );
+                ai.remove();
+                ai.visible = false;
+                continue;
+            }
             if (t >= ai.fade_ms){
                 ai.fade_ms = 0;
                 ai.fade_alpha = 256;
             }
+            else if (ai.fade_out)
+                ai.fade_alpha = ai.fade_from * (ai.fade_ms - t) / ai.fade_ms;
             else
                 ai.fade_alpha = ai.fade_from + (256 - ai.fade_from) * t / ai.fade_ms;
             if (ai.visible && ai.image_surface && alpha != ai.fade_alpha)

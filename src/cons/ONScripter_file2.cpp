@@ -524,7 +524,7 @@ void ONScripter::saveSaveFile2( bool output_flag )
         writeStr( ai->image_name,   output_flag );
         writeInt( ai->orig_pos.x,   output_flag );
         writeInt( ai->orig_pos.y,   output_flag );
-        writeInt( ai->visible?1:0,  output_flag );
+        writeInt( ai->visible && !ai->fade_out?1:0,  output_flag ); // CONscripter: leaving (spfade out)
         writeInt( ai->current_cell, output_flag );
         writeInt( ai->trans, output_flag );
     }

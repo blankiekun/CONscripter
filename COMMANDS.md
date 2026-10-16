@@ -633,6 +633,8 @@ Impl `ONScripter::spmotionCommand`.
 ### spfade [cons]
 `spfade num,ms[,from]` — fade in from from/256 (0) to its alpha over ms,
 script continues. `spfade num,0` ends it. Saves keep the final alpha.
+`spfade num,-ms[,from]` fades it out from its alpha to nothing, then removes it
+(as csp); lsp on it ends that; saves leave it out.
 `lsp 60,":a;noise.png",0,0,200:spfade 60,2000:print 1`.
 Impl `ONScripter::spfadeCommand`.
 

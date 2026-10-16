@@ -75,6 +75,7 @@ AnimationInfo::AnimationInfo()
     motion_alpha = 256;
     fade_ms = fade_from = fade_start = fade_next = 0;
     fade_alpha = 256;
+    fade_out = false;
     alpha_keys = 0;
     alpha_loop = 0;
     alpha_start = alpha_next = 0;
@@ -217,6 +218,7 @@ void AnimationInfo::remove()
     motion_alpha = 256;
     fade_ms = 0;
     fade_alpha = 256;
+    fade_out = false;
     alpha_keys = 0;
     key_alpha = 256;
     z_over = -1;
