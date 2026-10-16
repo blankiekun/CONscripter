@@ -51,7 +51,7 @@ CONscripter is the engine behind two companion projects:
 | macOS | x64, arm64 | Video in the window through the player's ffmpeg |
 | Android | API 22+ (Android 5.1) | SD cards through SAF, scoped storage, non-English paths, video through the system player, 16 KB pages |
 | RetroArch | libretro core `conscripter_libretro` | |
-| Kobo (KOReader) | armhf (static) | E-ink through FBInk: effects, motions and text shown at once; touch and page keys; a sleep screen on the power button; video through its own ffmpeg, no sound |
+| Kobo (KOReader) | armhf (static) | E-ink through FBInk: effects and text shown at once; touch and page keys; a sleep screen on the power button; video through its own ffmpeg, no sound |
 
 ## CONscripter additions
 
@@ -222,12 +222,16 @@ sideways: turn the Kobo clockwise.
 - The power button shows a sleep screen (the game, its title, battery, time
   and play time) and suspends the Kobo; power again resumes the game. Turn
   Wi-Fi off first: the game doesn't.
-- Print effects, motions that end and text show at once, as each frame is an
-  e-ink refresh. There's no sound.
+- Print effects and text show at once, as each frame is an e-ink refresh
+  (motions still move). There's no sound.
 - `KOBO_FLIP=1` in `play.sh` turns the game the other way round. The log is
   `conscripter.log` in the game's folder.
 
 Made for the Libra 2; FBInk knows the screen and touch panel of the others.
+Known limits: the sleep screen, suspend and movies are untested on the
+device; Wi-Fi stays on in a suspend; the sleep cover doesn't suspend it; a
+crash leaves KOReader's screen unrestored; a game taller than 4:3 runs off a
+1680x1264 screen.
 
 ## 2. Build
 
