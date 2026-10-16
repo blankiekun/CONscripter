@@ -72,6 +72,7 @@ void optionHelp()
     printf( "      --trace-max-image mb\twith --trace, warn of a single picture taking more memory than this (64)\n");
     printf( "      --roundtrip-every n\twith --trace and --auto-play, save and load every n pages and compare (--roundtrip-slot, 999)\n");
     printf( "      --auto-play pages\tplay by itself, without waiting, for this many pages (0: to the end)\n");
+    printf( "      --no-text-overlay\tweb: the page gets no text, choices or backlog (consText, consChoice, consSprites, consBacklog, consOverlay), so draws no text overlay\n");
     printf( "      --real-time\twith --auto-play, effects, waits and fades take their real time (sprite movement plays out)\n");
     printf( "      --auto-choice first|cycle|random|untaken\thow --auto-play picks a button or choice\n");
     printf( "      --replay trace.jsonl\twith --auto-play, make the choices a trace recorded, then --auto-choice\n");
@@ -444,6 +445,11 @@ void parseOption(int argc, char *argv[]) {
             }
             else if ( !strcmp( argv[0]+1, "-real-time" ) ){
                 ons.setAutoPlayReal();
+            }
+            else if ( !strcmp( argv[0]+1, "-no-text-overlay" ) ){
+#if defined(WEB)
+                EM_ASM({ Module.consNoTextOverlay = 1; }); // the text hooks check it
+#endif
             }
             else if ( !strcmp( argv[0]+1, "-auto-choice" ) ){
                 argc--;
