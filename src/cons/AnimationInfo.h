@@ -97,7 +97,8 @@ public:
 
     enum { BLEND_NORMAL = 0,
            BLEND_ADD    = 1,
-           BLEND_SUB    = 2
+           BLEND_SUB    = 2,
+           BLEND_MUL    = 3 // CONscripter: spblend 2
     };
     int blending_mode;
     int cos_i, sin_i;
@@ -140,21 +141,22 @@ public:
        about the same centre; kept and reset like the zoom. */
     int zoom_rot;
 
-    /* CONscripter: a motion (spmotion, spmotion2): offsets the sprite is
-       drawn at, a zoom and an angle about its centre and a part of its
-       alpha, stepped along keys (ms from the start, x, y, zoom percent,
-       degrees, alpha 0-256) by the timer, looping or once (then back at
-       its place, or, motion_keep, moved to the last key's offset, zoom and
-       alpha). Stays across lsp; reset by remove(). */
+    /* CONscripter: a motion (spmotion): offsets the sprite is drawn at,
+       a zoom and an angle about its centre and a part of its alpha,
+       stepped along keys by the timer, each reached by its curve, looping
+       or once (then back at its place, or, motion_keep, moved to the last
+       key's offset, zoom and alpha), or motion_passes times then kept.
+       Stays across lsp; reset by remove(). */
     enum { MAX_MOTION_KEYS = 32 };
     int motion_keys;           // 0: no motion
-    int motion_key[MAX_MOTION_KEYS][6];
+    int motion_key[MAX_MOTION_KEYS][8]; // ms, x, y, zoom x, angle, alpha, zoom y, curve
     bool motion_loop;
     bool motion_keep;
+    int motion_passes;         // keep after this many passes (0, 1: one)
     int motion_start;          // ticks when it started
     int motion_next;           // ticks of the next step
     int motion_dx, motion_dy;  // the offset drawn now
-    int motion_zoom;           // percent, 100 = none
+    int motion_zoom, motion_zoom_y; // percent, 100 = none
     int motion_rot;            // degrees, counterclockwise as lsp2's
     int motion_alpha;          // 0-256 of the sprite's alpha
 
@@ -166,17 +168,6 @@ public:
     int fade_ms;               // 0: no fade
     int fade_from, fade_start, fade_next, fade_alpha;
     bool fade_out;
-
-    /* CONscripter: a keyed alpha (spalpha): the sprite is drawn at
-       key_alpha (0-256) of its own alpha, stepped along keys (ms from the
-       start, alpha) by the timer, looping or once (then it keeps the last
-       key's), or n times (alpha_loop n >= 2). Stays across lsp; reset by
-       remove(). */
-    int alpha_keys;            // 0: no keys running
-    int alpha_key[MAX_MOTION_KEYS][2];
-    int alpha_loop;            // 0 once, 1 for ever, n: n times
-    int alpha_start, alpha_next;
-    int key_alpha;
 
     /* CONscripter: spz: the sprite is drawn right over sprite z_over
        instead of at its own number (-1: at its own). Stays across lsp;

@@ -630,23 +630,32 @@ Impl `ONScripter::spzoomCommand`.
 ### sprot [cons]
 `sprot num,degrees` — turn counterclockwise (as `lsp2`) about the centre of
 its place, keeping its place among the sprites. Kept and reset as `spzoom`,
-saved, kept by `pushscreen`. A `spmotion2` angle adds to it; loop 2 leaves
+saved, kept by `pushscreen`. A `spmotion` angle adds to it; loop 2 leaves
 its last angle here. `sprot 10,-15:print 1`.
 Impl `ONScripter::sprotCommand`.
 
-### spmotion / spmotion2 [cons]
-`spmotion num[,loop,t1,x1,y1,t2,x2,y2,...]` — move by offsets from its place,
-linear between keys (`t` ms from now), stepped every ~16 ms by the timer
-(also during waits). loop 0: ends, back at its place; 1: repeats; 2: once,
-then the last key's offset/zoom/angle/alpha are applied to the sprite.
-`spmotion num` stops. Up to 32 keys. Stays through `lsp`, removed by `csp`,
-saved (restarted). Another `spmotion`, `lsp`, `msp`, `amsp` first finishes a
-loop-2 motion at its last key.
-`spmotion2 num[,loop,t,x,y,zoom,angle,alpha,...]` adds zoom % (on top of
-`spzoom`), angle (degrees CCW) and alpha 0-256 per key.
-`spmotion 10,1,0,0,0,250,0,-12,500,0,0` (bob);
-`spmotion2 10,1,0,0,0,100,0,256,1000,0,0,100,360,256` (spin).
+### spmotion [cons]
+`spmotion num[,loop,t,x,y,zx,zy,angle,alpha,curve,...]` — keys from its
+place: offset x,y, zoom zx,zy % (times `spzoom`), angle (degrees CCW, added
+to `sprot`), alpha 0-256, at `t` ms from now; `curve` is how the key is
+reached from the one before: 0 straight, 1 ease in, 2 ease out, 3 ease in
+and out, 4 jump at the key, 10-73 an `spcurve` table. Stepped every ~16 ms
+by the timer (also during waits). loop 0: ends, back at its place; 1:
+repeats; 2: once, then the last key's offset/zoom/angle/alpha are applied to
+the sprite; -n: n times, then as 2. `spmotion num` stops. Up to 32 keys.
+Stays through `lsp`, removed by `csp`, saved (restarted). Another
+`spmotion`, `lsp`, `msp`, `amsp` first finishes a loop 2/-n motion at its
+last key.
+`spmotion 10,1,0,0,0,100,100,0,256,0,250,0,-12,100,100,0,256,3,500,0,0,100,100,0,256,3` (bob);
+`spmotion 10,1,0,0,0,100,100,0,256,0,1000,0,0,100,100,360,256,0` (spin);
+`spmotion 20,1,0,0,0,100,100,0,0,0,600,0,0,100,100,0,256,0,1100,0,0,100,100,0,256,0,1700,0,0,100,100,0,0,0` (glow).
 Impl `ONScripter::spmotionCommand`.
+
+### spcurve [cons]
+`spcurve id,v0,v1,...,vn` — curve id (10-73) for `spmotion` keys: how far
+(0-1024) from one key to the next at n+1 even steps (2 to 1025 values), straight
+between them. For an easing table read from a game's exe, as it is. Saved.
+`spcurve 10,0,40,300,1024`. Impl `ONScripter::spcurveCommand`.
 
 ### spfade [cons]
 `spfade num,ms[,from]` — fade in from from/256 (0) to its alpha over ms,
@@ -655,13 +664,6 @@ script continues. `spfade num,0` ends it. Saves keep the final alpha.
 (as csp); lsp on it ends that; saves leave it out.
 `lsp 60,":a;noise.png",0,0,200:spfade 60,2000:print 1`.
 Impl `ONScripter::spfadeCommand`.
-
-### spalpha [cons]
-`spalpha num[,loop,t1,a1,t2,a2,...]` — alpha a/256 keys, linear; loop 1
-repeats, 0 holds the last, n ≥ 2 goes through the keys n times then holds
-the last; `spalpha num` stops. Up to 32 keys, saved.
-`spalpha 20,1,0,0,600,256,1100,256,1700,0,2200,0` (glow).
-Impl `ONScripter::spalphaCommand`.
 
 ### spcut [cons]
 `spcut num,"mask",x,y` — cut a hole in sprite num's picture (every cell): the
@@ -672,9 +674,10 @@ Impl `ONScripter::spcutCommand`.
 
 ### spblend [cons]
 `spblend num,mode` — mode 1 adds the sprite's colours (times its alpha) to
-what is under it, keeping its place among the lsp sprites; 0 normal. Stays
+what is under it, mode 2 multiplies what is under it by them (white leaves
+it, black darkens it, times its alpha), keeping its place among the lsp sprites; 0 normal. Stays
 through `lsp`, removed by `csp`, saved.
-`lsp 2,":c;>800,600,#ffffff",0,0:spblend 2,1:spalpha 2,5,0,128,80,0` (five flashes).
+`lsp 2,":c;>800,600,#ffffff",0,0:spblend 2,1:spmotion 2,-5,0,0,0,100,100,0,128,0,80,0,0,100,100,0,0,0` (five flashes).
 Impl `ONScripter::spblendCommand`.
 
 ### spclip [cons]
@@ -934,7 +937,7 @@ A movie file (`.mp4`, `.m4v`, `.webm`, `.mpg`, `.mpeg`, `.ogv`, `.mov`,
 `.mkv`, `.avi`, `.wmv`, a loose file, not in an archive) given to `lsp`,
 `lsp2`, `bg` or `ld` plays in the picture's place, without its sound, while
 the game waits: the sprite order, the tag's transparency (`:a` takes the
-right half as the alpha), `spalpha`, `spzoom` and the text window over it
+right half as the alpha), `spmotion`, `spzoom` and the text window over it
 work as for a picture. `":c;movie\cut.mp4"` plays once and stays on its last
 frame, `":c/1,0,0;movie\loop.mp4"` loops. `csp` (or another picture) stops
 it; a save keeps the name, so a load starts it again. Under `--auto-play`
