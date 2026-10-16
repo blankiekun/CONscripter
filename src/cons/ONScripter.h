@@ -751,11 +751,14 @@ private:
         int opacity, amp, angle, phase;  // ripple: 0-256, 16.16 pixels, 0.1 degrees, 0-999
         ONSBuf *snap;                    // pulse: the tinted picture when it started
         int snap_w, snap_h;
+        int drawn[4];                    // its look when last flushed (proceedScreenEffects)
     };
     ScreenEffect screen_effect[MAX_SCREEN_EFFECT];
     int screenEffectCommand( int kind, const char *name );
     void startScreenEffect( ScreenEffect &e );
     void stepScreenEffect( ScreenEffect &e );
+    void shakeOffset( ScreenEffect &e, int &dx, int &dy );
+    void screenEffectLook( ScreenEffect &e, int look[4] );
     void clearScreenEffect( ScreenEffect &e );
     void clearScreenEffects();
     bool screenEffectActive();

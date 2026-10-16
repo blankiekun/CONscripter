@@ -23,6 +23,7 @@
 #include "gbk2utf16.h"
 #include "version.h"
 #include <algorithm>
+#include <climits>
 #include <errno.h>
 #include <math.h>
 #include <stdio.h>
@@ -1313,6 +1314,7 @@ void ONScripter::startScreenEffect( ScreenEffect &e )
     e.point = 0;
     delete[] e.snap;
     e.snap = NULL; // pulse: taken when next drawn
+    e.drawn[0] = INT_MIN; // its first step always draws
     if (e.kind == SCREEN_EFFECT_RIPPLE){
         e.opacity = p[2];
         e.amp = p[4] << 16;
@@ -1401,15 +1403,26 @@ void ONScripter::proceedScreenEffects( int current_time )
         if (e.kind == SCREEN_EFFECT_NONE) continue;
         // After a long stop (a menu, a load) go on from now.
         if (current_time - e.next_step > 1000) e.next_step = current_time;
+        bool stepped = false;
         while (e.next_step <= current_time){
             stepScreenEffect( e );
             e.next_step += e.param[1];
-            changed = true;
+            stepped = true;
             // a shake given an end clears its slot when it's over
             if (e.kind == SCREEN_EFFECT_SHAKE && e.param[9] > 0 && e.ran >= e.param[9]){
                 clearScreenEffect( e );
+                changed = true;
                 break;
             }
+        }
+        // Redraw only when a step changed what it shows (a slow shake keeps
+        // its offset for several steps, a finished zoom or pulse holds still).
+        if (!stepped || e.kind == SCREEN_EFFECT_NONE) continue;
+        int look[4];
+        screenEffectLook( e, look );
+        if (memcmp( look, e.drawn, sizeof(look) ) != 0){
+            memcpy( e.drawn, look, sizeof(look) );
+            changed = true;
         }
     }
     if (changed){
@@ -1421,6 +1434,34 @@ void ONScripter::proceedScreenEffects( int current_time )
 static const int shake_path[8][2] = { // 16.16, the original's table
     {-65536, 32768}, {65536, 49152}, {0, 32768}, {16384, 0},
     {-32768, -32768}, {16384, -16384}, {0, 0}, {-65536, 32768} };
+
+// Where a shake moves the screen, in screen pixels.
+void ONScripter::shakeOffset( ScreenEffect &e, int &dx, int &dy )
+{
+    long long ux, uy; // where on the wave or path, 16.16
+    if (e.param[2] == 1){
+        // jumps from point to point, as the original (filmed)
+        ux = shake_path[e.point][0];
+        uy = shake_path[e.point][1];
+    }
+    else{
+        ux = (long long)(sin( M_PI * 2 * ((e.phase_x >> 8) & 0xff) / 256 ) * 65536);
+        uy = (long long)(sin( M_PI * 2 * ((e.phase_y >> 8) & 0xff) / 256 ) * 65536);
+    }
+    dx = (int)((ux * e.range_x) >> 32) * screen_ratio1 / screen_ratio2;
+    dy = (int)((uy * e.range_y) >> 32) * screen_ratio1 / screen_ratio2;
+}
+
+// What of an effect's state applyScreenEffects draws: equal looks draw the same.
+void ONScripter::screenEffectLook( ScreenEffect &e, int look[4] )
+{
+    look[0] = look[1] = look[2] = look[3] = 0;
+    if (e.kind == SCREEN_EFFECT_SHAKE) shakeOffset( e, look[0], look[1] );
+    else if (e.kind == SCREEN_EFFECT_RIPPLE){
+        look[0] = e.opacity; look[1] = e.amp; look[2] = e.angle; look[3] = e.phase;
+    }
+    else look[0] = e.elapsed; // zoom, pulse
+}
 
 void ONScripter::applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip )
 {
@@ -1438,18 +1479,8 @@ void ONScripter::applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip )
             memcpy( copy + y * w, buf + y * pitch, w * sizeof(ONSBuf) );
 
         if (e.kind == SCREEN_EFFECT_SHAKE){
-            long long ux, uy; // where on the wave or path, 16.16
-            if (e.param[2] == 1){
-                // jumps from point to point, as the original (filmed)
-                ux = shake_path[e.point][0];
-                uy = shake_path[e.point][1];
-            }
-            else{
-                ux = (long long)(sin( M_PI * 2 * ((e.phase_x >> 8) & 0xff) / 256 ) * 65536);
-                uy = (long long)(sin( M_PI * 2 * ((e.phase_y >> 8) & 0xff) / 256 ) * 65536);
-            }
-            int dx = (int)((ux * e.range_x) >> 32) * screen_ratio1 / screen_ratio2;
-            int dy = (int)((uy * e.range_y) >> 32) * screen_ratio1 / screen_ratio2;
+            int dx, dy;
+            shakeOffset( e, dx, dy );
             for (int y=0 ; y<h ; y++){
                 int sy = y - dy;
                 if (sy < 0 || sy >= h) continue;
