@@ -98,7 +98,8 @@ public:
     enum { BLEND_NORMAL = 0,
            BLEND_ADD    = 1,
            BLEND_SUB    = 2,
-           BLEND_MUL    = 3 // CONscripter: spblend 2
+           BLEND_MUL    = 3, // CONscripter: spblend 2
+           BLEND_SCREEN = 4  // CONscripter: spblend 4
     };
     int blending_mode;
     int cos_i, sin_i;
