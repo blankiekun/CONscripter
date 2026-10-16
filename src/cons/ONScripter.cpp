@@ -37,7 +37,13 @@
 extern Coding2UTF16 *coding2utf16;
 extern "C" void waveCallback(int channel);
 
-#define DEFAULT_AUDIOBUF  4096
+// Mixer buffer in samples: a sound starts up to one buffer late (4096 was 93 ms at 44.1 kHz,
+// enough to hear on button sounds). The web build mixes on the main thread, so it keeps more slack.
+#if defined(WEB)
+#define DEFAULT_AUDIOBUF  2048
+#else
+#define DEFAULT_AUDIOBUF  1024
+#endif
 
 #define FONT_FILE "default.ttf"
 #define REGISTRY_FILE "registry.txt"
