@@ -4908,7 +4908,8 @@ int ONScripter::logrowsCommand()
     // a proportional font takes its own advance (as the text draws it).
     FontInfo scaled_font;
     FontInfo *glyph_info = textSizeFont(&sentence_font, scaled_font);
-    bool proportional = isProportional(glyph_info);
+    // No TTF opened yet (or a bitmap font): count cells, as before.
+    bool proportional = glyph_info->ttf_font[0] != NULL && isProportional(glyph_info);
     int em = glyph_info->font_size_xy[0] > 0 ? glyph_info->font_size_xy[0] : 1;
     auto width = [&](const char *c, int n) -> int {
         if (n > 1) return 1000;
