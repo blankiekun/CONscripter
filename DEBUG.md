@@ -304,6 +304,11 @@ the end of the line, so it can't hold a line break:
 $5=text to the end of the line
 ```
 
+A `--vars` run is a test run: it doesn't write `gloval.sav`, so global
+variables in the file (an old dump's unlocks and settings) don't replace
+the player's. Saves to slots are still written; add `--save-dir` to keep
+them apart from the real ones.
+
 `--dump-vars file` writes every variable that isn't 0 or empty in this
 form when F8 is pressed and when the engine exits. `tools/cons_trace_vars.py`
 writes one from a trace: the variables at the start of a page (`--page`),

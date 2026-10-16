@@ -1864,7 +1864,11 @@ void ONScripter::startAt()
         }
         return;
     }
-    if (start_vars) readVarsFile( start_vars );
+    if (start_vars){
+        readVarsFile( start_vars );
+        // a test run: its global variables (often an old dump's) aren't written over the real gloval.sav
+        globalon_flag = false;
+    }
     if (!start_goto) return;
     bool found = false;
     for (int i=0 ; i<script_h.getNumLabels() && !found ; i++)
