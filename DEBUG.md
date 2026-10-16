@@ -567,6 +567,7 @@ Each sprite in `sp`:
 | `anim` | `true` for a sprite that steps its own cells (its picture changes with time) |
 | `motion` | `"loop"`, `"once"` or `"keep"` (loop mode 2) while an `spmotion` moves it (the box is its place, without the motion) |
 | `over` | The sprite `spz` draws it right over |
+| `trail` | `[passes,alpha,lag]`, its `sptrail` (lag in ms at game speed) |
 | `fade` | `true` while `spfade` fades it in |
 | `shown` | The alpha it is drawn at, when `spfade` or `spmotion`'s keys make it differ from `alpha` |
 | `since` | The page where it last appeared, or changed its image, position, size, opacity, cell, `spz`, or an `spmotion` starting or ending (an animation stepping its own cells, or a fade or motion moving, doesn't count) |

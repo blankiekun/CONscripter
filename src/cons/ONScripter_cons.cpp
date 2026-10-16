@@ -47,7 +47,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 19 // only this version's block is read; the "Version n" comments below
+#define CONS_SAVE_VERSION 20 // only this version's block is read; the "Version n" comments below
                             // name the parts in the order they are written
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
@@ -256,6 +256,7 @@ int ONScripter::spmotionCommand()
     SDL_Rect before = drawnRect( *ai );
     endKeptMotion( *ai );
     ai->motion_keys = 0;
+    ai->trail_keys = 0;
     ai->motion_dx = ai->motion_dy = 0;
     ai->motion_zoom = ai->motion_zoom_y = 100;
     ai->motion_rot = 0;
@@ -513,6 +514,42 @@ int ONScripter::spclipCommand()
     return RET_CONTINUE;
 }
 
+/* CONscripter
+ * sptrail num,passes,alpha,lag
+ *   Draws passes (1-32, SPTRAIL_MAX) copies of lsp sprite num under it, each at
+ *   alpha per mille (1-1000) of its alpha; copy i shows where the
+ *   sprite's motion (spmotion) had it lag * i ms before, and
+ *   once the motion ends the copies catch up with the sprite. A sprite
+ *   that doesn't move shows no copies. "sptrail num" ends it. It stays
+ *   when lsp changes the image, is removed by csp and is kept in save
+ *   files (not by pushscreen, like the motions).
+ *   lsp 10,"car.png",0,200:sptrail 10,3,500,40:spmotion 10,0,0,0,0,100,100,0,256,0,1000,800,0,100,100,0,256,0 */
+int ONScripter::sptrailCommand()
+{
+    int no = script_h.readInt();
+    int v[3] = {0, 0, 0};
+    for (int k=0 ; k<3 && (script_h.getEndStatus() & ScriptHandler::END_COMMA) ; k++) v[k] = script_h.readInt();
+    if (no < 0 || no >= MAX_SPRITE_NUM){
+        utils::printError("sptrail: sprite %d out of range\n", no);
+        return RET_CONTINUE;
+    }
+    AnimationInfo &ai = sprite_info[no];
+    dirty_rect.add( ai.trail_rect );
+    ai.trail_rect.w = ai.trail_rect.h = 0;
+    bool on = v[0] > 0 && v[1] > 0;
+    ai.trail_passes = on ? (v[0] < SPTRAIL_MAX ? v[0] : SPTRAIL_MAX) : 0;
+    ai.trail_alpha = on ? (v[1] < 1000 ? v[1] : 1000) : 0;
+    ai.trail_lag = on && v[2] > 0 ? speedTime( v[2] ) : 0; // gamespeed
+    if (!on) ai.trail_keys = 0;
+    if (ai.visible && ai.image_surface && on){
+        ai.trail_time = SDL_GetTicks();
+        ai.trail_rect = trailCopies( ai, NULL, NULL );
+        dirty_rect.add( ai.trail_rect );
+    }
+
+    return RET_CONTINUE;
+}
+
 /* spovertext num[,on]
  *   Draws lsp sprite num over the text window and its text (and the bars),
  *   under the sprites windowback and humanz put over the window; "spovertext
@@ -539,8 +576,10 @@ void ONScripter::drawOverTextSprites( SDL_Surface *surface, SDL_Rect &clip )
     if (all_sprite_hide_flag) return;
     for (int i=MAX_SPRITE_NUM-1 ; i>=0 ; i--){
         AnimationInfo &ai = sprite_info[i];
-        if (ai.z_over == Z_OVER_TEXT && ai.image_surface && ai.visible)
+        if (ai.z_over == Z_OVER_TEXT && ai.image_surface && ai.visible){
+            if (ai.trail_passes > 0) trailCopies( ai, surface, &clip );
             drawTaggedSurface( surface, &ai, clip );
+        }
     }
 }
 
@@ -551,13 +590,17 @@ void ONScripter::drawSpriteRange( SDL_Surface *surface, SDL_Rect &clip, int hi, 
         if (sprite_info[i].z_over >= 0) moved = true;
     for (int i=hi ; i>=lo ; i--){
         AnimationInfo &ai = sprite_info[i];
-        if (ai.image_surface && ai.visible && (!moved || ai.z_over < 0))
+        if (ai.image_surface && ai.visible && (!moved || ai.z_over < 0)){
+            if (ai.trail_passes > 0) trailCopies( ai, surface, &clip );
             drawTaggedSurface( surface, &ai, clip );
+        }
         if (!moved) continue;
         for (int k=MAX_SPRITE_NUM-1 ; k>=0 ; k--){
             AnimationInfo &over = sprite_info[k];
-            if (over.z_over == i && over.image_surface && over.visible)
+            if (over.z_over == i && over.image_surface && over.visible){
+                if (over.trail_passes > 0) trailCopies( over, surface, &clip );
                 drawTaggedSurface( surface, &over, clip );
+            }
         }
     }
 }
@@ -576,6 +619,7 @@ void ONScripter::endKeptMotion( AnimationInfo &ai )
 // that ran once (one that keeps its last key moves the sprite there).
 void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
 {
+    ai.trail_time = current_time;
     if (ai.motion_keys == 0) return;
     int last = ai.motion_key[ai.motion_keys-1][0];
     int t = current_time - ai.motion_start;
@@ -592,6 +636,8 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
             ai.zoom_rot += k[4];
             if (k[5] < 256) ai.trans = (ai.trans < 0 ? 255 : ai.trans) * k[5] / 256;
         }
+        // (sptrail: the copies follow it on until they reach the sprite)
+        ai.trail_keys = ai.trail_passes > 0 ? ai.motion_keys : 0;
         ai.motion_keys = 0;
         ai.motion_dx = ai.motion_dy = 0;
         ai.motion_zoom = ai.motion_zoom_y = 100;
@@ -599,18 +645,8 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
         ai.motion_alpha = 256;
         return;
     }
-    int i = 0;
-    while (i + 1 < ai.motion_keys && ai.motion_key[i+1][0] <= t) i++;
-    int *a = ai.motion_key[i];
-    int v[7] = {0, a[1], a[2], a[3], a[4], a[5], a[6]};
-    if (i + 1 < ai.motion_keys && t > a[0]){
-        int *b = ai.motion_key[i+1];
-        int span = b[0] - a[0];
-        if (span > 0){
-            int p = curveAt( b[7], (int)((long long)(t - a[0]) * 1024 / span) );
-            for (int j=1 ; j<7 ; j++) v[j] += (int)((long long)(b[j] - a[j]) * p / 1024);
-        }
-    }
+    int v[7];
+    motionAt( ai, ai.motion_keys, t, v );
     ai.motion_dx = v[1] * screen_ratio1 / screen_ratio2;
     ai.motion_dy = v[2] * screen_ratio1 / screen_ratio2;
     ai.motion_zoom = v[3];
@@ -621,6 +657,104 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
 
 // Steps the sprites' fades and motions; draws what changed
 // (draw false: only says whether something did, for an effect running).
+// The values (0, x, y, zoom x, angle, alpha, zoom y) of the first `keys`
+// motion keys at t ms from the start, each key reached along its curve.
+void ONScripter::motionAt( const AnimationInfo &ai, int keys, int t, int v[7] )
+{
+    int i = 0;
+    while (i + 1 < keys && ai.motion_key[i+1][0] <= t) i++;
+    const int *a = ai.motion_key[i];
+    v[0] = 0;
+    for (int j=1 ; j<7 ; j++) v[j] = a[j];
+    if (i + 1 < keys && t > a[0]){
+        const int *b = ai.motion_key[i+1];
+        int span = b[0] - a[0];
+        if (span > 0){
+            int p = curveAt( b[7], (int)((long long)(t - a[0]) * 1024 / span) );
+            for (int j=1 ; j<7 ; j++) v[j] += (int)((long long)(b[j] - a[j]) * p / 1024);
+        }
+    }
+}
+
+// sptrail: copy i's motion values (as motion_dx, motion_dy, motion_zoom,
+// motion_rot, motion_alpha, motion_zoom_y in v[1..6]): the sprite's
+// i * lag ms before the last step. False when it has none (no motion, no
+// trail).
+bool ONScripter::trailCopyAt( const AnimationInfo &ai, int i, int v[7] )
+{
+    int keys = ai.motion_keys > 0 ? ai.motion_keys : ai.trail_keys;
+    if (ai.trail_passes == 0 || keys == 0) return false;
+    const int *k = ai.motion_key[keys-1];
+    int last = k[0];
+    int t = ai.trail_time - ai.motion_start - i * ai.trail_lag;
+    if (t < 0) t = 0; // before the start: on the first key
+    if (ai.motion_loop && last > 0) t %= last;
+    else if (ai.motion_passes > 1 && last > 0 && t < last * ai.motion_passes) t %= last;
+    else if (t >= last){
+        // past the end: where the sprite is now
+        v[1] = v[2] = v[4] = 0;
+        v[3] = v[6] = 100;
+        v[5] = 256;
+        return true;
+    }
+    motionAt( ai, keys, t, v );
+    if (ai.motion_keys == 0 && ai.motion_keep){
+        // the ended motion's last key is now the sprite's own place, zoom,
+        // angle and alpha (stepSpriteMotion): relative to it
+        v[1] -= k[1];
+        v[2] -= k[2];
+        if (k[3] > 0) v[3] = v[3] * 100 / k[3];
+        if (k[6] > 0) v[6] = v[6] * 100 / k[6];
+        v[4] -= k[4];
+        if (k[5] > 0 && k[5] < 256) v[5] = v[5] * 256 / k[5];
+        if (v[5] > 256) v[5] = 256; // (can't be drawn more opaque than the sprite)
+    }
+    v[1] = v[1] * screen_ratio1 / screen_ratio2;
+    v[2] = v[2] * screen_ratio1 / screen_ratio2;
+    return true;
+}
+
+// sptrail: when the copies of an ended motion have all reached the sprite
+// (ticks from the motion's start).
+static int trailEnd( const AnimationInfo &ai )
+{
+    int last = ai.motion_key[ai.trail_keys-1][0];
+    return last * (ai.motion_passes > 1 ? ai.motion_passes : 1) + ai.trail_passes * ai.trail_lag;
+}
+
+// sptrail: draws the copies of a sprite that differ from it on surface
+// (none when surface is NULL), farthest first; returns the area they
+// cover.
+SDL_Rect ONScripter::trailCopies( AnimationInfo &ai, SDL_Surface *surface, SDL_Rect *clip )
+{
+    DirtyRect area;
+    area.setDimension( screen_width, screen_height );
+    int saved[7] = {0, ai.motion_dx, ai.motion_dy, ai.motion_zoom, ai.motion_rot, ai.motion_alpha, ai.motion_zoom_y};
+    for (int i=ai.trail_passes ; i>=1 ; i--){
+        int v[7];
+        if (!trailCopyAt( ai, i, v )) break;
+        if (memcmp( v + 1, saved + 1, 6 * sizeof(int) ) == 0) continue;
+        ai.motion_dx = v[1];
+        ai.motion_dy = v[2];
+        ai.motion_zoom = v[3];
+        ai.motion_rot = v[4];
+        ai.motion_alpha = v[5] * ai.trail_alpha / 1000;
+        ai.motion_zoom_y = v[6];
+        SDL_Rect r = zoomedRect( ai );
+        r.x += ai.motion_dx;
+        r.y += ai.motion_dy;
+        area.add( r );
+        if (surface) drawTaggedSurface( surface, &ai, *clip );
+    }
+    ai.motion_dx = saved[1];
+    ai.motion_dy = saved[2];
+    ai.motion_zoom = saved[3];
+    ai.motion_rot = saved[4];
+    ai.motion_alpha = saved[5];
+    ai.motion_zoom_y = saved[6];
+    return area.bounding_box;
+}
+
 bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
 {
     // Every sprite that changed is drawn in one flush: a flush per sprite
@@ -655,7 +789,7 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
             if (ai.visible && ai.image_surface && alpha != ai.fade_alpha)
                 changed.add( drawnRect( ai ) );
         }
-        if (ai.motion_keys == 0 || ai.motion_next > current_time) continue;
+        if ((ai.motion_keys == 0 && ai.trail_keys == 0) || ai.motion_next > current_time) continue;
         // After a long stop (a menu, a load) go on from now.
         if (current_time - ai.motion_next > 1000){
             ai.motion_start += current_time - ai.motion_next;
@@ -665,6 +799,18 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
         int dx = ai.motion_dx, dy = ai.motion_dy, zoom = ai.motion_zoom, zoom_y = ai.motion_zoom_y, rot = ai.motion_rot, alpha = ai.motion_alpha;
         SDL_Rect r = drawnRect( ai );
         stepSpriteMotion( ai, current_time );
+        if (ai.trail_passes > 0){
+            // sptrail: the copies, until they reach the sprite
+            if (ai.motion_keys == 0 && ai.trail_keys > 0 && current_time - ai.motion_start >= trailEnd( ai ))
+                ai.trail_keys = 0;
+            SDL_Rect t = {0, 0, 0, 0};
+            if (ai.visible && ai.image_surface) t = trailCopies( ai, NULL, NULL );
+            if (ai.visible){
+                changed.add( ai.trail_rect );
+                changed.add( t );
+            }
+            ai.trail_rect = t;
+        }
         if (!ai.visible || !ai.image_surface) continue;
         if (dx == ai.motion_dx && dy == ai.motion_dy && zoom == ai.motion_zoom && zoom_y == ai.motion_zoom_y && rot == ai.motion_rot && alpha == ai.motion_alpha && ai.motion_keys > 0) continue;
         SDL_Rect r2 = drawnRect( ai );
@@ -686,6 +832,14 @@ SDL_Rect ONScripter::drawnRect( const AnimationInfo &ai )
     SDL_Rect r = zoomedRect( ai );
     r.x += ai.motion_dx;
     r.y += ai.motion_dy;
+    if (ai.trail_rect.w > 0 && ai.trail_rect.h > 0){ // and its sptrail copies
+        int x2 = r.x + r.w > ai.trail_rect.x + ai.trail_rect.w ? r.x + r.w : ai.trail_rect.x + ai.trail_rect.w;
+        int y2 = r.y + r.h > ai.trail_rect.y + ai.trail_rect.h ? r.y + r.h : ai.trail_rect.y + ai.trail_rect.h;
+        if (ai.trail_rect.x < r.x) r.x = ai.trail_rect.x;
+        if (ai.trail_rect.y < r.y) r.y = ai.trail_rect.y;
+        r.w = x2 - r.x;
+        r.h = y2 - r.y;
+    }
     return r;
 }
 
@@ -694,7 +848,7 @@ bool ONScripter::spriteZoomOrMotion()
 {
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         const AnimationInfo &ai = sprite_info[i];
-        if (ai.visible && ai.image_surface && (ai.motion_keys > 0 || ai.zoom_x != 100 || ai.zoom_y != 100 || ai.zoom_rot != 0)) return true;
+        if (ai.visible && ai.image_surface && (ai.motion_keys > 0 || ai.trail_keys > 0 || ai.zoom_x != 100 || ai.zoom_y != 100 || ai.zoom_rot != 0)) return true;
     }
     return false;
 }
@@ -706,7 +860,7 @@ int ONScripter::nextSpriteMotionTime()
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
         if (ai.fade_ms > 0 && (min == 0 || min > ai.fade_next)) min = ai.fade_next;
-        if (ai.motion_keys == 0) continue;
+        if (ai.motion_keys == 0 && ai.trail_keys == 0) continue;
         if (min == 0 || min > ai.motion_next) min = ai.motion_next;
     }
     return min;
@@ -2292,6 +2446,21 @@ void ONScripter::saveSaveFileCons( bool output_flag )
 #else
     writeStr( NULL, output_flag );
 #endif
+
+    // Version 20: the sprite trails (sptrail): the count, then per sprite
+    // its number, passes, alpha and lag (ms at game speed).
+    num = 0;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (sprite_info[i].trail_passes > 0) num++;
+    writeInt( num, output_flag );
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        AnimationInfo &ai = sprite_info[i];
+        if (ai.trail_passes == 0) continue;
+        writeInt( i, output_flag );
+        writeInt( ai.trail_passes, output_flag );
+        writeInt( ai.trail_alpha, output_flag );
+        writeInt( ai.trail_lag, output_flag );
+    }
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -2580,6 +2749,8 @@ void ONScripter::loadSaveFileCons()
         sprite_info[i].z_over = -1;
         memset(sprite_info[i].clip_rect, 0, sizeof(sprite_info[i].clip_rect)); // older saves have none
         sprite_info[i].blending_mode = AnimationInfo::BLEND_NORMAL; // older saves have none
+        sprite_info[i].trail_passes = sprite_info[i].trail_keys = 0; // older saves have none
+        sprite_info[i].trail_rect.w = sprite_info[i].trail_rect.h = 0;
     }
     dirty_rect.fill( screen_width, screen_height );
     setPlaytime( 0 ); // older saves have none
@@ -2901,6 +3072,16 @@ void ONScripter::loadSaveFileCons()
     lua_handler.loadState( lua );
 #endif
     delete[] lua;
+
+    num = readInt();
+    for (int n=0 ; n<num ; n++){
+        int no = readInt(), passes = readInt(), alpha = readInt(), lag = readInt();
+        if (no < 0 || no >= MAX_SPRITE_NUM || passes <= 0) continue;
+        AnimationInfo &ai = sprite_info[no];
+        ai.trail_passes = passes < SPTRAIL_MAX ? passes : SPTRAIL_MAX;
+        ai.trail_alpha = alpha;
+        ai.trail_lag = lag;
+    }
 }
 
 /* --save-dir path: makes the folder, and the folders it is in, if they
