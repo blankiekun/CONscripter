@@ -1,7 +1,8 @@
 # Fix with Claude: started from the button on a CONscripter bug report in Discord (the
 # send worker in blankiekun.github.io's worker/ sends the repository_dispatch). Claude
 # reads the report, fixes what it can here, and this opens a pull request for review.
-# Secrets: CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`), REPORT_SECRET (the worker's).
+# Secrets: CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`), REPORT_SECRET (the worker's),
+# DISCORD_WEBHOOK_URL (the bug report channel's, for Claude's session).
 name: Fix with Claude
 
 on:
@@ -42,6 +43,7 @@ jobs:
           ls -l .bug-report
 
       - uses: anthropics/claude-code-action@v1
+        id: claude
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}  # read-only in this job
@@ -82,15 +84,21 @@ jobs:
 
             Notes from blankiekun: ${{ github.event.client_payload.notes || '(none)' }}
 
+      # Also when Claude failed, so its session still reaches Discord
       - name: Hand over the change
+        if: ${{ !cancelled() && steps.claude.outcome != 'skipped' }}
+        env:
+          SESSION: ${{ steps.claude.outputs.execution_file }}
         run: |
           [ -f .bug-report/pr.md ] || echo "Claude didn't write pr.md." > .bug-report/pr.md
           mkdir -p /tmp/out
           cp .bug-report/pr.md /tmp/out/pr.md
+          [ ! -f "$SESSION" ] || cp "$SESSION" /tmp/out/session.json
           git add -A
           git diff --cached --binary > /tmp/out/change.patch
 
       - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && steps.claude.outcome != 'skipped' }}
         with:
           name: change
           path: /tmp/out/
@@ -98,6 +106,7 @@ jobs:
 
   publish:
     needs: fix
+    if: ${{ !cancelled() && needs.fix.result != 'skipped' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -113,27 +122,48 @@ jobs:
           name: change
           path: ${{ runner.temp }}/change
 
-      - name: Open the pull request
+      - name: Check for secrets
         env:
-          GH_TOKEN: ${{ github.token }}
           ID: ${{ github.event.client_payload.id }}
           CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           REPORT_SECRET: ${{ secrets.REPORT_SECRET }}
           CHANGE: ${{ runner.temp }}/change
         run: |
           [[ "$ID" =~ ^[0-9a-f-]{36}$ ]] || { echo "bad report id"; exit 1; }
-          # Everything below goes public. If a secret got into it (as is, reversed or in
-          # base64, which the log's *** masking misses), publish nothing.
-          out=$(cat "$CHANGE/change.patch" "$CHANGE/pr.md")
+          # The change goes public and the session to Discord. If a secret got into either
+          # (as is, reversed or in base64, which the log's *** masking misses), send nothing.
           for s in "$CLAUDE_TOKEN" "$REPORT_SECRET"; do
             [ -n "$s" ] || continue
             for v in "$s" "$(printf %s "$s" | rev)" "$(printf %s "$s" | base64 -w0 | tr -d =)"; do
-              if grep -qF -- "$v" <<<"$out"; then
-                echo "::error::A secret is in Claude's change, so nothing was published. Revoke and replace it."
+              if grep -rqF -- "$v" "$CHANGE"; then
+                echo "::error::A secret is in Claude's change or session, so nothing was sent. Revoke and replace it."
                 exit 1
               fi
             done
           done
+
+      - name: Post Claude's session to Discord
+        continue-on-error: true  # the pull request still opens without it
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          ID: ${{ github.event.client_payload.id }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CHANGE: ${{ runner.temp }}/change
+        run: |
+          f="$CHANGE/session.json"
+          [ -f "$f" ] || { echo "Claude left no session."; exit 0; }
+          # Discord takes attachments up to 10 MB
+          [ "$(stat -c%s "$f")" -lt 9000000 ] || { gzip "$f"; f="$f.gz"; }
+          curl -fsS -o /dev/null --form-string "payload_json={\"content\":\"Claude's session on bug report ${ID:0:8} in $GITHUB_REPOSITORY: <$RUN>\"}" \
+            -F "files[0]=@$f;filename=claude-${ID:0:8}-${f##*/}" "$WEBHOOK"
+
+      - name: Open the pull request
+        if: ${{ needs.fix.result == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ID: ${{ github.event.client_payload.id }}
+          CHANGE: ${{ runner.temp }}/change
+        run: |
           cat "$CHANGE/pr.md" >> "$GITHUB_STEP_SUMMARY"
           if [ ! -s "$CHANGE/change.patch" ]; then echo "No changes, so no pull request."; exit 0; fi
           # git apply refuses paths inside .git; workflow files can't be pushed with this token
