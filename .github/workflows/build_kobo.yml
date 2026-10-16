@@ -1,0 +1,47 @@
+name: build kobo (koreader)
+on:
+  push: {tags:  ['v*']} #  Push events to matching v*, i.e. v1.0, v20.15.10
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build_kobo:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: prepare enviroment
+      run: |
+        sudo rm -f /var/lib/man-db/auto-update # no man page index rebuild after installing
+        sudo apt-get update
+        sudo apt-get -y install --no-install-recommends crossbuild-essential-armhf autoconf automake libtool pkg-config
+
+    # no prebuilt ports: SDL2 without X11/GL, FBInk and ffmpeg are the Kobo's own
+    - name: build conscripter_kobo
+      run: |
+        if [ "${{ github.ref_type }}" = tag ]; then
+          sed -i -E 's/#define CONSCRIPTER_VERSION "(.+?)"/#define CONSCRIPTER_VERSION "${{  github.ref_name }}"/g' src/cons/version.h
+        fi
+        cd script
+        bash cross_kobo.sh
+        test -f ../build_kobo/conscripter
+
+    # unzipped at the root of the Kobo's storage
+    - name: prepare release
+      if: github.ref_type == 'tag'
+      run: |
+        mkdir -p kobo/.adds/conscripter
+        cp build_kobo/conscripter thirdparty/build/arch_kobo/bin/ffmpeg src/cons_kobo/play.sh kobo/.adds/conscripter/
+        cd kobo && zip -r ../conscripter_${{  github.ref_name }}_kobo_koreader.zip .adds
+
+    - name: create release
+      uses: ncipollo/release-action@v1
+      if: github.ref_type == 'tag'
+      with:
+        artifacts: "conscripter_*_kobo_koreader.zip"
+        allowUpdates: "true"
+        omitBodyDuringUpdate: "true" # keep the release notes written by hand
+        token: ${{ secrets.GITHUB_TOKEN }}
