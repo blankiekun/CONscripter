@@ -534,9 +534,12 @@ private:
     void flush( int refresh_mode, SDL_Rect *rect=NULL, bool clear_dirty_flag=true, bool direct_flag=false );
     void flushDirect( SDL_Rect &rect, int refresh_mode );
     void presentScreen();
+    void presentPending();
     Uint32 present_time = 0;      // CONscripter: ticks the last present ended
     enum { SKIP_PRESENT_MS = 50 };  // while skipping, presents at most this often
-    bool present_pending = false; // a flush while skipping not shown yet
+    bool present_pending = false; // flushed to the texture, not shown yet
+    bool blt_shown = false;       // CONscripter: blt's picture is over the screen
+    SDL_Rect blt_shown_src, blt_shown_dst;
     #ifdef USE_SMPEG
     void flushDirectYUV(SDL_Overlay *overlay);
     #endif

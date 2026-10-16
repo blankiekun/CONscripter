@@ -1115,6 +1115,11 @@ No command involved:
   names looked up as UTF-8 first).
 - **Web**: `ons_args` fetched in lazily loaded games; `gloval.sav` written
   at waits when changed (≤ every 2 s), `kidoku.dat` every 30 s, then synced.
+- **Screen updates** go up once before the engine waits (a timer tick, a
+  wait, a click wait), once per effect frame, and at `blt`/`draw`, not at
+  each drawing: with vsync a timer tick with several animations no longer
+  takes a refresh each. While skipping or in `--auto-play` without
+  `--real-time`, at most every 50 ms.
 - **Player settings** (`soundmute`, `clickvoicestop`, `autovoicewait`,
   `selectkeep`, `moviestop`, `gamespeed`, `effectoff`, `textshadow`,
   `sysevol`) live in memory only: the game sets them again at startup.

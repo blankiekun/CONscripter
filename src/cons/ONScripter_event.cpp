@@ -306,7 +306,7 @@ bool ONScripter::waitEvent( int count )
         trace_wait_ms += count;
     }
     if (auto_play_flag && autoPlayWait( count )) return false;
-    if (count != 0 && present_pending) presentScreen(); // CONscripter: what skipping held back
+    if (count == 0) presentPending(); // CONscripter: a wait that doesn't sleep (the event loop presents before it sleeps)
     if (count > 0) count += SDL_GetTicks();
     // chimimouryou: the reader may look up sprite text while the game waits for input.
     // shortcut: timed waits (btntime, automode) don't send it; add them if games need it.
@@ -1138,8 +1138,11 @@ void ONScripter::timerEvent(bool init_flag)
     int duration = 0;
     if (event_mode & WAIT_TIMER_MODE){
         proceedAnimation(current_time);
-        duration = calcDurationToNextAnimation() - current_time;
-        if (duration < 0) duration = 0;
+        // CONscripter: from the clock now (drawing took time); a step due
+        // already is due in 1 ms, not dropped until the wait ends
+        int next = calcDurationToNextAnimation();
+        duration = next - (int)SDL_GetTicks();
+        if (duration <= 0) duration = next > current_time ? 1 : 0;
     }
 
     // trick to increase frame rate
@@ -1228,7 +1231,21 @@ void ONScripter::runEventLoop()
 {
     SDL_Event event, tmp_event;
 
-    while ( waitNextEvent(&event) ) {
+    while (1) {
+        if (!SDL_PollEvent(&event)){
+            // CONscripter: what was drawn goes up once, before the engine
+            // sleeps: not while events wait (SDL_PollEvent also returns 0
+            // at SDL's poll sentinel), for at most SKIP_PRESENT_MS. A wait
+            // shorter than a frame leaves it to the next if one went up
+            // within a frame (text faster than vsync), and while skipping
+            // goes up at most every SKIP_PRESENT_MS.
+            Uint32 now = SDL_GetTicks();
+            bool busy = SDL_HasEvents( SDL_FIRSTEVENT, SDL_LASTEVENT ) && now - present_time < SKIP_PRESENT_MS;
+            bool sleeps = next_time <= 0 || next_time - (int)now >= FRAME_MS;
+            if (!busy && sleeps && present_pending) presentScreen();
+            else if (!busy && !sleeps && now - present_time >= FRAME_MS) presentPending();
+            if (!waitNextEvent(&event)) break;
+        }
         tmp_event = event; // fix android long click problem
 #if defined(USE_SMPEG)
         // required to repeat the movie

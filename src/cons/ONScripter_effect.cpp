@@ -497,6 +497,7 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
 
     if ( effect_counter < effect_duration && effect_no != 1 ){
         if ( effect_no != 0 ) flush( REFRESH_NONE_MODE, NULL, false );
+        presentPending(); // CONscripter: one present per frame
     
         return true;
     }
@@ -504,6 +505,7 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
         SDL_BlitSurface( effect_dst_surface, &dirty_rect.bounding_box, accumulation_surface, &dirty_rect.bounding_box );
 
         if ( effect_no != 0 ) flush(REFRESH_NONE_MODE, NULL, clear_dirty_region);
+        presentPending();
         if ( effect_no == 1 ) effect_counter = 0;
         skip_mode &= ~SKIP_TO_EOL;
 

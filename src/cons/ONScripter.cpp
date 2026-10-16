@@ -946,13 +946,20 @@ void ONScripter::flushDirect( SDL_Rect &rect, int refresh_mode )
     SDL_UnlockSurface(accumulation_surface);
 
     screen_dirty_flag = false;
-    // CONscripter: while skipping, the screen goes up at most every
-    // SKIP_PRESENT_MS; each present waits for vsync, and a skipped page
-    // flushes several times
-    if ((skip_mode & SKIP_NORMAL || ctrl_pressed_status) && SDL_GetTicks() - present_time < SKIP_PRESENT_MS){
-        present_pending = true;
-        return;
-    }
+    // CONscripter: no present here: each waits for vsync, and one timer tick
+    // or page flushes several times. The event loop presents before it
+    // sleeps, waitEvent and doEffect through presentPending.
+    present_pending = true;
+    blt_shown = false;
+}
+
+// CONscripter: presents what flushDirect drew; while skipping or playing
+// itself fast, at most once per SKIP_PRESENT_MS (the rest goes up later).
+void ONScripter::presentPending()
+{
+    if (!present_pending) return;
+    if ((skip_mode & (SKIP_NORMAL | SKIP_TO_EOP) || ctrl_pressed_status || (auto_play_flag && !auto_play_real)) &&
+        SDL_GetTicks() - present_time < SKIP_PRESENT_MS) return;
     presentScreen();
 }
 
@@ -986,6 +993,7 @@ void ONScripter::presentScreen()
         SDL_RenderCopy(renderer, texture, NULL, &render_view_rect);
     }
 #endif
+    if (blt_shown && blt_texture) SDL_RenderCopy(renderer, blt_texture, &blt_shown_src, &blt_shown_dst);
     SDL_RenderPresent(renderer);
     present_time = SDL_GetTicks(); // after vsync, which the present waits for
 }
@@ -993,12 +1001,8 @@ void ONScripter::presentScreen()
 #ifdef USE_SMPEG
 void ONScripter::flushDirectYUV(SDL_Overlay *overlay)
 {
-    SDL_Rect dst_rect = {(device_width -screen_device_width )/2, 
-                         (device_height-screen_device_height)/2,
-                         screen_device_width, screen_device_height};
     SDL_UpdateTexture(texture, &screen_rect, overlay->pixels[0], overlay->pitches[0]);
-    SDL_RenderCopy(renderer, texture, &screen_rect, &dst_rect);
-    SDL_RenderPresent(renderer);  
+    presentScreen(); // CONscripter: clears and copies the whole texture, as a flush does
 }
 #endif
 
@@ -1135,8 +1139,8 @@ void ONScripter::setFullScreen(bool fullscreen) {
     SDL_SetWindowFullscreen(window, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
 #endif
         calcRenderRect();
+        fullscreen_mode = fullscreen; // CONscripter: before the flush, which draws for it
         flushDirect(screen_rect, refreshMode());
-        fullscreen_mode = fullscreen;
     }
 }
 

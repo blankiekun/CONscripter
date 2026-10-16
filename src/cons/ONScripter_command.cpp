@@ -1324,6 +1324,7 @@ int ONScripter::playCommand()
 
 int ONScripter::ofscopyCommand()
 {
+    if (present_pending) presentScreen(); // CONscripter: reads what was drawn, as when every flush presented
     SDL_Surface *tmp_surface = AnimationInfo::alloc32bitSurface(render_view_rect.w, render_view_rect.h, texture_format);
     SDL_LockSurface(tmp_surface);
     SDL_RenderReadPixels(renderer, &render_view_rect, tmp_surface->format->format, tmp_surface->pixels, tmp_surface->pitch);
@@ -3165,6 +3166,7 @@ int ONScripter::drawCommand()
 {
     flushDirect( screen_rect, REFRESH_NONE_MODE );
     dirty_rect.clear();
+    presentPending(); // CONscripter: shown now, as before flushDirect stopped presenting
     
     return RET_CONTINUE;
 }
@@ -3641,6 +3643,7 @@ int ONScripter::btndefCommand()
         const char *buf = script_h.readStr();
 
         btndef_info.remove();
+        blt_shown = false;
         if (blt_texture != NULL) SDL_DestroyTexture(blt_texture);
         blt_texture = NULL;
 
@@ -3815,6 +3818,7 @@ int ONScripter::bltCommand()
             SDL_BlitScaled(btndef_info.image_surface, &src_rect, bg_info.image_surface, &dst_rect);
             flushDirect(dst_rect, REFRESH_NORMAL_MODE);
             dirty_rect.clear();
+            presentPending(); // CONscripter
             return RET_CONTINUE;
         }
 #endif
@@ -3822,14 +3826,20 @@ int ONScripter::bltCommand()
 #if defined(ANDROID) // dirty fix for android flash problem 
         SDL_BlitScaled(btndef_info.image_surface, &src_rect, bg_info.image_surface, &dst_rect);
         flushDirect(dst_rect, REFRESH_NORMAL_MODE);
+        presentPending(); // CONscripter
 #else
         // fix blt scale
         dst_rect.x += render_view_rect.x;
         dst_rect.y += render_view_rect.y;
         dst_rect.w /= screen_scale_ratio1;
         dst_rect.h /= screen_scale_ratio2;
-        SDL_RenderCopy(renderer, blt_texture, &src_rect, &dst_rect);
-        SDL_RenderPresent(renderer);
+        // CONscripter: drawn over the whole screen by presentScreen (it
+        // was put on the back buffer alone: flicker with double buffering),
+        // until the next flush redraws the screen
+        blt_shown_src = src_rect;
+        blt_shown_dst = dst_rect;
+        blt_shown = present_pending = true;
+        presentPending();
 #endif
         dirty_rect.clear();
 
@@ -4225,6 +4235,7 @@ void ONScripter::NSDPresentRectCommand(int x1, int y1, int x2, int y2)
             drawTaggedSurface( accumulation_surface, &texture_info[i], clip );
 
     flushDirect(clip, REFRESH_NONE_MODE);
+    presentPending(); // CONscripter
 }
 
 void ONScripter::NSDSp2Command(int texnum, int dcx, int dcy, int sx, int sy, int w, int h,
