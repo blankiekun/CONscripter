@@ -1518,13 +1518,21 @@ int ONScripter::mp3Command()
         mp3save_flag = false;
     }
 
+    // CONscripter: bgm "file",ms cross-fades from the music playing over ms
+    std::string name = script_h.readStr();
+    int cross = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
+    if (cross > 0 && !(skip_mode & (SKIP_NORMAL | SKIP_TO_EOP) || ctrl_pressed_status || (auto_play_flag && !auto_play_real)))
+        crossFadeOutBGM( cross );
+    int fadein = mp3fadein_duration;
+    if (cross > 0) mp3fadein_duration = cross;
+
     mp3stopCommand();
     stopBGM( false );
 
     music_play_loop_flag = loop_flag;
     music_loopback_offset = 0.0;
 
-    const char *buf = script_h.readStr();
+    const char *buf = name.c_str();
     if (buf[0] != '\0'){
         if (buf[0]=='('){
             buf++;
@@ -1579,6 +1587,7 @@ int ONScripter::mp3Command()
             }
         }
     }
+    mp3fadein_duration = fadein; // CONscripter: a cross-fade's is for this music only
         
     return RET_CONTINUE;
 }

@@ -911,6 +911,7 @@ private:
     Uint32 bgm_later_time = 0;
     void cancelLaterBGM();
     void cutChannel( int channel );
+    void crossFadeOutBGM( int ms ); // CONscripter: bgm "file",ms
     std::string trace_sound;         // the sound the command being run plays, as JSON fields
     void traceMovie( bool script_click );
 
