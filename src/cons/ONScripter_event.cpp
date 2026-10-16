@@ -24,6 +24,9 @@
  */
 
 #include "ONScripter.h"
+#if defined(KOBO)
+#include "kobo.h"
+#endif
 #include "Utils.h"
 #if defined(WEB)
 #include <emscripten.h>
@@ -1245,6 +1248,9 @@ void ONScripter::runEventLoop()
         }
 
         if (hold_release && holdRelease( event )) continue; // CONscripter: mpeghold
+#if defined(KOBO)
+        if (event.type == kobo::sleep_event){ kobo::sleep(); continue; }
+#endif
 
         switch (event.type) {
 #if defined(IOS) || defined(ANDROID) || defined(WINRT)

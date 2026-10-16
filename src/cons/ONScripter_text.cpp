@@ -1129,6 +1129,7 @@ bool ONScripter::processText()
 
         int wait_time = sentence_font.wait_time == -1 ? default_text_speed[text_speed_no] : sentence_font.wait_time;
         if (text_speed_override >= 0) wait_time = text_speed_override; // CONscripter: set by the web page
+        if (still_screen) wait_time = 0;
         if ( skip_mode || ctrl_pressed_status || wait_time == 0 ){
             drawChar( out_text, &sentence_font, false, true, accumulation_surface, &text_info );
         }
@@ -1376,7 +1377,7 @@ bool ONScripter::processText()
         }
         
         bool flush_flag = true;
-        if ( skip_mode || ctrl_pressed_status )
+        if ( skip_mode || ctrl_pressed_status || still_screen )
             flush_flag = false;
         // Two half-width characters are drawn together. CONscripter: not
         // with a character that starts a full-width one, or with '/', '@',
@@ -1402,6 +1403,7 @@ bool ONScripter::processText()
 
         int wait_time = sentence_font.wait_time == -1 ? default_text_speed[text_speed_no] : sentence_font.wait_time;
         if (text_speed_override >= 0) wait_time = text_speed_override; // CONscripter: set by the web page
+        if (still_screen) wait_time = 0;
         if (!skip_mode && !ctrl_pressed_status && wait_time != 0){
             event_mode = WAIT_TIMER_MODE | WAIT_INPUT_MODE;
             waitEvent( wait_time );
