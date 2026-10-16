@@ -345,7 +345,7 @@ recording at text. Impl `ONScripter::savepointCommand` etc.
 `setwindow x,y,cols,rows,fw,fh,px,py,speed,bold,shadow,"#col"|"image",wx1,wy1[,wx2,wy2]`
 — text area and window; `setwindow2 "#col"|"image"` — only the window
 picture; `setwindow3` like `setwindow` without a new page.
-[cons] `textshadow` and `windowtrans` override shadow and opacity.
+[cons] `consset "textshadow"` and `windowtrans` override shadow and opacity.
 Impl `ONScripter::setwindowCommand`, `setwindow2Command`, `setwindow3Command`.
 
 ### windowtrans [cons]
@@ -400,11 +400,6 @@ Impl `ONScripter::drawtextCommand`.
 ### selectcolor
 `selectcolor "#on","#off"` — `select` choice colours.
 Impl `ScriptParser::selectcolorCommand`.
-
-### textshadow [cons]
-`textshadow 0|1` — 0 removes the message text's shadow whatever `setwindow`
-says (default 1). Other text keeps its own. Memory only.
-Impl `ONScripter::textshadowCommand`.
 
 ## Backlog
 
@@ -720,7 +715,7 @@ Impl `ONScripter::btntimeCommand`.
 ### getbtntimer / gettimer / resettimer / waittimer
 `gettimer %v` — ms since `resettimer`; `getbtntimer %v` — ms the last
 `btnwait` took; `waittimer ms` — wait until the timer reaches ms.
-[cons] scaled by `gamespeed`. Impl `ONScripter::gettimerCommand`,
+[cons] scaled by `consset "gamespeed"`. Impl `ONScripter::gettimerCommand`,
 `resettimerCommand`, `waittimerCommand`.
 
 ### btndown / bdown
@@ -777,7 +772,7 @@ See define section.
 ### select / selgosub / selnum / csel
 `select "text",*label,...` — choose and jump; `selgosub` — gosub; `selnum
 %v,"a","b",...` — index. `csel` — custom select (`cselbtn`, `cselgoto`,
-`getcselnum`, `getcselstr`). [cons] `selectkeep` keeps auto/skip.
+`getcselnum`, `getcselstr`). [cons] `consset "selectkeep",1` keeps auto/skip.
 Impl `ONScripter::selectCommand`.
 
 ### cselbtn / cselgoto / getcselnum / getcselstr
@@ -841,7 +836,7 @@ minus the ms until it starts. `getbgmpos %1:mov %2,252000-%1:bgmlater
 MIDI/CD: `play "file"`. Impl `ONScripter::playCommand`, `playstopCommand`.
 
 ### wave / waveloop / wavestop
-`wave "file"` — on the system channel. [cons] its volume is `sysevol`.
+`wave "file"` — on the system channel. [cons] its volume is `consset "sysevol"`.
 Impl `ONScripter::waveCommand`, `wavestopCommand`.
 
 ### dwave / dwaveloop / dwaveload / dwaveplay / dwaveplayloop / dwavestop
@@ -866,10 +861,6 @@ script's own % on top, ramped, stays with the channel, saved, `reset` → 100.
 ### sevol / voicevol / getsevol / getvoicevol
 Volumes 0-100. Impl `ONScripter::sevolCommand` etc.
 
-### sysevol [cons]
-`sysevol vol` — volume of `wave`'s channel (menu sounds, `selectvoice`,
-`btnse`); -1 (default) = `sevol`. Impl `ONScripter::sysevolCommand`.
-
 ### stop
 `stop` — all sound. Impl `ONScripter::stopCommand`.
 
@@ -877,18 +868,26 @@ Volumes 0-100. Impl `ONScripter::sevolCommand` etc.
 `v123` / `dv123` — play `voice\123.wav` (prefix commands).
 Impl `ONScripter::vCommand`, `dvCommand`.
 
+### consset / consget [cons]
+`consset "key",value` / `consget %var,"key"` — player settings (memory
+only; the game sets them again at startup). Keys: `mutebgm`, `mutese`,
+`mutevoice` (1 mutes; sounds play on unheard; auto mode doesn't wait for a
+muted voice); `clickvoicestop` (1: a click ending a text wait stops the
+voice); `autovoicewait` (0: auto mode doesn't wait for the voice; default
+1); `selectkeep` (1: auto and skip continue after a `select`); `moviestop`
+(1 a click always stops a movie, 0 never, -1 as the script says);
+`gamespeed` (10-10000 %, 100: script times — `wait`, `delay`, timers,
+effects, `spfade`, `spmotion`, `screenshake` — run at that speed; text
+speed, auto wait and sounds unaffected); `sysevol` (volume of `wave`'s
+channel: menu sounds, `selectvoice`, `btnse`; -1 = `sevol`); `effectoff`
+(1: every `print`/`bg`/`ld`/`cl` effect drawn at once); `textshadow` (0: no
+message text shadow whatever `setwindow` says; default 1). An unknown key
+is an error. `consset "gamespeed",200`.
+Impl `ONScripter::conssetCommand`, `consgetCommand`.
+
 ### btnse [cons]
 `btnse "file"` — played on `wave`'s channel when a button wait ends on a
 button (≥ 1). `""` none. Not saved. Impl `ONScripter::btnseCommand`.
-
-### soundmute [cons]
-`soundmute bgm,se,voice` — 1 mutes (sounds play on unheard). Auto mode
-doesn't wait for a muted voice. Impl `ONScripter::soundmuteCommand`.
-
-### clickvoicestop / autovoicewait [cons]
-`clickvoicestop 1` — a click ending a text wait stops the voice.
-`autovoicewait 0` — auto mode doesn't wait for the voice (default 1).
-Impl `ONScripter::clickvoicestopCommand`, `autovoicewaitCommand`.
 
 ## Movies
 
@@ -915,7 +914,7 @@ through a hidden `<video>`. Impl `ONScripter::openSpriteMovie`,
 
 ### spmoviewait [cons]
 `spmoviewait n[,click]` — waits until the movie in sprite n has ended; with
-click 1 a click, skip or auto-play ends the wait (`moviestop` overrides the
+click 1 a click, skip or auto-play ends the wait (`consset "moviestop"` overrides the
 flag), the movie stopping on the frame shown and the `dwave` sounds started
 since the last wait stopping with it. A looping movie, or none, returns at
 once. Impl `ONScripter::spmoviewaitCommand`.
@@ -938,28 +937,11 @@ Impl `ONScripter::movieCommand`.
 ### avi
 `avi "file",click`. Impl `ONScripter::aviCommand`.
 
-### moviestop [cons]
-`moviestop mode` — whether a click stops a movie: 1 always, 0 never, -1 as
-the script says. Impl `ONScripter::moviestopCommand`.
-
 ## Waiting and timing
 
 ### wait / delay
-`wait ms` (not clickable), `delay ms` (clickable). [cons] scaled by `gamespeed`.
+`wait ms` (not clickable), `delay ms` (clickable). [cons] scaled by `consset "gamespeed"`.
 Impl `ONScripter::waitCommand`, `delayCommand`.
-
-### gamespeed [cons]
-`gamespeed percent` (10-10000, 100) — script times (`wait`, `delay`,
-timers, effects, `spfade`, `spmotion`, `screenshake`) run at that %. Text
-speed, auto wait and sounds unaffected. Impl `ONScripter::gamespeedCommand`.
-
-### effectoff [cons]
-`effectoff 1` — every `print`/`bg`/`ld`/`cl` effect drawn at once.
-Impl `ONScripter::effectoffCommand`.
-
-### selectkeep [cons]
-`selectkeep 1` — auto and skip continue after a `select`.
-Impl `ONScripter::selectkeepCommand`.
 
 ### skipoff
 `skipoff` — leave skip mode. Impl `ONScripter::skipoffCommand`.
@@ -1115,6 +1097,4 @@ No command involved:
   names looked up as UTF-8 first).
 - **Web**: `ons_args` fetched in lazily loaded games; `gloval.sav` written
   at waits when changed (≤ every 2 s), `kidoku.dat` every 30 s, then synced.
-- **Player settings** (`soundmute`, `clickvoicestop`, `autovoicewait`,
-  `selectkeep`, `moviestop`, `gamespeed`, `effectoff`, `textshadow`,
-  `sysevol`) live in memory only: the game sets them again at startup.
+- **Player settings** (`consset`) live in memory only: the game sets them again at startup.

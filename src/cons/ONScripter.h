@@ -226,23 +226,18 @@ public:
     int screenflashCommand();
     int screenfilterCommand();
     int screenshakeCommand();
-    int soundmuteCommand();
-    int clickvoicestopCommand();
-    int autovoicewaitCommand();
-    int selectkeepCommand();
-    int moviestopCommand();
     int mpegholdCommand();
     int spmoviewaitCommand();
-    int gamespeedCommand();
-    int sysevolCommand();
     int btnseCommand();
-    int effectoffCommand();
-    int textshadowCommand();
     int strspoutlineCommand();
     int screenrippleCommand();
     int screenpulseCommand();
     int screenzoomCommand();
     int windowtransCommand();
+    int conssetCommand(); // CONscripter: player settings
+    int consgetCommand();
+    bool setSetting(const char *key, int v);
+    bool getSetting(const char *key, int &v);
     int openurlCommand();
     int getkeyCommand();
     int getplaytimeCommand();
@@ -915,8 +910,7 @@ private:
     void traceMovie( bool script_click );
 
     // CONscripter: player settings a game's settings screen sets
-    // (soundmute, clickvoicestop, autovoicewait, selectkeep, moviestop,
-    // gamespeed, effectoff, textshadow, sysevol, btnse); not saved, the game sets them
+    // (consset's keys, btnse); not saved, the game sets them
     // again at startup
     bool click_voice_stop = false;   // a click that ends a text wait stops the voice
     bool auto_voice_wait = true;     // auto mode waits for the voice to end (off: cuts it)
