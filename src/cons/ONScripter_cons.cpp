@@ -4882,9 +4882,11 @@ int ONScripter::spmoviewaitCommand()
 /* logrows %n,columns
  *   Lays the text history out as rows, oldest first, and puts how many
  *   there are in %n: each page's lines, cut at columns full-width
- *   characters (a half-width one takes half; a row of half-width text
- *   is cut at the space before the word that doesn't fit), with ruby
- *   shown as its base text. A page with no text has no rows.
+ *   characters (a half-width one takes half, or in a proportional
+ *   sentence font its own width over the font's size; a row of
+ *   half-width text is cut at the space before the word that doesn't
+ *   fit), with ruby shown as its base text. A page with no text has no
+ *   rows.
  * getlogrow $text,$voice,row
  *   The text of row row (0 = the oldest) as logrows laid it out, "" past
  *   the last; $voice is the voice the row's page played on channel 0
@@ -4900,6 +4902,20 @@ int ONScripter::logrowsCommand()
 
     log_rows.clear();
     bool utf8 = coding2utf16->force_utf8;
+    // Widths in thousandths of a full-width cell: a half-width letter of
+    // a proportional font takes its own advance (as the text draws it).
+    FontInfo scaled_font;
+    FontInfo *glyph_info = textSizeFont(&sentence_font, scaled_font);
+    bool proportional = isProportional(glyph_info);
+    int em = glyph_info->font_size_xy[0] > 0 ? glyph_info->font_size_xy[0] : 1;
+    auto width = [&](const char *c, int n) -> int {
+        if (n > 1) return 1000;
+        if (!proportional) return 500;
+        int a, adv;
+        if (TTF_GlyphMetrics((TTF_Font*)glyph_info->ttf_font[0], (unsigned char)*c, &a, &a, &a, &a, &adv) != 0) return 500;
+        return adv * 1000 / em;
+    };
+    const int limit = columns * 1000;
     Page *page = start_page;
     while (1){
         const char *p = page->text, *end = page->text + page->text_count;
@@ -4931,8 +4947,8 @@ int ONScripter::logrowsCommand()
                     const char *base_end = slash;
                     while (p < base_end){
                         int n = utf8 ? UTF8_N_BYTE(*p) : (IS_TWO_BYTE(*p) ? 2 : 1);
-                        int w = (n > 1) ? 2 : 1;
-                        if (units + w > columns * 2) put();
+                        int w = width(p, n);
+                        if (units + w > limit) put();
                         row.append( p, n );
                         units += w;
                         p += n;
@@ -4944,8 +4960,8 @@ int ONScripter::logrowsCommand()
             }
             int n = utf8 ? UTF8_N_BYTE(*p) : (IS_TWO_BYTE(*p) ? 2 : 1);
             if (n < 1 || p + n > end) n = 1;
-            int w = (n > 1) ? 2 : 1;
-            if (units + w > columns * 2){
+            int w = width(p, n);
+            if (units + w > limit){
                 // A word of half-width letters goes whole to the next row,
                 // which starts after the space.
                 size_t sp = row.rfind( ' ' );
@@ -4957,7 +4973,7 @@ int ONScripter::logrowsCommand()
                     for (size_t i = 0; i < rest.size(); ){
                         int m = utf8 ? UTF8_N_BYTE(rest[i]) : (IS_TWO_BYTE(rest[i]) ? 2 : 1);
                         if (m < 1) m = 1;
-                        units += (m > 1) ? 2 : 1;
+                        units += width(&rest[i], m);
                         i += m;
                     }
                 }
