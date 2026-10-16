@@ -3587,6 +3587,9 @@ void ONScripter::effectRule( const char *params, int duration )
     const char *p = strchr(params, '/');
     const char *comma = p ? strrchr(p, ',') : NULL;
     int cells = comma ? atoi(comma + 1) : 0;
+#if defined(BPP16)
+    cells = 0; // 16-bit surfaces: a plain cross-fade, the rule never loaded
+#endif
     if (cells >= 2){
         std::string name(p + 1, comma - p - 1);
         if (!rule_name || name != rule_name){
@@ -3598,9 +3601,6 @@ void ONScripter::effectRule( const char *params, int duration )
             if (!rule) utils::printError("cons_rule.dll: can't load %s\n", rule_name);
         }
     }
-#if defined(BPP16)
-    rule = NULL;
-#endif
     if (cells < 2 || !rule || rule->format->BytesPerPixel != 4 || rule->w < cells){
         alphaBlend( NULL, ALPHA_BLEND_CONST, 256 * effect_counter / (duration > 0 ? duration : 1), &dirty_rect.bounding_box );
         return;
