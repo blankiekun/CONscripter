@@ -327,7 +327,8 @@ int ONScripter::spfadeCommand()
     if (ai.fade_out) ms = -ms;
     if (from < 0) from = 0;
     if (from > 256) from = 256;
-    ai.fade_ms = ms > 0 ? speedTime( ms ) : 0; // gamespeed
+    // gamespeed; at once in --auto-play, which doesn't wait for the timer
+    ai.fade_ms = ms > 0 && !auto_play_flag ? speedTime( ms ) : 0;
     ai.fade_from = from;
     ai.fade_alpha = ai.fade_ms > 0 ? from : 256;
     if (ai.fade_out && ai.fade_ms == 0){ // at once
