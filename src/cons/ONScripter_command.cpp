@@ -1193,8 +1193,13 @@ int ONScripter::quakeCommand()
     dirty_rect.fill( screen_width, screen_height );
     SDL_BlitSurface( accumulation_surface, NULL, effect_dst_surface, NULL );
 
-    if (setEffect(&tmp_effect)) return RET_CONTINUE;
-    while (doEffect(&tmp_effect));
+    const char *name = quake_type == 0 ? "quakey" : quake_type == 1 ? "quakex" : "quake";
+    traceShake( tmp_effect.no, NULL, tmp_effect.duration, name ); // CONscripter
+    Uint32 start = SDL_GetTicks();
+    if (!setEffect(&tmp_effect))
+        while (doEffect(&tmp_effect));
+    int ran = SDL_GetTicks() - start;
+    traceShake( tmp_effect.no, ran < tmp_effect.duration ? "cut short" : "ran out", ran, name );
 
     return RET_CONTINUE;
 }
@@ -1778,7 +1783,10 @@ int ONScripter::lspCommand()
     int no = script_h.readInt();
     AnimationInfo *ai = &sprite_info[no];
     endKeptMotion( *ai ); // CONscripter: spmotion's loop 2
-    if (ai->motion_keys > 0 && ai->motion_leave) ai->stopMotion(); // CONscripter: a new picture stays (spmotion loop 3)
+    if (ai->motion_keys > 0 && ai->motion_leave){ // CONscripter: a new picture stays (spmotion loop 3)
+        traceMotion( *ai, "lsp" );
+        ai->stopMotion();
+    }
 
     if (ai->image_surface && ai->visible)
         dirty_rect.add( ai->pos );

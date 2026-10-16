@@ -429,6 +429,99 @@ AnimationInfo &ONScripter::traceSpriteInfo( int i, const char *&kind, int &no )
     return tachi_info[no];
 }
 
+// spmotion's mode and keys as one number, to match a motion across records
+// and runs; 0: no motion.
+static unsigned traceMotionId( const AnimationInfo &ai )
+{
+    if (ai.motion_keys == 0) return 0;
+    unsigned h = 2166136261u; // FNV-1a
+    int mode[4] = {ai.motion_loop, ai.motion_keep, ai.motion_leave, ai.motion_passes};
+    for (int j=0 ; j<4 ; j++) h = (h ^ (unsigned)mode[j]) * 16777619u;
+    for (int i=0 ; i<ai.motion_keys ; i++)
+        for (int j=0 ; j<8 ; j++) h = (h ^ (unsigned)ai.motion_key[i][j]) * 16777619u;
+    return h ? h : 1;
+}
+
+static const char *motionMode( const AnimationInfo &ai )
+{
+    return ai.motion_loop ? "loop" : ai.motion_keep ? "keep" : ai.motion_leave ? "leave" : "once";
+}
+
+// A motion record: lsp sprite ai's spmotion starting (ended NULL: its
+// mode, keys and planned end) or ending, and why.
+void ONScripter::traceMotion( AnimationInfo &ai, const char *ended )
+{
+    if (!trace_fp || !trace_sprite || &ai < sprite_info || &ai >= sprite_info + MAX_SPRITE_NUM) return;
+    int i = &ai - sprite_info;
+    if (trace_ignore[i] || ai.motion_keys == 0) return;
+    unsigned id = traceMotionId( ai );
+    unsigned now = SDL_GetTicks();
+    char buf[160];
+    snprintf( buf, sizeof(buf), "{\"t\":\"motion\",\"pg\":%d,\"ms\":%u,\"n\":%d,\"kind\":\"lsp\",\"id\":\"%08x\"",
+              trace_page, now, i, id );
+    std::string r = buf;
+    if (ended){
+        snprintf( buf, sizeof(buf), ",\"ended\":\"%s\",\"ran\":%d}", ended, (int)(now - ai.motion_start) );
+        r += buf;
+        trace_sprite[i].running = 0;
+        traceWrite( r );
+        return;
+    }
+    snprintf( buf, sizeof(buf), ",\"mode\":\"%s\"", motionMode( ai ) );
+    r += buf;
+    if (ai.motion_passes > 1){
+        snprintf( buf, sizeof(buf), ",\"passes\":%d", ai.motion_passes );
+        r += buf;
+    }
+    r += ",\"keys\":[";
+    for (int k=0 ; k<ai.motion_keys ; k++){
+        const int *v = ai.motion_key[k]; // stored as ms, x, y, zoom x, angle, alpha, zoom y, curve
+        snprintf( buf, sizeof(buf), "%s[%d,%d,%d,%d,%d,%d,%d,%d]", k ? "," : "", v[0], v[1], v[2], v[3], v[6], v[4], v[5], v[7] );
+        r += buf;
+    }
+    r += ']';
+    if (!ai.motion_loop){
+        int last = ai.motion_key[ai.motion_keys-1][0];
+        snprintf( buf, sizeof(buf), ",\"end\":%d", ai.motion_start + last * (ai.motion_passes > 1 ? ai.motion_passes : 1) );
+        r += buf;
+    }
+    r += ",\"at\":";
+    traceAt( r, trace_cmd_start );
+    r += '}';
+    trace_sprite[i].running = id;
+    traceWrite( r );
+}
+
+// A shake record: screenshake slot's shake (or, with quake, that command,
+// slot its amplitude) starting (ended NULL; ms its length, 0 none) or
+// ending (ms how long it ran).
+void ONScripter::traceShake( int slot, const char *ended, int ms, const char *quake )
+{
+    if (!trace_fp || !trace_sprite) return;
+    char buf[160];
+    if (quake) snprintf( buf, sizeof(buf), "{\"t\":\"motion\",\"pg\":%d,\"ms\":%u,\"quake\":\"%s\",\"amp\":%d", trace_page, SDL_GetTicks(), quake, slot );
+    else snprintf( buf, sizeof(buf), "{\"t\":\"motion\",\"pg\":%d,\"ms\":%u,\"shake\":%d", trace_page, SDL_GetTicks(), slot );
+    std::string r = buf;
+    if (ended) snprintf( buf, sizeof(buf), ",\"ended\":\"%s\",\"ran\":%d}", ended, ms );
+    else if (ms > 0) snprintf( buf, sizeof(buf), ",\"len\":%d}", ms );
+    else snprintf( buf, sizeof(buf), "}" );
+    r += buf;
+    traceWrite( r );
+}
+
+// A sprite's box: lsp2's after scaling and turning; lsp's and ld's with
+// spzoom, without its motion (that moves with the time: the record's "mnow").
+SDL_Rect ONScripter::traceBox( AnimationInfo &ai, const char *kind )
+{
+    if (kind[3] == '2') return ai.bounding_rect;
+    int mz = ai.motion_zoom, mzy = ai.motion_zoom_y, mr = ai.motion_rot;
+    ai.motion_zoom = ai.motion_zoom_y = 100;
+    ai.motion_rot = 0;
+    SDL_Rect r = zoomedRect( ai );
+    ai.motion_zoom = mz; ai.motion_zoom_y = mzy; ai.motion_rot = mr;
+    return r;
+}
+
 // Compares sprite i with how it was last recorded: 0 the same, 1 shown or
 // changed (its "since" becomes since), 2 gone.
 int ONScripter::traceSpriteUpdate( int i, int since )
@@ -437,26 +530,42 @@ int ONScripter::traceSpriteUpdate( int i, int since )
     int no;
     AnimationInfo &ai = traceSpriteInfo( i, kind, no );
     TraceSprite &ts = trace_sprite[i];
+    unsigned motion = traceMotionId( ai ); // a motion moves it by itself
+    if (i < MAX_SPRITE_NUM && ts.running && ts.running != motion){
+        // ended without a record from spmotion or its time: csp, a load, a reset
+        unsigned id = ts.running;
+        ts.running = 0;
+        char buf[128];
+        snprintf( buf, sizeof(buf), "{\"t\":\"motion\",\"pg\":%d,\"ms\":%u,\"n\":%d,\"kind\":\"lsp\",\"id\":\"%08x\",\"ended\":\"removed\"}",
+                  trace_page, SDL_GetTicks(), i, id );
+        std::string m = buf;
+        traceWrite( m );
+    }
     const char *image = ai.image_name;
     if (!image && ai.trans_mode == AnimationInfo::TRANS_STRING) image = ai.file_name; // strsp: its text
-    if (!image && ai.image_surface && ai.file_name) image = ai.file_name; // spgrab: "(spgrab)"
+    if (!image && ai.image_surface && ai.file_name) image = ai.file_name; // spgrab: "(spgrab)", "(spgrab n)"
     if (!ai.visible || !image){
         if (ts.image.empty()) return 0;
         ts.image.clear();
         return 2;
     }
-    SDL_Rect r = (kind[3] == '2') ? ai.bounding_rect : zoomedRect( ai ); // lsp2: its box after scaling and turning
+    SDL_Rect r = traceBox( ai, kind );
     // an animation steps its cells by itself
     int cell = ai.is_animatable ? -1 : ai.current_cell;
-    int keyed = ai.motion_keys > 0 ? (ai.motion_loop ? 2 : 1) : 0; // a motion moves it by itself
+    int trail[3] = {ai.trail_passes, ai.trail_alpha, ai.trail_lag};
     if (ts.image == image && ts.x == r.x && ts.y == r.y && ts.w == r.w && ts.h == r.h &&
-        ts.trans == ai.trans && ts.cell == cell && ts.over == ai.z_over && ts.keyed == keyed) return 0;
+        ts.trans == ai.trans && ts.cell == cell && ts.over == ai.z_over && ts.motion == motion &&
+        !memcmp( ts.trail, trail, sizeof(trail) ) && !memcmp( ts.clip, ai.clip_rect, sizeof(ts.clip) ) &&
+        ts.blend == ai.blending_mode) return 0;
     ts.image = image;
     ts.x = r.x; ts.y = r.y; ts.w = r.w; ts.h = r.h;
     ts.trans = ai.trans;
     ts.cell = cell;
     ts.over = ai.z_over;
-    ts.keyed = keyed;
+    ts.motion = motion;
+    memcpy( ts.trail, trail, sizeof(trail) );
+    memcpy( ts.clip, ai.clip_rect, sizeof(ts.clip) );
+    ts.blend = ai.blending_mode;
     ts.since = since;
     return 1;
 }
@@ -517,8 +626,22 @@ void ONScripter::traceSprite( std::string &out, int i )
         out += buf;
     }
     if (ai.motion_keys > 0){
-        snprintf( buf, sizeof(buf), ",\"motion\":%s", ai.motion_loop ? "\"loop\"" : ai.motion_keep ? "\"keep\"" : ai.motion_leave ? "\"leave\"" : "\"once\"" );
+        // its id, then the time into it at its last step and what it adds (as its keys)
+        snprintf( buf, sizeof(buf), ",\"motion\":\"%s\",\"mid\":\"%08x\",\"mnow\":[%d,%d,%d,%d,%d,%d,%d]",
+                  motionMode( ai ), ts.motion, ai.trail_time - ai.motion_start,
+                  ai.motion_dx * screen_ratio2 / screen_ratio1, ai.motion_dy * screen_ratio2 / screen_ratio1,
+                  ai.motion_zoom, ai.motion_zoom_y, ai.motion_rot, ai.motion_alpha );
         out += buf;
+    }
+    if (ai.clip_rect[2] > 0){
+        snprintf( buf, sizeof(buf), ",\"clip\":[%d,%d,%d,%d]", ai.clip_rect[0], ai.clip_rect[1], ai.clip_rect[2], ai.clip_rect[3] );
+        out += buf;
+    }
+    static const char *blends[] = {"", "add", "sub", "mul", "screen"};
+    if (ai.blending_mode > 0 && ai.blending_mode <= AnimationInfo::BLEND_SCREEN){
+        out += ",\"blend\":\"";
+        out += blends[ai.blending_mode];
+        out += '"';
     }
     if (ai.trail_passes > 0){
         snprintf( buf, sizeof(buf), ",\"trail\":[%d,%d,%d]", ai.trail_passes, ai.trail_alpha, ai.trail_lag );
@@ -1586,6 +1709,7 @@ bool ONScripter::autoPlayWait( int &count )
                 if (e.kind != SCREEN_EFFECT_SHAKE || e.param[9] <= 0) continue;
                 e.ran += count - 1;
                 if (e.ran >= e.param[9]){
+                    traceShake( i+1, "ran out", e.ran );
                     clearScreenEffect( e );
                     dirty_rect.fill( screen_width, screen_height );
                 }
@@ -2242,7 +2366,7 @@ void ONScripter::roundtripState( std::map<std::string, std::string> &state )
         const char *image = ai.image_name;
         if (!image && ai.trans_mode == AnimationInfo::TRANS_STRING) image = ai.file_name;
         if (!ai.visible || !image) continue;
-        SDL_Rect r = (kind[3] == '2') ? ai.bounding_rect : zoomedRect( ai );
+        SDL_Rect r = traceBox( ai, kind );
         snprintf( buf, sizeof(buf), "sp %s %d", kind, no );
         std::string &v = state[buf];
         traceString( v, image );
