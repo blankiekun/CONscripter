@@ -88,6 +88,7 @@ void optionHelp()
     printf( "      --vars file\tset these variables at the start (lines %%312=876, $5=text; UTF-8)\n");
     printf( "      --load n\t\tstart by loading save slot n\n");
     printf( "      --checkpoint-every n\twith --auto-play, save every n pages, to slots 900, 901, ... (--checkpoint-slot)\n");
+    printf( "      --checkpoint-start\twith --goto, save at the label before any of it runs (--checkpoint-slot)\n");
     printf( "      --until label\tend the run when the script first reaches this label\n");
     printf( "      --max-pages n\tend the run after n text pages\n");
     printf( "      --dump-vars file\twrite the variables in that form at F8 and at exit\n");
@@ -508,6 +509,9 @@ void parseOption(int argc, char *argv[]) {
                 argc--;
                 argv++;
                 ons.setCheckpoints(atoi(argv[0]), -1);
+            }
+            else if ( !strcmp( argv[0]+1, "-checkpoint-start" ) ){
+                ons.setCheckpointStart();
             }
             else if ( !strcmp( argv[0]+1, "-checkpoint-slot" ) ){
                 argc--;

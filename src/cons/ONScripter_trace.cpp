@@ -1847,8 +1847,20 @@ void ONScripter::setCheckpoints( int pages, int slot )
 void ONScripter::autoPlayCheckpoint()
 {
     if (++checkpoint_pages % checkpoint_every) return;
-    int slot = checkpoint_slot + checkpoint_count++;
     if (saveon_flag && internal_saveon_flag) storeSaveFile();
+    writeCheckpoint();
+}
+
+// --checkpoint-start: with --goto, a checkpoint at the label before any of
+// it runs, so the loaded save plays the whole scene.
+void ONScripter::setCheckpointStart()
+{
+    checkpoint_start = true;
+}
+
+void ONScripter::writeCheckpoint()
+{
+    int slot = checkpoint_slot + checkpoint_count++;
     if (writeSaveFile( slot ) != 0 || !trace_fp) return;
     char buf[80];
     snprintf( buf, sizeof(buf), "{\"t\":\"checkpoint\",\"pg\":%d,\"slot\":%d,\"at\":", trace_page, slot );
@@ -1882,6 +1894,10 @@ void ONScripter::startAt()
         startupFailed();
     }
     setCurrentLabel( start_goto );
+    if (checkpoint_start){
+        storeSaveFile();
+        writeCheckpoint();
+    }
 }
 
 void ONScripter::readVarsFile( const char *path )

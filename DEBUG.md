@@ -346,6 +346,11 @@ grep '"t":"checkpoint"' t.jsonl        # {"t":"checkpoint","pg":4000,"slot":903,
 conscripter --root . --save-dir /tmp/saves --trace from4000.jsonl --load 903
 ```
 
+`--checkpoint-start` (with `--goto`) makes one checkpoint at the label
+itself, before any of it runs: loading it plays the scene from its first
+line, effects and all, where a checkpoint at the first click wait would
+start after them.
+
 A checkpoint is the state at that page's click wait, as a player's save
 there would be, so the loaded run shows that page's text again as its
 page 1. Some games keep their own data in high save slots (saiima uses 900

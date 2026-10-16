@@ -383,6 +383,7 @@ ONScripter::ONScripter()
     web_persist_time = web_kidoku_time = 0;
     checkpoint_every = checkpoint_count = checkpoint_pages = 0;
     checkpoint_slot = 900;
+    checkpoint_start = false;
     trace_page = 0;
     trace_sprite = NULL;
     trace_ignore = NULL;

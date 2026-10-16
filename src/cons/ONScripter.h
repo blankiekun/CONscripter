@@ -151,6 +151,7 @@ public:
     void setStartVars(const char *path);
     void setStartLoad(int slot); // CONscripter: --load, --checkpoint-every, --checkpoint-slot
     void setCheckpoints(int pages, int slot);
+    void setCheckpointStart(); // CONscripter: --checkpoint-start
     void setTraceVars(const char *spec); // CONscripter: --trace-vars
     void setTraceLongWait(int ms); // CONscripter: --trace-long-wait
     void setTraceMaxImage(int mb); // CONscripter: --trace-max-image
@@ -1012,6 +1013,8 @@ private:
     void startAt();
     int start_load;                  // --load slot, -1 for none
     int checkpoint_every, checkpoint_slot, checkpoint_count, checkpoint_pages;
+    bool checkpoint_start;           // --checkpoint-start
+    void writeCheckpoint();
     void autoPlayCheckpoint();
     bool loadGame( int no );
     void readVarsFile( const char *path );
