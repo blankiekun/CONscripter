@@ -3038,7 +3038,7 @@ int ONScripter::drawtextCommand()
     clip.x = clip.y = 0;
     clip.w = accumulation_surface->w;
     clip.h = accumulation_surface->h;
-    text_info.blendOnSurface( accumulation_surface, 0, 0, clip );
+    blendTextLayer( accumulation_surface, clip );
     
     return RET_CONTINUE;
 }

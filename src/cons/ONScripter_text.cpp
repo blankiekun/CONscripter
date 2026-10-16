@@ -216,8 +216,10 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
             dst_rect_s.h = tmp_surface_s->h;
         }
 
-        if (cache_info)
+        if (cache_info){
             cache_info->blendText( tmp_surface_s, dst_rect_s.x, dst_rect_s.y, scolor, clip, rotate_flag );
+            if (cache_info == &text_info) SDL_UnionRect( &text_area, &dst_rect_s, &text_area ); // CONscripter
+        }
         
         if (dst_surface)
             alphaBlendText( dst_surface, dst_rect_s, tmp_surface_s, scolor, clip, rotate_flag );
@@ -233,8 +235,10 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
             dst_rect.h = tmp_surface->h;
         }
 
-        if (cache_info)
+        if (cache_info){
             cache_info->blendText( tmp_surface, dst_rect.x, dst_rect.y, color, clip, rotate_flag );
+            if (cache_info == &text_info) SDL_UnionRect( &text_area, &dst_rect, &text_area ); // CONscripter
+        }
         
         if (dst_surface)
             alphaBlendText( dst_surface, dst_rect, tmp_surface, color, clip, rotate_flag );
@@ -337,7 +341,11 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
                 else
                     info->addShadeArea(dst_rect, 0, 0, shade_distance[0], shade_distance[1]);
             }
-            flushDirect( dst_rect, REFRESH_NONE_MODE );
+            // CONscripter: under a screen effect the effect's next frame
+            // shows it; a flush of its own would wait for vsync between
+            // the effect's frames and make them uneven
+            if (screenEffectActive()) screen_effect_pending = true;
+            else flushDirect( dst_rect, REFRESH_NONE_MODE );
         }
 
         if (IS_TWO_BYTE(text[0])){
@@ -537,9 +545,24 @@ void ONScripter::sendSpriteTexts()
 #endif
 }
 
-void ONScripter::restoreTextBuffer(SDL_Surface *surface)
+// CONscripter: clears the text layer and the area it holds text in.
+void ONScripter::clearTextLayer()
 {
     text_info.fill( 0, 0, 0, 0 );
+    text_area.x = text_area.y = text_area.w = text_area.h = 0;
+}
+
+// CONscripter: blends the text layer where it holds text.
+void ONScripter::blendTextLayer( SDL_Surface *surface, SDL_Rect &clip )
+{
+    SDL_Rect rect;
+    if (SDL_IntersectRect( &clip, &text_area, &rect ))
+        text_info.blendOnSurface( surface, 0, 0, rect );
+}
+
+void ONScripter::restoreTextBuffer(SDL_Surface *surface)
+{
+    clearTextLayer();
 
     char out_text[5] = { '\0','\0','\0', '\0', '\0' };
     FontInfo f_info = sentence_font;

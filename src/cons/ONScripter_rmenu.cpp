@@ -120,6 +120,7 @@ void ONScripter::leaveSystemCall( bool restore_flag )
         
         current_page = cached_page;
         SDL_BlitSurface( backup_surface, NULL, text_info.image_surface, NULL );
+        text_area = text_area_backup; // CONscripter
         root_button_link.next = shelter_button_link;
         root_select_link.next = shelter_select_link;
 
@@ -144,6 +145,7 @@ void ONScripter::leaveSystemCall( bool restore_flag )
 int ONScripter::executeSystemCall()
 {
     SDL_BlitSurface( text_info.image_surface, NULL, backup_surface, NULL );
+    text_area_backup = text_area; // CONscripter
     
     enterSystemCall();
 
@@ -195,7 +197,7 @@ void ONScripter::executeSystemMenu()
         playSound(menuselectvoice_file_name[MENUSELECTVOICE_OPEN],
                   SOUND_CHUNK, false, MIX_WAVE_CHANNEL);
 
-    text_info.fill( 0, 0, 0, 0 );
+    clearTextLayer();
     flush( refreshMode() );
 
     menu_font.num_xy[0] = rmenu_link_width;
@@ -307,7 +309,7 @@ bool ONScripter::executeSystemLoad()
 {
     current_font = &menu_font;
 
-    text_info.fill( 0, 0, 0, 0 );
+    clearTextLayer();
         
     menu_font.num_xy[0] = (strlen(save_item_name)+1)/2+2+13;
     menu_font.num_xy[1] = num_save_file+2;
@@ -416,7 +418,7 @@ void ONScripter::executeSystemSave()
 {
     current_font = &menu_font;
 
-    text_info.fill( 0, 0, 0, 0 );
+    clearTextLayer();
 
     menu_font.num_xy[0] = (strlen(save_item_name)+1)/2+2+13;
     menu_font.num_xy[1] = num_save_file+2;
@@ -486,7 +488,7 @@ bool ONScripter::executeSystemYesNo( int caller, int file_no )
 {
     current_font = &menu_font;
 
-    text_info.fill( 0, 0, 0, 0 );
+    clearTextLayer();
     dirty_rect.fill( screen_width, screen_height );
 
     char name[64] = {'\0'};

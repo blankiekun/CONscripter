@@ -612,7 +612,7 @@ int ONScripter::init()
 
     text_info.num_of_cells = 1;
     text_info.allocImage( screen_width, screen_height, texture_format );
-    text_info.fill(0, 0, 0, 0);
+    clearTextLayer();
 
     // ----------------------------------------
     // Initialize font
@@ -1352,7 +1352,7 @@ void ONScripter::clearCurrentPage()
     num_chars_in_sentence = 0;
     internal_saveon_flag = true;
 
-    text_info.fill( 0, 0, 0, 0 );
+    clearTextLayer();
     cached_page = current_page;
 }
 

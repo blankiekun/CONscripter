@@ -1499,6 +1499,8 @@ int ONScripter::nextScreenEffectTime()
         if (min == 0 || min > e.next_step) min = e.next_step;
     }
     if (min && min - screen_effect_flush_time < FRAME_MS) min = screen_effect_flush_time + FRAME_MS;
+    // text waiting to be shown goes up at the next frame, not the next step
+    if (min && screen_effect_pending && min > screen_effect_flush_time + FRAME_MS) min = screen_effect_flush_time + FRAME_MS;
     return min;
 }
 
@@ -1535,10 +1537,11 @@ void ONScripter::proceedScreenEffects( int current_time )
             changed = true;
         }
     }
-    if (changed){
+    if (changed || screen_effect_pending){
         SDL_Rect rect = {0, 0, screen_width, screen_height};
         flushDirect( rect, refreshMode() | (draw_cursor_flag ? REFRESH_CURSOR_MODE : 0) );
         screen_effect_flush_time = current_time;
+        screen_effect_pending = false;
     }
 }
 
@@ -1686,14 +1689,14 @@ void ONScripter::applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip )
                 for (int k=0 ; k<1024 ; k++) sine[k] = (int)lround(sin( M_PI * 2 * k / 1024 ) * 65536);
             int opa = e.opacity < 0 ? 0 : e.opacity > 256 ? 256 : e.opacity;
             bool multiply = e.param[9] == 1;
+            // the map's column for each x, worked out once, not per pixel
+            std::vector<int> map_x( e.map ? clip.w : 0 );
+            for (int x=0 ; x<(int)map_x.size() ; x++) map_x[x] = (clip.x + x) * e.map_w / w;
             for (int y=clip.y ; y<clip.y + clip.h ; y++){
                 ONSBuf *dst = buf + y * pitch;
+                const unsigned char *map_row = e.map ? e.map + y * e.map_h / h * e.map_w : NULL;
                 for (int x=clip.x ; x<clip.x + clip.w ; x++){
-                    int m = 0;
-                    if (e.map){
-                        int mx = x * e.map_w / w, my = y * e.map_h / h;
-                        m = e.map[my * e.map_w + mx];
-                    }
+                    int m = map_row ? map_row[map_x[x - clip.x]] : 0;
                     int s = sine[(m * 4 + phase) & 1023];
                     int sx = x + (int)((ax * s) >> 32), sy = y + (int)((ay * s) >> 32);
                     if (sx < 0 || sx >= w) sx = x;

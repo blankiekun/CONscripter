@@ -762,6 +762,7 @@ private:
     ScreenEffect screen_effect[MAX_SCREEN_EFFECT];
     enum { FRAME_MS = 16 };              // effects draw at most once per this (60 Hz)
     int screen_effect_flush_time;        // ticks of the last redraw proceedScreenEffects made
+    bool screen_effect_pending = false;  // text drawn that the next redraw shows
     int screenEffectCommand( int kind, const char *name );
     void startScreenEffect( ScreenEffect &e );
     void stepScreenEffect( ScreenEffect &e );
@@ -773,6 +774,12 @@ private:
     int nextScreenEffectTime();
     void proceedScreenEffects( int current_time );
     void applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip );
+    // CONscripter: the part of the full-screen text layer (text_info) that
+    // holds text, so a redraw blends that part only (a screen effect redraws
+    // the whole screen every frame)
+    SDL_Rect text_area = {0, 0, 0, 0}, text_area_backup = {0, 0, 0, 0};
+    void clearTextLayer();
+    void blendTextLayer( SDL_Surface *surface, SDL_Rect &clip );
 
     // CONscripter: strsp's font settings, per sprite and in saved screens
     struct StrspFont { int num_xy[2], font_size_xy[2], pitch_xy[2]; bool bold, shadow, tate; int outline = -1; }; // tate: vstrsp; outline: strspoutline's

@@ -735,7 +735,7 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
         if (refresh_mode & REFRESH_SHADOW_MODE)
             shadowTextDisplay( surface, clip );
         if (refresh_mode & REFRESH_TEXT_MODE)
-            text_info.blendOnSurface( surface, 0, 0, clip );
+            blendTextLayer( surface, clip );
         if (movie_hold && movie_hold->sprite >= 0 && movie_hold->sprite < MAX_SPRITE_NUM &&
             sprite_info[movie_hold->sprite].visible) // mpeghold's prompt
             drawTaggedSurface( surface, &sprite_info[movie_hold->sprite], clip );
@@ -775,7 +775,7 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
         if (refresh_mode & REFRESH_SHADOW_MODE)
             shadowTextDisplay( surface, clip );
         if (refresh_mode & REFRESH_TEXT_MODE)
-            text_info.blendOnSurface( surface, 0, 0, clip );
+            blendTextLayer( surface, clip );
     }
 
     if ( !all_sprite_hide_flag ){
@@ -816,7 +816,7 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
         if (refresh_mode & REFRESH_SHADOW_MODE)
             shadowTextDisplay( surface, clip );
         if (refresh_mode & REFRESH_TEXT_MODE)
-            text_info.blendOnSurface( surface, 0, 0, clip );
+            blendTextLayer( surface, clip );
     }
 
     if ( refresh_mode & REFRESH_CURSOR_MODE && !textgosub_label ){
