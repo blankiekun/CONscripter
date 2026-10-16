@@ -17,7 +17,7 @@ void present(SDL_Renderer *renderer);
 // The event the power button sends: sleep() then, from the event loop.
 // A fixed number after ONScripter's own events, which SDL doesn't know of
 // (SDL_RegisterEvents would hand out ONS_TIMER_EVENT's).
-const Uint32 sleep_event = SDL_USEREVENT + 10; // +9 is chfreq's, taken
+const Uint32 sleep_event = SDL_USEREVENT + 10;
 // Shows the sleep screen, suspends the Kobo, and shows the game again once woken.
 void sleep();
 }

@@ -26,6 +26,16 @@ function build_fbink()
     cp $FBINK_SRC/Release/libfbink.a $PORTBUILD_PATH/lib
 }
 
+# _linuxa32.sh's, without "make all"'s test, which runs the ARM bzip2 on the host
+function build_bz2()
+{
+    echo "## BZ2_SRC=$BZ2_SRC"
+
+    make -C $BZ2_SRC clean
+    make -C $BZ2_SRC libbz2.a bzip2 bzip2recover CC=arm-linux-gnueabihf-gcc AR=arm-linux-gnueabihf-ar RANLIB=arm-linux-gnueabihf-ranlib -j$CORE_NUM
+    make -C $BZ2_SRC install PREFIX=$PORTBUILD_PATH
+}
+
 function build_sdl2()
 {
     if ! [ -d "${SDL2_SRC}/build_${PLATFORM}" ]; then mkdir -p "${SDL2_SRC}/build_${PLATFORM}"; fi

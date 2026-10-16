@@ -17,6 +17,8 @@ echo "## PORTBUILD_PATH=$PORTBUILD_PATH"
 if [ -z "$SKIP_PORTS" ]; then
     source _fetch.sh
     mkdir -p $PORTBUILD_PATH
+    # only the ports' .pc files: the host's (libtiff-4 on CI) bring -I/usr/include/x86_64-linux-gnu
+    export PKG_CONFIG_LIBDIR=$PORTBUILD_PATH/lib/pkgconfig
     source _linuxa32.sh
     source _kobo.sh
     fetch_fbink && build_fbink
