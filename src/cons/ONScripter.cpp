@@ -26,6 +26,9 @@
 #include "ONScripter.h"
 #include "Utils.h"
 #include "coding2utf16.h"
+#if defined(KOBO)
+#include "kobo.h"
+#endif
 #ifdef USE_FONTCONFIG
 #include <fontconfig/fontconfig.h>
 #endif
@@ -187,6 +190,11 @@ void ONScripter::initSDL()
         width = mode.w;
     screen_width = width;
 #endif
+#if defined(KOBO)
+    // shortcut: fills the screen's width; a game taller than 4:3 runs off a 1680x1264 screen
+    int kobo_width = kobo::open();
+    if (!force_window_width && !force_window_height) force_window_width = kobo_width;
+#endif
     const double aspect_ratio = (double)script_h.screen_width/script_h.screen_height;
 
     if (force_window_width) {
@@ -267,6 +275,9 @@ void ONScripter::initSDL()
         utils::printError("Could not create renderer: %s\n", SDL_GetError());
         startupFailed();
     }
+#if defined(KOBO)
+    kobo::start(window);
+#endif
 
     if(!stretch_mode && !(force_window_height && force_window_width))
     {
@@ -335,6 +346,11 @@ void ONScripter::initSDL()
 void ONScripter::openAudio(int freq)
 {
     Mix_CloseAudio();
+#if defined(KOBO)
+    // no speaker: decoding and mixing sounds for nobody only costs the CPU
+    audio_open_flag = false;
+    return;
+#endif
 
     if ( Mix_OpenAudio( (freq<0)?44100:freq, MIX_DEFAULT_FORMAT, MIX_DEFAULT_CHANNELS, DEFAULT_AUDIOBUF ) < 0 ){      
         utils::printError("Couldn't open audio device!\n"
@@ -993,6 +1009,9 @@ void ONScripter::presentScreen()
     }
 #endif
     SDL_RenderPresent(renderer);
+#if defined(KOBO)
+    kobo::present(renderer);
+#endif
     present_time = SDL_GetTicks(); // after vsync, which the present waits for
 }
 

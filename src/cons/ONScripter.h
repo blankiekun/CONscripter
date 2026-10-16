@@ -147,6 +147,7 @@ public:
     // CONscripter: calls from the web page, as ONS_WEB_EVENT events (ONScripter_cons.cpp)
 #define ONS_WEB_EVENT (SDL_USEREVENT+7)
 #define ONS_SHOT_EVENT (SDL_USEREVENT+8) // CONscripter: a --shot-after time came
+// SDL_USEREVENT+10: kobo.h's sleep_event
     enum { WEB_SET_AUTO = 1, WEB_SET_SKIP = 2, WEB_SET_RUBY = 3, WEB_SET_TEXT_SPEED = 4 };
     void setStartGoto(const char *label); // CONscripter: --goto, --vars, --dump-vars
     void setStartVars(const char *path);
@@ -955,6 +956,13 @@ private:
 #endif
     int game_speed = 100;            // script times run at this percent of real speed
     bool effect_off = false;         // every print effect is drawn at once
+#if defined(KOBO)
+    // CONscripter: e-ink, where each frame of a fade is a refresh: print effects
+    // and text show at once, like --auto-play
+    static const bool still_screen = true;
+#else
+    static const bool still_screen = false;
+#endif
     bool text_shadow = true;         // the message text has setwindow's shadow (off: none)
     int syse_volume = -1;            // sysevol: wave's channel (menu sounds), -1 the sound effects'
     char *btn_se_file = NULL;        // btnse: played when a btnwait ends on a button

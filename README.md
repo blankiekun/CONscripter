@@ -6,10 +6,11 @@
 ![windows](https://img.shields.io/github/actions/workflow/status/blankiekun/CONscripter/build_win.yml?label=windows&logo=mingww64&style=flat-square)
 ![linux](https://img.shields.io/github/actions/workflow/status/blankiekun/CONscripter/build_linux.yml?label=linux&logo=linux&style=flat-square)
 ![mac](https://img.shields.io/github/actions/workflow/status/blankiekun/CONscripter/build_darwin.yml?label=mac&logo=apple&style=flat-square)
+![kobo](https://img.shields.io/github/actions/workflow/status/blankiekun/CONscripter/build_kobo.yml?label=kobo(koreader)&logo=rakuten&style=flat-square)
 
 An [ONScripter](https://onscripter.osdn.jp/onscripter.html) engine for playing
-NScripter visual novels on the web, Windows, Linux, macOS, Android and
-RetroArch: a fork of [ONScripter-Yuri](https://github.com/YuriSizuku/OnscripterYuri)
+NScripter visual novels on the web, Windows, Linux, macOS, Android,
+RetroArch and Kobo e-readers (through KOReader): a fork of [ONScripter-Yuri](https://github.com/YuriSizuku/OnscripterYuri)
 (itself based on [ONScripter-Jh](https://github.com/jh10001/ONScripter-Jh)),
 built on SDL2.
 
@@ -50,6 +51,7 @@ CONscripter is the engine behind two companion projects:
 | macOS | x64, arm64 | Video in the window through the player's ffmpeg |
 | Android | API 22+ (Android 5.1) | SD cards through SAF, scoped storage, non-English paths, video through the system player, 16 KB pages |
 | RetroArch | libretro core `conscripter_libretro` | |
+| Kobo (KOReader) | armhf (static) | E-ink through FBInk: effects and text shown at once; touch and page keys; a sleep screen on the power button; video through its own ffmpeg, no sound |
 
 ## CONscripter additions
 
@@ -206,6 +208,30 @@ or pick any folder through SAF. The package id is
 Build `src/cons_libretro` (see its `CMakeLists.txt`) and load
 `conscripter_libretro` with a game's `0.txt`, `00.txt`, `nscript.dat` or folder.
 Script encoding and mouse emulation are core options.
+
+### (7) Kobo (KOReader)
+
+Unzip `conscripter_<version>_kobo_koreader.zip` at the root of the Kobo's
+storage (it holds `.adds/conscripter/`: the engine, its ffmpeg and
+`play.sh`), copy `play.sh` next to a game's archives, then in KOReader's file
+browser long-press it and pick "Execute shell script". The game is drawn
+sideways: turn the Kobo clockwise.
+
+- Tap to click, long-press for the menu. The forward page key is Enter, the
+  back one Escape; hold back for 2 s to quit to KOReader.
+- The power button shows a sleep screen (the game, its title, battery, time
+  and play time) and suspends the Kobo; power again resumes the game. Turn
+  Wi-Fi off first: the game doesn't.
+- Print effects and text show at once, as each frame is an e-ink refresh
+  (motions still move). There's no sound.
+- `KOBO_FLIP=1` in `play.sh` turns the game the other way round. The log is
+  `conscripter.log` in the game's folder.
+
+Made for the Libra 2; FBInk knows the screen and touch panel of the others.
+Known limits: the sleep screen, suspend and movies are untested on the
+device; Wi-Fi stays on in a suspend; the sleep cover doesn't suspend it; a
+crash leaves KOReader's screen unrestored; a game taller than 4:3 runs off a
+1680x1264 screen.
 
 ## 2. Build
 
@@ -392,7 +418,15 @@ cd src/cons_android/
 chmod +x ./gradlew && ./gradlew assembleDebug
 ```
 
-### (8) cross by docker
+### (8) cross kobo
+
+`cross_kobo.sh` builds a static armhf `conscripter` with `KOBO` on
+(`src/cons/kobo.cpp`), SDL2 without X11, GL or sound, FBInk and a small
+ffmpeg (`thirdparty/build/arch_kobo/bin/ffmpeg`). It needs
+`crossbuild-essential-armhf`, `autoconf`, `automake`, `libtool` and
+`pkg-config`, or Docker: `docker/docker_kobo.sh`.
+
+### (9) cross by docker
 
 You can easily build all supported platforms by docker, see `docker/docker_xxx.sh` in detail.
 If you want to build for linux arm in x86 platform, install qemu at first.

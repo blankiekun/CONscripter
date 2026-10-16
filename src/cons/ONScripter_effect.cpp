@@ -55,7 +55,7 @@ bool ONScripter::setEffect( EffectLink *effect )
     if ( effect->effect == 0 ) return true;
     
     int effect_no = effect->effect;
-    if ((effect_cut_flag && (skip_mode & SKIP_NORMAL || ctrl_pressed_status)) || effect_off) // CONscripter: effectoff
+    if ((effect_cut_flag && (skip_mode & SKIP_NORMAL || ctrl_pressed_status)) || effect_off || still_screen) // CONscripter: effectoff
         effect_no = 1;
 
     SDL_BlitSurface( accumulation_surface, NULL, effect_src_surface, NULL );
@@ -134,7 +134,7 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
     effect_start_time_old = effect_start_time;
     
     int effect_no = effect->effect;
-    if ((effect_cut_flag && (skip_mode & SKIP_NORMAL || ctrl_pressed_status)) || effect_off) // CONscripter: effectoff
+    if ((effect_cut_flag && (skip_mode & SKIP_NORMAL || ctrl_pressed_status)) || effect_off || still_screen) // CONscripter: effectoff
         effect_no = 1;
     
     // CONscripter: sprites moving or fading by themselves (spmotion, spfade)
