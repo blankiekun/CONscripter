@@ -385,6 +385,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"cl",				&ONScripter::clCommand},
     {"chvolfade",		&ONScripter::chvolfadeCommand},
     {"chvol",			&ONScripter::chvolCommand},
+    {"chpan",			&ONScripter::chpanCommand},
     {"checkpage",		&ONScripter::checkpageCommand},
     {"checkkey",		&ONScripter::checkkeyCommand},
     {"cellcheckspbtn",	&ONScripter::spbtnCommand},

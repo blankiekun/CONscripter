@@ -595,7 +595,7 @@ static const struct { const char *name; int kind; } trace_commands[] = {
     {"wave",2}, {"waveloop",2}, {"wavestop",2}, {"dwave",2}, {"dwaveloop",2},
     {"dwavestop",2}, {"dwaveplay",2}, {"dwaveplayloop",2},
     {"mpegplay",2}, {"movie",2}, {"avi",2}, {"spfade",2},
-    {"mp3fadein",2}, {"bgmfadein",2}, {"chvolfade",2}, {"bgmlater",2}, {"dwavefadein",2}, {"chvol",2},
+    {"mp3fadein",2}, {"bgmfadein",2}, {"chvolfade",2}, {"bgmlater",2}, {"dwavefadein",2}, {"chvol",2}, {"chpan",2},
     {"consset",2}, {"btnse",2},
     {"screenfilter",5}, {"screenshake",5}, {"screenripple",5}, {"screenpulse",5}, {"screenzoom",5},
     {"pushscreen",5}, {"monocro",5}, {"nega",5}, {"quake",5}, {"quakex",5}, {"quakey",5},
