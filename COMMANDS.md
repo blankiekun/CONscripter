@@ -941,6 +941,14 @@ script goes on. Stays with the channel, saved, `reset` → 0; stereo output
 only; not the music. `chpan 2,-1000:dwave 2,"se\shot.ogg"`; `chpan 2,1000,1500`.
 Impl `ONScripter::chpanCommand`.
 
+### chfreq [cons]
+`chfreq ch,rate[,ms]` — the sound playing on dwave channel ch at rate/1000 of
+its speed and pitch (100-4000), ramped from its rate now over ms (gamespeed
+applies). A looping sound stays at it; one that doesn't ends sooner or later.
+The next sound on the channel plays at its own rate; not saved. No sound: no
+effect. `dwave 10,"se\shot.ogg":chfreq 10,1100,1000`. Impl
+`ONScripter::chfreqCommand`.
+
 ### sevol / voicevol / getsevol / getvoicevol
 Volumes 0-100. Impl `ONScripter::sevolCommand` etc.
 

@@ -1444,6 +1444,10 @@ void ONScripter::runEventLoop()
             traceShotAfter();
             break;
 
+          case ONS_FREQ_END_EVENT: // CONscripter: chfreq's sound played out
+            endFreqChannel( event.user.code );
+            break;
+
           case ONS_MUSIC_EVENT:
           case ONS_BGMFADE_EVENT:
           case ONS_CDAUDIO_EVENT:
