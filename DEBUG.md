@@ -629,6 +629,7 @@ record:
 | `ch`, `empty` | For `chvolfade`, `chpan`, `chfreq`: the channel, and `empty` `true` when it plays nothing |
 | `cross` | For `bgm "file",ms`: `"no music"` when there was none to cross-fade from |
 | `skip` | A movie (`mpegplay`, `movie`): whether a click stops it; `moviestop` beside it when that setting overrides the script's flag; `window`: `true` when the text window is shown as it starts (drawn over the movie) |
+| `ms_cpu` | On any command (listed below or not) that kept the main thread working for more than a frame (16 ms) without waiting: the longest such stretch, in wall-clock ms (a picture or sound decoded at once) |
 | `via` | Inside a `gosub` (a `textgosub` routine, a helper): the line it returns to, which led there |
 
 Which commands are written:
@@ -704,6 +705,21 @@ new `screenshake` in the slot), `ran` how long it shook (for a shake,
 with the time `--auto-play` skipped). A load or reset ending a shake
 records nothing. Sprites left out with `--trace-ignore` have no motion
 records.
+
+### `sound`: a fade, pan or rate that got there, a sound that ended
+
+```json
+{"t":"sound","pg":3,"ms":971,"ch":3,"cmd":"chvolfade","to":30}
+{"t":"sound","pg":3,"ms":1467,"ch":5,"ended":true,"file":"se\\shot.ogg"}
+```
+
+`cmd`, `to`: a `chvolfade`, `chpan` or `chfreq` ramp (`ms` over 0) that
+reached `to` at `ms`; `ch` -1 is the music. Written when the engine next
+looks (between events), so it can come after records with a later `ms`.
+`ended`: the sound on `ch` (-1: the music) played to its end, not stopped.
+Ramps run on the trace's clock, so under the virtual clock (`--auto-play`
+with the dummy driver) a ramp longer than the waits after it never gets
+there; sounds play in real time, so they end by the wall clock.
 
 ### `label`: the first time a label runs
 

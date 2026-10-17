@@ -1302,6 +1302,7 @@ int ONScripter::chvolfadeCommand()
         bgm_script_start = SDL_GetTicks();
         bgm_script_to = vol;
         bgm_script_ms = ms > 0 ? ms : 0;
+        traceRamp( 0, -1, vol, bgm_script_ms );
         applyMusicVolume();
         return RET_CONTINUE;
     }
@@ -1328,6 +1329,7 @@ int ONScripter::chvolfadeCommand()
     track_gain[ch].start = now;
     track_gain[ch].to = vol;
     track_gain[ch].ms = ms > 0 ? ms : 0;
+    traceRamp( 0, ch, vol, track_gain[ch].ms );
     return RET_CONTINUE;
 }
 
@@ -1358,6 +1360,7 @@ int ONScripter::chpanCommand()
     track_pan[ch].start = SDL_GetTicks();
     track_pan[ch].to = pan;
     track_pan[ch].ms = ms > 0 ? ms : 0;
+    traceRamp( 1, ch, pan, track_pan[ch].ms );
     return RET_CONTINUE;
 }
 
@@ -2969,6 +2972,7 @@ int ONScripter::chfreqCommand()
     track_freq[ch].to = rate;
     track_freq[ch].ms = ms > 0 ? speedTime( ms ) : 0;
     SDL_UnlockAudio();
+    traceRamp( 2, ch, rate, track_freq[ch].ms );
     return RET_CONTINUE;
 }
 

@@ -62,6 +62,7 @@ Uint32 consTicks();
 SDL_TimerID consAddTimer( Uint32 ms, SDL_TimerCallback callback, void *param );
 SDL_bool consRemoveTimer( SDL_TimerID id );
 void consDelay( Uint32 ms );
+void consIdle( bool idle );      // the main thread waits (true) or works again (false): ms_cpu
 bool consClockWait( SDL_Event *event );
 #define SDL_GetTicks() consTicks()
 #define SDL_AddTimer( ms, callback, param ) consAddTimer( ms, callback, param )
@@ -1121,6 +1122,9 @@ private:
     std::string traceBlocked( ButtonLink *bl );
     void traceLongWait( int ms );
     void traceChannel( int ch );     // chvolfade, chpan, chfreq: ,"ch" and ,"empty" in their ev
+    void traceRamp( int kind, int ch, int to, int ms ); // chvolfade (0), chpan (1), chfreq (2) ramping to `to` over ms
+    void traceSounds();              // the event loop: "sound" records of ramps that reached their value
+    void traceSoundEnded( int ch );  // a sound played to its end (ch -1: the music)
     static void traceErrorHook( const char *message );
     static void traceExitHook();
     
