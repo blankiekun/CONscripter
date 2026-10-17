@@ -1322,8 +1322,16 @@ void ONScripter::screenShow( ConsScreen *s )
     s->saveon = internal_saveon_flag;
     if (saveon_flag && internal_saveon_flag) storeSaveFile();
     internal_saveon_flag = false;
-    if (!s->shot) s->shot = AnimationInfo::alloc32bitSurface( screen_width, screen_height, texture_format );
-    if (s->shot) SDL_BlitSurface( accumulation_surface, NULL, s->shot, NULL );
+    // after a screen closed with hold the display is still that screen: its shot
+    if (screen_held_shot){
+        if (s->shot) SDL_FreeSurface( s->shot );
+        s->shot = screen_held_shot;
+        screen_held_shot = NULL;
+    }
+    else{
+        if (!s->shot) s->shot = AnimationInfo::alloc32bitSurface( screen_width, screen_height, texture_format );
+        if (s->shot) SDL_BlitSurface( accumulation_surface, NULL, s->shot, NULL );
+    }
 
     lua_rawgeti( L, LUA_REGISTRYINDEX, s->table );
     if (fieldTable( L, "hide" )){
@@ -1623,6 +1631,11 @@ int ONScripter::screenOpen( const std::string &name, const std::string &arg, int
         int fade = fieldInt( s->L, "fade", 0 );
         lua_pop( s->L, 1 );
         screens.pop_back();
+        if (hold){
+            if (screen_held_shot) SDL_FreeSurface( screen_held_shot );
+            screen_held_shot = s->shot;
+            s->shot = NULL;
+        }
         screenHide( s );
         if (!hold && fade > 0) screenFade( fade );
         else if (!hold) flush( refreshMode() );
