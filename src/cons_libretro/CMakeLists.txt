@@ -1,7 +1,12 @@
 cmake_minimum_required(VERSION 3.14)
 project(conscripter-libretro C CXX)
 option(LIBRETRO_STATIC "Statically link the libretro core" OFF)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+if (VITASDK)
+  # vita-elf-create takes no GOT relocations: no PIC, word relocations as RetroArch builds
+  add_compile_options(-mword-relocations)
+else ()
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif ()
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_C_STANDARD 11)
 
