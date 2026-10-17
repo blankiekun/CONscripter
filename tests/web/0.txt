@@ -1,9 +1,11 @@
 ;mode320
-; Web smoke test game: tests/web/smoke.py serves it with a web build.
+; Web smoke test game: tests/web/smoke.py serves it with a web build, in
+; Shift-JIS, or in UTF-8 with --enc:utf8.
 *define
 game
 *start
 strsp 1,"SPRITE",10,200,10,1,16,16,0,0,0,0
+strsp 2,"日本語ｶﾅ",10,230,10,1,16,16,0,0,0,0
 `Page one.\
 `Page two.\
 seldisable 3

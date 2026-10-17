@@ -23,6 +23,7 @@
 #define __CODING2UTF16_H__
 
 #include <stdint.h>
+#include <string>
 
 // CONscripter: the script is Shift_JIS, where 0xa0-0xdf are half-width
 // katakana of one byte, not the first byte of two (IS_TWO_BYTE)
@@ -35,8 +36,8 @@ public:
   static char minus[4];
   static char bracket[8];
   static char num_str[24];
-  static char DEFAULT_START_KINSOKU[40];
-  static char DEFAULT_END_KINSOKU[12];
+  static char DEFAULT_START_KINSOKU[64];
+  static char DEFAULT_END_KINSOKU[16];
   static char DEFAULT_SAVE_MENU_NAME[12];
   static char DEFAULT_LOAD_MENU_NAME[12];
   static char DEFAULT_SAVE_ITEM_NAME[8];
@@ -57,5 +58,8 @@ public:
   unsigned short convUTF8ToUTF16(const char**);
   virtual ~Coding2UTF16() {};
 };
+
+bool isUTF8( const char *s );
+std::string sjisToUTF8( const char *s );
 
 #endif

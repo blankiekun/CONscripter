@@ -322,8 +322,11 @@ int ONScripter::screenText( ConsScreen *s, const std::string &text, int x, int y
 {
     lua_State *L = s->L;
     int size = fieldInt( L, "size", 20 );
-    if (fieldStr( L, "align" ) == "centre" || fieldStr( L, "align" ) == "center")
-        x -= (int)text.size() * size / 4; // half-width characters are half as wide, as the script measures
+    if (fieldStr( L, "align" ) == "centre" || fieldStr( L, "align" ) == "center"){
+        int cells = 0; // half-width characters are half as wide, as the script measures (charCells)
+        for (const char *p = text.c_str() ; *p ; p += charBytes(p)) cells += charCells(p);
+        x -= cells * size / 4;
+    }
     std::string color = fieldStr( L, "color" ), color_args = color.empty() ? "" : "," + quoted( color );
     if (colors){
         color_args.clear();
@@ -1902,7 +1905,8 @@ int ONScripter::screenCommand()
     if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
         script_h.readVariable();
         result = script_h.current_variable;
-        if (script_h.getEndStatus() & ScriptHandler::END_COMMA) arg = script_h.readStr();
+        if (script_h.getEndStatus() & ScriptHandler::END_COMMA)
+            traceString( arg, script_h.readStr(), -1, false ); // in UTF-8, as the table is (a Shift_JIS one was shown garbled)
     }
 
     int value = 0, ret;

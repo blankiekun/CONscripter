@@ -321,6 +321,9 @@ void ONScripter::initSDL()
     screen_rect.h = screen_height;
 
     coding2utf16->init();
+    // CONscripter: in the script's encoding; set in the constructor it was
+    // the UTF-8 list cut into two-byte pieces, which matched nothing
+    setKinsoku(DEFAULT_START_KINSOKU, DEFAULT_END_KINSOKU, false);
     if (!isnan(sharpness)) {
 #if defined(USE_GLES)
         float input_size[2] = {(float)screen_width, (float)screen_height};

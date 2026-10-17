@@ -20,6 +20,7 @@
 */
 
 #include "coding2utf16.h"
+#include "sjis2utf16.h"
 
 
 bool cons_sjis = false;
@@ -28,8 +29,9 @@ char Coding2UTF16::space[4] = "　";
 char Coding2UTF16::minus[4] = "－";
 char Coding2UTF16::bracket[8] = "【】";
 char Coding2UTF16::num_str[24] = "0123456789";
-char Coding2UTF16::DEFAULT_START_KINSOKU[40] = "」』）］｝、。，．。？！ー" ;
-char Coding2UTF16::DEFAULT_END_KINSOKU[12] = "「『（";
+// CONscripter: the Shift_JIS lists (SJIS2UTF16::init) in UTF-8
+char Coding2UTF16::DEFAULT_START_KINSOKU[64] = "」』）］｝、。，．・？！ヽヾゝゞ々ー";
+char Coding2UTF16::DEFAULT_END_KINSOKU[16] = "「『（［｛";
 char Coding2UTF16::DEFAULT_SAVE_MENU_NAME[12] = "＜save＞";
 char Coding2UTF16::DEFAULT_LOAD_MENU_NAME[12] = "＜load＞";
 char Coding2UTF16::DEFAULT_SAVE_ITEM_NAME[8] = "data";
@@ -88,4 +90,42 @@ unsigned short Coding2UTF16::convUTF8ToUTF16(const char **src) {
     }
 
     return utf16;
+}
+
+// CONscripter: whether s is valid UTF-8.
+bool isUTF8( const char *s )
+{
+    for (const unsigned char *p = (const unsigned char*)s ; *p ; ){
+        int n = (*p & 0x80) == 0 ? 1 : (*p & 0xe0) == 0xc0 ? 2 : (*p & 0xf0) == 0xe0 ? 3 : (*p & 0xf8) == 0xf0 ? 4 : 0;
+        if (n == 0) return false;
+        for (int i=1 ; i<n ; i++) if ((p[i] & 0xc0) != 0x80) return false;
+        p += n;
+    }
+    return true;
+}
+
+// CONscripter: s, read as Shift_JIS, in UTF-8 (for a UTF-8 script: saves
+// and archive names from when the game's script was Shift_JIS).
+std::string sjisToUTF8( const char *s )
+{
+    static SJIS2UTF16 *sjis = NULL;
+    if (!sjis){
+        sjis = new SJIS2UTF16();
+        cons_sjis = false; // the constructor's, for Shift_JIS scripts
+        sjis->force_utf8 = true; // init() then leaves the shared default strings alone
+        sjis->init();
+    }
+    std::string out;
+    for (const unsigned char *p = (const unsigned char*)s ; *p ; p++){
+        uint16_t u = *p;
+        if (((u >= 0x81 && u <= 0x9f) || (u >= 0xe0 && u <= 0xfc)) && p[1] >= 0x40 && p[1] <= 0xfc){
+            u = sjis->conv2UTF16( u << 8 | *++p );
+            if (!u) u = 0xfffd;
+        }
+        else if (u >= 0xa1 && u <= 0xdf) u += 0xff61 - 0xa1; // half-width katakana
+        else if (u >= 0x80) u = 0xfffd;
+        unsigned char b[4];
+        out.append( (char*)b, sjis->convUTF16ToUTF8( b, u ) );
+    }
+    return out;
 }

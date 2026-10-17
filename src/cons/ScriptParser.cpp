@@ -86,7 +86,7 @@ ScriptParser::ScriptParser()
 
     start_kinsoku = end_kinsoku = NULL;
     num_start_kinsoku = num_end_kinsoku = 0;
-    setKinsoku(DEFAULT_START_KINSOKU, DEFAULT_END_KINSOKU, false);
+    // CONscripter: the default list is set once the encoding is known (ONScripter::init)
 }
 
 ScriptParser::~ScriptParser()
@@ -468,6 +468,12 @@ void ScriptParser::readStr(char **s)
         *s = new char[counter+1];
         memcpy(*s, file_io_buf + file_io_buf_ptr, counter);
         (*s)[counter] = 0; // a string cut by the end of the file
+        if (coding2utf16->force_utf8 && !isUTF8(*s)){ // a save made while the script was Shift_JIS
+            std::string u = sjisToUTF8(*s);
+            delete[] *s;
+            *s = new char[u.size() + 1];
+            memcpy(*s, u.c_str(), u.size() + 1);
+        }
     }
     file_io_buf_ptr += counter;
 }
@@ -772,83 +778,36 @@ void ScriptParser::setKinsoku(const char *start_chrs, const char *end_chrs, bool
     const char *kchr;
     Kinsoku *tmp;
 
-    // count chrs
+    // CONscripter: a character is charBytes long (Shift_JIS or UTF-8)
     int num_start = 0;
-    kchr = start_chrs;
-    while (*kchr != '\0') {
-        if IS_TWO_BYTE(*kchr) kchr++;
-        kchr++;
-        num_start++;
-    }
-
+    for (kchr = start_chrs; *kchr; kchr += charBytes(kchr)) num_start++;
     int num_end = 0;
-    kchr = end_chrs;
-    while (*kchr != '\0') {
-        if IS_TWO_BYTE(*kchr) kchr++;
-        kchr++;
-        num_end++;
-    }
+    for (kchr = end_chrs; *kchr; kchr += charBytes(kchr)) num_end++;
 
-    if (add) {
-        if (start_kinsoku != NULL)
-            tmp = start_kinsoku;
-        else {
-            tmp = new Kinsoku[1];
-            num_start_kinsoku = 0;
-        }
-    } else {
-        if (start_kinsoku != NULL)
-            delete[] start_kinsoku;
-        tmp = new Kinsoku[1];
+    tmp = add ? start_kinsoku : NULL;
+    if (!add){
+        delete[] start_kinsoku;
         num_start_kinsoku = 0;
     }
     start_kinsoku = new Kinsoku[num_start_kinsoku + num_start];
-    kchr = start_chrs;
-    for (i=0; i<num_start_kinsoku+num_start; i++) {
-        if (i < num_start_kinsoku)
-            start_kinsoku[i].chr[0] = tmp[i].chr[0];
-        else
-            start_kinsoku[i].chr[0] = *kchr++;
-        if IS_TWO_BYTE(start_kinsoku[i].chr[0]) {
-            if (i < num_start_kinsoku)
-                start_kinsoku[i].chr[1] = tmp[i].chr[1];
-            else
-                start_kinsoku[i].chr[1] = *kchr++;
-        } else {
-            start_kinsoku[i].chr[1] = '\0';
-        }
+    for (i=0; i<num_start_kinsoku; i++) start_kinsoku[i] = tmp[i];
+    for (kchr = start_chrs; *kchr; kchr += charBytes(kchr), i++){
+        memset(start_kinsoku[i].chr, 0, sizeof(start_kinsoku[i].chr));
+        memcpy(start_kinsoku[i].chr, kchr, charBytes(kchr));
     }
     num_start_kinsoku += num_start;
     delete[] tmp;
 
-    if (add) {
-        if (end_kinsoku != NULL)
-            tmp = end_kinsoku;
-        else {
-            tmp = new Kinsoku[1];
-            num_end_kinsoku = 0;
-        }
-    } else {
-        if (end_kinsoku != NULL)
-            delete[] end_kinsoku;
-        tmp = new Kinsoku[1];
+    tmp = add ? end_kinsoku : NULL;
+    if (!add){
+        delete[] end_kinsoku;
         num_end_kinsoku = 0;
     }
     end_kinsoku = new Kinsoku[num_end_kinsoku + num_end];
-    kchr = end_chrs;
-    for (i=0; i<num_end_kinsoku+num_end; i++) {
-        if (i < num_end_kinsoku)
-            end_kinsoku[i].chr[0] = tmp[i].chr[0];
-        else
-            end_kinsoku[i].chr[0] = *kchr++;
-        if IS_TWO_BYTE(end_kinsoku[i].chr[0]) {
-            if (i < num_end_kinsoku)
-                end_kinsoku[i].chr[1] = tmp[i].chr[1];
-            else
-                end_kinsoku[i].chr[1] = *kchr++;
-        } else {
-            end_kinsoku[i].chr[1] = '\0';
-        }
+    for (i=0; i<num_end_kinsoku; i++) end_kinsoku[i] = tmp[i];
+    for (kchr = end_chrs; *kchr; kchr += charBytes(kchr), i++){
+        memset(end_kinsoku[i].chr, 0, sizeof(end_kinsoku[i].chr));
+        memcpy(end_kinsoku[i].chr, kchr, charBytes(kchr));
     }
     num_end_kinsoku += num_end;
     delete[] tmp;
@@ -856,20 +815,16 @@ void ScriptParser::setKinsoku(const char *start_chrs, const char *end_chrs, bool
 
 bool ScriptParser::isStartKinsoku(const char *str)
 {
-    for (int i=0; i<num_start_kinsoku; i++) {
-        if ((start_kinsoku[i].chr[0] == *str) &&
-            (start_kinsoku[i].chr[1] == *(str+1)))
-            return true;
-    }
+    int n = charBytes(str);
+    for (int i=0; i<num_start_kinsoku; i++)
+        if (!start_kinsoku[i].chr[n] && !memcmp(start_kinsoku[i].chr, str, n)) return true;
     return false;
 }
 
 bool ScriptParser::isEndKinsoku(const char *str)
 {
-    for (int i=0; i<num_end_kinsoku; i++) {
-        if ((end_kinsoku[i].chr[0] == *str) &&
-            (end_kinsoku[i].chr[1] == *(str+1)))
-            return true;
-    }
+    int n = charBytes(str);
+    for (int i=0; i<num_end_kinsoku; i++)
+        if (!end_kinsoku[i].chr[n] && !memcmp(end_kinsoku[i].chr, str, n)) return true;
     return false;
 }

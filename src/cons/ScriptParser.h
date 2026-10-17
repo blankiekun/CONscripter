@@ -413,7 +413,7 @@ protected:
     bool english_mode;
 
     struct Kinsoku {
-        char chr[2];
+        char chr[5]; // CONscripter: a character of up to 4 bytes (UTF-8), 0-ended
     } *start_kinsoku, *end_kinsoku;
     bool is_kinsoku;
     int num_start_kinsoku, num_end_kinsoku;

@@ -818,8 +818,7 @@ int ONScripter::traceCommand( const char *name, FuncList method )
     while (len < 300 && start[len] && start[len] != '\n' &&
            (quoted || (start[len] != ':' && start[len] != ';'))){
         if (start[len] == '"') quoted = !quoted;
-        if (IS_TWO_BYTE(start[len]) && start[len+1] && start[len+1] != '\n') len++;
-        len++;
+        len += charBytes(start + len); // CONscripter: a whole character, in UTF-8 too
     }
     while (len > 0 && (start[len-1] == ' ' || start[len-1] == '\t')) len--;
     traceString( r, start, len );

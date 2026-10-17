@@ -6,7 +6,8 @@ _consResendText) and that the page logs no errors.
 usage: python3 -I tests/web/smoke.py <web build dir> [engine args...]
 The build dir holds conscripter.html/.js/.wasm (cross_web.sh's build_web, or a
 release's conscripter_web). Engine args go into cons_index.json as a game's
-ons_args would (`--no-text-overlay` must make it fail). The browser is $CHROME,
+ons_args would (`--no-text-overlay` must make it fail). 0.txt (UTF-8 here) is
+served in Shift-JIS with --enc:sjis, or in UTF-8 with --enc:utf8. The browser is $CHROME,
 else the first of chromium, chromium-browser, google-chrome on the PATH; the
 font is $FONT, else the first TTF under /usr/share/fonts.
 Needs only the Python standard library. Exit 0 when every check passes.
@@ -30,7 +31,12 @@ def main():
     for f in ["conscripter.js", "conscripter.wasm"]:
         shutil.copy(os.path.join(build, f), site)
     shutil.copy(os.path.join(HERE, "smoke.js"), site)
-    shutil.copy(os.path.join(HERE, "0.txt"), site)
+    utf8 = "--enc:utf8" in engine_args
+    if not utf8:
+        engine_args = ["--enc:sjis"] + engine_args
+    enc = "utf-8" if utf8 else "cp932"
+    script = open(os.path.join(HERE, "0.txt"), encoding="utf-8").read()
+    open(os.path.join(site, "0.txt"), "wb").write(script.encode(enc))
     shutil.copy(font, os.path.join(site, "default.ttf"))
     # the shipped page, with smoke.js run before anything else
     html = open(os.path.join(build, "conscripter.html"), encoding="utf-8", newline="").read()
@@ -89,6 +95,9 @@ def main():
     checks = [
         ("the game starts: consText with 'Page one.'", calls("start", "consText", "Page one.")),
         ("consSprites with the strsp text 'SPRITE'", calls("start", "consSprites", "SPRITE")),
+        (f"consSprites with '日本語ｶﾅ' in {enc}, its boxes after SPRITE's",  # 3 for SPRITE (in pairs), 1 per kanji at least
+         [r for r in calls("start", "consSprites") if "日本語ｶﾅ" in r["text"].encode("latin-1").decode(enc, "replace")
+          and r["boxes"] >= 3 + 3]),
         ("consNoTextOverlay=1 stops every hook", not [r for r in log if r["phase"] == "off"]),
         ("_consResendText sends 'Page two.' as skipped", [r for r in calls("resend", "consText", "Page two.") if r["arg"] == 1]),
         ("_consResendText sends the string sprite", calls("resend", "consSprites", "SPRITE")),

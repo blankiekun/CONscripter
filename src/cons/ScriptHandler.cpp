@@ -265,17 +265,13 @@ const char *ScriptHandler::readToken()
         bool ignore_clickstr_flag = false;
         while(1){
             if ( IS_TWO_BYTE(ch) ){
-                if (coding2utf16->force_utf8 && UTF8_N_BYTE(ch) == 3) {
-                    addStringBuffer( ch );
-                    ch = *++buf;
-                }
-                addStringBuffer( ch );
-                ch = *++buf;
-                if (ch == 0x0a || ch == '\0') break;
-                addStringBuffer( ch );
-                buf++;
+                // CONscripter: the whole character (charBytes: 2, or 2-4 in UTF-8)
+                const char *c = buf;
+                for (int n = charBytes(buf) ; n > 0 ; n--) addStringBuffer( *buf++ );
+                ch = *buf;
+                if (buf - c < 2) continue; // cut short by the line's end
                 if (!wait_script && !ignore_clickstr_flag &&
-                    checkClickstr(buf-2) > 0)
+                    checkClickstr(c) > 0)
                     wait_script = buf;
                 ignore_clickstr_flag = false;
             }
@@ -307,9 +303,9 @@ const char *ScriptHandler::readToken()
     else if (ch == '`' || resume_1byte){
         if (!resume_1byte) ch = *++buf;
         while (ch != '`' && ch != 0x0a && ch !='\0'){
-            if ( IS_TWO_BYTE(ch) ){
-                addStringBuffer( ch );
-                ch = *++buf;
+            if ( IS_TWO_BYTE(ch) ){ // CONscripter: the whole character, in UTF-8 too
+                for (int n = charBytes(buf) ; n > 1 ; n--) addStringBuffer( *buf++ );
+                ch = *buf;
             }
             addStringBuffer( ch );
             if (ch == '@' || ch == '\\') markWait( buf, true ); // CONscripter: rgosub
