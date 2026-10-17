@@ -118,3 +118,47 @@ jobs:
         allowUpdates: "true"
         omitBodyDuringUpdate: "true" # keep the release notes written by hand
         token: ${{ secrets.GITHUB_TOKEN }}
+
+  # RetroArch on Wii U (Aroma) loads cores as .rpx files from sd:/retroarch/cores/
+  build_libretro_wiiu:
+    runs-on: ubuntu-22.04
+    container: devkitpro/devkitppc:20260503
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: build the core
+      run: |
+        cmake -S src/cons_libretro -B build_wiiu -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/WiiU.cmake \
+          -DLIBRETRO_STATIC=ON -DLIBRETRO_SUFFIX=_wiiu -DCMAKE_BUILD_TYPE=Release
+        make -C build_wiiu -j$(nproc)
+
+    # RetroArch's elf2rpl needs zlib; its last step compresses with wiiurpxtool,
+    # a Windows tool that builds on Linux once <io.h> is <cstdio>
+    - name: link it into RetroArch
+      run: |
+        apt-get update -qq && apt-get install -y -qq zlib1g-dev g++ > /dev/null
+        git clone -q https://github.com/0CBH0/wiiurpxtool.git rpxtool
+        git -C rpxtool checkout -q 6ff41a43201dcfa126b4b00379db39e94de64037
+        sed -i 's/#include <io.h>/#include <cstdio>/' rpxtool/wiiurpxtool.cpp
+        g++ -O2 -o /usr/local/bin/wiiurpxtool rpxtool/wiiurpxtool.cpp -lz
+        git clone --depth 1 -b v1.22.2 https://github.com/libretro/RetroArch.git retroarch
+        cp build_wiiu/conscripter_libretro_wiiu.a retroarch/libretro_wiiu.a
+        make -C retroarch -f Makefile.wiiu -j$(nproc) BUILD_HBL_ELF=0 > retroarch.log 2>&1 || { tail -n 40 retroarch.log; exit 1; }
+        mv retroarch/retroarch_wiiu.rpx conscripter_libretro_wiiu.rpx
+        ls -l conscripter_libretro_wiiu.rpx
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: conscripter_libretro_wiiu
+        path: conscripter_libretro_wiiu.rpx
+
+    - name: create release
+      uses: ncipollo/release-action@v1
+      if: github.ref_type == 'tag'
+      with:
+        artifacts: "conscripter_libretro_wiiu.rpx"
+        allowUpdates: "true"
+        omitBodyDuringUpdate: "true" # keep the release notes written by hand
+        token: ${{ secrets.GITHUB_TOKEN }}

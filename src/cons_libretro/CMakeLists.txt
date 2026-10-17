@@ -178,8 +178,8 @@ add_library(sdl2 STATIC
 target_include_directories(sdl2 PUBLIC
   deps/SDL/include
 )
-if (NINTENDO_SWITCH)
-  # libnx has no thread priorities or signal masks: take SDL's NaCl path, which skips them
+if (NINTENDO_SWITCH OR NINTENDO_WIIU)
+  # libnx and wut have no thread priorities or signal masks: take SDL's NaCl path, which skips them
   set_source_files_properties(deps/SDL/src/thread/pthread/SDL_systhread.c
     PROPERTIES COMPILE_DEFINITIONS __NACL__)
 endif ()
