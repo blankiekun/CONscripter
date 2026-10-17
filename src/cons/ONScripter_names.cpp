@@ -458,7 +458,7 @@ void ONScripter::clearHandleSprites()
 /* Part of the CONscripter save block (version 26): the named locals
  * (writeNamedVars); the held handles: count, then each one's number, layer
  * and the name of the variable holding it ("%n" unnamed, "" none); the
- * handles' pictures as the numbered ones' (count, then number, image,
+ * handles' pictures and strsp sprites as the numbered ones' (count, then number, image,
  * x, y, visible, cell, alpha). */
 void ONScripter::writeNamesSection( bool output_flag )
 {
@@ -480,11 +480,11 @@ void ONScripter::writeNamesSection( bool output_flag )
     }
 
     num = 0;
-    for (int i=NS_SPRITE_NUM ; i<MAX_SPRITE_NUM ; i++) if (sprite_info[i].image_name) num++;
+    for (int i=NS_SPRITE_NUM ; i<MAX_SPRITE_NUM ; i++) if (sprite_info[i].image_name || isStrsp( i )) num++;
     writeInt( num, output_flag );
     for (int i=NS_SPRITE_NUM ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo *ai = &sprite_info[i];
-        if (!ai->image_name) continue;
+        if (!ai->image_name && !isStrsp( i )) continue; // a strsp one: its place here, its text in version 5
         writeInt( i, output_flag );
         writeStr( ai->image_name, output_flag );
         writeInt( ai->orig_pos.x, output_flag );
