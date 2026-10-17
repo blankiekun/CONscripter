@@ -117,7 +117,9 @@ int trackGain( int channel ) // 0-4096; the trace reads it too
  *   lightness inverted (a negative that keeps the hue); 9 levels: each
  *   param (r, g, b) is gamma*65536 + low*256 + high, gamma in 1/1000, and
  *   the channel v becomes low + (high-low) * (v/255)^(1000/gamma) (gamma
- *   0: low); 10 the same levels on the greyscale (54 r + 183 g + 19 b)/256.
+ *   0: low); 10 the same levels on the greyscale (54 r + 183 g + 19 b)/256;
+ *   11 the grey of the weights param r,g,b (in 1/256, each term rounded
+ *   down): "spfilter 10,11,0,256,77,150,29" is kind 2 to within a step.
  *   blend combines that colour with the pixel's: 0 copy (default),
  *   1 multiply, 2 add, 3 screen, 4 overlay, 5 colour dodge. strength 0-256 (default 256) is how much
  *   of the result replaces the pixel. So "spfilter 10,1,1,256,255,200,160"

@@ -117,7 +117,8 @@ public:
            FILTER_LIGHTNESS_INVERT = 8, // lightness inverted, hue and saturation kept
            FILTER_LEVELS     = 9, // param = r, g, b levels, each gamma*65536 + low*256 + high (gamma in 1/1000)
            FILTER_GREY_LEVELS = 10, // greyscale (54 r + 183 g + 19 b)/256, then FILTER_LEVELS
-           FILTER_LAST       = FILTER_GREY_LEVELS
+           FILTER_GREY_WEIGHTS = 11, // grey r*param[0]/256 + g*param[1]/256 + b*param[2]/256, each term rounded down
+           FILTER_LAST       = FILTER_GREY_WEIGHTS
     };
     // How a filter's colour is combined with the pixel's.
     enum { FILTER_BLEND_COPY     = 0,
