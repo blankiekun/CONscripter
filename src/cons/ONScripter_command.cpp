@@ -1430,6 +1430,7 @@ int ONScripter::mspCommand()
 
 int ONScripter::mpegplayCommand()
 {
+    click_skipping = false; // CONscripter: clickskip
     script_h.readStr();
     const char *save_buf = script_h.saveStringBuffer();
     
@@ -3207,11 +3208,12 @@ int ONScripter::delayCommand()
 {
     int val = script_h.readInt();
     
-    if (skip_mode & SKIP_NORMAL || ctrl_pressed_status)
+    if (skip_mode & SKIP_NORMAL || ctrl_pressed_status || click_skipping)
         return RET_CONTINUE;
 
     event_mode = WAIT_TIMER_MODE | WAIT_INPUT_MODE;
     waitEvent( speedTime( val ) ); // CONscripter: gamespeed
+    if (click_skip_flag && waitInterrupted()) click_skipping = true; // CONscripter: clickskip
 
     return RET_CONTINUE;
 }

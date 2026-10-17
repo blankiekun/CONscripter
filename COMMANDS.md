@@ -791,6 +791,14 @@ with a time) by `curve`, as `spmotion`'s (1-3 ease in, out, in and out;
 curve(p). Used by the effect that follows only; not saved.
 `effectcurve 2:print 10,1000`. Impl `ONScripter::effectcurveCommand`.
 
+### clickskip (define) / getclickskip [cons]
+`clickskip` — a click (or key) that ends a `delay` or an effect (`print` or an
+effect command with a time) early also ends every later `delay` and effect at
+once (an effect drawn as `print 1`), until the next text, wait for a click
+(`click`, `btnwait` without `btntime`, ...) or `mpegplay`. `getclickskip %v`:
+1 while it does, else 0. Xuse's skip_state_b (最果てのイマ). Not saved.
+Impl `ONScripter::clickskipCommand`, `getclickskipCommand`.
+
 ### spcurve [cons]
 `spcurve id,v0,v1,...,vn` — curve id (10-73) for `spmotion` keys: how far
 (0-1024) from one key to the next at n+1 even steps (2 to 1025 values), straight

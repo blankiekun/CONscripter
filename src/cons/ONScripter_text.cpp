@@ -963,6 +963,7 @@ void ONScripter::endRuby(bool flush_flag, bool lookback_flag, SDL_Surface *surfa
 
 int ONScripter::textCommand()
 {
+    click_skipping = false; // CONscripter: clickskip
     if (line_enter_status <= 1 && (!pretextgosub_label || saveon_flag) && internal_saveon_flag){
         storeSaveFile();
         internal_saveon_flag = false;

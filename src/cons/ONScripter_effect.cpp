@@ -55,7 +55,7 @@ bool ONScripter::setEffect( EffectLink *effect )
     if ( effect->effect == 0 ) return true;
     
     int effect_no = effect->effect;
-    if ((effect_cut_flag && (skip_mode & SKIP_NORMAL || ctrl_pressed_status)) || effect_off || still_screen) // CONscripter: effectoff
+    if ((effect_cut_flag && (skip_mode & SKIP_NORMAL || ctrl_pressed_status)) || effect_off || still_screen || click_skipping) // CONscripter: effectoff, clickskip
         effect_no = 1;
 
     SDL_BlitSurface( accumulation_surface, NULL, effect_src_surface, NULL );
@@ -134,7 +134,7 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
     effect_start_time_old = effect_start_time;
     
     int effect_no = effect->effect;
-    if ((effect_cut_flag && (skip_mode & SKIP_NORMAL || ctrl_pressed_status)) || effect_off || still_screen) // CONscripter: effectoff
+    if ((effect_cut_flag && (skip_mode & SKIP_NORMAL || ctrl_pressed_status)) || effect_off || still_screen || click_skipping) // CONscripter: effectoff, clickskip
         effect_no = 1;
     
     // CONscripter: sprites moving or fading by themselves (spmotion) and
@@ -168,11 +168,11 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
 
     event_mode = WAIT_INPUT_MODE;
     waitEvent(0);
-    if ( !((automode_flag || autoclick_time > 0) ||
-           (usewheel_flag  && current_button_state.button == -5) ||
-           (!usewheel_flag && current_button_state.button == -2)) ){
-        if ( effect_skip_flag )
+    if ( waitInterrupted() ){
+        if ( effect_skip_flag ){
             effect_counter = effect_duration; // interrupted
+            if (click_skip_flag) click_skipping = true; // CONscripter: clickskip
+        }
     }
 
     if ( effect_counter < effect_duration && effect_no != 1 ){
