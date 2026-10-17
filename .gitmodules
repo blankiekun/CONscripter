@@ -16,3 +16,6 @@
 [submodule "src/onsyuri_libretro/deps/lua"]
 	path = src/cons_libretro/deps/lua
 	url = https://github.com/lua/lua.git
+[submodule "src/cons_libretro/deps/libwebp"]
+	path = src/cons_libretro/deps/libwebp
+	url = https://github.com/webmproject/libwebp.git
