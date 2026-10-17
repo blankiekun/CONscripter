@@ -904,6 +904,7 @@ private:
     char *trace_se_name[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS]; // the sound each channel last played
     bool trace_se_loop[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS];
     void traceStart();
+    void traceStale();
     void traceWrite( std::string &record );
     void traceAt( std::string &out, char *address );
     void traceVia( std::string &out );

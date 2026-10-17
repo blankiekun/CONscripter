@@ -277,6 +277,42 @@ void ONScripter::traceStart()
     traceShotAtSetup();
 }
 
+// FNV-1a 64 of 0.txt, as hex.
+static std::string traceScriptHash( FILE *fp )
+{
+    unsigned long long h = 14695981039346656037ULL;
+    for (int c ; (c = fgetc( fp )) != EOF ; ) h = (h ^ (unsigned char)c) * 1099511628211ULL;
+    char buf[17];
+    snprintf( buf, sizeof(buf), "%016llx", h );
+    return buf;
+}
+
+// A "stale archive" warning when the archives were packed for another
+// 0.txt: the converter writes the hash of its 0.txt as cons/script.hash
+// (none in loose builds, none for scripts not in 0.txt: no warning).
+// Called by game, once the define section has opened the archives.
+void ONScripter::traceStale()
+{
+    if (!trace_fp) return;
+    const char *name = "cons\\script.hash";
+    size_t len = script_h.cBR->getFileLength( name );
+    if (len == 0 || len > 64) return;
+    FILE *fp = script_h.fopen( "0.txt", "rb" );
+    if (!fp) return;
+    std::string script = traceScriptHash( fp );
+    fclose( fp );
+    unsigned char buf[65];
+    script_h.cBR->getFile( name, buf );
+    std::string archive( (char*)buf, len );
+    if (archive == script) return;
+    std::string r = "{\"t\":\"warn\",\"pg\":0,\"what\":\"stale archive\",\"file\":\"0.txt\",\"script\":";
+    traceString( r, script.c_str() );
+    r += ",\"archive\":";
+    traceString( r, archive.c_str() );
+    r += '}';
+    traceWrite( r );
+}
+
 // The first record: the engine, the game and the options.
 void ONScripter::traceMeta()
 {

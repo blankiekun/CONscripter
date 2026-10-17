@@ -1,4 +1,4 @@
-"""--diff and motions: python3 -I tools/test_cons_trace_check.py"""
+"""--diff, motions, stale archives and missing pictures: python3 -I tools/test_cons_trace_check.py"""
 import contextlib
 import io
 import json
@@ -56,6 +56,35 @@ class Diff(unittest.TestCase):
         out = run_diff([page(sprite(motion='once', mid='1234abcd', mnow=[0] * 7))],
                        [page(sprite(motion='once', mid='99999999', mnow=[0] * 7))])
         self.assertIn('lsp 10: a.png at 50,50 100x100 alpha 255 motion once 1234abcd -> a.png at 50,50 100x100 alpha 255 motion once 99999999\n', out)
+
+
+class Build(unittest.TestCase):
+    def test_stale_archive_and_missing_picture(self):
+        d = tempfile.mkdtemp()
+        name = b'bg\\a.png'
+        with open(os.path.join(d, 'arc.nsa'), 'wb') as f:  # one entry, as conv-cons writes it
+            f.write((1).to_bytes(2, 'big') + (6 + len(name) + 14).to_bytes(4, 'big') + name + bytes(14))
+        with open(os.path.join(d, '0.txt'), 'w', encoding='cp932') as f:
+            f.write('*start\nlsp 1,":a;bg\\a.png",0,0\nlsp 2,"bg\\b.png",0,0\nlsp 3,"bg\\$1.png",0,0\n')
+        trace = os.path.join(d, 't.jsonl')
+        with open(trace, 'w') as f:
+            f.write(json.dumps({'t': 'warn', 'pg': 0, 'what': 'stale archive', 'file': '0.txt',
+                                'script': '1', 'archive': '2'}) + '\n')
+        out = io.StringIO()
+        argv = sys.argv
+        sys.argv = ['x', trace, '--script', os.path.join(d, '0.txt'), '--skip', 'coverage']
+        try:
+            with contextlib.redirect_stdout(out):
+                cons_trace_check.main()
+        except SystemExit:
+            pass
+        finally:
+            sys.argv = argv
+        out = out.getvalue()
+        self.assertIn('packed for another 0.txt', out)
+        self.assertIn('bg\\b.png is named by the script', out)
+        self.assertNotIn('a.png is named', out)
+        self.assertNotIn('$1', out)
 
 
 if __name__ == '__main__':

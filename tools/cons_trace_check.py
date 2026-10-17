@@ -9,8 +9,11 @@ by kind, each finding at the script line ("*label:line") to look at:
 
   error        script and startup errors; a crash (its signal and last
                commands); a run that ended without "end", was killed by a
-               signal or got stuck
-  missing      files that couldn't be loaded, grouped by file
+               signal or got stuck; archives packed for another 0.txt
+               (a stale build)
+  missing      files that couldn't be loaded, grouped by file; with
+               --script, pictures the script names that aren't in the
+               archives (arc*.nsa) or loose files beside it
   text         garbled characters (in pages and select options), text past
                the window, empty pages, text tags shown as text; with
                --script, %, $ or ? in a text line (they print a variable)
@@ -372,6 +375,7 @@ class Checker:
         if self.lines is not None:
             self.reserved()
             self.coverage()
+            self.pictures()
         if self.args.root:
             self.unused()
         if self.baseline:
@@ -453,7 +457,10 @@ class Checker:
 
     def warn(self, r):
         what, at = r.get('what'), r.get('at')
-        if what == 'auto-play stuck':
+        if what == 'stale archive':
+            self.add('error', what, None, 'the archives were packed for another 0.txt (hash %s, 0.txt is %s): '
+                     'a stale build, convert the game again' % (r.get('archive'), r.get('script')))
+        elif what == 'auto-play stuck':
             self.add('error', None, at, 'auto-play stuck here (going round in circles?)')
         elif what == 'long wait':
             ms = r.get('ms', 0)
@@ -766,6 +773,30 @@ class Checker:
                 self.add('text', ('reserved', i), at, '%s in a text line prints a variable or reads an array: %s'
                          % (m.group(0), snippet(body, m.start())))
 
+    def pictures(self):
+        """Pictures the script names that aren't in the archives or loose files beside it."""
+        d = self.args.script if os.path.isdir(self.args.script) else os.path.dirname(self.args.script) or '.'
+        have = game_files(d)
+        label, seen = None, set()
+        for i, line in enumerate(self.lines, 1):
+            line = line.lstrip(' \t')
+            m = re.match(r'\*+([^\s:;/]+)', line)
+            if m:
+                label = m.group(1).lower()
+            if not re.match(r'[A-Za-z_~:{}]', line):  # text lines, labels and comments name no files
+                continue
+            for name in re.findall(r'"([^"\n]*)"', line):
+                if name.startswith(':'):
+                    name = name[name.find(';') + 1:] if ';' in name else ''
+                f = norm_file(name)
+                if (not f.endswith(PICTURES) or f.startswith('.') or '$' in f or '%' in f
+                        or f in have or f in seen):
+                    continue
+                seen.add(f)
+                self.pg = 0
+                self.add('missing', ('picture', f), '*%s:%d' % (label, i),
+                         '%s is named by the script but not in the archives or the game folder' % name)
+
     def voices(self):
         a = self.args
         stats = defaultdict(lambda: [0, 0])  # speaker -> [voiced, lines]
@@ -891,6 +922,31 @@ class Checker:
         elif pages and len(self.runs) == 1:
             print('\nTo see these pages, run the game again the same way with:\n  --shot-pages %s'
                   % ','.join(str(p) for p in sorted(pages)))
+
+
+PICTURES = ('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp')
+
+
+def game_files(d):
+    """The files the engine finds from folder D: arc*.nsa's entries and loose files, as norm_file."""
+    have = set()
+    for dd, _, fs in os.walk(d):
+        for f in fs:
+            have.add(norm_file(os.path.relpath(os.path.join(dd, f), d)))
+    # shortcut: .nsa only (what the converter writes); add .sar/.ns2 when a game needs them
+    for f in sorted(os.listdir(d)):
+        if not re.match(r'^arc\d?\.nsa$', f.lower()):
+            continue
+        with open(os.path.join(d, f), 'rb') as a:
+            count = int.from_bytes(a.read(2), 'big')
+            a.read(4)
+            for _ in range(count):
+                name = bytearray()
+                while (b := a.read(1)) not in (b'\0', b''):
+                    name += b
+                a.read(13)  # compression, offset, stored and original length
+                have.add(norm_file(name.decode('cp932', 'replace')))
+    return have
 
 
 def norm_file(f):
