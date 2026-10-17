@@ -1203,7 +1203,10 @@ runs). Positions inside a slot are relative to its corner:
 - `lines = { {x, y, size, ..., text = "...", empty = "..."} }`: text lines
   (fields as `text`); `text` for a slot with a save, `empty` without one.
   `%N` is the slot in two digits, `%n` as is, `%Y %y %m %d %H %M %S` the
-  save's time (its file's), `%T` its text, `%%` a `%`.
+  save's time (its file's), `%T` its text, `%%` a `%`. With `split = "|"`
+  on the widget, `%T1` to `%T9` are the text's parts cut at it (`%T1` the
+  whole text without one; a part it lacks is empty): a game that saves
+  more than one field in the text, or saves of an older build.
 
 **Actions**: a table `{"what", ...}`, or a list of them run in order. A
 `save`, `load` or `delete` that can't be taken (no slot, an empty slot to
