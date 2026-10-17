@@ -284,19 +284,94 @@ int ONScripter::screenImage( ConsScreen *s, int x, int y, const char *file_overr
     return no;
 }
 
-// A text (the table on top: size, cols, rows, bold, shadow, color, align) at x, y.
-void ONScripter::screenText( ConsScreen *s, const std::string &text, int x, int y )
+// A text (the table on top: size, cols, rows, bold, shadow, color, align)
+// at x, y; `colors` in place of `color`: one cell each (normal, hover).
+int ONScripter::screenText( ConsScreen *s, const std::string &text, int x, int y, const std::vector<std::string> *colors )
 {
     lua_State *L = s->L;
     int size = fieldInt( L, "size", 20 );
     if (fieldStr( L, "align" ) == "centre" || fieldStr( L, "align" ) == "center")
         x -= (int)text.size() * size / 4; // half-width characters are half as wide, as the script measures
-    std::string color = fieldStr( L, "color" );
+    std::string color = fieldStr( L, "color" ), color_args = color.empty() ? "" : "," + quoted( color );
+    if (colors){
+        color_args.clear();
+        for (const std::string &c : *colors) color_args += "," + quoted( c );
+    }
     int no = screenSprite( s );
     screenExec( "strsp " + std::to_string( no ) + "," + quoted( text ) + "," + std::to_string( x ) + "," + std::to_string( y ) + "," +
                 std::to_string( fieldInt( L, "cols", 40 ) ) + "," + std::to_string( fieldInt( L, "rows", 1 ) ) + "," +
                 std::to_string( size ) + "," + std::to_string( size ) + ",0,0," + std::to_string( fieldInt( L, "bold", 0 ) ) + "," +
-                std::to_string( fieldInt( L, "shadow", 0 ) ) + (color.empty() ? "" : "," + quoted( color )) );
+                std::to_string( fieldInt( L, "shadow", 0 ) ) + color_args );
+    return no;
+}
+
+// A button drawn as text (the table on top: text, colors `color`, `hover`,
+// `disabled_color`), clickable as button number `no` unless `off`.
+void ONScripter::screenTextButton( ConsScreen *s, const std::string &text, int x, int y, int no, bool off )
+{
+    lua_State *L = s->L;
+    std::vector<std::string> colors = { fieldStr( L, "color", "#FFFFFF" ) };
+    if (off) colors[0] = fieldStr( L, "disabled_color", colors[0].c_str() );
+    else colors.push_back( fieldStr( L, "hover", colors[0].c_str() ) );
+    int sp = screenText( s, text, x, y, &colors );
+    if (!off) screenExec( "spbtn " + std::to_string( sp ) + "," + std::to_string( no ) );
+}
+
+/* Bound values: a variable ("%12", "%name") */
+int ONScripter::screenGet( const std::string &ref )
+{
+    ScriptHandler::VariableInfo vi;
+    return screenVariable( ref.c_str(), false, vi ) ? script_h.getVariableData( vi.var_no ).num : 0;
+}
+
+void ONScripter::screenSet( const std::string &ref, int value )
+{
+    ScriptHandler::VariableInfo vi;
+    if (screenVariable( ref.c_str(), false, vi )) script_h.setNumVariable( vi.var_no, value );
+}
+
+// The widget's (on top) `var`: a name, or a list of them set together (the first read).
+static std::vector<std::string> widgetVars( lua_State *L )
+{
+    std::vector<std::string> vars;
+    lua_getfield( L, -1, "var" );
+    if (lua_istable( L, -1 )){
+        int n = (int)lua_rawlen( L, -1 );
+        for (int i=1 ; i<=n ; i++) vars.push_back( indexStr( L, i ) );
+    }
+    else if (lua_isstring( L, -1 )) vars.push_back( lua_tostring( L, -1 ) );
+    lua_pop( L, 1 );
+    return vars;
+}
+
+/* A slider's or toggle's text (UTF-8): %v the value, %V in full-width
+ * digits, %B a bar (`marks`' first character per step up to the value, the
+ * second after it), %C the mark for on or off, %% a %. */
+static std::string boundText( const std::string &tmpl, int v, int min, int max, int step, const std::string &on, const std::string &off, bool state )
+{
+    static const char *wide[] = { "０", "１", "２", "３", "４", "５", "６", "７", "８", "９" };
+    std::string out;
+    for (size_t i=0 ; i<tmpl.size() ; i++){
+        if (tmpl[i] != '%' || i+1 >= tmpl.size()){ out += tmpl[i]; continue; }
+        char c = tmpl[++i];
+        if (c == 'v') out += std::to_string( v );
+        else if (c == 'V'){
+            std::string d = std::to_string( v );
+            for (char ch : d) out += (ch == '-') ? "－" : wide[ch - '0'];
+        }
+        else if (c == 'B') for (int k=min+step ; k<=max ; k+=step) out += k <= v ? on : off;
+        else if (c == 'C') out += state ? on : off;
+        else if (c == '%') out += '%';
+        else{ out += '%'; out += c; }
+    }
+    return out;
+}
+
+// The marks of a slider's bar or a toggle: `marks = {"■", "□"}`.
+static void widgetMarks( lua_State *L, std::string &on, std::string &off )
+{
+    on = "■"; off = "□";
+    if (fieldTable( L, "marks" )){ on = indexStr( L, 1 ); off = indexStr( L, 2 ); lua_pop( L, 1 ); }
 }
 
 void ONScripter::screenClear( ConsScreen *s )
@@ -320,6 +395,8 @@ static int slotPages( lua_State *L, int table )
 {
     int pages = 1;
     lua_rawgeti( L, LUA_REGISTRYINDEX, table );
+    int screen_pages = fieldInt( L, "pages", 0 ); // the screen's own pages (settings tabs)
+    if (screen_pages > 0){ lua_pop( L, 1 ); return screen_pages; }
     lua_getfield( L, -1, "widgets" );
     int n = lua_istable( L, -1 ) ? (int)lua_rawlen( L, -1 ) : 0;
     for (int i=1 ; i<=n ; i++){
@@ -381,6 +458,41 @@ void ONScripter::screenDraw( ConsScreen *s )
 
         if (type == "image") screenImage( s, x, y );
         else if (type == "text") screenText( s, fromUTF8( fieldStr( L, "text" ).c_str() ), x, y );
+        else if (type == "button" && fieldStr( L, "file" ).empty()){
+            bool on = true;
+            if (fieldTable( L, "action" )){
+                on = screenEnabled( s );
+                lua_pop( L, 1 );
+            }
+            screenTextButton( s, fromUTF8( fieldStr( L, "text" ).c_str() ), x, y, i * WIDGET_BUTTONS, !on );
+        }
+        else if (type == "slider"){
+            std::vector<std::string> vars = widgetVars( L );
+            int v = vars.empty() ? 0 : screenGet( vars[0] );
+            std::string on, off;
+            widgetMarks( L, on, off );
+            std::string text = boundText( fieldStr( L, "text" ), v, fieldInt( L, "min", 0 ), fieldInt( L, "max", 10 ), fieldInt( L, "step", 1 ), on, off, v != 0 );
+            if (!text.empty()) screenText( s, fromUTF8( text.c_str() ), x, y );
+            const char *keys[] = { "minus", "plus" };
+            for (int k=0 ; k<2 ; k++){
+                if (!fieldTable( L, keys[k] )) continue;
+                int bx = fieldInt( L, "x", x ), by = fieldInt( L, "y", y );
+                if (fieldStr( L, "file" ).empty())
+                    screenTextButton( s, fromUTF8( fieldStr( L, "text" ).c_str() ), bx, by, i * WIDGET_BUTTONS + k + 1, false );
+                else
+                    screenExec( "spbtn " + std::to_string( screenImage( s, bx, by ) ) + "," + std::to_string( i * WIDGET_BUTTONS + k + 1 ) );
+                lua_pop( L, 1 );
+            }
+        }
+        else if (type == "toggle" || type == "radio"){
+            std::vector<std::string> vars = widgetVars( L );
+            int v = vars.empty() ? 0 : screenGet( vars[0] );
+            bool state = type == "radio" ? v == fieldInt( L, "value", 1 ) : v == fieldInt( L, "on", 1 );
+            std::string on, off;
+            widgetMarks( L, on, off );
+            std::string text = boundText( fieldStr( L, "text", "%C" ), v, 0, 0, 1, on, off, state );
+            screenTextButton( s, fromUTF8( text.c_str() ), x, y, i * WIDGET_BUTTONS, false );
+        }
         else if (type == "button"){
             int no = screenImage( s, x, y );
             bool on = true;
@@ -552,6 +664,17 @@ int ONScripter::screenActions( ConsScreen *s, int start, int *value )
         int slot = actionSlot( L, s->selected );
         int ret = SCREEN_STAY;
         bool stop = false; // a confirm answered no, or the action can't be taken: the rest is left out
+
+        // a question before any other action (save, load and delete ask their own way, below)
+        if (what != "save" && what != "load" && what != "delete" && !fieldStr( L, "confirm" ).empty()){
+            int yes = screenConfirm( s, slot );
+            if (yes < 0) return SCREEN_LOADED;
+            if (yes == 0){
+                screenTrace( s, ("no " + what).c_str(), 0, INT_MIN );
+                lua_pop( L, 1 );
+                return SCREEN_STAY;
+            }
+        }
 
         if (what == "close"){
             *value = indexInt( L, 2, 0 );
@@ -823,7 +946,30 @@ int ONScripter::screenRun( ConsScreen *s, int *value )
             lua_getfield( L, -1, "widgets" );
             lua_rawgeti( L, -1, button / WIDGET_BUTTONS );
             int k = button % WIDGET_BUTTONS;
-            if (k > 0){ // a save slot
+            std::string type = indexStr( L, 1 );
+            bool changed = false;
+            if (type == "slider" || type == "toggle" || type == "radio"){
+                std::vector<std::string> vars = widgetVars( L );
+                int v = vars.empty() ? 0 : screenGet( vars[0] ), to = v;
+                if (type == "slider"){
+                    int step = fieldInt( L, "step", 1 );
+                    to = std::max( fieldInt( L, "min", 0 ), std::min( fieldInt( L, "max", 10 ), v + (k == 1 ? -step : step) ) );
+                }
+                else if (type == "radio") to = fieldInt( L, "value", 1 );
+                else to = v == fieldInt( L, "on", 1 ) ? fieldInt( L, "off", 0 ) : fieldInt( L, "on", 1 );
+                if (to != v){
+                    for (const std::string &r : vars) screenSet( r, to );
+                    screenTrace( s, "set", 0, to );
+                    changed = true;
+                }
+            }
+            if (type == "slider" || type == "toggle" || type == "radio"){
+                if (changed && fieldTable( L, "action" )){ // after the change: apply it
+                    ret = screenActions( s, 0, value );
+                    if (ret != SCREEN_LOADED) lua_pop( L, 1 );
+                }
+            }
+            else if (k > 0){ // a save slot
                 int per = fieldInt( L, "rows", 1 ) * fieldInt( L, "cols", 1 );
                 int slot = fieldInt( L, "first", 1 ) + (s->page - 1) * per + k - 1;
                 if (fieldInt( L, "select", 0 ) && slot != s->selected){

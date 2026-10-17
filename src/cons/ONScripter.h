@@ -791,7 +791,10 @@ private:
     time_t screenSaveTime( int no );
     int screenSprite( struct ConsScreen *s );
     int screenImage( struct ConsScreen *s, int x, int y, const char *file_override=NULL );
-    void screenText( struct ConsScreen *s, const std::string &text, int x, int y );
+    int screenText( struct ConsScreen *s, const std::string &text, int x, int y, const std::vector<std::string> *colors=NULL );
+    void screenTextButton( struct ConsScreen *s, const std::string &text, int x, int y, int no, bool off );
+    int screenGet( const std::string &ref );
+    void screenSet( const std::string &ref, int value );
     void screenClear( struct ConsScreen *s );
     bool screenEnabled( struct ConsScreen *s );
     void screenDraw( struct ConsScreen *s );
