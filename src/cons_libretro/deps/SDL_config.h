@@ -212,7 +212,9 @@
 #define HAVE__EXIT 1
 /* Consoles (devkitPro, VitaSDK): their newlib lacks these */
 #if defined(__SWITCH__) || defined(__vita__) || defined(__3DS__) || defined(__WIIU__)
+#undef HAVE_SIGACTION
 #undef HAVE_SA_SIGACTION
+#undef HAVE_PTHREAD_SETNAME_NP
 #undef HAVE_GETAUXVAL
 #endif
 

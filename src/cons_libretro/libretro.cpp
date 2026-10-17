@@ -1,4 +1,3 @@
-#include <libgen.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -233,8 +232,13 @@ retro_load_game(const struct retro_game_info* game)
     if (S_ISDIR(sb.st_mode)) {
         chdir(game->path);
     } else {
-        char* gamedir = dirname(SDL_strdup(game->path));
-        chdir(gamedir);
+        char* gamedir = SDL_strdup(game->path);
+        char* slash = SDL_strrchr(gamedir, '/');
+        if (slash) {  // no dirname(): libnx has no libgen
+            *slash = '\0';
+            chdir(gamedir);
+        }
+        SDL_free(gamedir);
     }
 
     // Ignore SDL_AUDIODRIVER and SDL_VIDEODRIVER.
