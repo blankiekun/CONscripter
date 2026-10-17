@@ -57,7 +57,7 @@ jobs:
     # the image's CMake is 3.13; the core needs 3.14 (file(CREATE_LINK))
     - name: build the core
       run: |
-        curl -sL https://github.com/Kitware/CMake/releases/download/v3.31.8/cmake-3.31.8-linux-x86_64.tar.gz | tar xz -C /opt
+        wget -qO- https://github.com/Kitware/CMake/releases/download/v3.31.8/cmake-3.31.8-linux-x86_64.tar.gz | tar xz -C /opt
         T=/opt/miyoomini-toolchain/bin/arm-linux-gnueabihf-
         F="-marm -mtune=cortex-a7 -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard"
         /opt/cmake-3.31.8-linux-x86_64/bin/cmake -S src/cons_libretro -B build_miyoo -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=arm \
