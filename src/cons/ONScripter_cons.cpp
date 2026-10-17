@@ -127,7 +127,10 @@ int trackGain( int channel ) // 0-4096; the trace reads it too
  *   silhouette.
  *   A sprite without an image ignores spfilter, like the original
  *   engines' filters, which belong to a loaded object. The filters stay
- *   when lsp changes the image and are cleared by csp. */
+ *   when lsp changes the image and are cleared by csp. A new filter is
+ *   applied to the picture as it is; clearing or a filter that can't be
+ *   is applied when the sprite is next drawn, so "spfilter 10,0" before
+ *   an lsp of a new picture costs nothing. */
 int ONScripter::spfilterCommand()
 {
     leaveTextDisplayMode();
@@ -172,11 +175,22 @@ int ONScripter::spfilterCommand()
         if (f.strength < 0)   f.strength = 0;
         if (f.strength > 256) f.strength = 256;
         ai->filter[ai->num_of_filters++] = f;
-        ai->filter_changed = true;
+        // A picture with its filters so far gets the new one on top, as a
+        // reload would make it (filters go before the screen's scaling).
+        if (!ai->filter_changed && ai->image_surface && ai->trans_mode != AnimationInfo::TRANS_STRING &&
+#ifdef USE_BUILTIN_LAYER_EFFECTS
+            ai->trans_mode != AnimationInfo::TRANS_LAYER &&
+#endif
+            screen_ratio1 == screen_ratio2 && ai->file_name && !isMovieFile( ai->file_name )){
+            SDL_Rect all = {0, 0, ai->image_surface->w, ai->image_surface->h};
+            AnimationInfo::applyFilterList( ai->image_surface, all, &f, 1 );
+        }
+        else
+            ai->filter_changed = true;
     }
 
-    if (ai->visible) dirty_rect.add( ai->pos );
-    setupAnimationInfo( ai );
+    // Otherwise the picture is made again when it is next drawn
+    // (drawTaggedSurface): an lsp before that loads it only once.
     if (ai->visible) dirty_rect.add( ai->pos );
 
     return RET_CONTINUE;
