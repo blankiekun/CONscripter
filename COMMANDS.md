@@ -943,7 +943,7 @@ no longer hangs. Impl `ONScripter::mp3stopCommand`.
 
 ### bgmfadein / mp3fadein / bgmfadeout / mp3fadeout
 `bgmfadein ms`, `bgmfadeout ms` — fades for the next start/stop.
-[cons] fade to/from the `chvolfade -1` volume. Impl `ONScripter::mp3fadeinCommand`,
+[cons] fade to/from the `chvolfade -1` volume; skipping (and fast `--auto-play`), music starts at full volume. Impl `ONScripter::mp3fadeinCommand`,
 `mp3fadeoutCommand`.
 
 ### bgmvol / mp3vol / getbgmvol / getmp3vol
