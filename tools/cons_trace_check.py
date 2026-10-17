@@ -19,6 +19,8 @@ by kind, each finding at the script line ("*label:line") to look at:
                --script, %, $ or ? in a text line (they print a variable)
   sound        the same sound on two channels at once; a voice cut off by
                the next one before a click wait; a voice or music at volume 0
+               chfreq (or a chpan ramp) on a channel that plays nothing; a bgm
+               cross-fade with no music playing
   voice        a line with no voice where the same speaker (or the lines
                around it) has one; a voice file another speaker's lines use;
                one voice file for lines that say different things
@@ -464,8 +466,9 @@ class Checker:
             self.add('error', None, at, 'auto-play stuck here (going round in circles?)')
         elif what == 'long wait':
             ms = r.get('ms', 0)
-            self.add('duration', at, at, '%s asks for %d ms (%s)' % (
-                r.get('cmd'), ms, '%.1f minutes' % (ms / 60000) if ms >= 60000 else '%.1f s' % (ms / 1000)))
+            self.add('duration', at, at, '%s asks for %d ms (%s)%s' % (
+                r.get('cmd'), ms, '%.1f minutes' % (ms / 60000) if ms >= 60000 else '%.1f s' % (ms / 1000),
+                ', at gamespeed %d %%' % r['speed'] if 'speed' in r else ''))
         elif what == 'large image':
             self.add('memory', r.get('file') or at, at, '%s is %sx%s, %s MB as one picture' % (
                 r.get('file') or 'a scaled picture', r.get('w'), r.get('h'), r.get('mb')))
@@ -533,6 +536,11 @@ class Checker:
             if not s.get('gone'):
                 self.set_by[(s['kind'], s['n'])] = (r.get('at'), r.get('src', ''))
         cmd = r.get('cmd', '')
+        if r.get('empty') and (cmd == 'chfreq' or (cmd == 'chpan' and re.search(r',.*,', r.get('src', '')))):
+            self.add('sound', (cmd, r.get('at')), r.get('at'), '%s on channel %s, which plays nothing%s' % (
+                r.get('src'), r.get('ch'), ': no effect' if cmd == 'chfreq' else ': the pan ramps for no sound'))
+        if r.get('cross') == 'no music':
+            self.add('sound', (cmd, r.get('at')), r.get('at'), '%s cross-fades from no music' % r.get('src'))
         if cmd not in SOUND_CMDS:
             return
         ch, f = r.get('ch'), r.get('file')

@@ -626,6 +626,8 @@ record:
 | `def` | For `effect`: the effect as defined, in the same form |
 | `ch`, `file` | For `dwave`, `wave` and their variants: the channel and the file played, variables filled in (schema 2) |
 | `cut` | The sound that channel was still playing, which this one stopped (schema 2). Under `--auto-play` every voice is cut by the next, since clicks come at once |
+| `ch`, `empty` | For `chvolfade`, `chpan`, `chfreq`: the channel, and `empty` `true` when it plays nothing |
+| `cross` | For `bgm "file",ms`: `"no music"` when there was none to cross-fade from |
 | `skip` | A movie (`mpegplay`, `movie`): whether a click stops it; `moviestop` beside it when that setting overrides the script's flag; `window`: `true` when the text window is shown as it starts (drawn over the movie) |
 | `via` | Inside a `gosub` (a `textgosub` routine, a helper): the line it returns to, which led there |
 
@@ -740,7 +742,8 @@ Written when it saves and loads, at the next command after page `pg`.
 The records that follow up to the next page come from the load and the
 game's `loadgosub` (a scene set up again, a `missing image` warning
 repeated); the checker leaves those warnings out. The page shown again is
-not written, so `pg` goes on as before.
+not written, so `pg` goes on as before. A looping sound saved during its
+`dwavefadein` restarts at full volume, so its volume isn't compared.
 
 ### `warn`: a file that can't be used, and other things to look at
 
@@ -761,7 +764,7 @@ Schema 2 adds these, with their own fields:
 
 | `what` | Fields | Written when |
 |---|---|---|
-| `long wait` | `cmd`, `ms` | a command asks to wait longer than `--trace-long-wait` (10000 ms): an effect (`print 10,270000`), `wait`, `delay`, `waittimer` (the time left), a fade, a `quake`, or a `btnwait` with a long `btntime`. `ms` is what the script asked for, even when auto-play shortened it |
+| `long wait` | `cmd`, `ms` | a command asks to wait longer than `--trace-long-wait` (10000 ms): an effect (`print 10,270000`), `wait`, `delay`, `waittimer` (the time left), a fade, a `quake`, or a `btnwait` with a long `btntime`. `ms` is what the script asked for, even when auto-play shortened it, at `speed` (the `gamespeed` percent, when not 100: `delay 8513` at 10 is 85130) |
 | `large image` | `file`, `w`, `h`, `mb` | a picture, as kept after scaling to the screen, takes more memory than `--trace-max-image` (64 MB); once per file. `file` is the tag for a picture without a file (a colour), `null` if none. Every build, the web one too, decodes and draws pictures in software, so a picture's width and height aren't limited (a 24000x600 animation strip works in a browser), only the memory it takes |
 | `save/load mismatch` | `diff` | `--roundtrip-every` found the state changed by saving and loading; `at` is the page compared, `pg` the page after the round trip. `diff` has up to 40 strings `"field: before -> after"` (`none` when absent; a long value is cut to 100 bytes around where the two differ, with `...`): `at`, `text`, `tag`, `bg`, `bgm`, `loopbgm` (` (stopped)` after the names when it no longer plays, or its intro plays with the loop gone), `se <ch>` (looping sounds, with ` vol n` when quieter than 100), `window`, `windowtrans`, `monocro`, `nega`, `flash`, `filter <slot>`, `fx <slot>`, `sprites_hidden`, `sprites2_hidden`, `pushscreen`, `sp <kind> <n>` (the image, then `x,y wxh alpha a cell c filters f`, and `over z` for `spz`, `motion loop` or `motion once` while `spmotion` runs), `%n`, `$n`; `["can't save or load"]` if that failed |
 | `replay diverged` | `expected` | `--replay` reached a choice at `at`, where the recorded run's was at `expected` |
@@ -849,7 +852,7 @@ image memory: 12 to 340 MB (the most at page 4120, *s9_l36:62672), 54 MB at the 
 | `error` | Script and startup errors (with the gosub chain), a crash (its signal and the last commands run), a trace without `end` or ended by a signal (killed), an auto-play run that got stuck, a `stale archive` (a build whose `0.txt` was rewritten after its archives were packed: convert the game again) |
 | `missing` | Files that couldn't be loaded, grouped by file, and sprites shown without their image; with `--script`, every picture the script names (a string ending in `.png`, `.jpg`, `.bmp`, ...; names built from variables left out) that is neither in the `arc*.nsa` archives nor a loose file in the script's folder, reached or not |
 | `text` | A page's text, or a `select`'s options, with garbled characters (U+FFFD, control or private-use characters, mojibake such as UTF-8 read as Shift-JIS, which mixes kanji and half-width katakana); text past the window (`overflow`, or a line longer than `--line-chars`); an empty page; a text tag shown as text (`!w100`, `!s`, `!d`, `#rrggbb`, `~...~`, a `\` or `@`); with `--script`, a `%`, `$` or `?` in a text line, which prints a variable or reads an array (a converter that left them in) |
-| `sound` | The same sound started on two channels before one click wait, or a looping one doubled (in a trace without `--auto-play`, any overlap); a voice cut off by the next sound before a click wait, so it was never heard; a voice or the music playing at volume 0 |
+| `sound` | The same sound started on two channels before one click wait, or a looping one doubled (in a trace without `--auto-play`, any overlap); a voice cut off by the next sound before a click wait, so it was never heard; a voice or the music playing at volume 0; `chfreq` (no effect) or a `chpan` ramp on a channel playing nothing; a `bgm "file",ms` cross-fade with no music playing |
 | `movie` | Screen changes made after a movie and before the next `print`: the engine redraws the screen from before the movie as it ends, so they show a moment late (found under `--auto-play` too, which skips the movie); a movie the script lets a click stop that `moviestop 0` makes unskippable |
 | `voice` | A spoken line with no voice: the speaker's (the `tag`'s name) other lines have one on at least `--voice-share` (0.8) of them and `--voice-min` (5); for lines without a tag, the `--voice-window` (3) spoken lines before and after it in the same label all have one. A line of only "……" or "！？" needs none. Also a voice file that belongs to another speaker: each speaker with `--voice-min` voiced lines gets the shortest file-name start that `--voice-share` of their voices have and no other speaker's do (`v3` for あずさ's `v300010.ogg`), and a line whose voice has another speaker's start is reported. Also one voice file played for lines that say different things (punctuation left out), a voice given to the wrong line |
 | `linger` | A tall picture (a character or CG) still up after the background changed, or up for more than `--linger` pages |

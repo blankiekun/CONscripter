@@ -1380,6 +1380,13 @@ void ONScripter::traceShot( std::string &out, bool dump )
     traceString( out, path.c_str() );
 }
 
+void ONScripter::traceChannel( int ch )
+{
+    if (!trace_fp || ch < 0 || ch >= ONS_MIX_CHANNELS) return;
+    trace_sound = ",\"ch\":" + std::to_string( ch );
+    if (audio_open_flag && !(wave_sample[ch] && Mix_Playing( ch ))) trace_sound += ",\"empty\":true";
+}
+
 // dwave, wave and the like, before they play a sound (name, or NULL for
 // the one dwaveload loaded) on a channel: the trace's ev gets
 // ,"ch":n,"file":"..." and ,"cut":"..." when it stops another sound still
@@ -2398,6 +2405,7 @@ void ONScripter::traceLongWait( int ms )
     snprintf( buf, sizeof(buf), "{\"t\":\"warn\",\"pg\":%d,\"what\":\"long wait\",\"cmd\":", trace_page );
     std::string r = buf;
     traceString( r, cmd );
+    if (game_speed != 100) r += ",\"speed\":" + std::to_string( game_speed ); // ms as played at gamespeed
     snprintf( buf, sizeof(buf), ",\"ms\":%d,\"at\":", ms );
     r += buf;
     traceAt( r, trace_cmd_start );
@@ -2472,7 +2480,8 @@ void ONScripter::roundtripState( std::map<std::string, std::string> &state )
         snprintf( buf, sizeof(buf), "se %d", ch );
         traceString( state[buf], trace_se_name[ch] );
         int vol = Mix_Volume( ch, -1 ) * 100 / MIX_MAX_VOLUME * trackGain( ch ) / 4096;
-        if (vol < 100) state[buf] += " vol " + std::to_string( vol );
+        // during a dwavefadein the load restarts the sound at its full volume
+        if (vol < 100 && Mix_FadingChannel( ch ) != MIX_FADING_IN) state[buf] += " vol " + std::to_string( vol );
     }
     state["window"] = (display_mode & DISPLAY_MODE_TEXT) ? "true" : "false";
     if (window_trans != 255) state["windowtrans"] = std::to_string( window_trans );

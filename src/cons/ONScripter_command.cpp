@@ -1535,6 +1535,8 @@ int ONScripter::mp3Command()
     // CONscripter: bgm "file",ms cross-fades from the music playing over ms
     std::string name = script_h.readStr();
     int cross = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
+    if (trace_fp && cross > 0 && audio_open_flag && !Mix_PlayingMusic() && !Mix_Playing( MIX_BGM_CHANNEL ))
+        trace_sound = ",\"cross\":\"no music\"";
     if (cross > 0 && !(skip_mode & (SKIP_NORMAL | SKIP_TO_EOP) || ctrl_pressed_status || (auto_play_flag && !auto_play_real)))
         crossFadeOutBGM( cross );
     int fadein = mp3fadein_duration;

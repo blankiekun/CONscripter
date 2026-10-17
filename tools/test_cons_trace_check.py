@@ -1,4 +1,4 @@
-"""--diff, motions, stale archives and missing pictures: python3 -I tools/test_cons_trace_check.py"""
+"""--diff, motions, stale archives, missing pictures and sound rules: python3 -I tools/test_cons_trace_check.py"""
 import contextlib
 import io
 import json
@@ -85,6 +85,50 @@ class Build(unittest.TestCase):
         self.assertIn('bg\\b.png is named by the script', out)
         self.assertNotIn('a.png is named', out)
         self.assertNotIn('$1', out)
+
+
+def check(recs):
+    """The checker's report on a trace of recs."""
+    f = tempfile.NamedTemporaryFile('w', suffix='.jsonl', delete=False)
+    f.write(''.join(json.dumps(r) + '\n' for r in recs + [{'t': 'end', 'pg': 1, 'reason': 'script end'}]))
+    f.close()
+    out = io.StringIO()
+    argv = sys.argv
+    sys.argv = ['x', f.name, '--skip', 'coverage']
+    try:
+        with contextlib.redirect_stdout(out):
+            cons_trace_check.main()
+    except SystemExit:
+        pass
+    finally:
+        sys.argv = argv
+        os.unlink(f.name)
+    return out.getvalue()
+
+
+def ev(src, **kw):
+    r = {'t': 'ev', 'pg': 1, 'ms': 0, 'cmd': src.split()[0], 'at': '*a:%d' % len(src), 'src': src}
+    r.update(kw)
+    return r
+
+
+class Sound(unittest.TestCase):
+    def test_empty_channel(self):
+        out = check([ev('chfreq 3,1500', ch=3, empty=True), ev('chpan 3,500,1000', ch=3, empty=True),
+                     ev('chpan 3,-200', ch=3, empty=True), ev('chfreq 4,900', ch=4)])
+        self.assertIn('chfreq 3,1500 on channel 3, which plays nothing', out)
+        self.assertIn('chpan 3,500,1000 on channel 3', out)
+        self.assertNotIn('chpan 3,-200', out)  # set before a dwave
+        self.assertNotIn('chfreq 4', out)
+
+    def test_cross_fade_from_nothing(self):
+        out = check([ev('bgm "a.ogg",1000', bgm='a.ogg', cross='no music'), ev('bgm "b.ogg",1000', bgm='b.ogg')])
+        self.assertIn('bgm "a.ogg",1000 cross-fades from no music', out)
+        self.assertNotIn('b.ogg', out)
+
+    def test_long_wait_at_gamespeed(self):
+        out = check([{'t': 'warn', 'pg': 1, 'what': 'long wait', 'cmd': 'delay', 'speed': 10, 'ms': 85130, 'at': '*a:2'}])
+        self.assertIn('delay asks for 85130 ms (1.4 minutes), at gamespeed 10 %', out)
 
 
 if __name__ == '__main__':
