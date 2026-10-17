@@ -43,7 +43,7 @@ jobs:
         run: |
           cd build_darwin
           cp conscripter conscripter_${{ github.ref_name }}_universal_darwin
-          # the name the converter's GUI downloaded before 0.22: the same file
+          # the name the converter's GUI downloaded before 0.29: the same file
           cp conscripter conscripter_${{ github.ref_name }}_aarch64_darwin
 
       - name: create release
