@@ -100,21 +100,18 @@ int ONScripter::playSound(const char *filename, int format, bool loop_flag, int 
             return SOUND_NONE;
         }
         script_h.cBR->getFile( filename, buffer );
-#if defined(USE_CONS_OPUS)
-        unsigned long wav_length; // CONscripter: Opus, as WAV (cmake/cons_opus.cmake)
-        if (unsigned char *wav = decodeOpus(buffer, length, &wav_length)){
-            delete[] buffer;
-            buffer = wav;
-            length = wav_length;
-        }
-#endif
     }
+#if defined(USE_CONS_OPUS) // CONscripter: Opus, as a WAV decoded as it's read (cmake/cons_opus.cmake)
+    auto source = [&](){ SDL_RWops *rw = opusWavRW( buffer, length ); return rw ? rw : SDL_RWFromMem( buffer, length ); };
+#else
+    auto source = [&](){ return SDL_RWFromMem( buffer, length ); };
+#endif
     
     if (format & SOUND_MUSIC){
 #if SDL_MIXER_MAJOR_VERSION >= 2
-        music_info = Mix_LoadMUS_RW( SDL_RWFromMem( buffer, length ), 0);
+        music_info = Mix_LoadMUS_RW( source(), 1 );
 #else
-        music_info = Mix_LoadMUS_RW(SDL_RWFromMem(buffer, length));
+        music_info = Mix_LoadMUS_RW( source() );
 #endif
         if (music_info == NULL) {
             utils::printError("can't load music \"%s\": %s\n", filename, Mix_GetError());
@@ -130,7 +127,13 @@ int ONScripter::playSound(const char *filename, int format, bool loop_flag, int 
     }
     
     if (format & SOUND_CHUNK){
-        Mix_Chunk *chunk = Mix_LoadWAV_RW(SDL_RWFromMem(buffer, length), 1);
+#if defined(USE_CONS_OPUS) // CONscripter: filled as it plays
+        void *filling = NULL;
+        Mix_Chunk *chunk = format & SOUND_PRELOAD ? NULL : opusChunk( buffer, length, audio_format, &filling );
+        if (!chunk) chunk = Mix_LoadWAV_RW( source(), 1 );
+#else
+        Mix_Chunk *chunk = Mix_LoadWAV_RW( source(), 1 );
+#endif
         if (chunk == NULL) {
             utils::printError("can't load chunk \"%s\": %s\n", filename, Mix_GetError());
             if (trace_fp) traceWarn("broken sound", filename);
@@ -140,6 +143,9 @@ int ONScripter::playSound(const char *filename, int format, bool loop_flag, int 
         setChunkLoop( NULL, 0 ); // (a preloaded sound didn't take it)
         if (played == 0){
             traceSound(channel, filename, loop_flag); // also for the web page's consVoice
+#if defined(USE_CONS_OPUS)
+            if (filling && opusChunkStart( channel, filling, buffer )) buffer = NULL; // it reads buffer
+#endif
             delete[] buffer;
             return SOUND_CHUNK;
         }
