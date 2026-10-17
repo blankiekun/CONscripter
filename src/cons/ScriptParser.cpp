@@ -68,6 +68,7 @@ ScriptParser::ScriptParser()
     save_data_buf = NULL;
     file_io_buf_ptr = 0;
     file_io_buf_len = 0;
+    file_io_read_len = 0;
     save_data_len = 0;
 
     render_font_outline = false;
@@ -398,6 +399,7 @@ size_t ScriptParser::loadFileIOBuf( const char *filename )
     fseek(fp, 0, SEEK_SET);
     size_t ret = fread(file_io_buf, 1, len, fp);
     fclose(fp);
+    file_io_read_len = ret;
 
     return ret;
 }
@@ -411,7 +413,7 @@ void ScriptParser::writeChar(char c, bool output_flag)
 
 char ScriptParser::readChar()
 {
-    if (file_io_buf_ptr >= file_io_buf_len ) return 0;
+    if (file_io_buf_ptr >= file_io_read_len ) return 0;
     return (char)file_io_buf[file_io_buf_ptr++];
 }
 
@@ -430,7 +432,7 @@ void ScriptParser::writeInt(int i, bool output_flag)
 
 int ScriptParser::readInt()
 {
-    if (file_io_buf_ptr+3 >= file_io_buf_len ) return 0;
+    if (file_io_buf_ptr+4 > file_io_read_len ) return 0;
     
     int i =
         (unsigned int)file_io_buf[file_io_buf_ptr+3] << 24 |
@@ -458,7 +460,7 @@ void ScriptParser::readStr(char **s)
 {
     int counter = 0;
 
-    while (file_io_buf_ptr+counter < file_io_buf_len){
+    while (file_io_buf_ptr+counter < file_io_read_len){
         if (file_io_buf[file_io_buf_ptr+counter++] == 0) break;
     }
     
@@ -466,8 +468,9 @@ void ScriptParser::readStr(char **s)
     *s = NULL;
     
     if (counter > 1){
-        *s = new char[counter];
+        *s = new char[counter+1];
         memcpy(*s, file_io_buf + file_io_buf_ptr, counter);
+        (*s)[counter] = 0; // a string cut by the end of the file
     }
     file_io_buf_ptr += counter;
 }
@@ -524,7 +527,7 @@ void ScriptParser::readArrayVariable()
         
         for ( i=0 ; i<dim ; i++ ){
             unsigned long ret;
-            if (file_io_buf_ptr+3 >= file_io_buf_len ) return;
+            if (file_io_buf_ptr+4 > file_io_read_len ) return;
             ret = file_io_buf[file_io_buf_ptr+3];
             ret = ret << 8 | file_io_buf[file_io_buf_ptr+2];
             ret = ret << 8 | file_io_buf[file_io_buf_ptr+1];

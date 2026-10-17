@@ -207,8 +207,6 @@ char *ONScripter::readSaveStrFromFile( int no )
 
 int ONScripter::loadSaveFile( int no )
 {
-    cancelLaterBGM(); // CONscripter: bgmlater
-    stopWindowFade(); // CONscripter: not saved; a save resumes at its page's text, shown in full
     char filename[32];
     sprintf( filename, "save%d.dat", no );
     if (loadFileIOBuf( filename ) == 0){
@@ -218,14 +216,14 @@ int ONScripter::loadSaveFile( int no )
     
     /* ---------------------------------------- */
     /* Load magic number */
+    // CONscripter: the header is checked before anything of the running game is torn down
     int i;
     for ( i=0 ; i<(int)strlen( SAVEFILE_MAGIC_NUMBER ) ; i++ )
         if ( readChar() != SAVEFILE_MAGIC_NUMBER[i] ) break;
 
     if ( i != (int)strlen( SAVEFILE_MAGIC_NUMBER ) ){
-        file_io_buf_ptr = 0;
-        printf("Save file version is unknown\n" );
-        return loadSaveFile2( SAVEFILE_VERSION_MAJOR*100 + SAVEFILE_VERSION_MINOR );
+        utils::printError("%s is not a save file; not loaded\n", filename );
+        return -1;
     }
     
     int file_version = readChar() * 100;
@@ -236,12 +234,14 @@ int ONScripter::loadSaveFile( int no )
         return -1;
     }
 
-    if ( file_version >= 200 )
-        return loadSaveFile2( file_version );
-    
-    utils::printError("Save file is too old.\n");
+    if ( file_version < 200 ){
+        utils::printError("Save file is too old.\n");
+        return -1;
+    }
 
-    return -1;
+    cancelLaterBGM(); // CONscripter: bgmlater
+    stopWindowFade(); // CONscripter: not saved; a save resumes at its page's text, shown in full
+    return loadSaveFile2( file_version );
 }
 
 void ONScripter::saveMagicNumber( bool output_flag )
