@@ -782,8 +782,8 @@ removed by `csp`, saved, kept by `pushscreen`.
 Impl `ONScripter::spclipCommand`.
 
 ### sptrail [cons]
-`sptrail num,passes,alpha,lag` — draw `passes` (1-32) copies of sprite num
-under it, each at `alpha` per mille (1-1000) of its alpha; copy i is where
+`sptrail num,passes,alpha,lag[,over]` — draw `passes` (1-32) copies of sprite num
+under it (over it with `over` 1), each at `alpha` per mille (1-1000) of its alpha; copy i is where
 its `spmotion` had it `lag` × i ms before (a motion trail).
 Before the motion starts the copies sit on its first key; after it ends
 they go on to its end and reach the sprite. A sprite that doesn't move

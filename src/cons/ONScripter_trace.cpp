@@ -595,7 +595,7 @@ int ONScripter::traceSpriteUpdate( int i, int since )
     SDL_Rect r = traceBox( ai, kind );
     // an animation steps its cells by itself
     int cell = ai.is_animatable ? -1 : ai.current_cell;
-    int trail[3] = {ai.trail_passes, ai.trail_alpha, ai.trail_lag};
+    int trail[4] = {ai.trail_passes, ai.trail_alpha, ai.trail_lag, ai.trail_over};
     if (ts.image == image && ts.x == r.x && ts.y == r.y && ts.w == r.w && ts.h == r.h &&
         ts.trans == ai.trans && ts.cell == cell && ts.over == ai.z_over && ts.motion == motion &&
         !memcmp( ts.trail, trail, sizeof(trail) ) && !memcmp( ts.clip, ai.clip_rect, sizeof(ts.clip) ) &&
@@ -687,7 +687,7 @@ void ONScripter::traceSprite( std::string &out, int i )
         out += '"';
     }
     if (ai.trail_passes > 0){
-        snprintf( buf, sizeof(buf), ",\"trail\":[%d,%d,%d]", ai.trail_passes, ai.trail_alpha, ai.trail_lag );
+        snprintf( buf, sizeof(buf), ai.trail_over ? ",\"trail\":[%d,%d,%d,1]" : ",\"trail\":[%d,%d,%d]", ai.trail_passes, ai.trail_alpha, ai.trail_lag );
         out += buf;
     }
     if (ai.is_animatable) out += ",\"anim\":true";

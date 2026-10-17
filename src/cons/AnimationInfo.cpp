@@ -73,6 +73,7 @@ AnimationInfo::AnimationInfo()
     motion_start = motion_next = 0;
     stopMotion();
     trail_passes = trail_alpha = trail_lag = trail_keys = trail_time = 0;
+    trail_over = false;
     trail_rect.x = trail_rect.y = trail_rect.w = trail_rect.h = 0;
     wave_ms = wave_start = wave_period = wave_amp0 = wave_amp1 = wave_curve = wave_tick = wave_amp = 0;
     z_over = -1;
@@ -216,6 +217,7 @@ void AnimationInfo::remove()
     zoom_rot = 0;
     stopMotion();
     trail_passes = trail_alpha = trail_lag = trail_keys = trail_time = 0;
+    trail_over = false;
     trail_rect.x = trail_rect.y = trail_rect.w = trail_rect.h = 0;
     wave_ms = wave_start = wave_period = wave_amp0 = wave_amp1 = wave_curve = wave_tick = wave_amp = 0;
     z_over = -1;
