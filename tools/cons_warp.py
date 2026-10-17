@@ -130,7 +130,7 @@ def melt_delay(W, seed):
     x = np.arange(W, dtype=np.float32)
     u = x * np.float32(10) / np.float32(W)
     i = u.astype(np.int32)
-    t = u - i
+    t = u - i.astype(np.float32)  # (float32 as the plugin: int32 would make it float64)
     q0, q1, q2, q3 = pt[i], pt[i + 1], pt[i + 2], pt[i + 3]
     v = 0.5 * (2 * q1 + (q2 - q0) * t + (2 * q0 - 5 * q1 + 4 * q2 - q3) * t * t
                + (3 * q1 - q0 - 3 * q2 + q3) * t * t * t)
