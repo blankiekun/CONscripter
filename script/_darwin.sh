@@ -23,10 +23,11 @@ function build_autotools()
     echo "## $1 $2"
     rm -rf "$B" && mkdir -p "$B"
     pushd "$B"
-    ../configure --host=$HOST CC="$XCC" CXX="clang++ -arch $ARCH" \
+    ../configure --host=$HOST CC="$XCC" CXX="clang++ -arch $ARCH" OBJC="$XCC" \
         --disable-shared --enable-static "${@:3}" \
         --prefix=$PORTBUILD_PATH
-    make -j$CORE_NUM && make install
+    make -j$CORE_NUM
+    make install
     popd
 }
 
