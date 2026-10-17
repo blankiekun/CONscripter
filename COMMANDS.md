@@ -990,10 +990,10 @@ Music volume 0-100. Impl `ONScripter::mp3volCommand`, `getmp3volCommand`.
 
 ### bgmlater [cons]
 `bgmlater ms,"file"[,loop]` — the music starts ms from now while the script
-goes on (through waits, text and click waits), as `bgm`, or as `bgmonce` with
+goes on (through waits, text and click waits), as `bgm`, or as `mp3save` with
 loop 0. A music command before then (`bgm`, `bgmonce`, `mp3`…, `play`,
 `bgmstop`, `playstop`), `reset` and a load cancel it; saved (the time left).
-`bgmonce "intro.ogg":bgmlater 7720,"loop.ogg"` starts a loop 7.7 s after its
+`mp3save "intro.ogg":bgmlater 7720,"loop.ogg"` starts a loop 7.7 s after its
 intro. Impl `ONScripter::bgmlaterCommand`.
 
 ### getbgmpos [cons]
