@@ -1533,8 +1533,9 @@ void ONScripter::screenKnob( ConsScreen *s, int w, int v )
 }
 
 /* The fill picture of slider w (on top of the stack) at value v: cut
- * (spclip) from its min end (the side the knob is at min) to the knob's
- * centre. */
+ * (spclip) from its left (or top) end to the knob's centre: from the
+ * min end, or for a reversed slider (negative travel) from the max end,
+ * where the knob's sweep starts on screen. */
 void ONScripter::screenFill( ConsScreen *s, int w, int v )
 {
     auto f = s->fills.find( w );
@@ -1550,7 +1551,7 @@ void ONScripter::screenFill( ConsScreen *s, int w, int v )
     int fw = ai.pos.w * screen_ratio2 / screen_ratio1, fh = ai.pos.h * screen_ratio2 / screen_ratio1;
     int c = k.vertical ? y + kh * screen_ratio2 / screen_ratio1 / 2 : x + kw * screen_ratio2 / screen_ratio1 / 2;
     int a = k.vertical ? fy : fx, b = a + (k.vertical ? fh : fw); // the fill's extent along the travel
-    if (k.travel >= 0) b = std::min( b, c ); else a = std::max( a, c );
+    b = std::min( b, c );
     if (ai.visible) dirty_rect.add( drawnRect( ai ) );
     ai.visible = b > a;
     // spclip's rectangle (an empty one would clip nothing)

@@ -126,4 +126,30 @@ acts=$(grep -a '"t":"screen"' t3.jsonl | sed 's/.*"action":"\([a-z ]*\)".*"value
 check "backlog actions" "$acts" "open scroll=1 scroll=2 voice=3 scroll=1 scroll=0 close=0 "
 check "backlog name with its voice" "$(grep -a -c '"src":"strsp [0-9]*,\\"太郎　♪\\"' t3.jsonl | sed 's/^[1-9][0-9]*$/drawn/')" "drawn"
 check "backlog voice played" "$(grep -a -c '"cmd":"dwave".*v1.wav' t3.jsonl | sed 's/^[1-9][0-9]*$/played/')" "played"
+# picture sliders with a fill at 300 of 1000: widget 1 left to right
+# (knob x 157, fill lit 100-162), widget 2 reversed (travel -190: knob x
+# 233, fill lit from the left end too, 100-238), 3 close (300)
+cat > screens/settings.lua <<'LUA'
+return { kind = "settings", widgets = {
+  {"slider", var="%30", min=0, max=1000, travel=190, knob={file=">10,20,#ff0000", x=100, y=95},
+    track={x=100, y=95, w=200, h=20}, fill={file=">200,10,#00ff00", x=100, y=100}},
+  {"slider", var="%31", min=0, max=1000, travel=-190, knob={file=">10,20,#ff0000", x=290, y=195},
+    track={x=100, y=195, w=200, h=20}, fill={file=">200,10,#00ff00", x=100, y=200}},
+  {"button", text="閉", x=500, y=300, size=16, cols=2, action={"close"}},
+}}
+LUA
+printf '%s' '*define
+game
+*start
+mov %30,300:mov %31,300
+screen "settings"
+end
+' | iconv -f utf-8 -t cp932 > 0.txt
+# no auto-play (it would close the screen at once): the frame at 1.5 s, then killed
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout -k 2 5 "$BIN" -r . --enc:sjis --save-dir sv --trace t4.jsonl \
+  --shot-after 1500 --shot-dir sh > log4.txt 2>&1
+# each pixel as g (the fill), r (a knob) or k (black)
+px(){ for p in "$@"; do magick sh/ms0001500.png -format "%[fx:p{$p}.g>0.5?1:p{$p}.r>0.5?2:0]" info: 2>&1; done | tr 012 kgr; }
+check "fill from the left end to the knob" "$(px 101,105 150,105 165,105 200,105 298,105)" "ggrkk"
+check "reversed: from the left end too" "$(px 101,205 150,205 220,205 240,205 260,205 298,205)" "gggrkk"
 exit $fail

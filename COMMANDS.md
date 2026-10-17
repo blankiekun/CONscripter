@@ -1250,8 +1250,9 @@ element.
 `min` to `max` (along x, or y with `vertical = true`; negative: left or
 up), over `track` (an image `{file, x, y}`, or an invisible box
 `{x, y, w, h}`; without it the knob's sweep), with `fill` (an image
-`{file, x, y}` under the knob, shown only from its end on the `min` side
-to the knob's centre: a lit bar). Positions round to the nearest pixel.
+`{file, x, y}` under the knob, shown only from its left (or top) end to
+the knob's centre: a lit bar; with a negative `travel` it is lit from
+the `max` end). Positions round to the nearest pixel.
 The pointer over the track
 lights the knob (its cell 1, also while dragged). A press on the track
 puts the knob's centre under the pointer (on the knob, the knob stays
