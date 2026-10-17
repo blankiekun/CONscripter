@@ -462,6 +462,9 @@ class Checker:
         if what == 'stale archive':
             self.add('error', what, None, 'the archives were packed for another 0.txt (hash %s, 0.txt is %s): '
                      'a stale build, convert the game again' % (r.get('archive'), r.get('script')))
+        elif what == 'retired transition':
+            self.add('error', r.get('file'), at, '%s is retired and plays as a cross-fade: a build from before its '
+                     'cons_warp.dll maps, convert the game again' % r.get('file'))
         elif what == 'auto-play stuck':
             self.add('error', None, at, 'auto-play stuck here (going round in circles?)')
         elif what == 'long wait':

@@ -681,13 +681,8 @@ private:
     void buildBreakupMask();
     void initBreakup( char *params );
     void effectBreakup( char *params, int duration );
-    // CONscripter: effect 99 with "cons_slide.dll" / "cons_zoom.dll" (ONScripter_cons.cpp)
-    void effectSlide( const char *params, int duration );
-    void effectZoom( const char *params, int duration );
-    void effectFlip( const char *params, int duration );
-    void effectCube( const char *params, int duration );
-    void effectMelt( const char *params, int duration );
-    void effectWave( const char *params, int duration );
+    // CONscripter: effect 99 with "cons_blur.dll", "cons_rule.dll", ... (ONScripter_cons.cpp)
+    bool effectRetired( const char *params, int duration );
     void effectBlur( const char *params, int duration );
     void effectRule( const char *params, int duration );
     void warpFrame( SDL_Surface *map, int cells, int c, float t ); // ONScripter_warp.cpp

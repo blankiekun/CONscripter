@@ -829,6 +829,7 @@ Schema 2 adds these, with their own fields:
 | `choice not offered` | `option`, `from`, `options` | the answer `--choose` or `--choices` (`from`) gave isn't one of the `options` offered; the choice goes on to the next way of choosing ("Following a route") |
 | `choices ended` | | every `--choices` line was used up; written at the next choice |
 | `auto-play stuck` | | `--auto-play` stopped going round in circles (above) |
+| `retired transition` | `file` (the plugin's name, `cons_slide.dll`) | an effect names a retired transition plugin (COMMANDS.md, "Transitions"), drawn as a cross-fade instead; once per name. The build predates its `cons_warp.dll` maps: rebuild it |
 | `stale archive` | `file` (`0.txt`), `script`, `archive` | the archives were packed for another `0.txt`: the converter keeps the hash of the `0.txt` it built (FNV-1a 64, 16 hex digits) as `cons\script.hash` in `arc.nsa`, and `script`, the running `0.txt`'s, differs from `archive`, the one kept. Written once the define section has run (`game`). A build without the file (loose files, a dry run, a game not from the converter) or a script not in `0.txt` gets no warning |
 
 ### `error`: a script error, just before the engine exits
