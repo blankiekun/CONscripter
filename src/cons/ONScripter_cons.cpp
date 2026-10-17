@@ -47,7 +47,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 22 // only this version's block is read; the "Version n" comments below
+#define CONS_SAVE_VERSION 23 // only this version's block is read; the "Version n" comments below
                             // name the parts in the order they are written
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
@@ -664,6 +664,81 @@ int ONScripter::sptrailCommand()
     return RET_CONTINUE;
 }
 
+/* CONscripter
+ * spwave num,ms,period,amp0,amp1[,curve]
+ *   Waves lsp sprite num for ms ms: each row of its picture is drawn
+ *   trunc(sin(2 pi phase / 256) * amp) px to the right, phase being
+ *   row * period / height (in 1/256 turns; period 256: one wave over the
+ *   picture's height) plus one every 33 ms; amp goes from amp0 to amp1 px
+ *   over the ms by curve (as spmotion's: 0 straight, 1-3 ease, spcurve's).
+ *   Then it ends; "spwave num" ends it at once. Rows of a zoomed picture
+ *   take the phase of the picture's row they show. Only rows are moved, no
+ *   pixel is changed: a wave of amp 0 costs nothing. It stays when lsp
+ *   changes the image, is removed by csp and is kept in save files (not by
+ *   pushscreen). Nitroplus's DrawEffect waves (LowWave period 64,
+ *   MiddleWave 512, HighWave 1024, SuperWave 4096).
+ *   lsp 10,"bg.png",0,0:spwave 10,3000,512,0,20:print 1 */
+int ONScripter::spwaveCommand()
+{
+    int no = script_h.readInt();
+    int v[5] = {0, 0, 0, 0, 0};
+    for (int k=0 ; k<5 && (script_h.getEndStatus() & ScriptHandler::END_COMMA) ; k++) v[k] = script_h.readInt();
+    if (no < 0 || no >= MAX_SPRITE_NUM){
+        utils::printError("spwave: sprite %d out of range\n", no);
+        return RET_CONTINUE;
+    }
+    AnimationInfo &ai = sprite_info[no];
+    if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+    ai.wave_ms = v[0] > 0 ? speedTime( v[0] ) : 0; // gamespeed
+    ai.wave_start = SDL_GetTicks();
+    ai.wave_period = v[1];
+    ai.wave_amp0 = v[2];
+    ai.wave_amp1 = v[3];
+    ai.wave_curve = v[4];
+    ai.wave_tick = 0;
+    ai.wave_amp = ai.wave_ms > 0 ? v[2] : 0;
+    if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+
+    return RET_CONTINUE;
+}
+
+// spwave: steps sprite ai's wave to current_time; true when what it draws changed.
+bool ONScripter::stepSpriteWave( AnimationInfo &ai, int current_time )
+{
+    if (ai.wave_ms <= 0) return false;
+    int t = current_time - ai.wave_start;
+    if (t >= ai.wave_ms){
+        bool shown = ai.wave_amp != 0;
+        ai.wave_ms = ai.wave_amp = ai.wave_tick = 0;
+        return shown;
+    }
+    if (t < 0) t = 0;
+    int amp = ai.wave_amp0 + (int)((long long)(ai.wave_amp1 - ai.wave_amp0) * curveAt( ai.wave_curve, (int)((long long)t * 1024 / ai.wave_ms) ) / 1024);
+    int step = speedTime( 33 );
+    int tick = t / (step > 0 ? step : 1);
+    if (amp == ai.wave_amp && (tick == ai.wave_tick || amp == 0)) return false;
+    ai.wave_amp = amp;
+    ai.wave_tick = tick;
+    return true;
+}
+
+// spwave: how far right (px) row (0 at the top, of drawn_h drawn rows) of
+// sprite ai is drawn, as Nitroplus's wave (装甲悪鬼村正's FUN_00430de0):
+// the picture's row phase plus the step, through a 256-entry sine table.
+int ONScripter::waveShift( const AnimationInfo &ai, int row, int drawn_h )
+{
+    static float sine[256];
+    static bool made = false;
+    if (!made){
+        for (int i=0 ; i<256 ; i++) sine[i] = (float)sin( i * M_PI / 128 );
+        made = true;
+    }
+    int h = ai.pos.h > 0 ? ai.pos.h : 1;
+    unsigned src = drawn_h > 0 ? (unsigned)((long long)row * h / drawn_h) : (unsigned)row;
+    unsigned base = (unsigned)(((unsigned long long)src * (((unsigned)ai.wave_period << 16) / (unsigned)h)) >> 16);
+    return (int)((double)sine[(base + ai.wave_tick) & 255] * ai.wave_amp);
+}
+
 /* spovertext num[,on]
  *   Draws lsp sprite num over the text window and its text (and the bars),
  *   under the sprites windowback and humanz put over the window; "spovertext
@@ -883,6 +958,13 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
     changed.setDimension(screen_width, screen_height);
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
+        if (ai.wave_ms > 0){ // spwave
+            SDL_Rect r = drawnRect( ai );
+            if (stepSpriteWave( ai, current_time ) && ai.visible && ai.image_surface){
+                changed.add( r );
+                changed.add( drawnRect( ai ) );
+            }
+        }
         if ((ai.motion_keys == 0 && ai.trail_keys == 0) || ai.motion_next > current_time) continue;
         // After a long stop (a menu, a load) go on from now.
         if (current_time - ai.motion_next > 1000){
@@ -938,6 +1020,11 @@ SDL_Rect ONScripter::drawnRect( const AnimationInfo &ai )
         r.w = x2 - r.x;
         r.h = y2 - r.y;
     }
+    if (ai.wave_ms > 0){ // and its spwave rows, as far as they go
+        int a = abs(ai.wave_amp0) > abs(ai.wave_amp1) ? abs(ai.wave_amp0) : abs(ai.wave_amp1);
+        r.x -= a + 1;
+        r.w += 2 * a + 2;
+    }
     return r;
 }
 
@@ -946,7 +1033,7 @@ bool ONScripter::spriteZoomOrMotion()
 {
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         const AnimationInfo &ai = sprite_info[i];
-        if (ai.visible && ai.image_surface && (ai.motion_keys > 0 || ai.trail_keys > 0 || ai.zoom_x != 100 || ai.zoom_y != 100 || ai.zoom_rot != 0)) return true;
+        if (ai.visible && ai.image_surface && (ai.motion_keys > 0 || ai.trail_keys > 0 || ai.wave_ms > 0 || ai.zoom_x != 100 || ai.zoom_y != 100 || ai.zoom_rot != 0)) return true;
     }
     return false;
 }
@@ -957,6 +1044,12 @@ int ONScripter::nextSpriteMotionTime()
     int min = 0;
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
+        if (ai.wave_ms > 0 && ai.visible){ // spwave: its next step, or its end
+            int step = speedTime( 33 );
+            int next = ai.wave_start + (ai.wave_tick + 1) * (step > 0 ? step : 1);
+            if (next > ai.wave_start + ai.wave_ms) next = ai.wave_start + ai.wave_ms;
+            if (min == 0 || min > next) min = next;
+        }
         if (ai.motion_keys == 0 && ai.trail_keys == 0) continue;
         if (min == 0 || min > ai.motion_next) min = ai.motion_next;
     }
@@ -2638,6 +2731,25 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         for (int i=0 ; i<MAX_SCREEN_FILTER ; i++)
             writeInt( z[i], output_flag );
     }
+
+    // Version 23: the sprite waves (spwave): the count, then per sprite its
+    // number, ms (at game speed), period, amps, curve and the ms gone.
+    num = 0;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (sprite_info[i].wave_ms > 0) num++;
+    writeInt( num, output_flag );
+    now = SDL_GetTicks();
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        AnimationInfo &ai = sprite_info[i];
+        if (ai.wave_ms <= 0) continue;
+        writeInt( i, output_flag );
+        writeInt( ai.wave_ms, output_flag );
+        writeInt( ai.wave_period, output_flag );
+        writeInt( ai.wave_amp0, output_flag );
+        writeInt( ai.wave_amp1, output_flag );
+        writeInt( ai.wave_curve, output_flag );
+        writeInt( now - ai.wave_start, output_flag );
+    }
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -3678,6 +3790,22 @@ void ONScripter::loadSaveFileCons()
             int v = readInt();
             if (i < MAX_SCREEN_FILTER) z[i] = v;
         }
+    }
+
+    num = readInt();
+    int now = SDL_GetTicks();
+    for (int n=0 ; n<num ; n++){
+        int no = readInt(), ms = readInt(), period = readInt(), amp0 = readInt(), amp1 = readInt(), curve = readInt(), gone = readInt();
+        if (no < 0 || no >= MAX_SPRITE_NUM || ms <= 0) continue;
+        AnimationInfo &ai = sprite_info[no];
+        ai.wave_ms = ms;
+        ai.wave_start = now - gone;
+        ai.wave_period = period;
+        ai.wave_amp0 = amp0;
+        ai.wave_amp1 = amp1;
+        ai.wave_curve = curve;
+        ai.wave_tick = ai.wave_amp = 0;
+        stepSpriteWave( ai, now );
     }
 }
 
