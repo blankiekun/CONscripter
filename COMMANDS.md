@@ -792,11 +792,12 @@ ends it. Stays through `lsp`, removed by `csp`, saved (not by
 Impl `ONScripter::sptrailCommand`.
 
 ### spwave [cons]
-`spwave num,ms,period,amp0,amp1[,curve]` — for `ms` ms, each row of sprite
-num is drawn trunc(sin(2π·phase/256) × amp) px to the right: phase is
+`spwave num,ms,period,amp0,amp1[,curve]` — each row of sprite num is
+drawn trunc(sin(2π·phase/256) × amp) px to the right: phase is
 row × `period` / height (1/256 turns; 256 = one wave over the picture)
-plus one every 33 ms, and amp goes from `amp0` to `amp1` px by `curve`
-(as `spmotion`'s). Then it ends; `spwave num` ends it at once. A zoomed
+plus one every 33 ms, and amp goes from `amp0` to `amp1` px over `ms` by
+`curve` (as `spmotion`'s), then stays at `amp1`; with `amp1` 0 the wave
+ends there. `spwave num` ends it at once. A zoomed
 picture's rows take the phase of the row they show. Rows are only moved
 (no per-pixel work; amp 0 costs nothing). Stays through `lsp`, removed by
 `csp`, saved (not by `pushscreen`). Nitroplus's `DrawEffect` waves:

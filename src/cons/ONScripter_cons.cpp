@@ -666,12 +666,14 @@ int ONScripter::sptrailCommand()
 
 /* CONscripter
  * spwave num,ms,period,amp0,amp1[,curve]
- *   Waves lsp sprite num for ms ms: each row of its picture is drawn
+ *   Waves lsp sprite num: each row of its picture is drawn
  *   trunc(sin(2 pi phase / 256) * amp) px to the right, phase being
  *   row * period / height (in 1/256 turns; period 256: one wave over the
  *   picture's height) plus one every 33 ms; amp goes from amp0 to amp1 px
- *   over the ms by curve (as spmotion's: 0 straight, 1-3 ease, spcurve's).
- *   Then it ends; "spwave num" ends it at once. Rows of a zoomed picture
+ *   over ms ms by curve (as spmotion's: 0 straight, 1-3 ease, spcurve's),
+ *   then stays at amp1; the wave ends there when amp1 is 0 (as Nitroplus's
+ *   cb_00431230 ends one that reached 0). "spwave num" (or period 0) ends
+ *   it at once. Rows of a zoomed picture
  *   take the phase of the picture's row they show. Only rows are moved, no
  *   pixel is changed: a wave of amp 0 costs nothing. It stays when lsp
  *   changes the image, is removed by csp and is kept in save files (not by
@@ -691,12 +693,12 @@ int ONScripter::spwaveCommand()
     if (ai.visible) dirty_rect.add( drawnRect( ai ) );
     ai.wave_ms = v[0] > 0 ? speedTime( v[0] ) : 0; // gamespeed
     ai.wave_start = SDL_GetTicks();
-    ai.wave_period = v[1];
+    ai.wave_period = v[1] > 0 && (v[2] != 0 || v[3] != 0) ? v[1] : 0;
     ai.wave_amp0 = v[2];
     ai.wave_amp1 = v[3];
     ai.wave_curve = v[4];
     ai.wave_tick = 0;
-    ai.wave_amp = ai.wave_ms > 0 ? v[2] : 0;
+    ai.wave_amp = !ai.wave_on() ? 0 : ai.wave_ms > 0 ? v[2] : v[3];
     if (ai.visible) dirty_rect.add( drawnRect( ai ) );
 
     return RET_CONTINUE;
@@ -705,15 +707,16 @@ int ONScripter::spwaveCommand()
 // spwave: steps sprite ai's wave to current_time; true when what it draws changed.
 bool ONScripter::stepSpriteWave( AnimationInfo &ai, int current_time )
 {
-    if (ai.wave_ms <= 0) return false;
+    if (!ai.wave_on()) return false;
     int t = current_time - ai.wave_start;
-    if (t >= ai.wave_ms){
+    if (t >= ai.wave_ms && ai.wave_amp1 == 0){ // ramped to nothing: over
         bool shown = ai.wave_amp != 0;
-        ai.wave_ms = ai.wave_amp = ai.wave_tick = 0;
+        ai.wave_period = ai.wave_amp = ai.wave_tick = 0;
         return shown;
     }
     if (t < 0) t = 0;
-    int amp = ai.wave_amp0 + (int)((long long)(ai.wave_amp1 - ai.wave_amp0) * curveAt( ai.wave_curve, (int)((long long)t * 1024 / ai.wave_ms) ) / 1024);
+    int amp = t >= ai.wave_ms ? ai.wave_amp1 :
+        ai.wave_amp0 + (int)((long long)(ai.wave_amp1 - ai.wave_amp0) * curveAt( ai.wave_curve, (int)((long long)t * 1024 / ai.wave_ms) ) / 1024);
     int step = speedTime( 33 );
     int tick = t / (step > 0 ? step : 1);
     if (amp == ai.wave_amp && (tick == ai.wave_tick || amp == 0)) return false;
@@ -982,7 +985,7 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
     changed.setDimension(screen_width, screen_height);
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
-        if (ai.wave_ms > 0){ // spwave
+        if (ai.wave_on()){ // spwave
             SDL_Rect r = drawnRect( ai );
             if (stepSpriteWave( ai, current_time ) && ai.visible && ai.image_surface){
                 changed.add( r );
@@ -1044,7 +1047,7 @@ SDL_Rect ONScripter::drawnRect( const AnimationInfo &ai )
         r.w = x2 - r.x;
         r.h = y2 - r.y;
     }
-    if (ai.wave_ms > 0){ // and its spwave rows, as far as they go
+    if (ai.wave_on()){ // and its spwave rows, as far as they go
         int a = abs(ai.wave_amp0) > abs(ai.wave_amp1) ? abs(ai.wave_amp0) : abs(ai.wave_amp1);
         r.x -= a + 1;
         r.w += 2 * a + 2;
@@ -1057,7 +1060,7 @@ bool ONScripter::spriteZoomOrMotion()
 {
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         const AnimationInfo &ai = sprite_info[i];
-        if (ai.visible && ai.image_surface && (ai.motion_keys > 0 || ai.trail_keys > 0 || ai.wave_ms > 0 || ai.zoom_x != 100 || ai.zoom_y != 100 || ai.zoom_rot != 0)) return true;
+        if (ai.visible && ai.image_surface && (ai.motion_keys > 0 || ai.trail_keys > 0 || ai.wave_on() || ai.zoom_x != 100 || ai.zoom_y != 100 || ai.zoom_rot != 0)) return true;
     }
     return false;
 }
@@ -1068,10 +1071,11 @@ int ONScripter::nextSpriteMotionTime()
     int min = 0;
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
-        if (ai.wave_ms > 0 && ai.visible){ // spwave: its next step, or its end
+        if (ai.wave_on() && ai.visible){ // spwave: its next step, or its ramp's end
             int step = speedTime( 33 );
             int next = ai.wave_start + (ai.wave_tick + 1) * (step > 0 ? step : 1);
-            if (next > ai.wave_start + ai.wave_ms) next = ai.wave_start + ai.wave_ms;
+            int end = ai.wave_start + ai.wave_ms;
+            if (end > (int)SDL_GetTicks() && next > end) next = end;
             if (min == 0 || min > next) min = next;
         }
         if (ai.motion_keys == 0 && ai.trail_keys == 0) continue;
@@ -2769,12 +2773,12 @@ void ONScripter::saveSaveFileCons( bool output_flag )
     // number, ms (at game speed), period, amps, curve and the ms gone.
     num = 0;
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
-        if (sprite_info[i].wave_ms > 0) num++;
+        if (sprite_info[i].wave_on()) num++;
     writeInt( num, output_flag );
     now = SDL_GetTicks();
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
-        if (ai.wave_ms <= 0) continue;
+        if (!ai.wave_on()) continue;
         writeInt( i, output_flag );
         writeInt( ai.wave_ms, output_flag );
         writeInt( ai.wave_period, output_flag );
@@ -3833,7 +3837,7 @@ void ONScripter::loadSaveFileCons()
     int now = SDL_GetTicks();
     for (int n=0 ; n<num ; n++){
         int no = readInt(), ms = readInt(), period = readInt(), amp0 = readInt(), amp1 = readInt(), curve = readInt(), gone = readInt();
-        if (no < 0 || no >= MAX_SPRITE_NUM || ms <= 0) continue;
+        if (no < 0 || no >= MAX_SPRITE_NUM || period <= 0) continue;
         AnimationInfo &ai = sprite_info[no];
         ai.wave_ms = ms;
         ai.wave_start = now - gone;

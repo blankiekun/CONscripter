@@ -524,7 +524,7 @@ void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
         else
             anim->blendOnSurface2( dst_surface, at.x, at.y, c, anim->trans );
     };
-    if (anim->wave_ms > 0 && anim->wave_amp != 0){
+    if (anim->wave_on() && anim->wave_amp != 0){
         // CONscripter: spwave: the rows in bands of one shift, each drawn moved
         int dh = anim->pos.h * abs(anim->zoom_y) / 100 * abs(anim->motion_zoom_y) / 100;
         int top = poly_rect.y + anim->pos.h / 2 - dh / 2;
