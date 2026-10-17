@@ -303,7 +303,8 @@ int ONScripter::screenImage( ConsScreen *s, int x, int y, const char *file_overr
     std::string file = file_override ? file_override : fileName( fromUTF8( fieldStr( L, "file" ).c_str() ) );
     if (cells <= 0) cells = fieldInt( L, "cells", 1 );
     std::string tag = fieldInt( L, "opaque", 0 ) ? ":c" : ":a";
-    if (cells > 1) tag += "/" + std::to_string( cells ) + ",0,3";
+    int ms = fieldInt( L, "ms", 0 ); // cells shown in turn, ms each, looping
+    if (cells > 1) tag += "/" + std::to_string( cells ) + (ms > 0 ? "," + std::to_string( ms ) + ",0" : ",0,3");
     int no = screenSprite( s );
     screenExec( "lsp " + std::to_string( no ) + "," + quoted( tag + ";" + file ) + "," + std::to_string( x ) + "," +
                 std::to_string( y ) + "," + std::to_string( fieldInt( L, "alpha", 255 ) ) );
