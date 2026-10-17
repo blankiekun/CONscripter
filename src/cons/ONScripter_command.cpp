@@ -1541,6 +1541,10 @@ int ONScripter::mp3Command()
         crossFadeOutBGM( cross );
     int fadein = mp3fadein_duration;
     if (cross > 0) mp3fadein_duration = cross;
+    // CONscripter: skipping, the fade-in is done at once (its timer may not
+    // fire before the next page, never under the trace's virtual clock)
+    if (skip_mode & (SKIP_NORMAL | SKIP_TO_EOP) || ctrl_pressed_status || (auto_play_flag && !auto_play_real))
+        mp3fadein_duration = 0;
 
     mp3stopCommand();
     stopBGM( false );
