@@ -679,6 +679,10 @@ void ONScripter::traceSprite( std::string &out, int i )
     if (ai.clip_rect[2] > 0){
         snprintf( buf, sizeof(buf), ",\"clip\":[%d,%d,%d,%d]", ai.clip_rect[0], ai.clip_rect[1], ai.clip_rect[2], ai.clip_rect[3] );
         out += buf;
+        if (ai.clip_rect[4] > 0){
+            snprintf( buf, sizeof(buf), ",\"feather\":%d", ai.clip_rect[4] );
+            out += buf;
+        }
     }
     static const char *blends[] = {"", "add", "sub", "mul", "screen"};
     if (ai.blending_mode > 0 && ai.blending_mode <= AnimationInfo::BLEND_SCREEN){
