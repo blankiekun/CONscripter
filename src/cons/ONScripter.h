@@ -52,7 +52,21 @@
 
 #if defined(USE_SMPEG)
 #include <smpeg.h>
-#endif    
+#endif
+
+// CONscripter: the engine's clock and timers (ONScripter_trace.cpp). An
+// --auto-play run under SDL_VIDEODRIVER=dummy has a virtual clock that moves
+// only when the engine waits, so its times, and pictures, repeat run to run.
+// (SDL_GetTicks)() and the like, in brackets, are SDL's own.
+Uint32 consTicks();
+SDL_TimerID consAddTimer( Uint32 ms, SDL_TimerCallback callback, void *param );
+SDL_bool consRemoveTimer( SDL_TimerID id );
+void consDelay( Uint32 ms );
+bool consClockWait( SDL_Event *event );
+#define SDL_GetTicks() consTicks()
+#define SDL_AddTimer( ms, callback, param ) consAddTimer( ms, callback, param )
+#define SDL_RemoveTimer( id ) consRemoveTimer( id )
+#define SDL_Delay( ms ) consDelay( ms )
 
 #define DEFAULT_VIDEO_SURFACE_FLAG (SDL_SWSURFACE)
 
@@ -873,9 +887,10 @@ private:
     int trace_shot_every;
     std::string trace_shot_dir;
     void traceShot( std::string &out, bool dump=false );
-    struct ShotAt { std::string at; int line; char *begin, *end; int visits; bool pending; };
+    struct ShotAt { std::string at; int line; char *begin, *end; int visits; bool pending; unsigned int later; };
     std::vector<ShotAt> trace_shot_at; // --shot-at: the lines, found in traceStart
-    std::vector<unsigned int> trace_shot_after; // --shot-after: the times, in order
+    struct ShotTime { unsigned int ms; std::string name; const char *why; };
+    std::vector<ShotTime> trace_shot_after; // --shot-after, and --shot-at's '+ms': the times, in order
     size_t trace_shot_after_next = 0;
     std::vector<int> trace_shot_effects; // --shot-effects: the percents of each effect
     int trace_fx_seq = 0;            // effects filmed so far

@@ -64,6 +64,13 @@ SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy conscripter --root . --save-dir /tmp
   player sees them (for `--shot-after` mid-effect, or watching; `--shot-effects`
   films effects without it
   in a window); only clicks and choices are still made at once.
+- Under `SDL_VIDEODRIVER=dummy` the run keeps a virtual clock: game time
+  (`SDL_GetTicks`, the trace's `ms`, `gettimer`) moves only when the
+  engine waits, straight to the next timer due, and not while it draws
+  or loads. Two runs with the same options give the same times and so
+  the same frames, mid-motion too (`--shot-after`, `--shot-at` with
+  `+ms`); a `--real-time` run takes no wall-clock time for its waits.
+  With a window the clock is the real one, to watch.
 - Sounds still play, so the pages' `se` lists are real.
 
 It stops after `pages` text pages, or when the script ends if `pages` is
@@ -441,7 +448,7 @@ its own. Two more options take a picture at other moments, each with a
 option took it):
 
 ```sh
-conscripter --root . --trace trace.jsonl --auto-play 0 --shot-at '*conv_menu:812,*s4_l2:5470' --shot-after 12000
+conscripter --root . --trace trace.jsonl --auto-play 0 --shot-at '*conv_menu:812,*s4_l2:5470+500' --shot-after 12000
 ```
 
 - `--shot-at '*label:line'` takes one once the script has run that line
@@ -451,6 +458,11 @@ conscripter --root . --trace trace.jsonl --auto-play 0 --shot-at '*conv_menu:812
   `<shot-dir>/at000412-conv_menu-812-1.png`: the page (`pg`), the label,
   the line and the visit, counted from 1. The `dump`'s `at` is where the
   script goes on, the line after it.
+- `--shot-at '*label:line+ms'` takes it that many milliseconds of game
+  time after the line has run, as `--shot-after` would (and wherever the
+  script is then), saved as `at000412-s4_l2-5470-1+500.png`: a frame
+  mid-motion or mid-fade (with `--real-time`), the same in every run
+  under the dummy driver (the virtual clock, above).
 - `--shot-effects 25,50,75` films every effect as it starts: its frame
   at each percent of its own time (an `--auto-play` run, which cuts
   effects to 1 ms, too), saved as `<shot-dir>/fx<pg>-<n>-<pct>.png` (`n`
@@ -465,7 +477,8 @@ conscripter --root . --trace trace.jsonl --auto-play 0 --shot-at '*conv_menu:812
 Both take a comma-separated list and can be given more than once, and
 both work in an `--auto-play` run and while playing by hand. Under
 `--auto-play` time runs much faster than in play, so a time there
-matches a different place than it would by hand. A picture is the screen
+matches a different place than it would by hand; under the dummy video
+driver it is game time, which repeats run to run. A picture is the screen
 as shown at that moment. A command that changes a sprite but doesn't
 show it (`lsp` without `print`) leaves the screen as it was, so a
 picture after its line doesn't have the new sprite yet; the `dump`'s
@@ -733,7 +746,10 @@ not written, so `pg` goes on as before.
 
 `what` is one of `missing image`, `broken image` (found but couldn't be
 decoded), `image too large`, `force-loaded JPG`, `missing sound`,
-`broken sound`, `broken music`, `sound too large`, or `missing movie`.
+`broken sound`, `broken music`, `sound too large`, `missing movie`, or
+`screenshot not written` (`savescreenshot` couldn't write `file`, as
+the path it tried: a folder that doesn't exist; with `--save-dir` the
+picture goes into the save folder, without the name's folders).
 The engine's own default files (`cursor0.bmp`, `uoncur.bmp`, ...), which
 it tries whether or not a game has them, aren't reported.
 

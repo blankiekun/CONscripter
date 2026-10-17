@@ -1115,14 +1115,17 @@ void ONScripter::setTraceShotDir( const char *dir )
     trace_shot_dir = dir;
 }
 
-// "*s4_l2:5467,*conv_wait:120": the lines --shot-at takes a picture after.
+// "*s4_l2:5467,*conv_wait:120+500": the lines --shot-at takes a picture
+// after (+ms: that long after).
 void ONScripter::setTraceShotAt( const char *places )
 {
     for (const char *p = places ; p && *p ; ){
         const char *comma = strchr( p, ',' );
         size_t len = comma ? (size_t)(comma - p) : strlen( p );
+        const char *plus = (const char *)memchr( p, '+', len );
         ShotAt s;
-        s.at = choicePlace( p, len );
+        s.later = plus ? (unsigned int)atoi( plus+1 ) : 0;
+        s.at = choicePlace( p, plus ? (size_t)(plus - p) : len );
         size_t colon = s.at.rfind( ':' );
         s.line = colon == std::string::npos ? 0 : atoi( s.at.c_str() + colon + 1 );
         if (s.line < 1){
@@ -1148,10 +1151,14 @@ void ONScripter::setTraceShotAfter( const char *times )
             utils::printError( "--shot-after: can't read [%s]\n", p );
             startupFailed();
         }
-        trace_shot_after.push_back( (unsigned int)ms );
+        char name[32];
+        snprintf( name, sizeof(name), "ms%07ld.png", ms );
+        ShotTime t = { (unsigned int)ms, name, "shot-after" };
+        trace_shot_after.push_back( t );
         p = *end == ',' ? end+1 : NULL;
     }
-    std::sort( trace_shot_after.begin(), trace_shot_after.end() );
+    std::stable_sort( trace_shot_after.begin(), trace_shot_after.end(),
+                      []( const ShotTime &a, const ShotTime &b ){ return a.ms < b.ms; } );
 }
 
 // "25,50,75": the points (percent of its time) --shot-effects films
@@ -1203,7 +1210,7 @@ void ONScripter::traceShotAtSetup()
     }
     Uint32 now = SDL_GetTicks();
     for (size_t i=0 ; i<trace_shot_after.size() ; i++)
-        SDL_AddTimer( trace_shot_after[i] > now ? trace_shot_after[i] - now : 1, shotTimerCallback, NULL );
+        SDL_AddTimer( trace_shot_after[i].ms > now ? trace_shot_after[i].ms - now : 1, shotTimerCallback, NULL );
 }
 
 // Called before each line or command is run (executeLabel): once the
@@ -1222,10 +1229,19 @@ void ONScripter::traceShotAt( char *line_start )
                 label += (isalnum( (unsigned char)ch ) || ch == '_') ? ch : '_';
             }
             char name[64];
-            snprintf( name, sizeof(name), "-%d-%d.png", s.line, ++s.visits );
+            snprintf( name, sizeof(name), "-%d-%d", s.line, ++s.visits );
             char pg[16];
             snprintf( pg, sizeof(pg), "at%06d-", trace_page );
-            traceShotDump( "shot-at", pg + label + name );
+            if (s.later == 0) traceShotDump( "shot-at", pg + label + name + ".png" );
+            else { // +ms: a time for traceShotAfter, among --shot-after's
+                char ms[16];
+                snprintf( ms, sizeof(ms), "+%u.png", s.later );
+                ShotTime t = { SDL_GetTicks() + s.later, pg + label + name + ms, "shot-at" };
+                std::vector<ShotTime>::iterator it = trace_shot_after.begin() + trace_shot_after_next;
+                while (it != trace_shot_after.end() && it->ms <= t.ms) it++;
+                trace_shot_after.insert( it, t );
+                SDL_AddTimer( s.later, shotTimerCallback, NULL );
+            }
         }
         if (inside) s.pending = true;
     }
@@ -1238,10 +1254,9 @@ void ONScripter::traceShotAfter()
 {
     if (current_mode == DEFINE_MODE) return;
     while (trace_shot_after_next < trace_shot_after.size() &&
-           SDL_GetTicks() >= trace_shot_after[trace_shot_after_next]){
-        char name[32];
-        snprintf( name, sizeof(name), "ms%07u.png", trace_shot_after[trace_shot_after_next++] );
-        traceShotDump( "shot-after", name );
+           SDL_GetTicks() >= trace_shot_after[trace_shot_after_next].ms){
+        ShotTime t = trace_shot_after[trace_shot_after_next++];
+        traceShotDump( t.why, t.name );
     }
 }
 
@@ -1430,6 +1445,75 @@ void ONScripter::traceEnd()
     trace_fp = NULL;
 }
 
+// The virtual clock (ONScripter.h): consTicks() is its time, which moves
+// only when the engine sleeps (consDelay) or waits with nothing to do, and
+// then straight to the next timer due (consClockWait), which runs on the
+// engine's thread. Drawing and loading take no time, so two runs give the
+// same frames; a run that waits takes no wall-clock time for it.
+static bool clock_virtual = false;
+static Uint32 clock_ms = 0;
+struct ClockTimer { SDL_TimerID id; Uint32 due, interval; SDL_TimerCallback callback; void *param; };
+static std::vector<ClockTimer> clock_timers; // in the order set
+static SDL_TimerID clock_last_id = 0, clock_firing = 0;
+
+Uint32 consTicks()
+{
+    return clock_virtual ? clock_ms : (SDL_GetTicks)();
+}
+
+SDL_TimerID consAddTimer( Uint32 ms, SDL_TimerCallback callback, void *param )
+{
+    if (!clock_virtual) return (SDL_AddTimer)( ms, callback, param );
+    ClockTimer t = { ++clock_last_id, clock_ms + ms, ms, callback, param };
+    clock_timers.push_back( t );
+    return t.id;
+}
+
+SDL_bool consRemoveTimer( SDL_TimerID id )
+{
+    if (!clock_virtual) return (SDL_RemoveTimer)( id );
+    if (id == clock_firing) clock_firing = 0;
+    for (size_t i=0 ; i<clock_timers.size() ; i++)
+        if (clock_timers[i].id == id){
+            clock_timers.erase( clock_timers.begin() + i );
+            return SDL_TRUE;
+        }
+    return SDL_FALSE;
+}
+
+void consDelay( Uint32 ms )
+{
+    if (!clock_virtual){ (SDL_Delay)( ms ); return; }
+    clock_ms += ms;
+    (SDL_Delay)( ms ? 1 : 0 ); // other threads (decoders, sounds) still run
+}
+
+// With the virtual clock, while no event waits: the timer due first (the
+// one set first among equals) runs, the clock moved to its time. False when
+// no timer is set: the engine waits for an event as it would.
+bool consClockWait( SDL_Event *event )
+{
+    if (!clock_virtual) return false;
+    while (!SDL_PollEvent( event )){
+        if (clock_timers.empty()) return false;
+        size_t next = 0;
+        for (size_t i=1 ; i<clock_timers.size() ; i++)
+            if (clock_timers[i].due < clock_timers[next].due) next = i;
+        ClockTimer t = clock_timers[next];
+        clock_timers.erase( clock_timers.begin() + next );
+        if (t.due > clock_ms) clock_ms = t.due;
+        clock_firing = t.id;
+        Uint32 again = t.callback( t.interval, t.param );
+        if (again && clock_firing == t.id){ // not removed by its callback
+            t.due = clock_ms + again;
+            t.interval = again;
+            clock_timers.push_back( t );
+        }
+        clock_firing = 0;
+    }
+    return true;
+}
+
 /* --auto-play pages: the game plays itself, for finding bugs with the
  * trace. Every wait for a click is answered at once, a btnwait or select
  * picks a button (--auto-choice), effects take 1 ms, timed waits and BGM
@@ -1441,6 +1525,8 @@ void ONScripter::setAutoPlay( int pages )
     auto_play_flag = true;
     auto_play_limit = pages > 0 ? pages : 0;
     setVsyncOff(); // each drawn character would wait for the screen
+    const char *driver = getenv( "SDL_VIDEODRIVER" );
+    clock_virtual = driver && !strcmp( driver, "dummy" ); // no one watches: the virtual clock
 }
 
 /* --real-time (with --auto-play): effects, timed waits, spmotion and BGM
@@ -1984,7 +2070,7 @@ void ONScripter::signalSetup()
 #if defined(SIGHUP)
     signal( SIGHUP, quitSignal );
 #endif
-    if (SDL_InitSubSystem( SDL_INIT_TIMER ) == 0) SDL_AddTimer( 100, quitSignalTimer, NULL );
+    if (SDL_InitSubSystem( SDL_INIT_TIMER ) == 0) (SDL_AddTimer)( 100, quitSignalTimer, NULL ); // the wall clock: signals come in real time
 #endif
 }
 

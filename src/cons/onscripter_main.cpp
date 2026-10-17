@@ -84,7 +84,7 @@ void optionHelp()
     printf( "      --seed n\t\tstart the random numbers (rnd, --auto-choice random) from n\n");
     printf( "      --shot-pages 412,980-990\twith --trace, save a picture of these pages (--shot-dir, default shots)\n");
     printf( "      --shot-every n\twith --trace, save a picture of every n-th page\n");
-    printf( "      --shot-at '*label:line'\twith --trace, a picture and a dump record each time that line has run (comma-separated, repeatable)\n");
+    printf( "      --shot-at '*label:line[+ms]'\twith --trace, a picture and a dump record each time that line has run, or ms later (comma-separated, repeatable)\n");
     printf( "      --shot-after ms\twith --trace, a picture and a dump record that many ms after the start (comma-separated, repeatable)\n");
     printf( "      --shot-effects pcts\twith --trace, each effect drawn at these percents of its time (comma-separated; only on --shot-pages/--shot-every pages when given)\n");
     printf( "      --goto label\tstart at this label, once the define section has run\n");

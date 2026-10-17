@@ -1246,7 +1246,7 @@ void ONScripter::runEventLoop()
             bool sleeps = next_time <= 0 || next_time - (int)now >= FRAME_MS;
             if (!busy && sleeps && present_pending) presentScreen();
             else if (!busy && !sleeps && now - present_time >= FRAME_MS) presentPending();
-            if (!waitNextEvent(&event)) break;
+            if (!consClockWait(&event) && !waitNextEvent(&event)) break; // CONscripter: the virtual clock's timers first
         }
         tmp_event = event; // fix android long click problem
 #if defined(USE_SMPEG)
