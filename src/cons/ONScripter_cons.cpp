@@ -1779,7 +1779,8 @@ void ONScripter::proceedSoundFades( int current_time )
         char *name = bgm_later_name;
         bgm_later_name = NULL;
         stopBGM( false );
-        mp3save_flag = music_play_loop_flag = bgm_later_loop;
+        music_play_loop_flag = bgm_later_loop;
+        mp3save_flag = true; // once too, as mp3save: a load plays it again
         music_loopback_offset = 0.0;
         music_file_name = name;
         playSound( music_file_name, SOUND_MUSIC | SOUND_MIDI | SOUND_CHUNK,

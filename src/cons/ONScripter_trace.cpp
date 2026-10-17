@@ -2602,9 +2602,13 @@ void ONScripter::roundtripState( std::map<std::string, std::string> &state )
         if (!trace_se_name[ch] || !trace_se_loop[ch] || !Mix_Playing( ch )) continue; // a voice isn't saved
         snprintf( buf, sizeof(buf), "se %d", ch );
         traceString( state[buf], trace_se_name[ch] );
-        int vol = Mix_Volume( ch, -1 ) * 100 / MIX_MAX_VOLUME * trackGain( ch ) / 4096;
-        // during a dwavefadein the load restarts the sound at its full volume
-        if (vol < 100 && Mix_FadingChannel( ch ) != MIX_FADING_IN) state[buf] += " vol " + std::to_string( vol );
+        int vol = Mix_Volume( ch, -1 );
+        // during a dwavefadein the load restarts the sound at the volume it
+        // fades to: the one playWave set for the channel
+        if (Mix_FadingChannel( ch ) == MIX_FADING_IN)
+            vol = (ch == 0 ? voice_volume : ch == MIX_WAVE_CHANNEL && syse_volume >= 0 ? syse_volume : se_volume) * MIX_MAX_VOLUME / 100;
+        vol = vol * 100 / MIX_MAX_VOLUME * trackGain( ch ) / 4096;
+        if (vol < 100) state[buf] += " vol " + std::to_string( vol );
     }
     state["window"] = (display_mode & DISPLAY_MODE_TEXT) ? "true" : "false";
     if (window_trans != 255) state["windowtrans"] = std::to_string( window_trans );
