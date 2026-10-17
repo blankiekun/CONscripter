@@ -1153,7 +1153,7 @@ Impl `ONScripter::savefileexistCommand` etc.
 thumbnail; web build syncs. Impl `ONScripter::delsavegameCommand`.
 
 ### copysavegame [cons]
-`copysavegame from,to` — copy as is; missing `from` deletes `to`.
+`copysavegame from,to` — copy as is; missing `from` leaves `to` untouched.
 Impl `ONScripter::copysavegameCommand`.
 
 ### checkpage
