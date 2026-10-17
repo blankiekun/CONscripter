@@ -1002,11 +1002,23 @@ void ONScripter::screenSlots( ConsScreen *s, int w )
         bx = x0 + (down ? k / rows : k % cols) * dx;
         by = y0 + (down ? k % rows : k / cols) * dy;
     };
-    // the selected look and the thumbnails, then `over` (frames) over them all
+    // the selected look, the hover look under the thumbnail and the
+    // thumbnails, then `over` (frames) over them all
+    std::vector<int> under( per, -1 );
     for (int k=0 ; k<per ; k++){
         int slot = first + k, bx, by;
         place( k, bx, by );
         if (slot == s->selected) image( "selected", bx, by );
+        if (fieldTable( L, "button" )){
+            lua_pop( L, 1 );
+            if (fieldTable( L, "hover" )){
+                if (fieldTable( L, "under" )){
+                    under[k] = screenImage( s, bx + fieldInt( L, "x", 0 ), by + fieldInt( L, "y", 0 ) );
+                    lua_pop( L, 1 );
+                }
+                lua_pop( L, 1 );
+            }
+        }
         if (screenSaveTime( slot )) thumb( "thumb", bx, by, slot );
     }
     image( "over", 0, 0 );
@@ -1041,7 +1053,8 @@ void ONScripter::screenSlots( ConsScreen *s, int w )
         // shown only while the pointer is on the slot: its picture (from
         // the slot's corner), lines and preview (absolute)
         if (button_no >= 0 && fieldTable( L, "hover" )){
-            std::vector<int> nos; // from the bottom: the picture, the preview, the lines
+            std::vector<int> nos; // from the bottom: under, the picture, the preview, the lines
+            if (under[k] >= 0) nos.push_back( under[k] );
             if (fieldTable( L, "image" )){
                 nos.push_back( screenImage( s, bx + fieldInt( L, "x", 0 ), by + fieldInt( L, "y", 0 ) ) );
                 lua_pop( L, 1 );
