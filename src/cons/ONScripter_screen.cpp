@@ -123,6 +123,17 @@ static bool fieldTable( lua_State *L, const char *key )
     return false;
 }
 
+// Whether a toggle or radio (on top) is on at value v: a radio while var
+// holds its value, or lies in its on_range {a, b} (a gauge's step).
+static bool widgetOn( lua_State *L, const std::string &type, int v )
+{
+    if (type != "radio") return v == fieldInt( L, "on", 1 );
+    if (!fieldTable( L, "on_range" )) return v == fieldInt( L, "value", 1 );
+    int a = indexInt( L, 1, 0 ), b = indexInt( L, 2, 0 );
+    lua_pop( L, 1 );
+    return v >= std::min( a, b ) && v <= std::max( a, b );
+}
+
 static std::string quoted( const std::string &s )
 {
     std::string r = "\"";
@@ -775,7 +786,7 @@ void ONScripter::screenDraw( ConsScreen *s )
         else if ((type == "toggle" || type == "radio") && !fieldStr( L, "file" ).empty()){ // pictures: `file`, `on_file` while on
             std::vector<std::string> vars = widgetVars( L );
             int v = vars.empty() ? 0 : screenGet( vars[0] );
-            bool state = type == "radio" ? v == fieldInt( L, "value", 1 ) : v == fieldInt( L, "on", 1 );
+            bool state = widgetOn( L, type, v );
             std::string on_file = fieldStr( L, "on_file" );
             bool on = state && !on_file.empty();
             int no = screenImage( s, x, y, on ? fileName( fromUTF8( on_file.c_str() ) ).c_str() : NULL, on ? fieldInt( L, "on_cells", 0 ) : 0 );
@@ -785,7 +796,7 @@ void ONScripter::screenDraw( ConsScreen *s )
         else if (type == "toggle" || type == "radio"){
             std::vector<std::string> vars = widgetVars( L );
             int v = vars.empty() ? 0 : screenGet( vars[0] );
-            bool state = type == "radio" ? v == fieldInt( L, "value", 1 ) : v == fieldInt( L, "on", 1 );
+            bool state = widgetOn( L, type, v );
             std::string on, off;
             widgetMarks( L, on, off );
             std::string text = boundText( fieldStr( L, "text", "%C" ), v, 0, 0, 1, on, off, state );
