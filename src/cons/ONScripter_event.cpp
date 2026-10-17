@@ -190,6 +190,16 @@ static Uint32 pad_next = 0;     // when it repeats
 static bool pad_trigger[2] = {false, false};
 static float pad_px = -1, pad_py = -1; // the right stick's pointer, window pixels
 
+// a pad unplugged: nothing held, and the next tilt starts the timer again
+static void padReset()
+{
+    if (pad_timer) SDL_RemoveTimer( pad_timer ); // a tick still due (an expired id is harmless)
+    pad_timer = 0;
+    pad_dir = -1;
+    pad_trigger[0] = pad_trigger[1] = false;
+    pad_px = -1;
+}
+
 static Uint32 padTimerCallback( Uint32 interval, void *param )
 {
     SDL_Event event;
@@ -274,7 +284,7 @@ bool ONScripter::padAction( ONS_Key action )
 // taps the d-pad (repeating while held), the right one moves the pointer.
 bool ONScripter::padTick()
 {
-    if (!controller) return false;
+    if (!controller){ padReset(); return false; }
     Sint16 lx = SDL_GameControllerGetAxis( controller, SDL_CONTROLLER_AXIS_LEFTX );
     Sint16 ly = SDL_GameControllerGetAxis( controller, SDL_CONTROLLER_AXIS_LEFTY );
     Sint16 rx = SDL_GameControllerGetAxis( controller, SDL_CONTROLLER_AXIS_RIGHTX );
@@ -1554,6 +1564,7 @@ void ONScripter::runEventLoop()
 
           case SDL_CONTROLLERDEVICEREMOVED:
             utils::printInfo("Close GameController %d\n", event.cdevice.which);
+            padReset(); // CONscripter
             if (controller != NULL) {
                 SDL_GameControllerClose(controller);
                 controller = NULL;
