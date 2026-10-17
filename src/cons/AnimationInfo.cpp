@@ -23,6 +23,7 @@
  */
 
 #include "AnimationInfo.h"
+#include <vector>
 #include <math.h>
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -1405,6 +1406,48 @@ static void levelsTable( const AnimationInfo::Filter &f, Uint8 *lut )
     }
 }
 
+// A channel v (0-255) decoded as sRGB, then raised to 1/2.2 and back to
+// 0-255: what a shader that samples an sRGB texture and re-encodes it
+// with x^0.4545 sees (月姫's pre_alter).
+static float alterDecode( int v )
+{
+    float c = v / 255.0f;
+    float lin = c <= 0.04045f ? c / 12.92f : powf( (c + 0.055f) / 1.055f, 2.4f );
+    return 255 * powf( lin, 0.454545f );
+}
+
+// FILTER_LEVELS' curve at x (0-255, a float): low + (high - low)·g/255.
+static float levelsAt( int param, float x )
+{
+    int gamma = param >> 16, low = (param >> 8) & 0xff, high = param & 0xff;
+    float g = gamma <= 0 ? 0 : gamma == 1000 ? x : 255 * powf( x / 255.0f, 1000.0f / gamma );
+    return low + (high - low) * g / 255;
+}
+
+static Uint8 clampRound( float v )
+{
+    int o = (int)floorf( v + 0.5f );
+    return o < 0 ? 0 : o > 255 ? 255 : o;
+}
+
+// FILTER_ALTER_* tables: for 12 and 14, per channel the 256 inputs
+// (decoded, then levels, rounded once); for 13, per channel the levels of
+// the grey in 1/256 steps (0-255 × 256), the grey made from the decoded
+// values in float.
+static const int ALTER_GREY_STEPS = 255 * 256 + 1;
+static void alterTable( const AnimationInfo::Filter &f, std::vector<Uint8> &t )
+{
+    if (f.kind == AnimationInfo::FILTER_ALTER_GREY_LEVELS){
+        t.resize( 3 * ALTER_GREY_STEPS );
+        for (int k=0 ; k<3 ; k++)
+            for (int i=0 ; i<ALTER_GREY_STEPS ; i++) t[k*ALTER_GREY_STEPS + i] = clampRound( levelsAt( f.param[k], i / 256.0f ) );
+        return;
+    }
+    t.resize( 768 );
+    for (int k=0 ; k<3 ; k++)
+        for (int v=0 ; v<256 ; v++) t[k*256 + v] = clampRound( levelsAt( f.param[k], alterDecode( v ) ) );
+}
+
 // The colour a pointwise filter makes from the pixel c (lut: the filter's
 // levelsTable, for FILTER_LEVELS and FILTER_GREY_LEVELS).
 static void filterColour( const AnimationInfo::Filter &f, const int *c, int *d, const Uint8 *lut )
@@ -1541,9 +1584,15 @@ void AnimationInfo::applyFilterList( SDL_Surface *surface, const SDL_Rect &rect,
         int last = first;
         while (last < num && filter[last].kind != FILTER_BLUR) last++;
         Uint8 *lut = new Uint8[(last - first) * 768];
-        for (int i=first ; i<last ; i++)
+        std::vector<Uint8> alter[MAX_FILTER_NUM];
+        float decoded[256];
+        for (int v=0 ; v<256 ; v++) decoded[v] = alterDecode( v );
+        for (int i=first ; i<last ; i++){
             if (filter[i].kind == FILTER_LEVELS || filter[i].kind == FILTER_GREY_LEVELS)
                 levelsTable( filter[i], lut + (i - first) * 768 );
+            if (filter[i].kind >= FILTER_ALTER_LEVELS && filter[i].kind <= FILTER_ALTER_LEVELS_KEEP)
+                alterTable( filter[i], alter[i] );
+        }
         for (int y=rect.y ; y<rect.y+rect.h ; y++){
             Uint32 *p = (Uint32 *)((Uint8 *)surface->pixels + y*surface->pitch) + rect.x;
             for (int x=0 ; x<rect.w ; x++, p++){
@@ -1553,7 +1602,19 @@ void AnimationInfo::applyFilterList( SDL_Surface *surface, const SDL_Rect &rect,
                 for (int i=first ; i<last ; i++){
                     if (filter[i].kind == FILTER_NONE) continue;
                     int d[3];
-                    filterColour( filter[i], c, d, lut + (i - first) * 768 );
+                    if (filter[i].kind == FILTER_ALTER_GREY_LEVELS){
+                        // the grey of the decoded values, as the shader: (54 r + 183 g + 19 b)/256
+                        float grey = (decoded[c[0]]*54 + decoded[c[1]]*183 + decoded[c[2]]*19) / 256;
+                        int at = (int)floorf( grey * 256 + 0.5f );
+                        if (at >= ALTER_GREY_STEPS) at = ALTER_GREY_STEPS - 1;
+                        for (int k=0 ; k<3 ; k++) d[k] = alter[i][k*ALTER_GREY_STEPS + at];
+                    }
+                    else if (filter[i].kind == FILTER_ALTER_LEVELS || filter[i].kind == FILTER_ALTER_LEVELS_KEEP){
+                        for (int k=0 ; k<3 ; k++) d[k] = alter[i][k*256 + c[k]];
+                        if (filter[i].kind == FILTER_ALTER_LEVELS_KEEP)
+                            for (int k=1 ; k<3 ; k++) if (c[k] == 0) d[k] = 0;
+                    }
+                    else filterColour( filter[i], c, d, lut + (i - first) * 768 );
                     blendFilter( filter[i], c, d );
                 }
                 *p = (*p & ~(fmt->Rmask | fmt->Gmask | fmt->Bmask)) |
