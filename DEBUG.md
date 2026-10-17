@@ -846,7 +846,8 @@ Schema 2 adds these, with their own fields:
 each given as the place it returns to. `kind` (schema 2) is `script`, or
 `startup` when the engine couldn't start (an unknown option, no script
 or font, a bad `--goto` or `--until` label, `--vars` file or `--load` slot); `at` is then `null` and
-`stack` empty if the script wasn't running yet.
+`stack` empty if the script wasn't running yet. `lua` is a `cons_process`
+that raised an error: the engine stops that process and goes on.
 
 ### `crash`: the engine crashed (schema 2)
 
