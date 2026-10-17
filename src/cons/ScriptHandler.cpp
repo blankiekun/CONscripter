@@ -293,6 +293,13 @@ const char *ScriptHandler::readToken()
         
         text_flag = true;
         end_status |= END_1BYTE_CHAR;
+        // CONscripter: "`text`/" at the end of a line: the text goes on on
+        // the same line after the commands that follow (the '/' of
+        // two-byte text, which a 1-byte string would draw).
+        if (ch == '`' && *buf == '/' && (buf[1] == 0x0a || buf[1] == 0x0d || buf[1] == '\0')){
+            buf++;
+            end_status |= END_NO_NEW_LINE;
+        }
     }
 #endif
     else if (english_mode && ch == '>'){
