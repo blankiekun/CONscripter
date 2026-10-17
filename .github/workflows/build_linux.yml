@@ -40,6 +40,10 @@ jobs:
         fi
         cd script
         SKIP_PORTS=yes bash cross_linux${{ matrix.arch.suffix2 }}.sh
+
+    - name: pixel test
+      if: matrix.arch.suffix == 'x64'
+      run: python3 -I tests/pixel/check.py build_linux64/conscripter
     
     - name: prepare release
       if: github.ref_type == 'tag'
