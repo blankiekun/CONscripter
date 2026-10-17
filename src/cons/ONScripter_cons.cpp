@@ -47,7 +47,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 27 // only this version's block is read; the "Version n" comments below
+#define CONS_SAVE_VERSION 28 // only this version's block is read; the "Version n" comments below
                             // name the parts in the order they are written (version 26's first)
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
@@ -629,8 +629,9 @@ int ONScripter::spclipCommand()
 }
 
 /* CONscripter
- * sptrail num,passes,alpha,lag
- *   Draws passes (1-32, SPTRAIL_MAX) copies of lsp sprite num under it, each at
+ * sptrail num,passes,alpha,lag[,over]
+ *   Draws passes (1-32, SPTRAIL_MAX) copies of lsp sprite num under it (over
+ *   it when over is 1, as Nitroplus's SetBlur(…, false) does), each at
  *   alpha per mille (1-1000) of its alpha; copy i shows where the
  *   sprite's motion (spmotion) had it lag * i ms before, and
  *   once the motion ends the copies catch up with the sprite. A sprite
@@ -641,8 +642,8 @@ int ONScripter::spclipCommand()
 int ONScripter::sptrailCommand()
 {
     int no = script_h.readInt();
-    int v[3] = {0, 0, 0};
-    for (int k=0 ; k<3 && (script_h.getEndStatus() & ScriptHandler::END_COMMA) ; k++) v[k] = script_h.readInt();
+    int v[4] = {0, 0, 0, 0};
+    for (int k=0 ; k<4 && (script_h.getEndStatus() & ScriptHandler::END_COMMA) ; k++) v[k] = script_h.readInt();
     if (no < 0 || no >= MAX_SPRITE_NUM){
         utils::printError("sptrail: sprite %d out of range\n", no);
         return RET_CONTINUE;
@@ -654,6 +655,7 @@ int ONScripter::sptrailCommand()
     ai.trail_passes = on ? (v[0] < SPTRAIL_MAX ? v[0] : SPTRAIL_MAX) : 0;
     ai.trail_alpha = on ? (v[1] < 1000 ? v[1] : 1000) : 0;
     ai.trail_lag = on && v[2] > 0 ? speedTime( v[2] ) : 0; // gamespeed
+    ai.trail_over = on && v[3] != 0;
     if (!on) ai.trail_keys = 0;
     if (ai.visible && ai.image_surface && on){
         ai.trail_time = SDL_GetTicks();
@@ -769,8 +771,7 @@ void ONScripter::drawOverTextSprites( SDL_Surface *surface, SDL_Rect &clip )
     for (int i=MAX_SPRITE_NUM-1 ; i>=0 ; i--){
         AnimationInfo &ai = sprite_info[i];
         if (ai.z_over == Z_OVER_TEXT && ai.image_surface && ai.visible){
-            if (ai.trail_passes > 0) trailCopies( ai, surface, &clip );
-            drawTaggedSurface( surface, &ai, clip );
+            drawWithTrail( surface, ai, clip );
         }
     }
 }
@@ -783,8 +784,7 @@ void ONScripter::drawSpritesOver( SDL_Surface *surface, SDL_Rect &clip, int targ
         AnimationInfo &over = sprite_info[k];
         if (over.z_over != target) continue;
         if (over.image_surface && over.visible){
-            if (over.trail_passes > 0) trailCopies( over, surface, &clip );
-            drawTaggedSurface( surface, &over, clip );
+            drawWithTrail( surface, over, clip );
         }
         if (k >= NS_SPRITE_NUM && depth < 8) drawSpritesOver( surface, clip, k, depth+1 ); // 8: a loop of spz is cut
     }
@@ -806,16 +806,14 @@ void ONScripter::drawSpriteRange( SDL_Surface *surface, SDL_Rect &clip, int hi, 
     for (int i=hi ; i>=lo ; i--){
         AnimationInfo &ai = sprite_info[i];
         if (ai.image_surface && ai.visible && (!moved || ai.z_over < 0)){
-            if (ai.trail_passes > 0) trailCopies( ai, surface, &clip );
-            drawTaggedSurface( surface, &ai, clip );
+            drawWithTrail( surface, ai, clip );
         }
         if (moved) drawSpritesOver( surface, clip, i, 0 );
         for (int k=0 ; k<num_handles ; k++){ // high to low: the lower handle on top
             AnimationInfo &h = sprite_info[handles[k]];
             if (spriteHandleOver( handles[k] ) != i) continue;
             if (h.image_surface && h.visible){
-                if (h.trail_passes > 0) trailCopies( h, surface, &clip );
-                drawTaggedSurface( surface, &h, clip );
+                drawWithTrail( surface, h, clip );
             }
             if (moved) drawSpritesOver( surface, clip, handles[k], 0 );
         }
@@ -941,6 +939,15 @@ static int trailEnd( const AnimationInfo &ai )
 {
     int last = ai.motion_key[ai.trail_keys-1][0];
     return last * (ai.motion_passes > 1 ? ai.motion_passes : 1) + ai.trail_passes * ai.trail_lag;
+}
+
+// A sprite and its sptrail copies, under it or over it.
+void ONScripter::drawWithTrail( SDL_Surface *surface, AnimationInfo &ai, SDL_Rect &clip )
+{
+    bool copies = ai.trail_passes > 0;
+    if (copies && !ai.trail_over) trailCopies( ai, surface, &clip );
+    drawTaggedSurface( surface, &ai, clip );
+    if (copies && ai.trail_over) trailCopies( ai, surface, &clip );
 }
 
 // sptrail: draws the copies of a sprite that differ from it on surface
@@ -2880,6 +2887,15 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         writeInt( ai.wave_curve, output_flag );
         writeInt( now - ai.wave_start, output_flag );
     }
+
+    // Version 28: the sprite trails drawn over their sprites (sptrail's
+    // over): the count, then their numbers.
+    num = 0;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (sprite_info[i].trail_passes > 0 && sprite_info[i].trail_over) num++;
+    writeInt( num, output_flag );
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (sprite_info[i].trail_passes > 0 && sprite_info[i].trail_over) writeInt( i, output_flag );
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -3565,6 +3581,7 @@ void ONScripter::loadSaveFileCons()
         memset(sprite_info[i].clip_rect, 0, sizeof(sprite_info[i].clip_rect)); // older saves have none
         sprite_info[i].blending_mode = AnimationInfo::BLEND_NORMAL; // older saves have none
         sprite_info[i].trail_passes = sprite_info[i].trail_keys = 0; // older saves have none
+        sprite_info[i].trail_over = false;
         sprite_info[i].trail_rect.w = sprite_info[i].trail_rect.h = 0;
     }
     dirty_rect.fill( screen_width, screen_height );
@@ -3940,6 +3957,12 @@ void ONScripter::loadSaveFileCons()
         ai.wave_curve = curve;
         ai.wave_tick = ai.wave_amp = 0;
         stepSpriteWave( ai, now );
+    }
+
+    num = readInt();
+    for (int n=0 ; n<num ; n++){
+        int no = readInt();
+        if (no >= 0 && no < MAX_SPRITE_NUM && sprite_info[no].trail_passes > 0) sprite_info[no].trail_over = true;
     }
 }
 

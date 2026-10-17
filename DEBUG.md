@@ -607,7 +607,7 @@ Each sprite in `sp`:
 | `clip` | `[x,y,w,h]`, its `spclip` rectangle |
 | `blend` | `"add"`, `"sub"`, `"mul"` or `"screen"`: how `spblend` (or `lsp2add`, `lsp2sub`) draws it |
 | `over` | The sprite `spz` draws it right over |
-| `trail` | `[passes,alpha,lag]`, its `sptrail` (lag in ms at game speed) |
+| `trail` | `[passes,alpha,lag]`, its `sptrail` (lag in ms at game speed); `[passes,alpha,lag,1]` when the copies are drawn over it |
 | `shown` | The alpha it is drawn at, when `spmotion`'s keys make it differ from `alpha` |
 | `since` | The page where it last appeared, or changed its image, position, size, opacity, cell, `spz`, `sptrail`, `spclip`, `spblend`, or an `spmotion` starting, ending or replaced (an animation stepping its own cells, or a fade or motion moving, doesn't count). A change to any of these alone writes the sprite in the command's `ev` record |
 

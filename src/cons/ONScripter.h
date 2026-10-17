@@ -637,6 +637,7 @@ private:
     void motionAt(const AnimationInfo &ai, int keys, int t, int v[7]);
     bool trailCopyAt(const AnimationInfo &ai, int i, int v[7]);
     SDL_Rect trailCopies(AnimationInfo &ai, SDL_Surface *surface, SDL_Rect *clip);
+    void drawWithTrail(SDL_Surface *surface, AnimationInfo &ai, SDL_Rect &clip);
     void endKeptMotion(AnimationInfo &ai);
     int curveAt(int curve, int p);
     // spcurve's tables, curves CURVE_FIRST and on
@@ -961,7 +962,7 @@ private:
         int x, y, w, h, trans, cell;
         int over;                    // spz's sprite
         unsigned motion;             // the spmotion moving it (traceMotionId), 0 none
-        int trail[3], clip[4], blend; // sptrail, spclip, spblend
+        int trail[4], clip[4], blend; // sptrail, spclip, spblend
         unsigned running = 0;        // the motion whose start was recorded and end not yet
         int since;                   // the page it last changed
     };

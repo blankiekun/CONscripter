@@ -178,6 +178,7 @@ public:
     int trail_passes;          // 0: no trail
     int trail_alpha;           // per mille
     int trail_lag;             // ms between two copies (at game speed)
+    bool trail_over;           // the copies drawn over the sprite, not under it
     int trail_keys;            // the ended motion's keys still followed
     int trail_time;            // ticks the motion was last stepped at
     SDL_Rect trail_rect;       // where the copies were drawn (w 0: none)
