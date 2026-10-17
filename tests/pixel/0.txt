@@ -1,0 +1,28 @@
+;mode320
+; Pixel test game: tests/pixel/check.py makes the images, runs this and checks the screenshots.
+*define
+game
+*start
+; lsp: opaque, alpha ramp, spfilter grey (kind 2) and grey of weights (kind 11)
+lsp 1,":a;solid.png",10,10
+lsp 2,":a;ramp.png",40,10
+lsp 3,":a;solid.png",70,10
+spfilter 3,2
+lsp 4,":a;solid.png",100,10
+spfilter 4,11,0,256,100,50,30
+print 1
+getscreenshot 320,240
+savescreenshot "lsp.bmp"
+csp -1
+; lsp2: an 8x6 picture with a 1-pixel border at 100 %, 200 % and turned 90
+lsp2 1,":a;border.png",40,40,100,100,0
+lsp2 2,":a;border.png",100,40,200,200,0
+lsp2 3,":a;border.png",160,40,100,100,90
+print 1
+getscreenshot 320,240
+savescreenshot "lsp2.bmp"
+csp2 -1
+print 1
+; crossfade black to a colour, filmed at its midpoint by --shot-effects 50
+bg "#c86432",10,1000
+end
