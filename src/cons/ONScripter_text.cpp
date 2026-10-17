@@ -561,7 +561,7 @@ void ONScripter::blendTextLayer( SDL_Surface *surface, SDL_Rect &clip )
 {
     SDL_Rect rect;
     if (SDL_IntersectRect( &clip, &text_area, &rect ))
-        text_info.blendOnSurface( surface, 0, 0, rect );
+        text_info.blendOnSurface( surface, 0, 0, rect, window_fade * 255 / 256 ); // windowfade
 }
 
 void ONScripter::restoreTextBuffer(SDL_Surface *surface)

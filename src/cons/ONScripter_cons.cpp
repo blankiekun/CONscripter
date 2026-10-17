@@ -1774,6 +1774,75 @@ int ONScripter::windowtransCommand()
     return RET_CONTINUE;
 }
 
+/* windowfade alpha,ms[,from[,delay]]
+ *   Draws the text window (picture or colour) and its text at alpha/256
+ *   (0-256), reached from `from` (default: where it is now), held for
+ *   `delay` ms, over ms while the script goes on. Faded out to 0, the
+ *   window is hidden as textoff, back at full for the next show. Not saved
+ *   (a load and reset bring it back to full). Fade out over 500 ms:
+ *       windowfade 0,500 */
+int ONScripter::windowfadeCommand()
+{
+    int to = script_h.readInt();
+    int ms = script_h.readInt();
+    int from = window_fade, delay = 0;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA) from = script_h.readInt();
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA) delay = script_h.readInt();
+    window_fade_to = to < 0 ? 0 : to > 256 ? 256 : to;
+    window_fade = window_fade_from = from < 0 ? 0 : from > 256 ? 256 : from;
+    window_fade_ms = ms > 0 ? ms : 0;
+    window_fade_delay = delay > 0 ? delay : 0;
+    window_fade_start = SDL_GetTicks();
+    window_fade_on = true;
+    window_fade_redraw = true; // by the next frame or print, so a texton next shows it at `from`
+    dirty_rect.add( textWindowRect() );
+    proceedWindowFade( window_fade_start, false ); // ms 0: at once
+    return RET_CONTINUE;
+}
+
+void ONScripter::stopWindowFade()
+{
+    window_fade_on = false;
+    window_fade = 256;
+}
+
+int ONScripter::nextWindowFadeTime()
+{
+    return window_fade_on ? SDL_GetTicks() + 16 : 0;
+}
+
+void ONScripter::proceedWindowFade( int current_time, bool draw )
+{
+    if (!window_fade_on) return;
+    int t = current_time - (int)window_fade_start - window_fade_delay;
+    int v = t >= window_fade_ms ? window_fade_to : t <= 0 ? window_fade_from :
+        window_fade_from + (window_fade_to - window_fade_from) * t / window_fade_ms;
+    if (t >= window_fade_ms){
+        window_fade_on = false;
+        if (v == 0){
+            v = 256;
+            if (display_mode & DISPLAY_MODE_TEXT){ // as textoff, without the window effect
+                if (windowchip_sprite_no >= 0)
+                    sprite_info[windowchip_sprite_no].visible = false;
+                display_mode = DISPLAY_MODE_NORMAL;
+                text_on_flag = false;
+                window_fade = 0; // drawn below
+#if defined(WEB)
+                EM_ASM({ if (self.consOverlay && !Module.consNoTextOverlay) self.consOverlay('hide'); });
+#endif
+            }
+        }
+    }
+    if (v == window_fade && !(draw && window_fade_redraw)) return;
+    window_fade = v;
+    if (draw) window_fade_redraw = false;
+    SDL_Rect r = textWindowRect();
+    if (draw)
+        flushDirect( r, refreshMode() | (draw_cursor_flag ? REFRESH_CURSOR_MODE : 0) );
+    else
+        dirty_rect.add( r );
+}
+
 /* openurl "url"
  *   Opens url in the browser (a new tab in the web build), leaving full
  *   screen first, as a game's link to its web page. Not while the game

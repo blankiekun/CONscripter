@@ -269,6 +269,7 @@ public:
     int screenpulseCommand();
     int screenzoomCommand();
     int windowtransCommand();
+    int windowfadeCommand();
     int conssetCommand(); // CONscripter: player settings
     int consgetCommand();
     bool setSetting(const char *key, int v);
@@ -930,6 +931,14 @@ private:
     ScreenState screen_stack[MAX_SCREEN_STACK];
     int screen_stack_num;
     int window_trans; // windowtrans: the text window picture's opacity, 0-255
+    // windowfade: the window and its text drawn at window_fade/256, going from
+    // window_fade_from to window_fade_to over window_fade_ms after window_fade_delay
+    bool window_fade_on = false, window_fade_redraw = false;
+    int window_fade = 256, window_fade_from = 256, window_fade_to = 256, window_fade_ms = 0, window_fade_delay = 0;
+    Uint32 window_fade_start = 0;
+    int nextWindowFadeTime();
+    void proceedWindowFade( int current_time, bool draw = true );
+    void stopWindowFade();
     void clearScreenStack();
     void popScreenState();
     // CONscripter: text size tag "!zNNN" (percent of the window's font size)
