@@ -991,6 +991,17 @@ See define section.
 `getcselnum`, `getcselstr`). [cons] `consset "selectkeep",1` keeps auto/skip.
 Impl `ONScripter::selectCommand`.
 
+### seldisable
+[cons] `seldisable n[,n...]` — options `n` (from 1) of the next `select`,
+`selgosub` or `selnum` are drawn greyed (the `selectcolor` off colour at half
+alpha) and can't be chosen: the mouse neither lights them up nor clicks them,
+the cursor keys and gamepad pass over them, `--auto-play` doesn't take them.
+They keep their place and number. The next `select` uses the list up, so put
+`seldisable` just before it (no save point lies between them, so a load runs
+it again; the list isn't saved). `consChoice` gets `disabled` 1 for them, the
+trace's option `"disabled":true`. `seldisable 2:select "行く",*go,"待つ",*wait`
+Impl `ONScripter::seldisableCommand`.
+
 ### cselbtn / cselgoto / getcselnum / getcselstr
 `cselbtn n,btn,x,y`; `cselgoto n`; `getcselnum %v`; `getcselstr $s,n`.
 Impl `ONScripter::cselbtnCommand` etc.
@@ -1543,7 +1554,7 @@ The engine calls these on `self` when defined:
 | Hook | When | Arguments |
 |---|---|---|
 | `consText(text, skipped, boxes)` | each click wait and new page | `text` raw script bytes (`Uint8Array`); `skipped` 1 while skipping; `boxes` `Int32Array` of `offset,x,y,size` per character |
-| `consChoice(text, x, y, size, pitch)` | each `select` choice drawn | raw bytes, position, font size, pitch |
+| `consChoice(text, x, y, size, pitch, disabled)` | each `select` choice drawn | raw bytes, position, font size, pitch; `disabled` 1 for a `seldisable` option (shown greyed, not selectable), else 0 |
 | `consOverlay(event)` | drawn text leaves | `'page'`, `'hide'`, `'show'`, `'choices'`, `'enter'`, `'leave'`, `'reset'` |
 | `consBacklog(text, boxes, voice)` | each backlog page shown | as `consText`, plus that page's channel-0 voice or `null` |
 | `consSprites(text, boxes)` | any input wait | visible `strsp` text and boxes |

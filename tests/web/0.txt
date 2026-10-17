@@ -6,8 +6,12 @@ game
 strsp 1,"SPRITE",10,200,10,1,16,16,0,0,0,0
 `Page one.\
 `Page two.\
-select "Left", *left, "Right", *right
+seldisable 3
+select "Left", *left, "Right", *right, "Gone", *gone
 *left
 *right
 `Page three.\
+end
+*gone
+`Page gone.\
 end

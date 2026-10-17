@@ -679,8 +679,9 @@ still shows in the next page's `sp`.
 {"t":"choice","pg":1,"kind":"btnwait","at":"*start:14","buttons":[{"no":1,"sp":10,"file":"ch.png"}],"result":1}
 ```
 
-`select`, `selgosub` and `selnum` give the options (text and label) and
-the one picked, counted from 1. `btnwait` (and `btnwait2`, not
+`select`, `selgosub` and `selnum` give the options (text and label,
+`"disabled":true` for one `seldisable` greyed) and the one picked,
+counted from 1. `btnwait` (and `btnwait2`, not
 `textbtnwait`, which waits on a text page) gives the buttons that were
 offered (a sprite button's number, sprite and image or `str`; an area's
 `x`,`y`,`w`,`h`) and the result: the button's number, 0 for a click

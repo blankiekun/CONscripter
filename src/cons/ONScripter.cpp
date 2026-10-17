@@ -1505,7 +1505,7 @@ void ONScripter::newPage()
     flush( refreshMode(), &rect );
 }
 
-ButtonLink *ONScripter::getSelectableSentence( char *buffer, FontInfo *info, bool flush_flag, bool nofile_flag )
+ButtonLink *ONScripter::getSelectableSentence( char *buffer, FontInfo *info, bool flush_flag, bool nofile_flag, bool disabled )
 {
     int current_text_xy[2];
     current_text_xy[0] = info->xy[0];
@@ -1526,7 +1526,7 @@ ButtonLink *ONScripter::getSelectableSentence( char *buffer, FontInfo *info, boo
             ai->color_list[0][i] = info->nofile_color[i];
         else
             ai->color_list[0][i] = info->off_color[i];
-        ai->color_list[1][i] = info->on_color[i];
+        ai->color_list[1][i] = disabled ? ai->color_list[0][i] : info->on_color[i];
     }
     setStr( &ai->file_name, buffer );
     ai->orig_pos.x = info->x();
@@ -1536,14 +1536,19 @@ ButtonLink *ONScripter::getSelectableSentence( char *buffer, FontInfo *info, boo
 
     setupAnimationInfo( ai, info );
     bl->select_rect = bl->image_rect = ai->pos;
+    if (disabled){ // CONscripter: seldisable: the off colour at half alpha, no area to hover or click
+        ai->trans = 128;
+        bl->select_rect.w = bl->select_rect.h = 0;
+    }
 #ifdef WEB
-    // chimimouryou: a choice's text and where it is drawn (screen pixels), for hover lookups.
+    // chimimouryou: a choice's text and where it is drawn (screen pixels), for hover lookups;
+    // disabled 1 for a seldisable option, which can't be chosen.
     EM_ASM({
         if (self.consChoice && !Module.consNoTextOverlay)
-            self.consChoice(HEAPU8.slice($0, $0 + $1), $2, $3, $4, $5);
+            self.consChoice(HEAPU8.slice($0, $0 + $1), $2, $3, $4, $5, $6);
     }, buffer, strlen(buffer), ai->pos.x, ai->pos.y,
        info->font_size_xy[1] * screen_ratio1 / screen_ratio2,
-       info->pitch_xy[0] * screen_ratio1 / screen_ratio2);
+       info->pitch_xy[0] * screen_ratio1 / screen_ratio2, disabled ? 1 : 0);
 #endif
 
     info->newLine();
