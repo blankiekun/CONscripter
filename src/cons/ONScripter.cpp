@@ -760,7 +760,7 @@ int ONScripter::init()
     }
 
     if ( !trace_fp && getenv("CONS_TRACE") ) setTraceFile( getenv("CONS_TRACE") );
-    if ( !trace_ignore_spec && getenv("CONS_TRACE_IGNORE") ) setTraceIgnore( getenv("CONS_TRACE_IGNORE") );
+    if ( getenv("CONS_TRACE_IGNORE") ) setTraceIgnore( getenv("CONS_TRACE_IGNORE") );
     if ( replay_seed >= 0 && auto_seed < 0 ) setSeed( replay_seed ); // --replay: the recorded run's
     if ( trace_fp || auto_play_flag ) traceIgnoreSetup();
     if ( trace_fp ) traceStart();
