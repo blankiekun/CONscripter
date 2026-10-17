@@ -1409,7 +1409,7 @@ private:
     void closeSpriteMovie( size_t i );
     SpriteMovie *findSpriteMovie( AnimationInfo *anim );
     int nextSpriteMovieTime();
-    void proceedSpriteMovies( int current_time );
+    bool proceedSpriteMovies( int current_time, bool draw = true );
     void setAnimImage( AnimationInfo *anim, SDL_Surface *surface, SDL_Surface *surface_m, bool has_alpha, int location );
 #if defined(WEB)
     int playMovieLayered( const char *path, bool click_flag, bool loop_flag );

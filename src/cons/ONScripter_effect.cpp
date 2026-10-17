@@ -137,10 +137,14 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
     if ((effect_cut_flag && (skip_mode & SKIP_NORMAL || ctrl_pressed_status)) || effect_off || still_screen) // CONscripter: effectoff
         effect_no = 1;
     
-    // CONscripter: sprites moving or fading by themselves (spmotion)
-    // go on during an effect, which shows them as they are now.
-    if (effect_no != 1 && proceedSpriteMotions( effect_start_time, false ))
-        updateEffectDst();
+    // CONscripter: sprites moving or fading by themselves (spmotion) and
+    // movies as pictures go on during an effect, which shows them as they
+    // are now.
+    if (effect_no != 1){
+        bool moved = proceedSpriteMotions( effect_start_time, false );
+        if (proceedSpriteMovies( effect_start_time, false ) || moved)
+            updateEffectDst();
+    }
     if (update_effect_dst){
         generateEffectDst(effect_no);
         update_effect_dst = false;

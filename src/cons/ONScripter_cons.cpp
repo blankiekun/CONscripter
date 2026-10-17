@@ -5432,7 +5432,7 @@ void ONScripter::playMovieHoldWeb( const char *path )
 
 /* Movies as pictures: a movie file (.mp4, .webm, .mpg, .mpeg, .ogv, .mov,
  * .mkv, .avi, .wmv) given to lsp, lsp2, bg or ld plays in the picture's
- * place, without its sound, while the game waits: the sprite's order, the
+ * place, without its sound, while the game waits (and during an effect): the sprite's order, the
  * tag's transparency (":a" takes the right half as the alpha), spmotion,
  * spzoom and the text window over it work as for a picture.
  *     lsp 10,":c;movie\cut.mp4",0,0         plays once, stays on its last frame
@@ -5732,9 +5732,11 @@ int ONScripter::nextSpriteMovieTime()
     return min;
 }
 
-// Each movie's frame due now, drawn; a movie whose picture is gone stops.
-void ONScripter::proceedSpriteMovies( int current_time )
+// Each movie's frame due now, drawn (unless !draw: an effect shows it);
+// a movie whose picture is gone stops. True when a shown picture changed.
+bool ONScripter::proceedSpriteMovies( int current_time, bool draw )
 {
+    bool changed = false;
     for (size_t i = 0; i < sprite_movies.size(); ){
         SpriteMovie *s = sprite_movies[i];
         AnimationInfo *anim = s->anim;
@@ -5747,7 +5749,8 @@ void ONScripter::proceedSpriteMovies( int current_time )
             movieToScreenFormat( s, texture_format );
             anim->deleteSurface( false );
             setAnimImage( anim, movieSurface( s, texture_format ), NULL, false, BaseReader::ARCHIVE_TYPE_NONE );
-            if (anim->visible){
+            if (anim->visible) changed = true;
+            if (anim->visible && draw){
                 SDL_Rect rect = anim->pos;
                 for (int n = 0; n < MAX_SPRITE_NUM; n++)
                     if (anim == &sprite_info[n]){ rect = drawnRect( *anim ); break; }
@@ -5761,6 +5764,7 @@ void ONScripter::proceedSpriteMovies( int current_time )
         }
         i++;
     }
+    return changed;
 }
 
 /* spmoviewait n[,click]
