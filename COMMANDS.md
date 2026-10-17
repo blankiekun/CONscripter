@@ -504,10 +504,18 @@ voice of that page. Backlogs scrolled a line at a time:
 Impl `ONScripter::logrowsCommand`, `getlogrowCommand`.
 
 ### logadd [cons]
-`logadd "text"[,"voice"]` — add a page with `text` to the history, before
+`logadd "text"[,"voice"[,tag]]` — add a page with `text` to the history, before
 the page being written (the screen is left as it is); `voice` is the voice
-`getlogrow` gives for it. Lines a story puts in the backlog without showing
+`getlogrow` gives for it, `tag` its tag as `logvoice`'s. Lines a story puts in the backlog without showing
 them. Impl `ONScripter::logaddCommand`.
+
+### logvoice [cons]
+`logvoice "voice"[,tag]` — the page being written gets `voice` as its
+history voice, as a `dwave 0` would, without playing it, and the number
+`tag` with it (the speaker, say). A voice the player switched off stays in
+the log, and a screen's rows list hides its button while the switch is off
+(`voice_off`): `logvoice "v/a01.ogg",3:if %973 == 0 dwave 0,"v/a01.ogg"`.
+A `dwave 0` after it keeps the tag. Impl `ONScripter::logvoiceCommand`.
 
 ## Pictures: background, standing pictures, effects
 
@@ -1249,7 +1257,7 @@ element.
 | `{"list", source = "items", ...}` | `items` (`{text = ..., action = ..., new = true, shown = false, color = ...}`) in columns of `rows` at `x`, `y` by `dx` (a column), `dy` (a row), up to `cols` columns; those with `shown = false` are left out and the rest close up. Each: `selector` (`{file, cells, x, y}`, relative; cell 1 nothing, 2 under the pointer) a button running the item's `action`, `new_mark` (`{file, x, y}`) when `new`, its `text` at `text_x`, `text_y` (fields as `text`; `color`, the item's in place of the list's). A scene list, a music room |
 | `{"gallery", ...}` | below |
 | `{"list", source = "log", ...}` | the text log (the backlog): pages from the one on screen back, the newest at the bottom of the box `x`, `y`, `h`, each under its speaker's name (the page's tag `[name\|voice]`, as `gettaglog` gives it) in `name_color`; a page with a voice has `voice_mark` (`　♪`) after the name, which is then a button (`hover` colour) playing it on channel `voice_channel` (0). Text fields as `text` (`size`, `line_height`, `cols`, `shadow`); with `rubyon` the lines are drawn a line gap higher. Stops at the first page that doesn't fit. `{"scroll", "+1"}` goes a page back, `"-1"` forward; a button with it is disabled when it can't |
-| `{"list", source = "rows", ...}` | the text log as rows, as the last `logrows` laid them out (the script runs it before the screen): `rows` of them at `x`, `y` by `dy`, ending `var`'s value rows back from the newest (0: the newest at the bottom). Text fields as `text`. A row with a voice (its page's first) has `voice` (`{file, cells, x, y, pressed}`, x absolute, y from the row's) before it, a button playing it on channel `voice_channel` (0). `{"scroll", "+1"}` goes a row back, `"-1"` forward (in `var`); a picture slider on the same `var` scrolls it as its knob is dragged. A backlog of fixed rows |
+| `{"list", source = "rows", ...}` | the text log as rows, as the last `logrows` laid them out (the script runs it before the screen): `rows` of them at `x`, `y` by `dy`, ending `var`'s value rows back from the newest (0: the newest at the bottom). Text fields as `text`. A row with a voice (its page's first) has `voice` (`{file, cells, x, y, pressed}`, x absolute, y from the row's) before it, a button playing it on channel `voice_channel` (0); with `voice_off = n`, not while `%(n + tag)` is set, `tag` being the number `logvoice` or `logadd` gave the row's voice (a voice switched off in the settings). `{"scroll", "+1"}` goes a row back, `"-1"` forward (in `var`); a picture slider on the same `var` scrolls it as its knob is dragged. A backlog of fixed rows |
 | `{"saveslots", ...}` | below |
 
 **Picture sliders**: a `slider` with `knob = {file = ..., x, y, cells}`
