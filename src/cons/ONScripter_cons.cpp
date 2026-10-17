@@ -466,7 +466,8 @@ int ONScripter::bitandCommand()
  *   Puts a copy of a picture into lsp sprite num, which is shown where the
  *   copy was taken: src -1 (default) the screen as the sprites and the
  *   background draw it now (without the text window, sprite num left
- *   out), src n lsp sprite n's picture (its cell now), each from (x, y)
+ *   out), src -2 the screen as last shown (as a print shows it: what a
+ *   screen closed with hold left), src n lsp sprite n's picture (its cell now), each from (x, y)
  *   for w x h (default: all of it; for a sprite, x, y are in its picture).
  *   Then the picture under it can change while the copy covers it, and the
  *   copy can fade or move away by itself (spmotion), a cross-fade the
@@ -494,7 +495,9 @@ int ONScripter::spgrabCommand()
     // The source picture, and where its (0, 0) is on the screen
     SDL_Surface *from;
     int ox = 0, oy = 0;
-    if (src < 0){
+    if (src == -2) // the last frame shown, as it is
+        from = SDL_ConvertSurface( accumulation_surface, accumulation_surface->format, 0 );
+    else if (src < 0){
         from = SDL_ConvertSurface( accumulation_surface, accumulation_surface->format, 0 );
         bool visible = ai->visible;
         ai->visible = false;
