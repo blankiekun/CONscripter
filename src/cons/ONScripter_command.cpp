@@ -2794,6 +2794,7 @@ int ONScripter::gameCommand()
             errorAndExit( lua_handler.error_str );
     }
 #endif
+    traceStale(); // CONscripter: the archives are open now
     startAt(); // CONscripter: --goto, --vars
 
     return RET_CONTINUE;

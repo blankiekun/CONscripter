@@ -749,6 +749,7 @@ Schema 2 adds these, with their own fields:
 | `choice not offered` | `option`, `from`, `options` | the answer `--choose` or `--choices` (`from`) gave isn't one of the `options` offered; the choice goes on to the next way of choosing ("Following a route") |
 | `choices ended` | | every `--choices` line was used up; written at the next choice |
 | `auto-play stuck` | | `--auto-play` stopped going round in circles (above) |
+| `stale archive` | `file` (`0.txt`), `script`, `archive` | the archives were packed for another `0.txt`: the converter keeps the hash of the `0.txt` it built (FNV-1a 64, 16 hex digits) as `cons\script.hash` in `arc.nsa`, and `script`, the running `0.txt`'s, differs from `archive`, the one kept. Written once the define section has run (`game`). A build without the file (loose files, a dry run, a game not from the converter) or a script not in `0.txt` gets no warning |
 
 ### `error`: a script error, just before the engine exits
 
@@ -825,8 +826,8 @@ image memory: 12 to 340 MB (the most at page 4120, *s9_l36:62672), 54 MB at the 
 
 | Kind | What it finds |
 |---|---|
-| `error` | Script and startup errors (with the gosub chain), a crash (its signal and the last commands run), a trace without `end` or ended by a signal (killed), an auto-play run that got stuck |
-| `missing` | Files that couldn't be loaded, grouped by file, and sprites shown without their image |
+| `error` | Script and startup errors (with the gosub chain), a crash (its signal and the last commands run), a trace without `end` or ended by a signal (killed), an auto-play run that got stuck, a `stale archive` (a build whose `0.txt` was rewritten after its archives were packed: convert the game again) |
+| `missing` | Files that couldn't be loaded, grouped by file, and sprites shown without their image; with `--script`, every picture the script names (a string ending in `.png`, `.jpg`, `.bmp`, ...; names built from variables left out) that is neither in the `arc*.nsa` archives nor a loose file in the script's folder, reached or not |
 | `text` | A page's text, or a `select`'s options, with garbled characters (U+FFFD, control or private-use characters, mojibake such as UTF-8 read as Shift-JIS, which mixes kanji and half-width katakana); text past the window (`overflow`, or a line longer than `--line-chars`); an empty page; a text tag shown as text (`!w100`, `!s`, `!d`, `#rrggbb`, `~...~`, a `\` or `@`); with `--script`, a `%`, `$` or `?` in a text line, which prints a variable or reads an array (a converter that left them in) |
 | `sound` | The same sound started on two channels before one click wait, or a looping one doubled (in a trace without `--auto-play`, any overlap); a voice cut off by the next sound before a click wait, so it was never heard; a voice or the music playing at volume 0 |
 | `movie` | Screen changes made after a movie and before the next `print`: the engine redraws the screen from before the movie as it ends, so they show a moment late (found under `--auto-play` too, which skips the movie); a movie the script lets a click stop that `moviestop 0` makes unskippable |
