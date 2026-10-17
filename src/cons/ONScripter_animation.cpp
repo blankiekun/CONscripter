@@ -514,7 +514,7 @@ void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
                            anim->clip_rect[2] * screen_ratio1 / screen_ratio2, anim->clip_rect[3] * screen_ratio1 / screen_ratio2 };
     int feather = anim->clip_rect[2] > 0 ? anim->clip_rect[4] * screen_ratio1 / screen_ratio2 : 0;
     std::vector<Uint32> feather_saved;
-    if (feather > 0) featherBands( dst_surface, feather_r, feather, clip_in, feather_saved, false );
+    if (feather > 0) featherBands( dst_surface, feather_r, feather, anim->clip_rect[5], clip_in, feather_saved, false );
     SDL_Rect poly_rect = anim->pos;
     poly_rect.x += anim->motion_dx; // CONscripter: spmotion
     poly_rect.y += anim->motion_dy;
@@ -556,7 +556,7 @@ void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
     }
     else
         draw( poly_rect, clip_in );
-    if (feather > 0) featherBands( dst_surface, feather_r, feather, clip_in, feather_saved, true );
+    if (feather > 0) featherBands( dst_surface, feather_r, feather, anim->clip_rect[5], clip_in, feather_saved, true );
     anim->trans = trans;
 }
 

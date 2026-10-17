@@ -646,7 +646,7 @@ private:
     bool trailCopyAt(const AnimationInfo &ai, int i, int v[7]);
     SDL_Rect trailCopies(AnimationInfo &ai, SDL_Surface *surface, SDL_Rect *clip);
     void drawWithTrail(SDL_Surface *surface, AnimationInfo &ai, SDL_Rect &clip);
-    void featherBands(SDL_Surface *surface, const SDL_Rect &r, int f, const SDL_Rect &clip, std::vector<Uint32> &saved, bool apply);
+    void featherBands(SDL_Surface *surface, const SDL_Rect &r, int f, int colour, const SDL_Rect &clip, std::vector<Uint32> &saved, bool apply);
     void endKeptMotion(AnimationInfo &ai);
     int curveAt(int curve, int p);
     // spcurve's tables, curves CURVE_FIRST and on
@@ -938,7 +938,7 @@ private:
         int zoom_x, zoom_y;
         int zoom_rot;
         int z_over = -1; // spz
-        int clip_rect[5] = {0, 0, 0, 0, 0}; // spclip
+        int clip_rect[6] = {0, 0, 0, 0, 0, 0}; // spclip
     };
     struct ScreenState {
         char *bg_name;
@@ -981,7 +981,7 @@ private:
         int x, y, w, h, trans, cell;
         int over;                    // spz's sprite
         unsigned motion;             // the spmotion moving it (traceMotionId), 0 none
-        int trail[4], clip[5], blend; // sptrail, spclip, spblend
+        int trail[4], clip[6], blend; // sptrail, spclip, spblend
         unsigned running = 0;        // the motion whose start was recorded and end not yet
         int since;                   // the page it last changed
     };

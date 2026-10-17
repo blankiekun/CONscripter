@@ -208,9 +208,10 @@ public:
 
     /* CONscripter: spclip: drawn only inside this rectangle of the screen
        (x, y, w, h in the script's coordinates; w 0: everywhere), its
-       edges faded in over clip_rect[4] (0: a hard edge). Stays across
-       lsp; reset by remove(). */
-    int clip_rect[5];
+       edges faded in over clip_rect[4] (0: a hard edge), from the
+       colour clip_rect[5] & 0xffffff when it has bit 24 (else from what
+       is under it). Stays across lsp; reset by remove(). */
+    int clip_rect[6];
 
     int font_size_xy[2]; // used by prnum and lsp string
     int font_pitch[2]; // used by lsp string
