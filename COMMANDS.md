@@ -1208,7 +1208,7 @@ element.
 | `{"slider", ...}` | a value of `var` from `min` (0) to `max` (10) by `step` (1): `text` at `x`, `y` (fields as `text`) with `%v` the value, `%V` in full-width digits, `%B` a bar (`marks`' first per step up to the value, the second after: `{"■", "□"}`), and `minus`, `plus` buttons (`{text = ..., x, y, ...}` as a text button, or `{file = ..., cells}`). `action` runs after each change. With `knob` it is a picture slider: below |
 | `{"toggle", ...}` | flips `var` between `on` (1) and `off` (0): `text` with `%C` the mark for on or off (`marks`), drawn as a text button (`color`, `hover`). `var` may be a list, set together (the first read). `action` runs after each change |
 | `{"radio", ...}` | sets `var` to `value` (1); on while it holds it; otherwise as `toggle` |
-| `{"toggle", file = ...}`, `{"radio", file = ...}` | drawn as a picture button (fields as `image`, cell 1 under the pointer); `on_file` in place of `file` while on |
+| `{"toggle", file = ...}`, `{"radio", file = ...}` | drawn as a picture button (fields as `image`, cell 1 under the pointer, `pressed` the cell while held); `on_file` in place of `file` while on: a check box |
 | `{"list", source = "items", ...}` | `items` (`{text = ..., action = ..., new = true, shown = false, color = ...}`) in columns of `rows` at `x`, `y` by `dx` (a column), `dy` (a row), up to `cols` columns; those with `shown = false` are left out and the rest close up. Each: `selector` (`{file, cells, x, y}`, relative; cell 1 nothing, 2 under the pointer) a button running the item's `action`, `new_mark` (`{file, x, y}`) when `new`, its `text` at `text_x`, `text_y` (fields as `text`; `color`, the item's in place of the list's). A scene list, a music room |
 | `{"gallery", ...}` | below |
 | `{"list", source = "log", ...}` | the text log (the backlog): pages from the one on screen back, the newest at the bottom of the box `x`, `y`, `h`, each under its speaker's name (the page's tag `[name\|voice]`, as `gettaglog` gives it) in `name_color`; a page with a voice has `voice_mark` (`　♪`) after the name, which is then a button (`hover` colour) playing it on channel `voice_channel` (0). Text fields as `text` (`size`, `line_height`, `cols`, `shadow`); with `rubyon` the lines are drawn a line gap higher. Stops at the first page that doesn't fit. `{"scroll", "+1"}` goes a page back, `"-1"` forward; a button with it is disabled when it can't |
@@ -1218,7 +1218,10 @@ element.
 (an image, placed where it is at `min`) that moves `travel` pixels from
 `min` to `max` (along x, or y with `vertical = true`; negative: left or
 up), over `track` (an image `{file, x, y}`, or an invisible box
-`{x, y, w, h}`; without it the knob's sweep). The pointer over the track
+`{x, y, w, h}`; without it the knob's sweep), with `fill` (an image
+`{file, x, y}` under the knob, shown only from its end on the `min` side
+to the knob's centre: a lit bar). Positions round to the nearest pixel.
+The pointer over the track
 lights the knob (its cell 1, also while dragged). A press on the track
 puts the knob's centre under the pointer (on the knob, the knob stays
 where it is) and drags it (the mouse, or a
@@ -1226,7 +1229,7 @@ finger in the web build): `var` follows by `step`, and `action` runs at
 each change, so a volume applies while the knob moves (a `gosub` action
 runs its label and the drag goes on). The wheel and Left/Right with the
 pointer over the track step it, the wheel up and Left moving the knob up
-or left. `text`, `minus` and `plus` work as on any slider. Its button
+or left. `text` (redrawn as the knob moves), `minus` and `plus` work as on any slider. Its button
 is the widget's number times 100 plus 3 (minus 1, plus 2).
 
 ```lua

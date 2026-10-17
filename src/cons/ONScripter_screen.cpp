@@ -69,6 +69,7 @@ struct ConsScreen {
     int view_w = 0, view_cell = 0, view_variant = 0; // a gallery's viewer: widget, cell (1-based), variant shown
     bool view_hidden = false;   // its panel hidden (a click shows it)
     std::map<int, int> knobs;   // a picture slider's knob sprite, by widget number
+    std::map<int, int> fills, texts; // a slider's fill picture and text sprites, by widget number
     int drag = 0;               // the knob button being dragged (0 none)
     int grab_x = 0, grab_y = 0; // where it was taken from the knob's centre (0 from the track)
 };
@@ -299,7 +300,7 @@ int ONScripter::screenImage( ConsScreen *s, int x, int y, const char *file_overr
 
 // A text (the table on top: size, cols, rows, bold, shadow, color, align)
 // at x, y; `colors` in place of `color`: one cell each (normal, hover).
-int ONScripter::screenText( ConsScreen *s, const std::string &text, int x, int y, const std::vector<std::string> *colors )
+int ONScripter::screenText( ConsScreen *s, const std::string &text, int x, int y, const std::vector<std::string> *colors, int no )
 {
     lua_State *L = s->L;
     int size = fieldInt( L, "size", 20 );
@@ -310,7 +311,7 @@ int ONScripter::screenText( ConsScreen *s, const std::string &text, int x, int y
         color_args.clear();
         for (const std::string &c : *colors) color_args += "," + quoted( c );
     }
-    int no = screenSprite( s );
+    if (no < 0) no = screenSprite( s );
     // a text with line breaks can't be in the command: strsp takes it from
     // screen_strsp_text (the command's own text, the breaks as spaces, shows in the trace)
     bool lines = text.find( 0x0a ) != std::string::npos;
@@ -395,6 +396,14 @@ static void widgetMarks( lua_State *L, std::string &on, std::string &off )
     if (fieldTable( L, "marks" )){ on = indexStr( L, 1 ); off = indexStr( L, 2 ); lua_pop( L, 1 ); }
 }
 
+// The text of the slider on top at value v (UTF-8).
+static std::string sliderText( lua_State *L, int v )
+{
+    std::string on, off;
+    widgetMarks( L, on, off );
+    return boundText( fieldStr( L, "text" ), v, fieldInt( L, "min", 0 ), fieldInt( L, "max", 10 ), fieldInt( L, "step", 1 ), on, off, v != 0 );
+}
+
 void ONScripter::screenClear( ConsScreen *s )
 {
     for (int no : s->sprites){
@@ -403,6 +412,8 @@ void ONScripter::screenClear( ConsScreen *s )
     }
     s->sprites.clear();
     s->knobs.clear();
+    s->fills.clear();
+    s->texts.clear();
     deleteButtonLink();
 }
 
@@ -716,10 +727,8 @@ void ONScripter::screenDraw( ConsScreen *s )
         else if (type == "slider"){
             std::vector<std::string> vars = widgetVars( L );
             int v = vars.empty() ? 0 : screenGet( vars[0] );
-            std::string on, off;
-            widgetMarks( L, on, off );
-            std::string text = boundText( fieldStr( L, "text" ), v, fieldInt( L, "min", 0 ), fieldInt( L, "max", 10 ), fieldInt( L, "step", 1 ), on, off, v != 0 );
-            if (!text.empty()) screenText( s, fromUTF8( text.c_str() ), x, y );
+            std::string text = sliderText( L, v );
+            if (!text.empty()) s->texts[i] = screenText( s, fromUTF8( text.c_str() ), x, y );
             screenKnob( s, i, v );
             const char *keys[] = { "minus", "plus" };
             for (int k=0 ; k<2 ; k++){
@@ -738,7 +747,8 @@ void ONScripter::screenDraw( ConsScreen *s )
             bool state = type == "radio" ? v == fieldInt( L, "value", 1 ) : v == fieldInt( L, "on", 1 );
             std::string on_file = fieldStr( L, "on_file" );
             int no = screenImage( s, x, y, state && !on_file.empty() ? fileName( fromUTF8( on_file.c_str() ) ).c_str() : NULL );
-            screenExec( "spbtn " + std::to_string( no ) + "," + std::to_string( i * WIDGET_BUTTONS ) );
+            screenExec( "spbtn " + std::to_string( no ) + "," + std::to_string( i * WIDGET_BUTTONS ) +
+                        (fieldInt( L, "pressed", -1 ) >= 0 ? "," + std::to_string( fieldInt( L, "pressed", -1 ) ) : "") );
         }
         else if (type == "toggle" || type == "radio"){
             std::vector<std::string> vars = widgetVars( L );
@@ -1399,7 +1409,7 @@ static Knob knobOf( lua_State *L )
 // The knob's place at value v.
 static void knobAt( const Knob &k, int v, int &x, int &y )
 {
-    int d = k.max > k.min ? (v - k.min) * k.travel / (k.max - k.min) : 0;
+    int d = k.max > k.min ? (int)lround( (double)(v - k.min) * k.travel / (k.max - k.min) ) : 0;
     x = k.x + (k.vertical ? 0 : d);
     y = k.y + (k.vertical ? d : 0);
 }
@@ -1421,12 +1431,17 @@ void ONScripter::screenKnob( ConsScreen *s, int w, int v )
         }
         lua_pop( L, 1 );
     }
+    if (fieldTable( L, "fill" )){ // under the knob: drawn first
+        s->fills[w] = screenImage( s, fieldInt( L, "x", 0 ), fieldInt( L, "y", 0 ) );
+        lua_pop( L, 1 );
+    }
     int x, y;
     knobAt( k, v, x, y );
     fieldTable( L, "knob" );
     int no = screenImage( s, x, y );
     lua_pop( L, 1 );
     s->knobs[w] = no;
+    screenFill( s, w, v );
     AnimationInfo &ai = sprite_info[no];
     if (area.w <= 0 || area.h <= 0){ // the knob's sweep
         int x1, y1;
@@ -1440,6 +1455,34 @@ void ONScripter::screenKnob( ConsScreen *s, int w, int v )
             bl->select_rect = { area.x * screen_ratio1 / screen_ratio2, area.y * screen_ratio1 / screen_ratio2,
                                 area.w * screen_ratio1 / screen_ratio2, area.h * screen_ratio1 / screen_ratio2 };
     if (s->drag == w * WIDGET_BUTTONS + KNOB && ai.num_of_cells > 1) ai.setCell( 1 );
+}
+
+/* The fill picture of slider w (on top of the stack) at value v: cut
+ * (spclip) from its min end (the side the knob is at min) to the knob's
+ * centre. */
+void ONScripter::screenFill( ConsScreen *s, int w, int v )
+{
+    auto f = s->fills.find( w );
+    if (f == s->fills.end()) return;
+    lua_State *L = s->L;
+    Knob k = knobOf( L );
+    SDL_Rect &kp = sprite_info[s->knobs[w]].pos;
+    int kw = kp.w, kh = kp.h;
+    int x, y;
+    knobAt( k, v, x, y );
+    AnimationInfo &ai = sprite_info[f->second];
+    int fx = ai.orig_pos.x, fy = ai.orig_pos.y;
+    int fw = ai.pos.w * screen_ratio2 / screen_ratio1, fh = ai.pos.h * screen_ratio2 / screen_ratio1;
+    int c = k.vertical ? y + kh * screen_ratio2 / screen_ratio1 / 2 : x + kw * screen_ratio2 / screen_ratio1 / 2;
+    int a = k.vertical ? fy : fx, b = a + (k.vertical ? fh : fw); // the fill's extent along the travel
+    if (k.travel >= 0) b = std::min( b, c ); else a = std::max( a, c );
+    if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+    ai.visible = b > a;
+    // spclip's rectangle (an empty one would clip nothing)
+    ai.clip_rect[0] = k.vertical ? fx : a; ai.clip_rect[1] = k.vertical ? a : fy;
+    ai.clip_rect[2] = k.vertical ? fw : b - a; ai.clip_rect[3] = k.vertical ? b - a : fh;
+    if (!ai.visible) ai.clip_rect[2] = ai.clip_rect[3] = 0;
+    if (ai.visible) dirty_rect.add( drawnRect( ai ) );
 }
 
 // The wheel or Left/Right (button -2, -3) over a knob: its slider's minus or plus button.
@@ -1538,6 +1581,10 @@ int ONScripter::screenDrag( ConsScreen *s, int button, int *value )
             dirty_rect.add( ai.pos );
             for (ButtonLink *bl = root_button_link.next ; bl ; bl = bl->next)
                 if (bl->no == button) bl->image_rect = ai.pos;
+            screenFill( s, button / WIDGET_BUTTONS, to );
+            auto text = s->texts.find( button / WIDGET_BUTTONS );
+            if (text != s->texts.end()) // redrawn in its sprite: the value as it moves
+                screenText( s, fromUTF8( sliderText( L, to ).c_str() ), fieldInt( L, "x", 0 ), fieldInt( L, "y", 0 ), NULL, text->second );
             flush( refreshMode() );
             if (fieldTable( L, "action" )){
                 ret = screenActions( s, 0, value );
