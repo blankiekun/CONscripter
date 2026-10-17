@@ -119,6 +119,11 @@ public:
     void reset();
     void setSaveDir(const char *path);
     FILE *fopen( const char *path, const char *mode, bool use_save_dir=false );
+    std::string fullPath( const char *path, bool use_save_dir=false );
+    // CONscripter: a file is written as path.tmp and renamed over path only
+    // once it was written whole, so a failed write never destroys the old one
+    static FILE *openReplacement( const std::string &path );
+    static bool commitReplacement( FILE *fp, const std::string &path, bool written=true );
     void setKeyTable( const unsigned char *key_table );
 
     // basic parser function

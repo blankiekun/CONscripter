@@ -4090,10 +4090,10 @@ int ONScripter::copysavegameCommand()
         size_t n;
         while ((n = fread(buf, 1, sizeof(buf), in)) > 0) data.insert(data.end(), buf, buf + n);
         fclose(in);
-        FILE *out = ::fopen(dst.c_str(), "wb");
-        if (!out || fwrite(data.data(), 1, data.size(), out) != data.size())
+        FILE *out = ScriptHandler::openReplacement(dst);
+        if (!out || !ScriptHandler::commitReplacement(out, dst,
+                fwrite(data.data(), 1, data.size(), out) == data.size()))
             utils::printError("copysavegame: can't write %s\n", dst.c_str());
-        if (out) fclose(out);
     }
 
 #if defined(WEB)
