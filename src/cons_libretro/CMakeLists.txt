@@ -345,6 +345,21 @@ target_include_directories(lua PUBLIC
 )
 target_link_libraries(lua PUBLIC m)
 
+# libwebp's decoder, as its makefile.unix builds libwebpdecoder
+file(GLOB WEBP_SOURCES
+  deps/libwebp/src/dec/*.c
+  deps/libwebp/src/dsp/alpha_processing*.c deps/libwebp/src/dsp/cpu.c deps/libwebp/src/dsp/dec*.c
+  deps/libwebp/src/dsp/filters*.c deps/libwebp/src/dsp/lossless*.c deps/libwebp/src/dsp/rescaler*.c
+  deps/libwebp/src/dsp/upsampling*.c deps/libwebp/src/dsp/yuv*.c
+)
+list(FILTER WEBP_SOURCES EXCLUDE REGEX "lossless_enc")
+foreach (f bit_reader_utils color_cache_utils filters_utils huffman_utils palette
+         quant_levels_dec_utils random_utils rescaler_utils thread_utils utils)
+  list(APPEND WEBP_SOURCES deps/libwebp/src/utils/${f}.c)
+endforeach ()
+add_library(webp STATIC ${WEBP_SOURCES})
+target_include_directories(webp PUBLIC deps/libwebp/src PRIVATE deps/libwebp)
+
 if (LIBRETRO_STATIC)
   add_library(conscripter_libretro STATIC ${SOURCES})
 else ()
@@ -358,7 +373,7 @@ else ()
 endif ()
 
 target_link_libraries(conscripter_libretro
-  bzip2 sdl2 sdl2_image sdl2_mixer sdl2_ttf lua
+  bzip2 sdl2 sdl2_image sdl2_mixer sdl2_ttf lua webp
 )
 
 if (LIBRETRO_STATIC)
@@ -373,6 +388,7 @@ ADDLIB $<TARGET_FILE:sdl2_mixer>
 ADDLIB $<TARGET_FILE:sdl2_ttf>
 ADDLIB $<TARGET_FILE:freetype>
 ADDLIB $<TARGET_FILE:lua>
+ADDLIB $<TARGET_FILE:webp>
 SAVE
 END
 ")
@@ -391,7 +407,7 @@ target_include_directories(conscripter_libretro PRIVATE
 target_compile_definitions(conscripter_libretro PRIVATE
    __LIBRETRO__
    USE_BUILTIN_LAYER_EFFECTS ENABLE_1BYTE_CHAR
-   USE_LUA
+   USE_LUA USE_WEBP
 )
 if (HAVE_NEON)
   target_compile_definitions(conscripter_libretro PRIVATE USE_SIMD USE_SIMD_ARM_NEON)
