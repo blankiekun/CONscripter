@@ -1291,6 +1291,9 @@ In script text lines:
 - `#RRGGBB` text colour.
 - `(base/reading)` ruby with `rubyon`.
 - `` ` `` starts half-width (English) text.
+- **`` `text`/ `` [cons]** — a `/` right after the closing backquote at the
+  line's end: no line break, as `/` after two-byte text (inside the
+  string it is a character).
 - **`!zNNN` [cons]** — text at NNN % of the window font size until the next
   `!z` (`!z`/`!z100` resets; `reset` clears). Sits on the baseline; line
   pitch unchanged; the backlog shows normal size.

@@ -1056,6 +1056,7 @@ void ONScripter::processEOT()
     // CONscripter: a click shows the rest of the page, not only the
     // script line (the flag is cleared at the click wait, as NScripter)
     if ( skip_mode & SKIP_TO_EOL ) flush( refreshMode() );
+    if ( script_h.getEndStatus() & ScriptHandler::END_NO_NEW_LINE ) new_line_skip_flag = true;
 
     if (!sentence_font.isLineEmpty() && !new_line_skip_flag){
         // if sentence_font.isLineEmpty() is true, newPage() might be already issued

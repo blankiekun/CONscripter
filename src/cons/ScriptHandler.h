@@ -51,7 +51,8 @@ public:
     enum { END_NONE       = 0,
            END_COMMA      = 1,
            END_1BYTE_CHAR = 2,
-           END_COMMA_READ = 4 // for LUA
+           END_COMMA_READ = 4, // for LUA
+           END_NO_NEW_LINE = 8 // CONscripter: a 1-byte string ended "`/"
     };
     struct LabelInfo{
         char *name;
