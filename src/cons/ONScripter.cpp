@@ -964,6 +964,12 @@ void ONScripter::flushDirect( SDL_Rect &rect, int refresh_mode )
     int offset = accumulation_surface->pitch * on_screen.y + on_screen.x * sizeof(ONSBuf);
     if (offset >= 0) // need to check for update texture
     {
+        if (!screen_filters.empty()) { // CONscripter: --filter
+            int pitch;
+            const unsigned char *pixels = filterScreen(on_screen, pitch);
+            SDL_UpdateTexture(texture, &on_screen, pixels, pitch);
+        }
+        else
         SDL_UpdateTexture(texture, &on_screen,
             (unsigned char*)accumulation_surface->pixels + offset,
             accumulation_surface->pitch);

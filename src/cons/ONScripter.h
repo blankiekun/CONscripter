@@ -173,6 +173,7 @@ public:
     void setCheckpointStart(); // CONscripter: --checkpoint-start
     void setAutoPlayReal(); // CONscripter: --real-time
     void setTraceVars(const char *spec); // CONscripter: --trace-vars
+    bool setScreenFilter(const char *names); // CONscripter: --filter; false on an unknown name
     void setTraceLongWait(int ms); // CONscripter: --trace-long-wait
     void setAudioStats();          // CONscripter: --audio-stats
     void setTraceMaxImage(int mb); // CONscripter: --trace-max-image
@@ -1371,6 +1372,11 @@ private:
 
     int force_window_width, force_window_height;
     float sharpness = NAN;
+    // CONscripter: --filter, how the screen is shown (ONScripter_cons.cpp)
+    enum { FILTER_CRT, FILTER_PC98, FILTER_GAMEBOY, FILTER_SEPIA, FILTER_MONO, FILTER_VHS };
+    std::vector<int> screen_filters;
+    std::vector<ONSBuf> filter_buf;
+    const unsigned char *filterScreen(SDL_Rect &rect, int &pitch);
 
     void setwindowCore();
     
