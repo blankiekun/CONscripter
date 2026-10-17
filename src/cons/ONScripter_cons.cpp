@@ -1295,6 +1295,7 @@ int ONScripter::chvolfadeCommand()
     int vol = script_h.readInt();
     int ms = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
     bool stop = (script_h.getEndStatus() & ScriptHandler::END_COMMA) && script_h.readInt() == 1;
+    traceChannel( ch );
     if (ch == -1){ // the music
         if (vol < 0) vol = 0; else if (vol > 100) vol = 100;
         bgm_script_from = bgmScriptVolume();
@@ -1345,6 +1346,7 @@ int ONScripter::chpanCommand()
     int ch = script_h.readInt();
     int pan = script_h.readInt();
     int ms = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
+    traceChannel( ch );
     if (ch < 0 || ch >= ONS_MIX_CHANNELS){
         utils::printError("chpan: channel %d out of range\n", ch);
         return RET_CONTINUE;
@@ -2942,6 +2944,7 @@ int ONScripter::chfreqCommand()
     int rate = script_h.readInt();
     int ms = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
     if (rate < 100) rate = 100; else if (rate > 4000) rate = 4000;
+    traceChannel( ch );
     if (ch < 0 || ch >= ONS_MIX_CHANNELS || !audio_open_flag || !wave_sample[ch] || !Mix_Playing( ch ) ||
         cut_track[ch].chunk != Mix_GetChunk( ch )) return RET_CONTINUE;
     if (audio_format.format != AUDIO_S16SYS){

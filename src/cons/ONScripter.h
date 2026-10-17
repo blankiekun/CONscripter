@@ -1120,6 +1120,7 @@ private:
     int trace_wait_ms = 0;           // the time the waits and effects since the last page asked for
     std::string traceBlocked( ButtonLink *bl );
     void traceLongWait( int ms );
+    void traceChannel( int ch );     // chvolfade, chpan, chfreq: ,"ch" and ,"empty" in their ev
     static void traceErrorHook( const char *message );
     static void traceExitHook();
     
