@@ -1271,7 +1271,7 @@ void ONScripter::applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip, int z
     AnimationInfo::applyFilterList( surface, clip, f, num );
 }
 
-/* screenshake slot[, time, interval, mode, speed_x, speed_y, x0, y0, x1, y1[, end]]
+/* screenshake slot[, time, interval, mode, speed_x, speed_y, x0, y0, x1, y1[, end[, curve]]]
  *   Shakes the picture behind the text window (what screenfilter
  *   filters) until the slot is cleared, or with end (> 0) for end ms,
  *   after which the slot clears itself; without waiting: the script and
@@ -1280,8 +1280,11 @@ void ONScripter::applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip, int z
  *   pixels over time ms, then stays. Mode 0 swings each axis on a sine
  *   wave that advances speed/65536 of a turn per ms (speed_x for x,
  *   speed_y for y); mode 1 jumps along a fixed path of 7 points, moving on
- *   when speed_x * ms reaches 65536. Where the picture moved away, what
- *   was there stays (it is drawn over itself).
+ *   when speed_x * ms reaches 65536; mode 2 jolts to and fro: each step
+ *   moves it by the full size, the other way from the last (speeds
+ *   unused). curve (an spmotion curve: 1-3 or an spcurve table; 0 or left
+ *   out straight) eases the size from x0,y0 to x1,y1. Where the picture
+ *   moved away, what was there stays (it is drawn over itself).
  *   "screenshake 1,1000,100,0,800,800,0,0,30,30" shakes harder and
  *   harder for a second; "screenshake 1" stops it.
  *
@@ -1942,11 +1945,13 @@ void ONScripter::stepScreenEffect( ScreenEffect &e )
     int t = (time > 0) ? (int)((long long)e.elapsed * 256 / time) : 256;
 
     if (e.kind == SCREEN_EFFECT_SHAKE){
-        // param: time, interval, mode, speed x, y, x0, y0, x1, y1
+        // param: time, interval, mode, speed x, y, x0, y0, x1, y1, end, curve
+        if (p[10] && time > 0) t = curveAt( p[10], t * 4 ) / 4;
         e.range_x = (p[5] << 16) + (int)((((long long)(p[7] - p[5])) << 16) * t >> 8);
         e.range_y = (p[6] << 16) + (int)((((long long)(p[8] - p[6])) << 16) * t >> 8);
         e.phase_x += (unsigned int)(p[3] * interval);
-        if (p[2] == 1){
+        if (p[2] == 2) e.point++; // to and fro: its sign
+        else if (p[2] == 1){
             if (e.phase_x >= 0x10000){
                 e.phase_x = 0;
                 e.point = (e.point + 1) % 7;
@@ -2059,6 +2064,11 @@ void ONScripter::shakeOffset( ScreenEffect &e, int &dx, int &dy )
         // jumps from point to point, as the original (filmed)
         ux = shake_path[e.point][0];
         uy = shake_path[e.point][1];
+    }
+    else if (e.param[2] == 2){
+        // the full size, one way then the other (Nitroplus's Shake, the exe's
+        // shake frame: the sign flips at each step, the first step +)
+        ux = uy = (e.point & 1) ? 65536 : -65536;
     }
     else{
         ux = (long long)(sin( M_PI * 2 * ((e.phase_x >> 8) & 0xff) / 256 ) * 65536);
