@@ -257,6 +257,7 @@ public:
     int spgrabCommand();
     int spmotionCommand();
     int spcurveCommand();
+    int effectcurveCommand();
     int spmotionwaitCommand();
     int screenflashCommand();
     int screenfilterCommand();
@@ -661,6 +662,7 @@ private:
     // variables and methods relevant to effect
     DirtyRect dirty_rect; // only this region is updated
     int  effect_counter, effect_duration; // counter in each effect
+    int  effect_curve = 0; // CONscripter: effectcurve, for the next effect
     int  effect_timer_resolution;
     int  effect_start_time;
     int  effect_start_time_old;
