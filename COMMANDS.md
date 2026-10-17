@@ -920,6 +920,35 @@ Impl `ONScripter::getpageCommand` etc.
 returning -1000 - upper-case code (A -1065, M -1077, Z -1090), before the
 key's own meaning. One wait. Impl `ONScripter::getkeyCommand`.
 
+### padmap [cons]
+`padmap "button","key"` — what a gamepad button does from now on. Buttons
+by SDL's names: `a b x y back guide start leftstick rightstick leftshoulder
+rightshoulder dpup dpdown dpleft dpright lefttrigger righttrigger`. Keys by
+SDL's names (`"Return"`, `"Escape"`, `"A"`, `"Right Ctrl"`, `"Left"`, `"F1"`),
+`"backlog"`, `"hide"`, or `""` for nothing. Not saved: put it in the define
+section or at the start. Impl `ONScripter::padmapCommand` (`ONScripter_event.cpp`).
+
+Default layout (any SDL game controller; in the browser, the Gamepad API's
+standard layout):
+
+| Pad | Does | As |
+|---|---|---|
+| A, LT, RT | advance, confirm | Enter |
+| B | cancel; the menu when nothing to cancel | Esc (right click, -1) |
+| X | auto mode on/off (with `getkey`: the game's A, -1065) | `a` |
+| Y | hide the text window (a text wait; as a right click with no `rmenu`) | `"hide"` |
+| LB | backlog (-2 with `usewheel`) | `"backlog"`: the wheel up |
+| RB | skip while held | Right Ctrl |
+| Start | the menu | Esc |
+| Back | text speed | `0` |
+| Guide | full screen | F10 |
+| D-pad, left stick | move between buttons (↑↓), ←→ as the arrow keys | arrow keys |
+| Right stick | moves the pointer (not in the browser, which can't move it: the game sees the move) | |
+| L3, R3 | nothing | |
+
+The left stick taps the d-pad past a dead zone and repeats while held
+(400 ms, then every 120 ms); LT/RT count as pressed past half way.
+
 ### checkkey
 `checkkey %v,"KEY"` — 1 if the last button string matches.
 Impl `ONScripter::checkkeyCommand`.

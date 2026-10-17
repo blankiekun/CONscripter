@@ -162,6 +162,7 @@ static ONScripter::FuncLUT func_lut[] = {
 
     {"puttext",			&ONScripter::puttextCommand},
     {"pushscreen",		&ONScripter::pushscreenCommand},
+    {"padmap",		&ONScripter::padmapCommand}, // CONscripter
     {"prnumclear",		&ONScripter::prnumclearCommand},
     {"prnum",			&ONScripter::prnumCommand},
     {"print",			&ONScripter::printCommand},

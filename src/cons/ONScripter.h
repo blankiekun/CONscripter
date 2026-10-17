@@ -277,6 +277,7 @@ public:
     bool getSetting(const char *key, int &v);
     int openurlCommand();
     int getkeyCommand();
+    int padmapCommand(); // CONscripter: gamepad
     int getplaytimeCommand();
     int logrowsCommand();
     int getlogrowCommand();
@@ -743,6 +744,9 @@ private:
     bool mousePressEvent( SDL_MouseButtonEvent *event );
 
     bool mouseWheelEvent(SDL_MouseWheelEvent *event);
+    bool padButton( int button, bool down ); // CONscripter: gamepad
+    bool padAction( SDL_Keycode action );
+    bool padTick();
 
     void variableEditMode( SDL_KeyboardEvent *event );
     void shiftCursorOnButton( int diff );
