@@ -76,6 +76,7 @@ void optionHelp()
     printf( "      --no-text-overlay\tweb: the page gets no text, choices or backlog (consText, consChoice, consSprites, consBacklog, consOverlay), so draws no text overlay\n");
     printf( "      --real-time\twith --auto-play, effects, waits and fades take their real time (sprite movement plays out)\n");
     printf( "      --auto-choice first|cycle|random|untaken\thow --auto-play picks a button or choice\n");
+    printf( "      --skip-screens kinds\twith --auto-play, close screens of these kinds at once (save,load,settings,backlog,extras; none: play them all)\n");
     printf( "      --replay trace.jsonl\twith --auto-play, make the choices a trace recorded, then --auto-choice\n");
     printf( "      --known-labels file\twith --stop-known, the labels earlier runs reached (one name a line)\n");
     printf( "      --stop-known n\twith --auto-play, stop after n pages without a label or choice earlier runs hadn't reached\n");
@@ -451,6 +452,11 @@ void parseOption(int argc, char *argv[]) {
 #if defined(WEB)
                 EM_ASM({ Module.consNoTextOverlay = 1; }); // the text hooks check it
 #endif
+            }
+            else if ( !strcmp( argv[0]+1, "-skip-screens" ) ){
+                argc--;
+                argv++;
+                ons.setSkipScreens(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-auto-choice" ) ){
                 argc--;

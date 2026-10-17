@@ -100,6 +100,14 @@ build). `--trace-ignore` matters here too: buttons on ignored sprites are
 never pressed, so a button bar's save, load and skip buttons stay
 untouched.
 
+Screens the engine draws (`screen`, COMMANDS.md "Screens") of the kinds
+`save`, `load`, `settings`, `backlog` and `extras` are closed at once, with
+a `screen` record whose action is `skipped`, so a run needs no
+`--trace-ignore` for them. `--skip-screens kinds` (comma-separated) sets
+the kinds closed so, `--skip-screens none` plays them all: their buttons
+are then choices as a `btnwait`'s, at the `screen` command's place (see
+the `screen` record for the numbers).
+
 `--auto-choice` decides which button to take. The options are the
 buttons numbered from 1 that aren't on ignored sprites, in order. A
 `btnwait` also has a final option, 0: a click elsewhere, which usually
@@ -847,6 +855,24 @@ Written from the signal handler when the engine crashes (`SIGSEGV`,
 run, `stack` as for `error`, and `recent` the last 50 commands run
 (any command, oldest first), which usually show what led to it. No `end`
 follows, and the exit code is 128 plus the signal's number.
+
+### `screen`: an action on a screen the engine draws
+
+```json
+{"t":"screen","pg":1,"at":"*conv_save:279362","screen":"save","kind":"save","action":"select","page":1,"slot":1}
+{"t":"screen","pg":1,"at":"*conv_save:279362","screen":"confirm","kind":"confirm","action":"close","page":1,"value":1}
+```
+
+`action` is `open`, `select`, `page` (`value` the page), `save`, `load`,
+`delete`, `no save` / `no load` / `no delete` (the question answered no),
+`set`, `gosub`, `open` (another screen), `close` (`value` what it gave) or
+`skipped` (`--auto-play` closed it); `slot` is the save slot acted on.
+`at` is the `screen` command's place (for a screen opened over another,
+the first one's). Each wait for the player also writes a `choice` record
+of kind `btnwait`: a button's number is its widget's place in `widgets`
+(from 1) times 100, plus a save slot's place on the page (from 1) for a
+`saveslots`; `-1` is right-click. `--choose '*conv_save:279362=1401,2600'`
+selects the first slot, then takes widget 26.
 
 ### `end`: the last record
 

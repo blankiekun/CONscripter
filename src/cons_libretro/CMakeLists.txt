@@ -26,6 +26,7 @@ set(SOURCES
   ../cons/ONScripter_savepoint.cpp
   ../cons/ONScripter_names.cpp
   ../cons/ONScripter_warp.cpp
+  ../cons/ONScripter_screen.cpp
   ../cons/ONScripter_effect.cpp
   ../cons/ONScripter_effect_breakup.cpp
   ../cons/ONScripter_event.cpp
