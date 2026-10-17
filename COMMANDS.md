@@ -1207,6 +1207,7 @@ Impl `ONScripter::movieCommand`.
 
 ### wait / delay
 `wait ms` (not clickable), `delay ms` (clickable). [cons] scaled by `consset "gamespeed"`.
+[cons] `wait` ends in skip mode as `delay` does (at once while skipping or Ctrl is held; when the web page turns skip on mid-wait), still not by a click: Nitroplus NSS's `Wait`.
 Impl `ONScripter::waitCommand`, `delayCommand`.
 
 ### skipoff

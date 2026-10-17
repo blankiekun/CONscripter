@@ -135,8 +135,12 @@ int ONScripter::waittimerCommand()
 
 int ONScripter::waitCommand()
 {
+    int count = speedTime( script_h.readInt() ); // CONscripter: gamespeed
+    // CONscripter: skip mode ends it (a click still doesn't), as Nitroplus
+    // NSS's Wait; the events waiting are still handled
+    if (skip_mode & SKIP_NORMAL || ctrl_pressed_status) count = 0;
     event_mode = WAIT_TIMER_MODE;
-    waitEvent( speedTime( script_h.readInt() ) ); // CONscripter: gamespeed
+    waitEvent( count );
 
     return RET_CONTINUE;
 }
