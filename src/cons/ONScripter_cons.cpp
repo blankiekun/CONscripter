@@ -5689,7 +5689,7 @@ int ONScripter::logrowsCommand()
         auto put = [&](){
             LogRow r;
             r.text = row;
-            if (first && page->voice_file) r.voice = page->voice_file;
+            if (first && page->voice_file){ r.voice = page->voice_file; r.tag = page->voice_tag; }
             log_rows.push_back( r );
             first = false;
             row.clear();
@@ -5774,11 +5774,11 @@ int ONScripter::getlogrowCommand()
     return RET_CONTINUE;
 }
 
-/* logadd "text"[,"voice"]
+/* logadd "text"[,"voice"[,tag]]
  *   Adds a page with text to the text history, before the page being
  *   written (so what is on screen stays as it is); voice is the voice
- *   getlogrow gives for it. Lines the story puts in the backlog without
- *   showing them. */
+ *   getlogrow gives for it, tag its tag as logvoice's. Lines the story
+ *   puts in the backlog without showing them. */
 int ONScripter::logaddCommand()
 {
     std::string text = script_h.readStr();
@@ -5788,6 +5788,7 @@ int ONScripter::logaddCommand()
         v = script_h.readStr();
         if (!v.empty()) voice = v.c_str();
     }
+    int tag = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : -1;
     if (text.empty()) return RET_CONTINUE;
 
     // The oldest page (or a free one) becomes the page being written,
@@ -5800,6 +5801,7 @@ int ONScripter::logaddCommand()
     std::swap( next->tag, current_page->tag );
     std::swap( next->voice, current_page->voice );
     std::swap( next->voice_file, current_page->voice_file );
+    std::swap( next->voice_tag, current_page->voice_tag );
     Page *added = current_page;
     current_page = next;
     if (cached_page == added) cached_page = current_page;
@@ -5814,6 +5816,27 @@ int ONScripter::logaddCommand()
     if (voice) traceString( file, voice, -1, false ); // UTF-8, as dwave keeps it
     setStr( &added->voice, voice ? file.c_str() : NULL );
     setStr( &added->voice_file, voice );
+    added->voice_tag = voice ? tag : -1;
+    return RET_CONTINUE;
+}
+
+/* logvoice "voice",tag
+ *   The page being written gets voice as its history voice, as if dwave
+ *   had played it on channel 0, without playing it, and tag (a number,
+ *   such as the speaker's) with it: a voice the player switched off is
+ *   still in the log, and a screen's rows list can leave its button out
+ *   while the switch is off (`voice_off`). A dwave on channel 0 after it
+ *   keeps the tag. */
+int ONScripter::logvoiceCommand()
+{
+    std::string v = script_h.readStr();
+    int tag = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : -1;
+    if (!current_page) return RET_CONTINUE;
+    std::string file;
+    if (!v.empty()) traceString( file, v.c_str(), -1, false ); // UTF-8, as dwave keeps it
+    setStr( &current_page->voice, v.empty() ? NULL : file.c_str() );
+    setStr( &current_page->voice_file, v.empty() ? NULL : v.c_str() );
+    current_page->voice_tag = v.empty() ? -1 : tag;
     return RET_CONTINUE;
 }
 

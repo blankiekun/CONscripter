@@ -1407,6 +1407,7 @@ void ONScripter::clearCurrentPage()
     }
     setStr( &current_page->voice, NULL );
     setStr( &current_page->voice_file, NULL );
+    current_page->voice_tag = -1;
     trace_overflow = false;
 
     num_chars_in_sentence = 0;

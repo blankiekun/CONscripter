@@ -549,7 +549,8 @@ bool ONScripter::screenRowsList( ConsScreen *s, std::string &var, int &back_max 
  * `rows` of them, `dy` apart from x, y, ending var's value rows back from
  * the newest (0: the newest at the bottom). A row with a voice (its
  * page's first) has the `voice` picture at voice.x and the row's y plus
- * voice.y, a button playing it. */
+ * voice.y, a button playing it; with voice_off, not while
+ * %(voice_off + the row's logvoice tag) is set (the speaker switched off). */
 void ONScripter::screenRows( ConsScreen *s, int w )
 {
     lua_State *L = s->L;
@@ -558,13 +559,15 @@ void ONScripter::screenRows( ConsScreen *s, int w )
     std::string var = fieldStr( L, "var" );
     int back = var.empty() ? 0 : std::max( 0, std::min( back_max, screenGet( var ) ) );
     int top = back_max - back;
+    int off = fieldInt( L, "voice_off", -1 );
     lua_pushinteger( L, 1 ); // each text one line
     lua_setfield( L, -2, "rows" );
     for (int k=0 ; k<shown && top + k < (int)log_rows.size() ; k++){
         const LogRow &r = log_rows[top + k];
         if (!r.text.empty()) screenText( s, r.text, x, y + k * dy );
-        s->voices.push_back( r.voice );
-        if (r.voice.empty() || !fieldTable( L, "voice" )) continue;
+        bool muted = off >= 0 && r.tag >= 0 && screenGet( "%" + std::to_string( off + r.tag ) ) != 0;
+        s->voices.push_back( muted ? std::string() : r.voice );
+        if (muted || r.voice.empty() || !fieldTable( L, "voice" )) continue;
         int no = screenImage( s, fieldInt( L, "x", 0 ), y + k * dy + fieldInt( L, "y", 0 ) );
         int pressed = fieldInt( L, "pressed", -1 );
         lua_pop( L, 1 );

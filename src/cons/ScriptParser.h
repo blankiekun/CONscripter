@@ -374,6 +374,7 @@ protected:
         char *tag;
         char *voice; // CONscripter: the last sound dwave played on channel 0 for this page
         char *voice_file; // CONscripter: the same as the script named it (getlogrow)
+        int voice_tag; // CONscripter: the tag logvoice/logadd gave the voice (-1: none)
 
         Page(){
             text = NULL;
@@ -381,6 +382,7 @@ protected:
             tag = NULL;
             voice = NULL;
             voice_file = NULL;
+            voice_tag = -1;
         }
         ~Page(){
             if (text) delete[] text;
