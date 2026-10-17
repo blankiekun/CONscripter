@@ -166,18 +166,19 @@ retro_init(void)
 
     struct retro_variable var = { 0 };
     var.key = "conscripter_script_encoding";
-    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var)) {
-        if (strcmp(var.value, "SHIFTJIS") == 0) {
-            coding2utf16 = new SJIS2UTF16();
-        } else if (strcmp(var.value, "UTF-8") == 0) {
-            coding2utf16 = new GBK2UTF16();
-            coding2utf16->force_utf8 = true;
-        } else {
-            coding2utf16 = new GBK2UTF16();
-        }
+    // a frontend that doesn't answer gets the default (GBK): initSDL needs coding2utf16
+    if (!environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) || !var.value)
+        var.value = "GBK";
+    if (strcmp(var.value, "SHIFTJIS") == 0) {
+        coding2utf16 = new SJIS2UTF16();
+    } else if (strcmp(var.value, "UTF-8") == 0) {
+        coding2utf16 = new GBK2UTF16();
+        coding2utf16->force_utf8 = true;
+    } else {
+        coding2utf16 = new GBK2UTF16();
     }
     var.key = "conscripter_mouse_mode";
-    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var)) {
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
         if (strcmp(var.value, "Classical") == 0) {
             classical_mouse = true;
         } else {
@@ -185,7 +186,7 @@ retro_init(void)
         }
     }
     var.key = "conscripter_mouse_joybtn";
-    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var)) {
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
         if (strcmp(var.value, "SELECT") == 0)
             mouse_joybtn = RETRO_DEVICE_ID_JOYPAD_SELECT;
         if (strcmp(var.value, "START") == 0)
@@ -204,7 +205,7 @@ retro_init(void)
             mouse_joybtn = RETRO_DEVICE_ID_JOYPAD_R3;
     }
     var.key = "conscripter_mouse_sensitivity";
-    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var)) {
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value) {
         mouse_sensitivity = SDL_atof(var.value);
     }
 
@@ -234,6 +235,9 @@ retro_load_game(const struct retro_game_info* game)
     } else {
         char* gamedir = SDL_strdup(game->path);
         char* slash = SDL_strrchr(gamedir, '/');
+        char* bslash = SDL_strrchr(gamedir, '\\');  // Windows paths
+        if (bslash > slash)
+            slash = bslash;
         if (slash) {  // no dirname(): libnx has no libgen
             *slash = '\0';
             chdir(gamedir);
