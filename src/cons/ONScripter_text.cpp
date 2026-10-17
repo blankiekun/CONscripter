@@ -138,6 +138,10 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
         else unicode = text[0];
     }
 
+    // CONscripter: SJIS 0x815C is mapped to U+2500; a font without it
+    // (the English build's) shows the missing-glyph box, so use U+2015.
+    if (unicode == 0x2500 && !TTF_GlyphIsProvided((TTF_Font*)info->ttf_font[0], unicode)) unicode = 0x2015;
+
     int minx, maxx, miny, maxy, advanced;
 #if 0
     if (TTF_GetFontStyle( (TTF_Font*)info->ttf_font[0] ) !=
