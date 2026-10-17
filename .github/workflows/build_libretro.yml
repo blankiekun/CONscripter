@@ -45,6 +45,42 @@ jobs:
         omitBodyDuringUpdate: "true" # keep the release notes written by hand
         token: ${{ secrets.GITHUB_TOKEN }}
 
+  # Miyoo Mini (Onion OS, MiyooMini+): a Linux ARMv7 core .so against the device's glibc 2.28
+  build_libretro_miyoo:
+    runs-on: ubuntu-22.04
+    container: aemiii91/miyoomini-toolchain@sha256:e5123590ad75d27f0f4c91196e3119a255cad45f3ae15243e29a8e0a2ec50132
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    # the image's CMake is 3.13; the core needs 3.14 (file(CREATE_LINK))
+    - name: build the core
+      run: |
+        wget -qO- https://github.com/Kitware/CMake/releases/download/v3.31.8/cmake-3.31.8-linux-x86_64.tar.gz | tar xz -C /opt
+        T=/opt/miyoomini-toolchain/bin/arm-linux-gnueabihf-
+        F="-marm -mtune=cortex-a7 -mcpu=cortex-a7 -mfpu=neon-vfpv4 -mfloat-abi=hard"
+        /opt/cmake-3.31.8-linux-x86_64/bin/cmake -S src/cons_libretro -B build_miyoo -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=arm \
+          -DCMAKE_C_COMPILER=${T}gcc -DCMAKE_CXX_COMPILER=${T}g++ "-DCMAKE_C_FLAGS=$F" "-DCMAKE_CXX_FLAGS=$F" \
+          "-DCMAKE_SHARED_LINKER_FLAGS=-static-libstdc++ -static-libgcc" -DCMAKE_BUILD_TYPE=Release
+        make -C build_miyoo -j$(nproc)
+        ${T}strip build_miyoo/conscripter_libretro.so
+        mv build_miyoo/conscripter_libretro.so conscripter_libretro_miyoo.so
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: conscripter_libretro_miyoo
+        path: conscripter_libretro_miyoo.so
+
+    - name: create release
+      uses: ncipollo/release-action@v1
+      if: github.ref_type == 'tag'
+      with:
+        artifacts: "conscripter_libretro_miyoo.so"
+        allowUpdates: "true"
+        omitBodyDuringUpdate: "true" # keep the release notes written by hand
+        token: ${{ secrets.GITHUB_TOKEN }}
+
   # RetroArch on Vita loads cores as .self files from its app folder (ux0:/app/RETROVITA/)
   build_libretro_vita:
     runs-on: ubuntu-22.04
