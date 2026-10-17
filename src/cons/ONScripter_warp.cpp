@@ -17,9 +17,11 @@
  * 16-bit value v split into its high byte (planes 0 and 2) and low byte
  * (planes 1 and 3, the same channel):
  *   planes 0/1: R old picture x, G old picture y, B mask;
- *   planes 2/3: R new picture x, G new picture y; B (plane 2 only) 255:
- *   bilinear sampling in the block right of and below that point, 0
- *   nearest; B of plane 3 alone (a byte): that block's mask sharpness s.
+ *   planes 2/3: R new picture x, G new picture y; B of plane 2 alone (a
+ *   byte) flags for the block right of and below that point: 128
+ *   bilinear sampling (else nearest), 64 a position outside the picture
+ *   reads black (else the edge repeats); B of plane 3 alone: that
+ *   block's mask sharpness s.
  * Point (i, j) sits on screen pixel (i * w / (gw - 1), j * h / (gh - 1)).
  * x and y: the pixel is read from (pixel + (v - 32768) / 16) of that
  * picture (edges repeated). Mask: 128 + (v - 32768) * 2^s / 16, clamped
@@ -27,7 +29,7 @@
  * a plain level L is v = 30720 + 16 L), s 8 a signed distance to an
  * edge, 1/16 pixel a step, so the edge stays sharp between points and
  * cells. Everything is interpolated bilinearly between points and
- * linearly between cells; the smooth flag and s come from the nearer
+ * linearly between cells; the flags and s come from the nearer
  * cell in time. */
 
 namespace {
@@ -39,11 +41,15 @@ enum { OLD_X, OLD_Y, MASK, NEW_X, NEW_Y, VALUES };
 struct Picture {
     const Uint8 *pixels;
     int pitch, w, h;
-    explicit Picture( const SDL_Surface *s ) : pixels( (const Uint8*)s->pixels ), pitch( s->pitch ), w( s->w ), h( s->h ){}
+    Uint32 black; // opaque black, read outside the picture when outside_black
+    bool outside_black;
+    explicit Picture( const SDL_Surface *s ) : pixels( (const Uint8*)s->pixels ), pitch( s->pitch ), w( s->w ), h( s->h ),
+        black( SDL_MapRGBA( s->format, 0, 0, 0, 0xff ) ), outside_black( false ){}
 };
 
 inline Uint32 pixelAt( const Picture &s, int x, int y )
 {
+    if (s.outside_black && ((unsigned)x >= (unsigned)s.w || (unsigned)y >= (unsigned)s.h)) return s.black;
     x = x < 0 ? 0 : x >= s.w ? s.w - 1 : x;
     y = y < 0 ? 0 : y >= s.h ? s.h - 1 : y;
     return ((const Uint32*)(s.pixels + y * s.pitch))[x];
@@ -52,6 +58,7 @@ inline Uint32 pixelAt( const Picture &s, int x, int y )
 // x16, y16 in 1/16 pixel; two channels at once in 16-bit lanes.
 inline Uint32 bilinearAt( const Picture &s, int x16, int y16 )
 {
+    if (s.outside_black && ((unsigned)((x16 + 8) >> 4) >= (unsigned)s.w || (unsigned)((y16 + 8) >> 4) >= (unsigned)s.h)) return s.black;
     int x = x16 >> 4, y = y16 >> 4, fx = x16 & 15, fy = y16 & 15;
     if (x < 0){ x = 0; fx = 0; } else if (x >= s.w - 1){ x = s.w - 1; fx = 0; }
     if (y < 0){ y = 0; fy = 0; } else if (y >= s.h - 1){ y = s.h - 1; fy = 0; }
@@ -142,7 +149,7 @@ void ONScripter::warpFrame( SDL_Surface *map, int cells, int c, float t )
                     for (int ch=0 ; ch<(plane ? 2 : 3) ; ch++)
                         v[k][plane ? NEW_X + ch : ch] = (float)(((int)((hi >> shift[ch]) & 0xff) << 8 | (int)((lo >> shift[ch]) & 0xff)) - 32768);
                     if (plane && k == (t < 0.5f ? 0 : 1)){
-                        smooth[j * gw + i] = (hi >> shift[2]) & 0x80;
+                        smooth[j * gw + i] = (hi >> shift[2]) & 0xc0;
                         int s = (lo >> shift[2]) & 0xff;
                         sharp[j * gw + i] = s > 8 ? 8 : s;
                     }
@@ -159,7 +166,7 @@ void ONScripter::warpFrame( SDL_Surface *map, int cells, int c, float t )
     SDL_LockSurface( effect_src_surface );
     SDL_LockSurface( effect_dst_surface );
     SDL_LockSurface( accumulation_surface );
-    const Picture src( effect_src_surface ), dst( effect_dst_surface );
+    Picture src( effect_src_surface ), dst( effect_dst_surface );
     // Fractions in 1/2^20. The blocks' first and end columns, and how far
     // the first is past its point.
     const Sint64 step = ((Sint64)(gw - 1) << 20) / w;
@@ -198,7 +205,8 @@ void ONScripter::warpFrame( SDL_Surface *map, int cells, int c, float t )
                 int x0 = bx[i], x1 = bx[i + 1];
                 if (x0 >= x1) continue;
                 const int *v = &sv[i * VALUES], *d = &sd[i * VALUES];
-                bool bilinear = smooth[j * gw + i] != 0;
+                bool bilinear = (smooth[j * gw + i] & 0x80) != 0;
+                src.outside_black = dst.outside_black = (smooth[j * gw + i] & 0x40) != 0;
                 int ms = 16 - sharp[j * gw + i]; // the mask is in 1/65536 pixel, times 2^s
                 // The mask is straight along the block: one picture alone
                 // when both ends show only it.

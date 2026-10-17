@@ -1218,10 +1218,11 @@ Code: `src/cons/ONScripter_effect.cpp` and `ONScripter_cons.cpp` (grep `cons_sli
   four planes of `gw` x `gh` stacked top to bottom; each value `v` is 16
   bits, its high byte in planes 0 and 2, its low byte in planes 1 and 3:
   - planes 0/1: R, G the old picture's x, y; B the mask;
-  - planes 2/3: R, G the new picture's x, y; plane 2's B (a byte) 255
-    reads the pictures bilinearly in the block right of and below that
-    point (zooms: 0 nearest, faster); plane 3's B (a byte) the block's
-    mask sharpness `s`, 0-8.
+  - planes 2/3: R, G the new picture's x, y; plane 2's B (a byte) flags
+    for the block right of and below that point: 128 reads the pictures
+    bilinearly (zooms; else nearest, faster), 64 makes a position outside
+    a picture read black (a diagonal push's corners; else the edge
+    repeats); plane 3's B (a byte) the block's mask sharpness `s`, 0-8.
   Point `(i, j)` lies on pixel `(i w / (gw-1), j h / (gh-1))`. A pixel
   reads its picture at itself plus `(v - 32768) / 16` pixels (edges
   repeated). It shows `128 + (v - 32768) * 2^s / 16` (0-255, clamped)
@@ -1229,7 +1230,7 @@ Code: `src/cons/ONScripter_effect.cpp` and `ONScripter_cons.cpp` (grep `cons_sli
   `s` 8 the signed distance in 1/16 pixel to an edge (positive on the new
   side), which keeps an edge sharp between points and cells. Values are
   interpolated bilinearly between points, straight between cells; `s`
-  and the bilinear flag come from the nearer cell. About 2 ms a frame at
+  and the flags come from the nearer cell. About 2 ms a frame at
   1280x720 (4 ms on the web), zooms 12 (15).
 
 `effect 20,99,800,"cons_slide.dll/0,-1,0"` slides the new picture in from the right.
