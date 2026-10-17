@@ -1161,12 +1161,22 @@ SDL_Rect ONScripter::drawnRect( const AnimationInfo &ai )
     return r;
 }
 
-// A visible sprite is zoomed or moving: it covers more than its place.
-bool ONScripter::spriteZoomOrMotion()
+// A visible sprite drawn outside its place (zoomed up, turned, moved,
+// trailed, waving) whose place the rect reaches: the commands mark a
+// sprite's place as changed, which misses where it is drawn. A sprite drawn
+// inside its place (zoomed down: a 2x picture at 50%) needs no more than
+// the rect; redrawing the whole screen for it made each text character and
+// motion step a full-screen redraw.
+bool ONScripter::spriteZoomOrMotion( const SDL_Rect &clip )
 {
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
-        const AnimationInfo &ai = sprite_info[i];
-        if (ai.visible && ai.image_surface && (ai.motion_keys > 0 || ai.trail_keys > 0 || ai.wave_on() || ai.zoom_x != 100 || ai.zoom_y != 100 || ai.zoom_rot != 0)) return true;
+        AnimationInfo &ai = sprite_info[i];
+        if (!ai.visible || !ai.image_surface) continue;
+        if (ai.wave_on()) return true;
+        if (ai.motion_keys == 0 && ai.trail_keys == 0 && ai.zoom_x == 100 && ai.zoom_y == 100 && ai.zoom_rot == 0) continue;
+        SDL_Rect d = drawnRect( ai ), &p = ai.pos;
+        if (d.x >= p.x && d.y >= p.y && d.x + d.w <= p.x + p.w && d.y + d.h <= p.y + p.h) continue; // drawn inside its place
+        if (SDL_HasIntersection( &clip, &ai.pos )) return true;
     }
     return false;
 }
