@@ -386,6 +386,7 @@ ONScripter::ONScripter()
     window_trans = 255;
     text_size_percent = 100;
     text_italic = false;
+    text_outline = -1;
     trace_fp = NULL;
     trace_meta_written = false;
     start_goto = NULL;
@@ -872,6 +873,7 @@ void ONScripter::resetSub()
     clearScreenStack();
     text_size_percent = 100;
     text_italic = false;
+    text_outline = -1;
     clearScreenFilters();
     clearScreenEffects();
     screen_flash_opacity = 0;

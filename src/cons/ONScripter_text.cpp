@@ -339,8 +339,8 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
             dirty_rect.add( dst_rect );
         }
         else if ( flush_flag ){
-            if (shadowed(info)){
-                if (outlined(info))
+            if (shadowed(glyph_info)){
+                if (outlined(glyph_info))
                     info->addShadeArea(dst_rect, -1, -1, 2, 2);
                 else
                     info->addShadeArea(dst_rect, 0, 0, shade_distance[0], shade_distance[1]);
@@ -1180,9 +1180,13 @@ bool ONScripter::processText()
     }
     // CONscripter: a '!' that starts no tag ("Hey! You!") is text; in
     // 1-byte text "!i" and "!c" are tags, and "!w", "!d", "!z", "!v" and
-    // "!s" only before a number ("!sd" too)
+    // "!s" only before a number ("!sd" too); "!o" only before a number or
+    // '#' in any text
     else if ( ch == '!' && script_h.getStringBuffer()[ string_buffer_offset + 1 ] &&
-              (strchr((script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) ? "ic" : "swdzicv",
+              ((script_h.getStringBuffer()[ string_buffer_offset + 1 ] == 'o' &&
+                (isdigit((unsigned char)script_h.getStringBuffer()[ string_buffer_offset + 2 ]) ||
+                 script_h.getStringBuffer()[ string_buffer_offset + 2 ] == '#')) ||
+               strchr((script_h.getEndStatus() & ScriptHandler::END_1BYTE_CHAR) ? "ic" : "swdzicv",
                       script_h.getStringBuffer()[ string_buffer_offset + 1 ]) ||
                (strchr("swdzv", script_h.getStringBuffer()[ string_buffer_offset + 1 ]) &&
                 (isdigit((unsigned char)script_h.getStringBuffer()[ string_buffer_offset + 2 ]) ||
@@ -1218,6 +1222,23 @@ bool ONScripter::processText()
                 string_buffer_offset++;
             }
             text_size_percent = (t > 0) ? t : 100;
+        }
+        else if ( script_h.getStringBuffer()[ string_buffer_offset ] == 'o' ){
+            // CONscripter: "!o#RRGGBB" draws the following text with a 1 px
+            // outline of that colour in place of its shadow, "!o0" goes back
+            string_buffer_offset++;
+            text_outline = -1;
+            if ( script_h.getStringBuffer()[ string_buffer_offset ] == '#' ){
+                int c = 0, n = 0;
+                for ( ; n < 6 && isxdigit((unsigned char)script_h.getStringBuffer()[ string_buffer_offset + 1 + n ]) ; n++ ){
+                    char h = script_h.getStringBuffer()[ string_buffer_offset + 1 + n ];
+                    c = c*16 + (isdigit((unsigned char)h) ? h - '0' : (h | 0x20) - 'a' + 10);
+                }
+                if (n == 6) text_outline = c;
+                string_buffer_offset += 1 + n;
+            }
+            else while( script_h.getStringBuffer()[ string_buffer_offset ] >= '0' &&
+                        script_h.getStringBuffer()[ string_buffer_offset ] <= '9' ) string_buffer_offset++;
         }
         else if ( script_h.getStringBuffer()[ string_buffer_offset ] == 'i' ){
             // CONscripter: "!i1" draws the following text in italics, "!i0"
