@@ -311,6 +311,7 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
                    info->font_size_xy[1] * screen_ratio1 / screen_ratio2);
     else if (recording_sprite && info != &ruby_font){
         int len = coding2utf16->force_utf8 ? UTF8_N_BYTE(text[0]) : IS_TWO_BYTE(text[0]) ? 2 : 1;
+        if (len == 1 && text[1]) len = 2; // two half-width characters drawn as one (pack_hankaku)
         int box[4] = {(int)recording_sprite->text.size(),
                       info->x() * screen_ratio1 / screen_ratio2,
                       info->y() * screen_ratio1 / screen_ratio2,

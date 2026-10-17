@@ -1,0 +1,13 @@
+;mode320
+; Web smoke test game: tests/web/smoke.py serves it with a web build.
+*define
+game
+*start
+strsp 1,"SPRITE",10,200,10,1,16,16,0,0,0,0
+`Page one.\
+`Page two.\
+select "Left", *left, "Right", *right
+*left
+*right
+`Page three.\
+end
