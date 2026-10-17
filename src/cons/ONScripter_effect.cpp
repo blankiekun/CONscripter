@@ -148,7 +148,12 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
     if (effect_counter == 0 && effect_no != 1 && !trace_shot_effects.empty())
         traceShotEffect( effect, effect_no ); // CONscripter: --shot-effects
     
+    // CONscripter: effectcurve draws the frame at the eased part of the time.
+    int counter = effect_counter;
+    if (effect_curve && effect_duration > 0 && effect_counter < effect_duration)
+        effect_counter = (int)((long long)curveAt( effect_curve, (int)((long long)effect_counter * 1024 / effect_duration) ) * effect_duration / 1024);
     bool not_implemented = drawEffectFrame( effect, effect_no );
+    effect_counter = counter;
 
     if (effect_counter == 0 && not_implemented)
         utils::printInfo("effect No. %d not implemented; substituting crossfade\n", effect_no);
@@ -178,6 +183,7 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
         if ( effect_no != 0 ) flush(REFRESH_NONE_MODE, NULL, clear_dirty_region);
         presentPending();
         if ( effect_no == 1 ) effect_counter = 0;
+        effect_curve = 0; // effectcurve: this effect's only
         skip_mode &= ~SKIP_TO_EOL;
 
         event_mode = IDLE_EVENT_MODE;

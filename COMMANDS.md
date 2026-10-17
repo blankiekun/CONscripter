@@ -751,6 +751,13 @@ the wait. What is left (a click, skipping) jumps to the motion's end, and the
 screen is drawn. `spmotion 10,2,...:spmotionwait 10`.
 Impl `ONScripter::spmotionwaitCommand`.
 
+### effectcurve [cons]
+`effectcurve curve` — ease the next effect (`print` or an effect command
+with a time) by `curve`, as `spmotion`'s (1-3 ease in, out, in and out;
+10-73 an `spcurve` table): its frame at part p of the time is drawn as at
+curve(p). Used by the effect that follows only; not saved.
+`effectcurve 2:print 10,1000`. Impl `ONScripter::effectcurveCommand`.
+
 ### spcurve [cons]
 `spcurve id,v0,v1,...,vn` — curve id (10-73) for `spmotion` keys: how far
 (0-1024) from one key to the next at n+1 even steps (2 to 1025 values), straight

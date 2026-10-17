@@ -360,6 +360,19 @@ int ONScripter::spcurveCommand()
     return RET_CONTINUE;
 }
 
+/* effectcurve curve
+ *   Eases the next effect (print or an effect command with a time) by
+ *   curve, as spmotion's (1-3 ease in, out, in and out; 10-73 an spcurve
+ *   table): its frame at a part p of the time is drawn as at curve(p).
+ *   Used once, by the effect that follows; 0 is straight. Not saved.
+ *   "effectcurve 2:print 10,1000" (a cross-fade that slows down). */
+int ONScripter::effectcurveCommand()
+{
+    effect_curve = script_h.readInt();
+
+    return RET_CONTINUE;
+}
+
 // How far (0-1024) along from one key to the next a motion is at p (0-1024)
 // of the time between them, by the next key's curve.
 int ONScripter::curveAt( int curve, int p )

@@ -1336,6 +1336,7 @@ void ONScripter::traceShotEffect( EffectLink *effect, int effect_no )
     trace_fx_seq++;
     for (size_t i=0 ; i<trace_shot_effects.size() ; i++){
         effect_counter = effect_duration * trace_shot_effects[i] / 100;
+        if (effect_curve) effect_counter = (int)((long long)curveAt( effect_curve, trace_shot_effects[i] * 1024 / 100 ) * effect_duration / 1024); // effectcurve
         effect_timer_resolution = 16;
         drawEffectFrame( effect, effect_no );
         char name[64];
