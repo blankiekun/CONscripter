@@ -193,7 +193,10 @@ SDL_Surface *ONScripter::createSurfaceFromFile(char *filename, bool *has_alpha, 
     char *ext = strrchr(filename, '.');
 
     SDL_RWops *src = SDL_RWFromMem(buffer, length);
-    int is_png = IMG_isPNG(src);
+    // CONscripter: a WebP counts as a PNG does: with ":a" a picture without
+    // an alpha channel is opaque, not its right half a mask (libwebp leaves
+    // the channel out of an opaque picture).
+    int is_png = IMG_isPNG(src) || IMG_isWEBP(src);
 
     SDL_Surface *tmp = loadWebP(buffer, length);
     if (!tmp) tmp = IMG_Load_RW(src, 0);

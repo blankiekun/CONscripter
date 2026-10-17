@@ -1198,7 +1198,9 @@ No command involved:
 - **Opus** decoded by the engine in every build (`.ogg` names fine,
   `LOOPSTART`/`LOOPEND`/`LOOPLENGTH` in 48 kHz samples). `cmake/cons_opus.cmake`;
   `-DCONS_OPUS=OFF` drops it. Music decoded whole (~11 MB/min).
-- **WebP** in the web build via libwebp (`script/cross_web.sh`).
+- **WebP** in the web build via libwebp (`script/cross_web.sh`), elsewhere
+  through SDL_image. An opaque WebP (no alpha channel) shown with `:a` is
+  opaque, as a PNG is, not split into picture and right-half mask.
 - **Movies on Linux/macOS** through ffmpeg; skipped with a message without it.
   Files must be loose.
 - **Japanese loose file names** found on Linux, macOS and web (Shift-JIS
