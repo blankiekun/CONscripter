@@ -640,7 +640,7 @@ private:
     void drawZoomedSurface(SDL_Surface *dst_surface, AnimationInfo *anim, SDL_Rect &poly_rect, SDL_Rect &clip);
     SDL_Rect zoomedRect(const AnimationInfo &ai);
     SDL_Rect drawnRect(const AnimationInfo &ai);
-    bool spriteZoomOrMotion();
+    bool spriteZoomOrMotion( const SDL_Rect &clip );
     void stepSpriteMotion(AnimationInfo &ai, int current_time);
     void motionAt(const AnimationInfo &ai, int keys, int t, int v[7]);
     bool trailCopyAt(const AnimationInfo &ai, int i, int v[7]);

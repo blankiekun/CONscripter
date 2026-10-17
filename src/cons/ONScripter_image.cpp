@@ -725,8 +725,8 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
     clip.h = surface->h;
     if (clip_src) if ( AnimationInfo::doClipping( &clip, clip_src ) ) return;
     // CONscripter: screen effects and blurs move pixels around, and a
-    // zoomed or moving sprite covers more than its place; redraw everything
-    if (screenEffectActive() || screenFilterBlurs() || spriteZoomOrMotion()){
+    // sprite drawn outside its place may have left pixels there; redraw everything
+    if (screenEffectActive() || screenFilterBlurs() || spriteZoomOrMotion( clip )){
         clip.x = clip.y = 0;
         clip.w = surface->w;
         clip.h = surface->h;
