@@ -806,9 +806,11 @@ through `lsp`, removed by `csp`, saved.
 Impl `ONScripter::spblendCommand`.
 
 ### spclip [cons]
-`spclip num,x,y,w,h` — draw sprite num only inside the screen's rectangle
-(x, y, w, h), wherever the sprite moves (a window its children show
-through); `spclip num` draws it everywhere again. Stays through `lsp`,
+`spclip num,x,y,w,h[,feather]` — draw sprite num only inside the screen's
+rectangle (x, y, w, h), wherever the sprite moves (a window its children
+show through); with `feather`, it fades in from each edge over that many
+pixels (3t² − 2t³, a corner the product of its two edges'). `spclip num`
+draws it everywhere again. Stays through `lsp`,
 removed by `csp`, saved, kept by `pushscreen`.
 `lsp 20,"tape.png",262,-220:spclip 20,260,138,100,300`.
 Impl `ONScripter::spclipCommand`.

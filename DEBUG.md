@@ -605,6 +605,7 @@ Each sprite in `sp`:
 | `mid` | With `motion`: the motion's id, as in its `motion` record (the same keys and mode give the same id, in any run) |
 | `mnow` | With `motion`: `[t,x,y,zoom_x,zoom_y,angle,alpha]`, where the motion had it at its last step, `t` ms after it started: the offset in script pixels, zoom in percent, angle in degrees, alpha 0-256 (as its keys) |
 | `clip` | `[x,y,w,h]`, its `spclip` rectangle |
+| `feather` | its `spclip` feather, when it has one |
 | `blend` | `"add"`, `"sub"`, `"mul"` or `"screen"`: how `spblend` (or `lsp2add`, `lsp2sub`) draws it |
 | `over` | The sprite `spz` draws it right over |
 | `trail` | `[passes,alpha,lag]`, its `sptrail` (lag in ms at game speed); `[passes,alpha,lag,1]` when the copies are drawn over it |

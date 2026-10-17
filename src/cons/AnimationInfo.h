@@ -207,9 +207,10 @@ public:
     int z_over;
 
     /* CONscripter: spclip: drawn only inside this rectangle of the screen
-       (x, y, w, h in the script's coordinates; w 0: everywhere). Stays
-       across lsp; reset by remove(). */
-    int clip_rect[4];
+       (x, y, w, h in the script's coordinates; w 0: everywhere), its
+       edges faded in over clip_rect[4] (0: a hard edge). Stays across
+       lsp; reset by remove(). */
+    int clip_rect[5];
 
     int font_size_xy[2]; // used by prnum and lsp string
     int font_pitch[2]; // used by lsp string
