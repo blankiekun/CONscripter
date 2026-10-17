@@ -769,9 +769,13 @@ private:
     // CONscripter: screen filters (screenfilter), by slot; kind 0 = slot unused
     enum { MAX_SCREEN_FILTER = 4 };
     AnimationInfo::Filter screen_filter[MAX_SCREEN_FILTER];
+    // the sprite each slot applies after (-1: after all the sprites under
+    // the text window), and the slots one refresh has applied so far
+    int screen_filter_z[MAX_SCREEN_FILTER];
+    int screen_filters_applied;
     void clearScreenFilters();
     bool screenFilterBlurs();
-    void applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip );
+    void applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip, int z = -1 );
     // CONscripter: screenflash, a colour added over everything (0: none)
     int screen_flash_opacity = 0;
     uchar3 screen_flash_colour = {0xff, 0xff, 0xff};
@@ -845,6 +849,7 @@ private:
         int first, last; // the sprites saved
         ScreenSprite *sprite;
         AnimationInfo::Filter screen_filter[MAX_SCREEN_FILTER];
+        int screen_filter_z[MAX_SCREEN_FILTER];
     };
     enum { MAX_SCREEN_STACK = 32 };
     ScreenState screen_stack[MAX_SCREEN_STACK];

@@ -47,7 +47,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 21 // only this version's block is read; the "Version n" comments below
+#define CONS_SAVE_VERSION 22 // only this version's block is read; the "Version n" comments below
                             // name the parts in the order they are written
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
@@ -708,14 +708,17 @@ void ONScripter::drawSpriteRange( SDL_Surface *surface, SDL_Rect &clip, int hi, 
             if (ai.trail_passes > 0) trailCopies( ai, surface, &clip );
             drawTaggedSurface( surface, &ai, clip );
         }
-        if (!moved) continue;
-        for (int k=MAX_SPRITE_NUM-1 ; k>=0 ; k--){
-            AnimationInfo &over = sprite_info[k];
-            if (over.z_over == i && over.image_surface && over.visible){
-                if (over.trail_passes > 0) trailCopies( over, surface, &clip );
-                drawTaggedSurface( surface, &over, clip );
+        if (moved){
+            for (int k=MAX_SPRITE_NUM-1 ; k>=0 ; k--){
+                AnimationInfo &over = sprite_info[k];
+                if (over.z_over == i && over.image_surface && over.visible){
+                    if (over.trail_passes > 0) trailCopies( over, surface, &clip );
+                    drawTaggedSurface( surface, &over, clip );
+                }
             }
         }
+        // screenfilter's z: the sprites drawn after i aren't filtered
+        applyScreenFilters( surface, clip, i );
     }
 }
 
@@ -1004,15 +1007,21 @@ void ONScripter::drawZoomedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
     anim->rot = rot;
 }
 
-/* screenfilter slot, kind[, blend[, strength[, param...]]]
+/* screenfilter slot, kind[, blend[, strength[, param, param, param[, z]]]]
  *   A filter like spfilter's (same kinds, blends and parameters) on the
  *   whole picture: the background and the sprites behind the text window
  *   (those above the humanz number), where monocro applies. Not the text
  *   window or the sprites in front of it. Slots 1-4 apply in order; kind 0
  *   clears a slot and "screenfilter 0" clears them all. Like spfilter it
  *   doesn't draw: show the result with print (an effect fades it in). The
- *   filters are kept in save files and cleared by reset.
- *   "screenfilter 1,4,0,256,-200" darkens the scene for night. */
+ *   filters are kept in save files and cleared by reset. With z (a sprite
+ *   number) the slot applies right after sprite z (and those spz puts over
+ *   it) is drawn: the sprites above z stay unfiltered, as an object over
+ *   a filter in the scene; z among the sprites in front of the window
+ *   filters the window too.
+ *   "screenfilter 1,4,0,256,-200" darkens the scene for night;
+ *   "screenfilter 1,6,0,256,4,4,0,999" blurs the background (and sprite
+ *   999) only. */
 int ONScripter::screenfilterCommand()
 {
     leaveTextDisplayMode();
@@ -1031,6 +1040,10 @@ int ONScripter::screenfilterCommand()
         f.strength = script_h.readInt();
     for (int i=0 ; i<3 && (script_h.getEndStatus() & ScriptHandler::END_COMMA) ; i++)
         f.param[i] = script_h.readInt();
+    int z = -1;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA)
+        z = script_h.readInt();
+    if (z >= MAX_SPRITE_NUM) z = -1;
 
     if (slot == 0){
         clearScreenFilters();
@@ -1051,6 +1064,7 @@ int ONScripter::screenfilterCommand()
         if (f.strength < 0)   f.strength = 0;
         if (f.strength > 256) f.strength = 256;
         screen_filter[slot-1] = f;
+        screen_filter_z[slot-1] = z < 0 ? -1 : z;
     }
     dirty_rect.fill( screen_width, screen_height );
 
@@ -1064,7 +1078,9 @@ void ONScripter::clearScreenFilters()
         screen_filter[i].blend = AnimationInfo::FILTER_BLEND_COPY;
         screen_filter[i].strength = 256;
         screen_filter[i].param[0] = screen_filter[i].param[1] = screen_filter[i].param[2] = 0;
+        screen_filter_z[i] = -1;
     }
+    screen_filters_applied = 0;
 }
 
 /* screenflash opacity[,"#RRGGBB"]
@@ -1116,12 +1132,20 @@ bool ONScripter::screenFilterBlurs()
     return false;
 }
 
-void ONScripter::applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip )
+// The slots whose z is z (drawSpriteRange, right after that sprite), or
+// with z -1 those the refresh hasn't applied yet; -1 also starts the next
+// refresh afresh.
+void ONScripter::applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip, int z )
 {
     AnimationInfo::Filter f[MAX_SCREEN_FILTER];
     int num = 0;
-    for (int i=0 ; i<MAX_SCREEN_FILTER ; i++)
-        if (screen_filter[i].kind != AnimationInfo::FILTER_NONE) f[num++] = screen_filter[i];
+    for (int i=0 ; i<MAX_SCREEN_FILTER ; i++){
+        if (screen_filter[i].kind == AnimationInfo::FILTER_NONE) continue;
+        if (z >= 0 ? screen_filter_z[i] != z : (screen_filters_applied & (1 << i)) != 0) continue;
+        f[num++] = screen_filter[i];
+        screen_filters_applied |= 1 << i;
+    }
+    if (z < 0) screen_filters_applied = 0;
     if (num == 0 || surface == NULL || surface->format->BytesPerPixel != 4) return;
     AnimationInfo::applyFilterList( surface, clip, f, num );
 }
@@ -2148,6 +2172,7 @@ int ONScripter::pushscreenCommand()
         memcpy(sp.clip_rect, ai->clip_rect, sizeof(sp.clip_rect));
     }
     memcpy(st.screen_filter, screen_filter, sizeof(st.screen_filter));
+    memcpy(st.screen_filter_z, screen_filter_z, sizeof(st.screen_filter_z));
 
     return RET_CONTINUE;
 }
@@ -2228,8 +2253,10 @@ void ONScripter::popScreenState()
     }
     delete[] st.sprite;
 
-    if (memcmp(screen_filter, st.screen_filter, sizeof(screen_filter)) != 0){
+    if (memcmp(screen_filter, st.screen_filter, sizeof(screen_filter)) != 0 ||
+        memcmp(screen_filter_z, st.screen_filter_z, sizeof(screen_filter_z)) != 0){
         memcpy(screen_filter, st.screen_filter, sizeof(screen_filter));
+        memcpy(screen_filter_z, st.screen_filter_z, sizeof(screen_filter_z));
         dirty_rect.fill( screen_width, screen_height );
     }
 
@@ -2597,6 +2624,15 @@ void ONScripter::saveSaveFileCons( bool output_flag )
     writeInt( ONS_MIX_CHANNELS, output_flag );
     for (int i=0 ; i<ONS_MIX_CHANNELS ; i++)
         writeInt( track_pan[i].to, output_flag );
+
+    // Version 22: the screen filter slots' z (screenfilter), the current
+    // ones, then those of each pushscreen state, as in version 3.
+    writeInt( MAX_SCREEN_FILTER, output_flag );
+    for (int n=-1 ; n<screen_stack_num ; n++){
+        int *z = (n < 0) ? screen_filter_z : screen_stack[n].screen_filter_z;
+        for (int i=0 ; i<MAX_SCREEN_FILTER ; i++)
+            writeInt( z[i], output_flag );
+    }
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -3212,6 +3248,7 @@ void ONScripter::loadSaveFileCons()
             st.screen_filter[i].blend = AnimationInfo::FILTER_BLEND_COPY;
             st.screen_filter[i].strength = 256;
             st.screen_filter[i].param[0] = st.screen_filter[i].param[1] = st.screen_filter[i].param[2] = 0;
+            st.screen_filter_z[i] = -1;
         }
         readStr( &st.bg_name );
         readStr( &st.bgm_name );
@@ -3514,6 +3551,15 @@ void ONScripter::loadSaveFileCons()
         if (i >= ONS_MIX_CHANNELS) continue;
         track_pan[i].ms = 0;
         track_pan[i].from = track_pan[i].to = pan;
+    }
+
+    num = readInt();
+    for (int n=-1 ; n<screen_stack_num ; n++){
+        int *z = (n < 0) ? screen_filter_z : screen_stack[n].screen_filter_z;
+        for (int i=0 ; i<num ; i++){
+            int v = readInt();
+            if (i < MAX_SCREEN_FILTER) z[i] = v;
+        }
     }
 }
 
