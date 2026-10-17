@@ -1232,14 +1232,14 @@ element.
 | Widget | Fields |
 |---|---|
 | `{"image", ...}` | `file`, `x`, `y`; `cells` (a strip of n cells), `alpha` (0-255), `opaque` (`:c`, no alpha), `blend` (`add`, `multiply`, `sub`, `screen`: `spblend`), `scale` (percent, about its centre: `spzoom`) |
-| `{"text", ...}` | `text`, `x`, `y`, `size` (20), `cols` (40), `rows` (1), `bold`, `shadow`, `color` (`"#rrggbb"`), `align = "centre"` (x is the centre, measured as the script measures: half-width characters half as wide). Drawn as `strsp` |
+| `{"text", ...}` | `text`, `x`, `y`, `size` (20), `cols` (40), `rows` (1), `pitch` (between lines), `gap` (between characters), `bold`, `shadow`, `color` (`"#rrggbb"`), `align = "centre"` (x is the centre, measured as the script measures: half-width characters half as wide), `vertical = true` (in columns from the right, as `vstrsp`: `cols` columns of `rows` characters, x, y the box's top left). Drawn as `strsp` |
 | `{"button", ...}` | an image (fields as above, cell 1 under the pointer) and `action`; `disabled` (the cell shown when the action can't be taken: no slot selected, an empty slot to load or delete, the page shown; without it the normal cell), `pressed` (the cell while held, `spbtn`'s third argument); `enabled = 0` (or `false`) always shows it as disabled, not a button |
 | `{"button", current = {a, b}, ...}` | a tab: on pages a to b its `selected` picture (one cell) in its place and no button; elsewhere the button |
 | `{"button", text = ...}` | a button drawn as text (fields as `text`): `color` (`#FFFFFF`), `hover` (under the pointer), `disabled_color` (when its action can't be taken, as a tab for the page shown) |
 | `{"slider", ...}` | a value of `var` from `min` (0) to `max` (10) by `step` (1): `text` at `x`, `y` (fields as `text`) with `%v` the value, `%V` in full-width digits, `%B` a bar (`marks`' first per step up to the value, the second after: `{"■", "□"}`), and `minus`, `plus` buttons (`{text = ..., x, y, ...}` as a text button, or `{file = ..., cells}`). `action` runs after each change. With `knob` it is a picture slider: below |
 | `{"toggle", ...}` | flips `var` between `on` (1) and `off` (0): `text` with `%C` the mark for on or off (`marks`), drawn as a text button (`color`, `hover`). `var` may be a list, set together (the first read). `action` runs after each change |
 | `{"radio", ...}` | sets `var` to `value` (1); on while it holds it; otherwise as `toggle` |
-| `{"toggle", file = ...}`, `{"radio", file = ...}` | drawn as a picture button (fields as `image`, cell 1 under the pointer, `pressed` the cell while held); `on_file` in place of `file` while on: a check box |
+| `{"toggle", file = ...}`, `{"radio", file = ...}` | drawn as a picture button (fields as `image`, cell 1 under the pointer, `pressed` the cell while held); `on_file` in place of `file` while on (`on_cells` its cells, default `cells`): a check box |
 | `{"list", source = "items", ...}` | `items` (`{text = ..., action = ..., new = true, shown = false, color = ...}`) in columns of `rows` at `x`, `y` by `dx` (a column), `dy` (a row), up to `cols` columns; those with `shown = false` are left out and the rest close up. Each: `selector` (`{file, cells, x, y}`, relative; cell 1 nothing, 2 under the pointer) a button running the item's `action`, `new_mark` (`{file, x, y}`) when `new`, its `text` at `text_x`, `text_y` (fields as `text`; `color`, the item's in place of the list's). A scene list, a music room |
 | `{"gallery", ...}` | below |
 | `{"list", source = "log", ...}` | the text log (the backlog): pages from the one on screen back, the newest at the bottom of the box `x`, `y`, `h`, each under its speaker's name (the page's tag `[name\|voice]`, as `gettaglog` gives it) in `name_color`; a page with a voice has `voice_mark` (`　♪`) after the name, which is then a button (`hover` colour) playing it on channel `voice_channel` (0). Text fields as `text` (`size`, `line_height`, `cols`, `shadow`); with `rubyon` the lines are drawn a line gap higher. Stops at the first page that doesn't fit. `{"scroll", "+1"}` goes a page back, `"-1"` forward; a button with it is disabled when it can't |
@@ -1271,7 +1271,7 @@ is the widget's number times 100 plus 3 (minus 1, plus 2).
 ```
 
 **saveslots**: `rows` × `cols` save slots a page, at `x + col*dx`,
-`y + row*dy`; `first` (1) is the first page's first slot, `pages` (1) the
+`y + row*dy`, along the rows (`down = true`: down the columns); `first` (1) is the first page's first slot, `pages` (1) the
 number of pages; `page_var` (`"%900"`) holds the page shown (read at open,
 written at close; without it the engine keeps the page per screen while it
 runs). Positions inside a slot are relative to its corner:
@@ -1287,8 +1287,14 @@ runs). Positions inside a slot are relative to its corner:
   the save folder with each save (default the `thumb` box): the screen
   as it was when the menu opened;
 - `new = {image}`: on the slot with the newest save among the widget's;
+- `over = {file, x, y}` (absolute): drawn over every thumbnail and under
+  the rest (their frames);
 - `save_text = "$150"`: a variable whose value is saved as the save's
   text (`savegame2`'s);
+- `hover = {image = {file, x, y}, lines = {...}, preview = {x, y, w, h}}`:
+  shown only while the pointer is on the slot (with `button`): the
+  picture from the slot's corner, the lines (as `lines`) and the preview
+  (the thumbnail scaled into the box) where they say;
 - `lines = { {x, y, size, ..., text = "...", empty = "..."} }`: text lines
   (fields as `text`); `text` for a slot with a save, `empty` without one.
   `%N` is the slot in two digits, `%n` as is, `%Y %y %m %d %H %M %S` the
@@ -1331,12 +1337,15 @@ load or delete) ends the list; so does a question answered no.
 | `{"close"[, value]}` | closes the screen; `screen`'s `%var` gets value |
 | `{"open", "name"[, "arg"]}` | opens another screen over this one, then comes back to it (it can't `gosub`) |
 | `{"scroll", "+1"}` | scrolls the list a page back (`"-1"`: forward, to the page on screen); when it can't, `at_end` runs instead (a table action) |
-| `{"page", n}` | shows page n of the save slots (`"+1"`, `"-1"`: the next, the previous) |
+| `{"page", n}` | shows page n of the save slots (`"+1"`, `"-1"`: the next, the previous; `round = true` from the last to the first and back); `fade = ms` cross-fades to it |
 | `{"save"[, n]}`, `{"load"[, n]}`, `{"delete"[, n]}` | slot n, else the slot acted on. `save` writes the game as it was when the screen opened (as `savegame2` with `save_text`) and the thumbnail; `load` closes every screen and loads (`loadgosub` runs); `delete` removes the save and its thumbnail |
 | `{"set", "%var", value}` | sets a variable (`slot = true` in place of the value: the slot acted on) |
 | `{"bgm", "file"}` | plays the music from its start, looping (as `bgm`, no fade) |
 | `{"gosub", "*label"}` | runs the label with the screen up; the actions after it run when it returns |
 
+`when = {"%var", value}` on an action takes it only while the variable
+holds the value; otherwise it is passed over and the list goes on (a
+delete mode: `{{"delete", when = {"%149", 1}}, {"save", when = {"%149", 0}}}`).
 `confirm = "question"` on an action asks first on the `dialog` screen
 (opened with the question as `arg`, `%N` replaced by the slot): a close
 value other than 0 is yes; no ends the list. `dialog = "name"` on the

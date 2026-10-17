@@ -285,11 +285,11 @@ int ONScripter::screenSprite( ConsScreen *s )
 }
 
 // An image (the table on top of the stack: file, x, y, cells, alpha, blend, scale, opaque) at x, y.
-int ONScripter::screenImage( ConsScreen *s, int x, int y, const char *file_override )
+int ONScripter::screenImage( ConsScreen *s, int x, int y, const char *file_override, int cells )
 {
     lua_State *L = s->L;
     std::string file = file_override ? file_override : fileName( fromUTF8( fieldStr( L, "file" ).c_str() ) );
-    int cells = fieldInt( L, "cells", 1 );
+    if (cells <= 0) cells = fieldInt( L, "cells", 1 );
     std::string tag = fieldInt( L, "opaque", 0 ) ? ":c" : ":a";
     if (cells > 1) tag += "/" + std::to_string( cells ) + ",0,3";
     int no = screenSprite( s );
@@ -323,10 +323,14 @@ int ONScripter::screenText( ConsScreen *s, const std::string &text, int x, int y
     std::string shown = text;
     for (char &c : shown) if (c == 0x0a) c = ' ';
     if (lines) screen_strsp_text = text.c_str();
-    screenExec( "strsp " + std::to_string( no ) + "," + quoted( shown ) + "," +
+    // pitch: between lines, gap: between characters (vertical: lines are columns, so x and y swap)
+    bool vertical = fieldInt( L, "vertical", 0 );
+    int pitch = fieldInt( L, "pitch", 0 ), gap = fieldInt( L, "gap", 0 );
+    screenExec( std::string( vertical ? "vstrsp " : "strsp " ) + std::to_string( no ) + "," + quoted( shown ) + "," +
                 std::to_string( x ) + "," + std::to_string( y ) + "," +
                 std::to_string( fieldInt( L, "cols", 40 ) ) + "," + std::to_string( fieldInt( L, "rows", 1 ) ) + "," +
-                std::to_string( size ) + "," + std::to_string( size ) + ",0," + std::to_string( fieldInt( L, "pitch", 0 ) ) + "," +
+                std::to_string( size ) + "," + std::to_string( size ) + "," +
+                std::to_string( vertical ? pitch : gap ) + "," + std::to_string( vertical ? gap : pitch ) + "," +
                 std::to_string( fieldInt( L, "bold", 0 ) ) + "," + std::to_string( fieldInt( L, "shadow", 0 ) ) + color_args );
     screen_strsp_text = NULL;
     return no;
@@ -450,14 +454,24 @@ static int slotPages( lua_State *L, int table )
 }
 
 // The page a page action goes to ("+1", "-1": from the page shown), 0 if none.
-static int pageTarget( const std::string &to, int page, int pages )
+static int pageTarget( const std::string &to, int page, int pages, bool round )
 {
     int p = (to[0] == '+' || to[0] == '-') ? page + atoi( to.c_str() ) : atoi( to.c_str() );
+    if (round && pages > 0) p = (p - 1 + pages * 8) % pages + 1; // past the last: the first, and back
     return p >= 1 && p <= pages ? p : 0;
 }
 
 // Whether the action (or list of them) on top of the stack can be taken
 // now: its first save, load, delete or page can.
+// An action's `when = {"%var", value}`: taken only while the variable holds the value.
+bool ONScripter::screenWhen( lua_State *L )
+{
+    if (!fieldTable( L, "when" )) return true;
+    bool on = screenGet( indexStr( L, 1 ) ) == indexInt( L, 2, 0 );
+    lua_pop( L, 1 );
+    return on;
+}
+
 bool ONScripter::screenEnabled( ConsScreen *s )
 {
     lua_State *L = s->L;
@@ -470,11 +484,13 @@ bool ONScripter::screenEnabled( ConsScreen *s )
         else lua_pushvalue( L, -1 );
         std::string what = indexStr( L, 1 ), to = indexStr( L, 2 );
         int slot = actionSlot( L, s->selected );
+        bool when = screenWhen( L ), round = fieldInt( L, "round", 0 );
         lua_pop( L, 1 );
+        if (!when) continue;
         if (what == "save") return slot > 0;
         if (what == "load" || what == "delete") return slot > 0 && screenSaveTime( slot );
         if (what == "page"){
-            int p = pageTarget( to, s->page, slotPages( L, s->table ) );
+            int p = pageTarget( to, s->page, slotPages( L, s->table ), round );
             return p > 0 && p != s->page;
         }
         if (what == "scroll") return screenScrollable( s, atoi( to.c_str() ) );
@@ -755,7 +771,8 @@ void ONScripter::screenDraw( ConsScreen *s )
             int v = vars.empty() ? 0 : screenGet( vars[0] );
             bool state = type == "radio" ? v == fieldInt( L, "value", 1 ) : v == fieldInt( L, "on", 1 );
             std::string on_file = fieldStr( L, "on_file" );
-            int no = screenImage( s, x, y, state && !on_file.empty() ? fileName( fromUTF8( on_file.c_str() ) ).c_str() : NULL );
+            bool on = state && !on_file.empty();
+            int no = screenImage( s, x, y, on ? fileName( fromUTF8( on_file.c_str() ) ).c_str() : NULL, on ? fieldInt( L, "on_cells", 0 ) : 0 );
             screenExec( "spbtn " + std::to_string( no ) + "," + std::to_string( i * WIDGET_BUTTONS ) +
                         (fieldInt( L, "pressed", -1 ) >= 0 ? "," + std::to_string( fieldInt( L, "pressed", -1 ) ) : "") );
         }
@@ -888,29 +905,71 @@ void ONScripter::screenSlots( ConsScreen *s, int w )
         lua_pop( L, 1 );
     };
 
+    bool down = fieldInt( L, "down", 0 ); // slots run down the columns
+    auto place = [&]( int k, int &bx, int &by ){
+        bx = x0 + (down ? k / rows : k % cols) * dx;
+        by = y0 + (down ? k % rows : k / cols) * dy;
+    };
+    // the selected look and the thumbnails, then `over` (frames) over them all
     for (int k=0 ; k<per ; k++){
-        int slot = first + k;
-        int bx = x0 + (k % cols) * dx, by = y0 + (k / cols) * dy;
-        time_t t = screenSaveTime( slot );
+        int slot = first + k, bx, by;
+        place( k, bx, by );
         if (slot == s->selected) image( "selected", bx, by );
-        if (t) thumb( "thumb", bx, by, slot );
+        if (screenSaveTime( slot )) thumb( "thumb", bx, by, slot );
+    }
+    image( "over", 0, 0 );
+    for (int k=0 ; k<per ; k++){
+        int slot = first + k, bx, by;
+        place( k, bx, by );
+        time_t t = screenSaveTime( slot );
         if (t && slot == newest) image( "new", bx, by );
+        int button_no = -1;
         if (fieldTable( L, "button" )){
-            int no = screenImage( s, bx + fieldInt( L, "x", 0 ), by + fieldInt( L, "y", 0 ) );
-            screenExec( "spbtn " + std::to_string( no ) + "," + std::to_string( w * WIDGET_BUTTONS + k + 1 ) );
+            button_no = screenImage( s, bx + fieldInt( L, "x", 0 ), by + fieldInt( L, "y", 0 ) );
+            screenExec( "spbtn " + std::to_string( button_no ) + "," + std::to_string( w * WIDGET_BUTTONS + k + 1 ) );
             lua_pop( L, 1 );
         }
         char *text = t ? readSaveStrFromFile( slot ) : NULL;
         std::string split = fromUTF8( fieldStr( L, "split" ).c_str() );
-        if (fieldTable( L, "lines" )){
+        // text lines (on the table on top), from bx, by; their sprites
+        auto lines = [&]( int lx, int ly ){
+            std::vector<int> nos;
+            if (!fieldTable( L, "lines" )) return nos;
             int n = (int)lua_rawlen( L, -1 );
             for (int j=1 ; j<=n ; j++){
                 lua_rawgeti( L, -1, j );
                 std::string line = slotText( fieldStr( L, t ? "text" : "empty" ), slot, t, text, split );
-                if (!line.empty()) screenText( s, line, bx + fieldInt( L, "x", 0 ), by + fieldInt( L, "y", 0 ) );
+                if (!line.empty()) nos.push_back( screenText( s, line, lx + fieldInt( L, "x", 0 ), ly + fieldInt( L, "y", 0 ) ) );
                 lua_pop( L, 1 );
             }
             lua_pop( L, 1 );
+            return nos;
+        };
+        lines( bx, by );
+        // shown only while the pointer is on the slot: its picture (from
+        // the slot's corner), lines and preview (absolute)
+        if (button_no >= 0 && fieldTable( L, "hover" )){
+            std::vector<int> nos; // from the bottom: the picture, the preview, the lines
+            if (fieldTable( L, "image" )){
+                nos.push_back( screenImage( s, bx + fieldInt( L, "x", 0 ), by + fieldInt( L, "y", 0 ) ) );
+                lua_pop( L, 1 );
+            }
+            size_t before = s->sprites.size();
+            if (t) thumb( "preview", 0, 0, slot );
+            if (s->sprites.size() > before) nos.push_back( s->sprites.back() );
+            for (int no : lines( 0, 0 )) nos.push_back( no );
+            lua_pop( L, 1 );
+            std::string show, hide = "P" + std::to_string( button_no ) + ",0";
+            for (int no : nos){
+                screenExec( "vsp " + std::to_string( no ) + ",0" );
+                show += "P" + std::to_string( no );
+                hide += "C" + std::to_string( no );
+            }
+            for (ButtonLink *bl = root_button_link.next ; bl ; bl = bl->next)
+                if (bl->no == w * WIDGET_BUTTONS + k + 1){
+                    setStr( &bl->exbtn_ctl[1], show.c_str() );
+                    setStr( &bl->exbtn_ctl[0], hide.c_str() );
+                }
         }
         if (text) delete[] text;
     }
@@ -999,6 +1058,7 @@ int ONScripter::screenActions( ConsScreen *s, int start, int *value )
         if (list) lua_rawgeti( L, -1, i+1 );
         else lua_pushvalue( L, -1 );
         std::string what = indexStr( L, 1 );
+        if (!screenWhen( L )){ lua_pop( L, 1 ); continue; }
         int slot = actionSlot( L, s->selected );
         int ret = SCREEN_STAY;
         bool stop = false; // a confirm answered no, or the action can't be taken: the rest is left out
@@ -1037,8 +1097,9 @@ int ONScripter::screenActions( ConsScreen *s, int start, int *value )
             screenTrace( s, "bgm", 0, INT_MIN );
         }
         else if (what == "page"){
-            int page = pageTarget( indexStr( L, 2 ), s->page, slotPages( L, s->table ) );
-            if (page > 0){ s->page = page; s->selected = 0; }
+            int pages = slotPages( L, s->table );
+            int page = pageTarget( indexStr( L, 2 ), s->page, pages, fieldInt( L, "round", 0 ) );
+            if (page > 0){ s->page = page; s->selected = 0; s->fade_next = fieldInt( L, "fade", 0 ); }
             screenTrace( s, "page", 0, page );
         }
         else if (what == "save" || what == "load" || what == "delete"){
@@ -1097,6 +1158,7 @@ int ONScripter::screenActions( ConsScreen *s, int start, int *value )
         else if (what == "open"){
             std::string name = indexStr( L, 2 ), arg = indexStr( L, 3 );
             int v = 0;
+            screenDraw( s ); // what the actions before it changed shows under it
             screenTrace( s, "open", 0, INT_MIN );
             lua_pop( L, 1 );
             if (screenOpen( name, arg, &v ) == SCREEN_LOADED) return SCREEN_LOADED;
