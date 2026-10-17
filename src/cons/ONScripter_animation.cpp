@@ -284,8 +284,14 @@ void ONScripter::setupAnimationInfo( AnimationInfo *anim, FontInfo *info )
     else{
         bool has_alpha = false;
         int location = BaseReader::ARCHIVE_TYPE_NONE;
+        // CONscripter: drawn smaller (screen_ratio), a WebP decodes at its drawn size;
+        // a separate mask is combined at full size first
+        scale_on_decode = screen_ratio1 != screen_ratio2 && !disable_rescale_flag &&
+                          anim->trans_mode != AnimationInfo::TRANS_MASK;
+        decoded_scaled = false;
         SDL_Surface *surface = isMovieFile( anim->file_name ) ? openSpriteMovie( anim ) // CONscripter
                              : loadImage( anim->file_name, &has_alpha, &location, &anim->default_alpha );
+        scale_on_decode = false;
 
         SDL_Surface *surface_m = NULL;
         if (anim->trans_mode == AnimationInfo::TRANS_MASK)
@@ -294,6 +300,7 @@ void ONScripter::setupAnimationInfo( AnimationInfo *anim, FontInfo *info )
         setAnimImage( anim, surface, surface_m, has_alpha, location );
 
         if ( surface_m ) SDL_FreeSurface(surface_m);
+        decoded_scaled = false;
     }
 }
 
@@ -303,9 +310,15 @@ void ONScripter::setupAnimationInfo( AnimationInfo *anim, FontInfo *info )
 void ONScripter::setAnimImage( AnimationInfo *anim, SDL_Surface *surface, SDL_Surface *surface_m, bool has_alpha, int location )
 {
     surface = anim->setupImageAlpha(surface, surface_m, has_alpha);
+    if (surface && decoded_scaled){
+        // CONscripter: the script sees the full picture's size, as setupImageAlpha would give it
+        anim->orig_pos.w = anim->trans_mode == AnimationInfo::TRANS_ALPHA && !has_alpha
+            ? decoded_full_w / anim->num_of_cells / 2 * anim->num_of_cells : decoded_full_w;
+        anim->orig_pos.h = decoded_full_h;
+    }
     anim->applyFilters(surface);
 
-    if (surface &&
+    if (surface && !decoded_scaled && // CONscripter: loadWebP may have scaled it
         screen_ratio2 != screen_ratio1 &&
         (!disable_rescale_flag || location == BaseReader::ARCHIVE_TYPE_NONE))
     {

@@ -219,6 +219,19 @@ void ONScripter::initSDL()
     screen_ratio2 = 1;
     screen_width  = script_h.screen_width;
     screen_height = script_h.screen_height;
+    // CONscripter: a frontend short of memory (libretro on 3DS) draws the
+    // game at most max_screen_width wide; ONScripter's screen_ratio scales
+    // every position, font and picture by screen_ratio1/screen_ratio2
+    if (max_screen_width && screen_width > max_screen_width) {
+        screen_ratio1 = max_screen_width;
+        screen_ratio2 = screen_width;
+        screen_width  = max_screen_width;
+        screen_height = screen_height * screen_ratio1 / screen_ratio2;
+        if (!force_window_width && !force_window_height) {
+            screen_device_width  = screen_width;
+            screen_device_height = screen_height;
+        }
+    }
     screen_scale_ratio1 = (float)screen_width / screen_device_width;
     screen_scale_ratio2 = (float)screen_height / screen_device_height;
 

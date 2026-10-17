@@ -4590,12 +4590,30 @@ SDL_Surface *ONScripter::loadWebP(const unsigned char *data, size_t length)
 {
 #if defined(USE_WEBP)
     if (length < 12 || memcmp(data, "RIFF", 4) || memcmp(data + 8, "WEBP", 4)) return NULL;
-    int w, h;
-    if (!WebPGetInfo(data, length, &w, &h)) return NULL;
+    WebPDecoderConfig config;
+    if (!WebPInitDecoderConfig(&config) || WebPGetFeatures(data, length, &config.input) != VP8_STATUS_OK) return NULL;
+    int w = config.input.width, h = config.input.height;
+    if (scale_on_decode){
+        // drawn smaller (screen_ratio): libwebp scales while decoding, so the
+        // full-size picture is never in memory; setAnimImage then keeps it
+        if ((w = w * screen_ratio1 / screen_ratio2) == 0) w = 1;
+        if ((h = h * screen_ratio1 / screen_ratio2) == 0) h = 1;
+        config.options.use_scaling = 1;
+        config.options.scaled_width = w;
+        config.options.scaled_height = h;
+        decoded_scaled = true;
+        decoded_full_w = config.input.width;
+        decoded_full_h = config.input.height;
+    }
     SDL_Surface *s = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_RGBA32);
     if (!s) return NULL;
     SDL_LockSurface(s);
-    uint8_t *ok = WebPDecodeRGBAInto(data, length, (uint8_t *)s->pixels, (size_t)s->pitch * h, s->pitch);
+    config.output.colorspace = MODE_RGBA;
+    config.output.is_external_memory = 1;
+    config.output.u.RGBA.rgba = (uint8_t *)s->pixels;
+    config.output.u.RGBA.stride = s->pitch;
+    config.output.u.RGBA.size = (size_t)s->pitch * h;
+    bool ok = WebPDecode(data, length, &config) == VP8_STATUS_OK;
     SDL_UnlockSurface(s);
     if (!ok){
         SDL_FreeSurface(s);

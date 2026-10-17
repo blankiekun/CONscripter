@@ -8,6 +8,45 @@ permissions:
   contents: write
 
 jobs:
+  # RetroArch on 3DS is one .3dsx per core, started from the Homebrew Launcher
+  build_libretro_3ds:
+    runs-on: ubuntu-22.04
+    container: devkitpro/devkitarm:20260610
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: build the core
+      run: |
+        cmake -S src/cons_libretro -B build_3ds -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/3DS.cmake \
+          -DLIBRETRO_STATIC=ON -DLIBRETRO_SUFFIX=_ctr -DCMAKE_BUILD_TYPE=Release
+        make -C build_3ds -j$(nproc)
+
+    # no .cia: that needs makerom and bannertool, which devkitPro doesn't ship
+    - name: link it into RetroArch
+      run: |
+        git clone --depth 1 -b v1.22.2 https://github.com/libretro/RetroArch.git retroarch
+        cp build_3ds/conscripter_libretro_ctr.a retroarch/libretro_ctr.a
+        make -C retroarch -f Makefile.ctr -j$(nproc) BUILD_CIA=0 USE_CTRULIB_2=1 DEVKITTOOLS=$DEVKITPRO/tools \
+          APP_TITLE=CONscripter "APP_DESCRIPTION=CONscripter libretro core" > retroarch.log 2>&1 || { tail -n 40 retroarch.log; exit 1; }
+        mv retroarch/retroarch_3ds.3dsx conscripter_libretro.3dsx
+        ls -l conscripter_libretro.3dsx
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: conscripter_libretro_3ds
+        path: conscripter_libretro.3dsx
+
+    - name: create release
+      uses: ncipollo/release-action@v1
+      if: github.ref_type == 'tag'
+      with:
+        artifacts: "conscripter_libretro.3dsx"
+        allowUpdates: "true"
+        omitBodyDuringUpdate: "true" # keep the release notes written by hand
+        token: ${{ secrets.GITHUB_TOKEN }}
+
   # RetroArch on Switch links each core into its own .nro, which goes in /retroarch/cores/
   build_libretro_switch:
     runs-on: ubuntu-22.04
