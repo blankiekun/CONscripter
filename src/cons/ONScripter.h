@@ -106,6 +106,7 @@ unsigned char *decodeOpus(const unsigned char *data, unsigned long length, unsig
 #define DEFAULT_WM_TITLE "ONScripter"
 #define DEFAULT_WM_ICON  "ONScripter"
 
+struct lua_State; // CONscripter: ONScripter_screen.cpp
 class ONScripter : public ScriptParser
 {
 public:
@@ -245,6 +246,8 @@ public:
     int spclipCommand();
     int sptrailCommand();
     int spnewCommand(); // ONScripter_names.cpp
+    int screenCommand(); // ONScripter_screen.cpp
+    void setSkipScreens( const char *kinds );
     int spfreeCommand();
     int spovertextCommand();
     int spblendCommand();
@@ -779,6 +782,36 @@ private:
     void readNamesSection();
     void clearHandleSprites();
     void drawSpritesOver( SDL_Surface *surface, SDL_Rect &clip, int target, int depth ); // ONScripter_cons.cpp
+    // CONscripter: screens the engine draws (ONScripter_screen.cpp); the open ones, the last on top
+    std::vector<struct ConsScreen*> screens;
+    std::map<std::string, int> screen_pages; // the save slots' page each screen showed last
+    std::string skip_screens = ",save,load,settings,backlog,extras,"; // the kinds --auto-play closes at once
+#ifdef USE_LUA
+public:
+    int screenLuaVar( lua_State *L );
+private:
+    bool screenVariable( const char *ref, bool str, ScriptHandler::VariableInfo &vi );
+    void screenExec( const std::string &cmd );
+    void screenTrace( struct ConsScreen *s, const char *action, int slot, int value );
+    time_t screenSaveTime( int no );
+    int screenSprite( struct ConsScreen *s );
+    int screenImage( struct ConsScreen *s, int x, int y, const char *file_override=NULL );
+    void screenText( struct ConsScreen *s, const std::string &text, int x, int y );
+    void screenClear( struct ConsScreen *s );
+    bool screenEnabled( struct ConsScreen *s );
+    void screenDraw( struct ConsScreen *s );
+    void screenSlots( struct ConsScreen *s, int w );
+    int screenConfirm( struct ConsScreen *s, int slot );
+    void screenSave( struct ConsScreen *s, int slot );
+    int screenActions( struct ConsScreen *s, int start, int *value );
+    struct ConsScreen *screenLoad( const std::string &name, const std::string &arg );
+    void screenShow( struct ConsScreen *s );
+    void screenHide( struct ConsScreen *s );
+    void screenCloseAll();
+    int screenWait( struct ConsScreen *s );
+    int screenRun( struct ConsScreen *s, int *value );
+    int screenOpen( const std::string &name, const std::string &arg, int *value );
+#endif
     // CONscripter: play time (getplaytime), counted from playtime_start on
     // top of playtime_base; the save data's offset of it (writeSaveFile
     // brings it up to date there).

@@ -719,10 +719,12 @@ void ONScripter::drawSpriteRange( SDL_Surface *surface, SDL_Rect &clip, int hi, 
         if (sprite_info[i].z_over >= 0) moved = true;
     // CONscripter: spnew's handles, each drawn right over its layer's numbered sprite
     int handles[SPRITE_HANDLE_NUM], num_handles = 0;
-    for (int i=MAX_SPRITE_NUM-1 ; i>=NS_SPRITE_NUM ; i--){
-        AnimationInfo &ai = sprite_info[i];
-        if (ai.z_over < 0 && (ai.image_surface || moved)) handles[num_handles++] = i;
-    }
+    for (int screen=0 ; screen<2 ; screen++) // the screens' last: over the other overlay handles
+        for (int i=MAX_SPRITE_NUM-1 ; i>=NS_SPRITE_NUM ; i--){
+            AnimationInfo &ai = sprite_info[i];
+            if ((sprite_handle_layer[i - NS_SPRITE_NUM] == 4) != (screen == 1)) continue; // LAYER_SCREEN + 1
+            if (ai.z_over < 0 && (ai.image_surface || moved)) handles[num_handles++] = i;
+        }
     for (int i=hi ; i>=lo ; i--){
         AnimationInfo &ai = sprite_info[i];
         if (ai.image_surface && ai.visible && (!moved || ai.z_over < 0)){

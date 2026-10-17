@@ -18,7 +18,7 @@
 
 #define CONS_GLOVAL_NAMES 0x4e4e4f43 // "CONN": the named globals after gloval.sav's numbered ones
 
-enum { LAYER_GAME = 0, LAYER_UI = 1, LAYER_OVERLAY = 2 };
+enum { LAYER_GAME = 0, LAYER_UI = 1, LAYER_OVERLAY = 2, LAYER_SCREEN = 3 }; // screen: ONScripter_screen.cpp's, over the others
 
 // ---------------------------------------------------------------------
 // ScriptHandler
@@ -375,7 +375,7 @@ int ONScripter::newSpriteHandle( int layer )
 int ONScripter::spriteHandleOver( int no )
 {
     int layer = sprite_handle_layer[no - NS_SPRITE_NUM] - 1;
-    if (layer == LAYER_OVERLAY) return 0;
+    if (layer == LAYER_OVERLAY || layer == LAYER_SCREEN) return 0;
     if (layer == LAYER_UI) return z_order;
     return z_order + 1 < NS_SPRITE_NUM ? z_order + 1 : NS_SPRITE_NUM - 1;
 }

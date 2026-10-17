@@ -115,7 +115,7 @@ void traceString( std::string &out, const char *text, int len=-1, bool json=true
 }
 
 // UTF-8 text in the script's encoding (as a script would have it).
-static std::string fromUTF8( const char *text )
+std::string fromUTF8( const char *text )
 {
     if (coding2utf16->force_utf8) return text;
     std::string out;

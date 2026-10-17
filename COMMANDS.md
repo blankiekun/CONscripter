@@ -1126,6 +1126,131 @@ Impl `ONScripter::copysavegameCommand`.
 ### checkpage
 `checkpage %v,page` — whether backlog page exists. Impl `ONScripter::checkpageCommand`.
 
+## Screens [cons]
+
+Screens the engine draws: the save and load menus so far (settings,
+backlog, extras and the title to follow, in the same format). A screen is
+a Lua file in the archive (or loose), `screens/<name>.lua`, that returns a
+table describing it; the engine draws it with sprite handles over
+everything else (over `spnew`'s overlay layer; a screen opened over
+another is on top), runs it until it closes, and handles the mouse, touch,
+keyboard (Up/Down move between the buttons, Enter presses, Esc is
+right-click) and gamepad as `btnwait` does. A `--trace` gets a `screen`
+record per action; `--auto-play` closes save, load, settings, backlog and
+extras screens at once (`--skip-screens`, [DEBUG.md](DEBUG.md)).
+
+### screen [cons]
+`screen "name"[,%var[,"arg"]]` — open `screens/name.lua` and run it until
+it closes; `%var` gets the value its `close` action gave (0 by default,
+and for right-click). A `gosub` action runs its label with the screen still
+up and comes back to the `screen` command, which goes on with the screen
+(so the command must be reached again: a `return`). A `load` action loads
+and doesn't come back. Opening a screen clears the button definitions (as
+`btnwait` does). Impl `ONScripter::screenCommand` (`ONScripter_screen.cpp`).
+
+`screen "save"`, `screen "confirm",%ok,"上書きしますか？"`.
+
+### The table
+
+The file is UTF-8 Lua (base, string, table and math libraries), run each
+time the screen opens, so it can compute its table from the game's state:
+`var(n | "name")` gives an integer variable (`%n` or a `defvar` name),
+`str(n | "name")` a string variable (in UTF-8), and `arg` is the `screen`
+command's third argument (a confirm dialog's question). Text is converted
+to the script's encoding. Coordinates are screen pixels; file names as in
+`lsp` (`/` or `\`).
+
+```lua
+return {
+  kind = "save",          -- save, load, settings, backlog, extras, confirm, title, other (default)
+  hide = { window = true, sprites = {34, 35} }, -- hidden while open (only those shown), shown again after
+  filter = {4, 6, 0, 256, 1, 1, 0}, -- a screenfilter while open (slot first), cleared after
+  dialog = "confirm",     -- the screen that asks actions' questions (default "confirm")
+  cancel = {"close"},     -- what right-click and Esc do (default: close with 0)
+  widgets = { ... },      -- drawn in order, the first at the bottom
+}
+```
+
+Every widget is a table whose first element is its type; `page = n` on
+any widget shows it only while the save slots show page n.
+
+| Widget | Fields |
+|---|---|
+| `{"image", ...}` | `file`, `x`, `y`; `cells` (a strip of n cells), `alpha` (0-255), `opaque` (`:c`, no alpha), `blend` (`add`, `multiply`, `sub`, `screen`: `spblend`), `scale` (percent, about its centre: `spzoom`) |
+| `{"text", ...}` | `text`, `x`, `y`, `size` (20), `cols` (40), `rows` (1), `bold`, `shadow`, `color` (`"#rrggbb"`), `align = "centre"` (x is the centre, measured as the script measures: half-width characters half as wide). Drawn as `strsp` |
+| `{"button", ...}` | an image (fields as above, cell 1 under the pointer) and `action`; `disabled` (the cell shown when the action can't be taken: no slot selected, an empty slot to load or delete, the page shown; without it the normal cell), `pressed` (the cell while held, `spbtn`'s third argument) |
+| `{"saveslots", ...}` | below |
+
+**saveslots**: `rows` × `cols` save slots a page, at `x + col*dx`,
+`y + row*dy`; `first` (1) is the first page's first slot, `pages` (1) the
+number of pages; `page_var` (`"%900"`) holds the page shown (read at open,
+written at close; without it the engine keeps the page per screen while it
+runs). Positions inside a slot are relative to its corner:
+
+- `button = {file, cells, x, y}`: the slot's hit area and hover look (cell 1);
+- `select = true`: a click selects the slot, a second click (or a button's
+  action without a slot number) acts on it; without it a click acts;
+- `action`: what acting on a slot does (`{"save"}`, `{"load"}`, a list);
+- `selected = {image}`: drawn on the selected slot (under the rest);
+- `thumb = {x, y, w, h}`: the save's thumbnail scaled into the box;
+  `preview = {x, y, w, h}` (absolute): the selected slot's;
+  `shot = {w, h}`: the thumbnail's size, written as `savethumb<n>.bmp` in
+  the save folder with each save (default the `thumb` box): the screen
+  as it was when the menu opened;
+- `new = {image}`: on the slot with the newest save among the widget's;
+- `save_text = "$150"`: a variable whose value is saved as the save's
+  text (`savegame2`'s);
+- `lines = { {x, y, size, ..., text = "...", empty = "..."} }`: text lines
+  (fields as `text`); `text` for a slot with a save, `empty` without one.
+  `%N` is the slot in two digits, `%n` as is, `%Y %y %m %d %H %M %S` the
+  save's time (its file's), `%T` its text, `%%` a `%`.
+
+**Actions**: a table `{"what", ...}`, or a list of them run in order. A
+`save`, `load` or `delete` that can't be taken (no slot, an empty slot to
+load or delete) ends the list; so does a question answered no.
+
+| Action | Does |
+|---|---|
+| `{"close"[, value]}` | closes the screen; `screen`'s `%var` gets value |
+| `{"open", "name"[, "arg"]}` | opens another screen over this one, then comes back to it (it can't `gosub`) |
+| `{"page", n}` | shows page n of the save slots (`"+1"`, `"-1"`: the next, the previous) |
+| `{"save"[, n]}`, `{"load"[, n]}`, `{"delete"[, n]}` | slot n, else the slot acted on. `save` writes the game as it was when the screen opened (as `savegame2` with `save_text`) and the thumbnail; `load` closes every screen and loads (`loadgosub` runs); `delete` removes the save and its thumbnail |
+| `{"set", "%var", value}` | sets a variable (`slot = true` in place of the value: the slot acted on) |
+| `{"gosub", "*label"}` | runs the label with the screen up; the actions after it run when it returns |
+
+`confirm = "question"` on `save`, `load` or `delete` asks first on the
+`dialog` screen (opened with the question as `arg`, `%N` replaced by the
+slot): a close value other than 0 is yes. A `save` asks only over an
+existing save. To be added in the same format: `slider`, `toggle`,
+`radio` (bound to a setting or variable), `list`, `gallery`, sounds, and
+the `voice` action.
+
+A confirm dialog:
+
+```lua
+return {
+  kind = "confirm",
+  widgets = {
+    {"image", file = "system/dialog_base.png", x = 140, y = 254},
+    {"text", text = arg, x = 400, y = 270, size = 20, align = "centre", shadow = true},
+    {"button", file = "system/dialog_button.png", cells = 3, x = 242, y = 305, action = {"close", 1}},
+    {"button", file = "system/dialog_button.png", cells = 3, x = 416, y = 305, action = {"close", 0}},
+  },
+}
+```
+
+A save menu's slots, five a page on ten pages, selected then saved, with
+the game's routine run after each save:
+
+```lua
+{"saveslots", x = 0, y = 44, rows = 5, dy = 92, pages = 10, page_var = "%900", select = true,
+  action = {{"set", "%102", slot = true}, {"save", confirm = "No.%N に上書きしますか？"}, {"gosub", "*keep"}},
+  button = {file = "system/row.png", cells = 2},
+  thumb = {x = 14, y = 10, w = 100, h = 75}, shot = {400, 300},
+  save_text = "$150",
+  lines = {{x = 124, y = 11, size = 14, text = "No.%N %Y/%m/%d %H:%M", empty = "No.%N"}, {x = 124, y = 26, size = 14, text = "%T", empty = ""}}}
+```
+
 ## Window and system
 
 ### menu_full / menu_window
