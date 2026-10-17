@@ -18,7 +18,7 @@ return {
     {"saveslots", x=10, y=10, rows=2, dy=60, pages=2, select=true, save_text="\$10", split="|",
       action = {{"set", "%20", slot=true}, {"$kind", confirm="No.%N でいいですか？"}},
       button = {file=">200,50,#808080", opaque=true}, thumb={x=0, y=0, w=40, h=30},
-      lines = {{x=50, y=0, size=16, text="%N %T1", empty="%N 空き"}, {x=50, y=20, size=16, text="[%T2]", empty=""}}},
+      lines = {{x=50, y=0, size=16, text="%N %T1", empty="%N 空き"}, {x=50, y=20, size=16, text="[%T2][%T-1]", empty=""}}},
     {"button", file=">60,20,#00ff00", opaque=true, x=300, y=10, action={"page", "+1"}},
     {"button", file=">60,20,#ff0000", opaque=true, x=300, y=40, action={{"delete", confirm="No.%N を消しますか？"}, {"gosub", "*deleted"}}},
     {"button", file=">60,20,#0000ff", opaque=true, x=300, y=70, action={"close", 7}},
@@ -59,6 +59,6 @@ check "save 1 kept" "$(ls sv | grep -c '^save1.dat$')" "1"
 check "save 2 and its thumbnail deleted" "$(ls sv | grep -c '^save2.dat$\|^savethumb2.bmp$')" "0"
 check "thumbnail size" "$(magick identify -format '%wx%h' sv/savethumb1.bmp 2>&1)" "40x30"
 check "slot text" "$(grep -a -c '"src":"strsp [0-9]*,\\"01 一章\\"' t.jsonl | sed 's/^[1-9][0-9]*$/drawn/')" "drawn"
-check "split part 2" "$(grep -a -c '"src":"strsp [0-9]*,\\"\[節\]\\"' t.jsonl | sed 's/^[1-9][0-9]*$/drawn/')" "drawn"
+check "split part 2" "$(grep -a -c '"src":"strsp [0-9]*,\\"\[節\]\[節\]\\"' t.jsonl | sed 's/^[1-9][0-9]*$/drawn/')" "drawn"
 check "end" "$(tail -1 t.jsonl | grep -o '"reason":"[^"]*"')" '"reason":"until label"'
 exit $fail

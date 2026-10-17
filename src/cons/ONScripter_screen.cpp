@@ -204,7 +204,8 @@ time_t ONScripter::screenSaveTime( int no )
 }
 
 /* A slot's text line: %N the slot in two digits, %n as is, %Y %y %m %d %H
- * %M %S the save's time, %T its text, %T1 to %T9 its parts cut at `split`,
+ * %M %S the save's time, %T its text, %T1 to %T9 its parts cut at `split`
+ * (%T-1 to %T-9 from the last),
  * %% a %. In the script's encoding. */
 static std::string slotText( const std::string &tmpl, int no, time_t t, const char *text, const std::string &split )
 {
@@ -217,18 +218,20 @@ static std::string slotText( const std::string &tmpl, int no, time_t t, const ch
         buf[0] = 0;
         if (c == 'N') snprintf( buf, sizeof(buf), "%02d", no );
         else if (c == 'n') snprintf( buf, sizeof(buf), "%d", no );
-        else if (c == 'T' && i+1 < in.size() && in[i+1] >= '1' && in[i+1] <= '9'){
-            int part = in[++i] - '1';
+        else if (c == 'T' && i+1 < in.size() && ((in[i+1] >= '1' && in[i+1] <= '9') ||
+                 (in[i+1] == '-' && i+2 < in.size() && in[i+2] >= '1' && in[i+2] <= '9'))){
+            bool back = in[i+1] == '-';
+            i += back ? 2 : 1;
+            std::vector<std::string> parts;
             std::string all = text ? text : "";
-            size_t from = 0;
-            for ( ; part > 0 && !split.empty() && from != std::string::npos ; part--){
-                from = all.find( split, from );
-                if (from != std::string::npos) from += split.size();
-            }
-            if (part == 0 && from != std::string::npos){
+            for (size_t from = 0 ; ; ){
                 size_t to = split.empty() ? std::string::npos : all.find( split, from );
-                out += all.substr( from, to == std::string::npos ? std::string::npos : to - from );
+                parts.push_back( all.substr( from, to == std::string::npos ? std::string::npos : to - from ) );
+                if (to == std::string::npos) break;
+                from = to + split.size();
             }
+            int k = in[i] - '1';
+            if (k < (int)parts.size()) out += parts[back ? parts.size() - 1 - k : k];
         }
         else if (c == 'T'){ if (text) out += text; }
         else if (c == '%') out += '%';
