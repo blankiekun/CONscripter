@@ -1830,13 +1830,27 @@ void ONScripter::proceedWindowFade( int current_time, bool draw )
 #if defined(WEB)
                 EM_ASM({ if (self.consOverlay && !Module.consNoTextOverlay) self.consOverlay('hide'); });
 #endif
+                webStateHook(); // consWindow now, not at the end of the wait
             }
         }
     }
     if (v == window_fade && !(draw && window_fade_redraw)) return;
     window_fade = v;
     if (draw) window_fade_redraw = false;
-    SDL_Rect r = textWindowRect();
+    // the window, its windowchip and the click cursor
+    DirtyRect d;
+    d.setDimension( screen_width, screen_height );
+    d.add( textWindowRect() );
+    if (windowchip_sprite_no >= 0) d.add( drawnRect( sprite_info[windowchip_sprite_no] ) );
+    for (int i=0 ; i<2 ; i++){
+        SDL_Rect c = cursor_info[i].pos;
+        if (!cursor_info[i].abs_flag){
+            c.x += sentence_font.x() * screen_ratio1 / screen_ratio2;
+            c.y += sentence_font.y() * screen_ratio1 / screen_ratio2;
+        }
+        d.add( c );
+    }
+    SDL_Rect r = d.bounding_box;
     if (draw)
         flushDirect( r, refreshMode() | (draw_cursor_flag ? REFRESH_CURSOR_MODE : 0) );
     else

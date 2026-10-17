@@ -420,8 +420,8 @@ Kept across `setwindow` and loads, not saved; `reset` → 255.
 Impl `ONScripter::windowtransCommand`.
 
 ### windowfade [cons]
-`windowfade alpha,ms[,from[,delay]]` — draw the window (picture or colour) and
-its text at alpha/256 (0-256), from `from` (default: where it is now), held
+`windowfade alpha,ms[,from[,delay]]` — draw the window (picture or colour),
+its text, its `windowchip` and the click cursor at alpha/256 (0-256), from `from` (default: where it is now), held
 `delay` ms, then reached over `ms` while the script goes on (stepped by the
 timer, as `spmotion`). Faded out to 0, the window is hidden as by `textoff`
 (no `windoweffect`) and back at full for its next show; a new `windowfade`

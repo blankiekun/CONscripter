@@ -519,6 +519,9 @@ void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
     int trans = anim->trans;
     // (an lsp without an alpha has trans -1, drawn opaque)
     int factor = anim->motion_alpha;
+    if (window_fade < 256 && (anim == &cursor_info[0] || anim == &cursor_info[1] ||
+                              (windowchip_sprite_no >= 0 && anim == &sprite_info[windowchip_sprite_no])))
+        factor = factor * window_fade / 256; // windowfade: part of the window
     if (factor != 256) anim->trans = (trans < 0 ? 255 : trans) * factor / 256;
     auto draw = [&]( SDL_Rect &at, SDL_Rect &c ){
         if (!anim->affine_flag && (anim->zoom_x != 100 || anim->zoom_y != 100 || anim->motion_zoom != 100 || anim->motion_zoom_y != 100 || anim->motion_rot != 0 || anim->zoom_rot != 0))
