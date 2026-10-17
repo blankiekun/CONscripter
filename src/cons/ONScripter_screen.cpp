@@ -522,8 +522,66 @@ ScriptParser::Page *ONScripter::screenLogPage( int k )
 }
 
 // Whether a list can scroll by n ("+1" older, "-1" newer).
+/* The screen's list of log rows, if it has one: its variable and how far
+ * back it can go (the rows not shown). */
+bool ONScripter::screenRowsList( ConsScreen *s, std::string &var, int &back_max )
+{
+    lua_State *L = s->L;
+    bool found = false;
+    lua_rawgeti( L, LUA_REGISTRYINDEX, s->table );
+    lua_getfield( L, -1, "widgets" );
+    int n = lua_istable( L, -1 ) ? (int)lua_rawlen( L, -1 ) : 0;
+    for (int i=1 ; i<=n && !found ; i++){
+        lua_rawgeti( L, -1, i );
+        if (indexStr( L, 1 ) == "list" && fieldStr( L, "source" ) == "rows"){
+            found = true;
+            var = fieldStr( L, "var" );
+            back_max = std::max( 0, (int)log_rows.size() - fieldInt( L, "rows", 1 ) );
+        }
+        lua_pop( L, 1 );
+    }
+    lua_pop( L, 2 );
+    return found;
+}
+
+/* A list of the text log's rows as the last `logrows` laid them out:
+ * `rows` of them, `dy` apart from x, y, ending var's value rows back from
+ * the newest (0: the newest at the bottom). A row with a voice (its
+ * page's first) has the `voice` picture at voice.x and the row's y plus
+ * voice.y, a button playing it. */
+void ONScripter::screenRows( ConsScreen *s, int w )
+{
+    lua_State *L = s->L;
+    int shown = fieldInt( L, "rows", 1 ), x = fieldInt( L, "x", 0 ), y = fieldInt( L, "y", 0 ), dy = fieldInt( L, "dy", 0 );
+    int back_max = std::max( 0, (int)log_rows.size() - shown );
+    std::string var = fieldStr( L, "var" );
+    int back = var.empty() ? 0 : std::max( 0, std::min( back_max, screenGet( var ) ) );
+    int top = back_max - back;
+    lua_pushinteger( L, 1 ); // each text one line
+    lua_setfield( L, -2, "rows" );
+    for (int k=0 ; k<shown && top + k < (int)log_rows.size() ; k++){
+        const LogRow &r = log_rows[top + k];
+        if (!r.text.empty()) screenText( s, r.text, x, y + k * dy );
+        s->voices.push_back( r.voice );
+        if (r.voice.empty() || !fieldTable( L, "voice" )) continue;
+        int no = screenImage( s, fieldInt( L, "x", 0 ), y + k * dy + fieldInt( L, "y", 0 ) );
+        int pressed = fieldInt( L, "pressed", -1 );
+        lua_pop( L, 1 );
+        screenExec( "spbtn " + std::to_string( no ) + "," + std::to_string( w * WIDGET_BUTTONS + k + 1 ) +
+                    (pressed >= 0 ? "," + std::to_string( pressed ) : "") );
+    }
+    lua_pushinteger( L, shown );
+    lua_setfield( L, -2, "rows" );
+}
+
 bool ONScripter::screenScrollable( ConsScreen *s, int n )
 {
+    std::string var;
+    int back_max;
+    if (screenRowsList( s, var, back_max )){ // a row back (+1) or forward
+        int v = screenGet( var ), to = v + n;
+        return to >= 0 && to <= back_max && to != v;
+    }
     int to = s->scroll + n;
     return to >= 0 && to != s->scroll && (n < 0 || screenLogPage( to ) != NULL);
 }
@@ -537,6 +595,7 @@ void ONScripter::screenList( ConsScreen *s, int w )
 {
     lua_State *L = s->L;
     s->voices.clear();
+    if (fieldStr( L, "source", "log" ) == "rows"){ screenRows( s, w ); return; }
     if (fieldStr( L, "source", "log" ) != "log") return;
     int ax = fieldInt( L, "x", 0 ), ay = fieldInt( L, "y", 0 ), ah = fieldInt( L, "h", 0 );
     int size = fieldInt( L, "size", 20 ), lh = fieldInt( L, "line_height", size );
@@ -1099,9 +1158,13 @@ int ONScripter::screenActions( ConsScreen *s, int start, int *value )
         }
         else if (what == "scroll"){
             int n = atoi( indexStr( L, 2 ).c_str() );
+            std::string var;
+            int back_max;
+            bool rows = screenRowsList( s, var, back_max );
             if (screenScrollable( s, n )){
-                s->scroll += n;
-                screenTrace( s, "scroll", 0, s->scroll );
+                if (rows) screenSet( var, screenGet( var ) + n );
+                else s->scroll += n;
+                screenTrace( s, "scroll", 0, rows ? screenGet( var ) : s->scroll );
             }
             else if (fieldTable( L, "at_end" )){ // can't: this instead (close at the newest page)
                 ret = screenActions( s, 0, value );
@@ -1716,14 +1779,17 @@ int ONScripter::screenDrag( ConsScreen *s, int button, int *value )
         return SCREEN_STAY; // a key or --auto-play on the track: nothing to drag
     s->drag = button;
     Knob k = knobOf( L );
-    AnimationInfo &ai = sprite_info[knob->second];
-    if (ai.num_of_cells > 1){ ai.setCell( 1 ); dirty_rect.add( ai.pos ); }
+    AnimationInfo *ai = &sprite_info[knob->second];
+    if (ai->num_of_cells > 1){ ai->setCell( 1 ); dirty_rect.add( ai->pos ); }
+    std::string rows_var;
+    int back_max;
+    bool rows = screenRowsList( s, rows_var, back_max ) && rows_var == vars[0]; // a list of log rows follows the knob
     int ret = SCREEN_STAY;
     for (bool held = true ;;){
         // the knob's centre under the pointer
         int p = (k.vertical ? current_button_state.y : current_button_state.x) * screen_ratio2 / screen_ratio1 -
                 (k.vertical ? s->grab_y : s->grab_x) -
-                (k.vertical ? k.y + ai.pos.h * screen_ratio2 / screen_ratio1 / 2 : k.x + ai.pos.w * screen_ratio2 / screen_ratio1 / 2);
+                (k.vertical ? k.y + ai->pos.h * screen_ratio2 / screen_ratio1 / 2 : k.x + ai->pos.w * screen_ratio2 / screen_ratio1 / 2);
         int v = screenGet( vars[0] ), to = v;
         if (k.travel && k.max > k.min){
             to = k.min + (int)lround( (double)p * (k.max - k.min) / k.travel / k.step ) * k.step;
@@ -1732,16 +1798,20 @@ int ONScripter::screenDrag( ConsScreen *s, int button, int *value )
         if (to != v){
             for (const std::string &r : vars) screenSet( r, to );
             screenTrace( s, "set", 0, to );
-            dirty_rect.add( ai.pos );
-            knobAt( k, to, ai.orig_pos.x, ai.orig_pos.y );
-            ai.scalePosXY( screen_ratio1, screen_ratio2 );
-            dirty_rect.add( ai.pos );
+            dirty_rect.add( ai->pos );
+            knobAt( k, to, ai->orig_pos.x, ai->orig_pos.y );
+            ai->scalePosXY( screen_ratio1, screen_ratio2 );
+            dirty_rect.add( ai->pos );
             for (ButtonLink *bl = root_button_link.next ; bl ; bl = bl->next)
-                if (bl->no == button) bl->image_rect = ai.pos;
+                if (bl->no == button) bl->image_rect = ai->pos;
             screenFill( s, button / WIDGET_BUTTONS, to );
             auto text = s->texts.find( button / WIDGET_BUTTONS );
             if (text != s->texts.end()) // redrawn in its sprite: the value as it moves
                 screenText( s, fromUTF8( sliderText( L, to ).c_str() ), fieldInt( L, "x", 0 ), fieldInt( L, "y", 0 ), NULL, text->second );
+            if (rows){ // the whole screen again, the knob's new sprite held
+                screenDraw( s );
+                ai = &sprite_info[s->knobs[button / WIDGET_BUTTONS]];
+            }
             flush( refreshMode() );
             if (fieldTable( L, "action" )){
                 ret = screenActions( s, 0, value );
