@@ -47,7 +47,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 29 // only this version's block is read; the "Version n" comments below
+#define CONS_SAVE_VERSION 30 // only this version's block is read; the "Version n" comments below
                             // name the parts in the order they are written (version 26's first)
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
@@ -628,10 +628,14 @@ int ONScripter::spzCommand()
  * (apply false) their pixels are saved; after (apply true) each goes
  * back toward its saved value by 1 − m, m the fade-in at its place
  * (3t² − 2t³ of its distance from each edge over f, the two multiplied).
- * A 32-bit surface only. */
-void ONScripter::featherBands( SDL_Surface *surface, const SDL_Rect &r, int f, const SDL_Rect &clip, std::vector<Uint32> &saved, bool apply )
+ * With a colour (bit 24 set, 0xRRGGBB below) it goes toward the colour
+ * instead and nothing is saved. A 32-bit surface only. */
+void ONScripter::featherBands( SDL_Surface *surface, const SDL_Rect &r, int f, int colour, const SDL_Rect &clip, std::vector<Uint32> &saved, bool apply )
 {
     if (surface->format->BytesPerPixel != 4 || f <= 0) return;
+    bool tinted = (colour & 0x1000000) != 0;
+    if (tinted && !apply) return;
+    Uint32 tint = tinted ? SDL_MapRGBA( surface->format, (colour >> 16) & 0xff, (colour >> 8) & 0xff, colour & 0xff, 0xff ) : 0;
     int fy = f < r.h ? f : r.h, fx = f < r.w ? f : r.w;
     int top_end = r.y + fy, bottom = r.y + r.h - f > top_end ? r.y + r.h - f : top_end;
     int left_end = r.x + fx, right = r.x + r.w - f > left_end ? r.x + r.w - f : left_end;
@@ -654,7 +658,7 @@ void ONScripter::featherBands( SDL_Surface *surface, const SDL_Rect &r, int f, c
             float my = ramp( dy );
             for (int x=in.x ; x<in.x+in.w ; x++, p++){
                 if (!apply){ saved.push_back( *p ); continue; }
-                Uint32 old = saved[at++];
+                Uint32 old = tinted ? tint : saved[at++];
                 int dx = x - r.x < r.x + r.w - 1 - x ? x - r.x : r.x + r.w - 1 - x;
                 int m = (int)(ramp( dx ) * my * 256 + 0.5f);
                 if (m >= 256) continue;
@@ -670,31 +674,38 @@ void ONScripter::featherBands( SDL_Surface *surface, const SDL_Rect &r, int f, c
     SDL_UnlockSurface( surface );
 }
 
-/* spclip num,x,y,w,h[,feather]
+/* spclip num,x,y,w,h[,feather[,colour]]
  *   Draws lsp sprite num only inside the screen's rectangle x, y, w, h
  *   (its picture is cut there wherever the sprite moves: a window its
  *   children show through); with a feather, it fades in from each edge
  *   over that many pixels (smoothly: 3t² − 2t³, a corner the product of
- *   its two edges'). "spclip num" draws it everywhere again. It
+ *   its two edges'), from the colour ("#rrggbb") when one is given (a
+ *   soft frame of that colour inside the rectangle), else from what is
+ *   under it. "spclip num" draws it everywhere again. It
  *   stays when lsp changes the image, is removed by csp and is kept in
  *   save files and by pushscreen.
  *   lsp 20,"tape.png",262,-220:spclip 20,260,138,100,300 */
 int ONScripter::spclipCommand()
 {
     int no = script_h.readInt();
-    int r[5] = {0, 0, 0, 0, 0};
+    int r[6] = {0, 0, 0, 0, 0, 0};
     if (script_h.getEndStatus() & ScriptHandler::END_COMMA)
         for (int k=0 ; k<4 ; k++) r[k] = script_h.readInt();
     if (script_h.getEndStatus() & ScriptHandler::END_COMMA) r[4] = script_h.readInt();
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
+        uchar3 c;
+        readColor( &c, script_h.readStr() );
+        r[5] = 0x1000000 | (c[0] << 16) | (c[1] << 8) | c[2];
+    }
     if (no < 0 || no >= MAX_SPRITE_NUM){
         utils::printError("spclip: sprite %d out of range\n", no);
         return RET_CONTINUE;
     }
     AnimationInfo &ai = sprite_info[no];
     if (ai.visible) dirty_rect.add( drawnRect( ai ) );
-    for (int k=0 ; k<5 ; k++) ai.clip_rect[k] = r[k];
+    for (int k=0 ; k<6 ; k++) ai.clip_rect[k] = r[k];
     if (ai.clip_rect[2] <= 0 || ai.clip_rect[3] <= 0) ai.clip_rect[2] = ai.clip_rect[3] = 0;
-    if (ai.clip_rect[2] == 0 || ai.clip_rect[4] < 0) ai.clip_rect[4] = 0;
+    if (ai.clip_rect[2] == 0 || ai.clip_rect[4] <= 0) ai.clip_rect[4] = ai.clip_rect[5] = 0;
     if (ai.visible) dirty_rect.add( drawnRect( ai ) );
 
     return RET_CONTINUE;
@@ -2988,8 +2999,9 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         if (sprite_info[i].trail_passes > 0 && sprite_info[i].trail_over) writeInt( i, output_flag );
 
     // Version 29: the sprite clips' feathers (spclip's sixth argument): the
-    // count, then per sprite its number and feather; then per pushscreen
-    // state, oldest first, the same for the sprites it saved.
+    // count, then per sprite its number and feather (version 30: and its
+    // colour, 0 for none); then per pushscreen state, oldest first, the
+    // same for the sprites it saved.
     num = 0;
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
         if (sprite_info[i].clip_rect[4] > 0) num++;
@@ -2998,6 +3010,7 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         if (sprite_info[i].clip_rect[4] <= 0) continue;
         writeInt( i, output_flag );
         writeInt( sprite_info[i].clip_rect[4], output_flag );
+        writeInt( sprite_info[i].clip_rect[5], output_flag );
     }
     writeInt( screen_stack_num, output_flag );
     for (int n=0 ; n<screen_stack_num ; n++){
@@ -3010,6 +3023,7 @@ void ONScripter::saveSaveFileCons( bool output_flag )
             if (st.sprite[i - st.first].clip_rect[4] <= 0) continue;
             writeInt( i, output_flag );
             writeInt( st.sprite[i - st.first].clip_rect[4], output_flag );
+            writeInt( st.sprite[i - st.first].clip_rect[5], output_flag );
         }
     }
 }
@@ -4083,18 +4097,24 @@ void ONScripter::loadSaveFileCons()
 
     num = readInt();
     for (int n=0 ; n<num ; n++){
-        int no = readInt(), f = readInt();
-        if (no >= 0 && no < MAX_SPRITE_NUM && sprite_info[no].clip_rect[2] > 0) sprite_info[no].clip_rect[4] = f;
+        int no = readInt(), f = readInt(), colour = readInt();
+        if (no >= 0 && no < MAX_SPRITE_NUM && sprite_info[no].clip_rect[2] > 0){
+            sprite_info[no].clip_rect[4] = f;
+            sprite_info[no].clip_rect[5] = colour;
+        }
     }
     depth = readInt();
     for (int n=0 ; n<screen_stack_num ; n++)
-        for (int i=screen_stack[n].first ; i<=screen_stack[n].last ; i++) screen_stack[n].sprite[i - screen_stack[n].first].clip_rect[4] = 0;
+        for (int i=screen_stack[n].first ; i<=screen_stack[n].last ; i++) screen_stack[n].sprite[i - screen_stack[n].first].clip_rect[4] = screen_stack[n].sprite[i - screen_stack[n].first].clip_rect[5] = 0;
     for (int n=0 ; n<depth ; n++){
         num = readInt();
         for (int m=0 ; m<num ; m++){
-            int i = readInt(), f = readInt();
+            int i = readInt(), f = readInt(), colour = readInt();
             ScreenState *st = (n < screen_stack_num) ? &screen_stack[n] : NULL;
-            if (st && i >= st->first && i <= st->last) st->sprite[i - st->first].clip_rect[4] = f;
+            if (st && i >= st->first && i <= st->last){
+                st->sprite[i - st->first].clip_rect[4] = f;
+                st->sprite[i - st->first].clip_rect[5] = colour;
+            }
         }
     }
 }
