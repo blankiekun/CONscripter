@@ -38,7 +38,8 @@ CONscripter is the engine behind two companion projects:
   `.sar` and `.nsa` archives.
 - **Rendering**: fullscreen (`--fullscreen`, <kbd>Alt</kbd>+<kbd>Enter</kbd>)
   and stretched fullscreen (`--fullscreen2`, <kbd>F10</kbd>), any resolution
-  (`--width`, `--height`), GLES2 sharpening (`--sharpness 1.0`).
+  (`--width`, `--height`), GLES2 sharpening (`--sharpness 1.0`), display
+  filters (`--filter crt,pc98`: crt, pc98, gameboy, sepia, mono, vhs).
 - **Input**: long click or touch opens the menu; the backlog works with UTF-8
   scripts.
 - **Platforms**:
@@ -98,6 +99,7 @@ Usage: conscripter [option ...]
       --fullscreen      start in fullscreen mode (alt+f or alt+enter)
       --fullscreen2     start in fullscreen mode with stretch (f10 to toggle stretch)
       --sharpness 3.1   use gles to make image sharp
+      --filter crt,pc98 show the screen through filters, in order: crt, pc98, gameboy, sepia, mono, vhs
       --no-video        do not decode video
       --no-vsync        turn off vsync
 

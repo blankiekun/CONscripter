@@ -107,6 +107,7 @@ void optionHelp()
     printf( "      --fullscreen\tstart in fullscreen mode (alt+f or alt+enter)\n");
     printf( "      --fullscreen2\tstart in fullscreen mode with stretch (f10 toggle stretch)\n");
     printf( "      --sharpness 3.1 \t use gles to make image sharp\n");
+    printf( "      --filter crt,pc98\tshow the screen through filters, in order: crt, pc98, gameboy, sepia, mono, vhs\n");
     printf( "      --no-video\tdo not decode video\n");
     printf( "      --no-vsync\tturn off vsync\n\n");
     
@@ -629,6 +630,12 @@ void parseOption(int argc, char *argv[]) {
             }
             else if ( !strcmp( argv[0]+1, "-fullscreen2" ) ){
                 ons.setFullscreenMode(2);
+            }
+            else if ( !strcmp( argv[0]+1, "-filter" ) ){
+                argc--;
+                argv++;
+                if (!ons.setScreenFilter(argv[0]))
+                    g_bad_options += std::string(g_bad_options.empty() ? "" : ", ") + "unknown --filter " + argv[0] + " (crt, pc98, gameboy, sepia, mono, vhs)";
             }
             else if ( !strcmp( argv[0]+1, "-sharpness" ) ){
                 argc--;

@@ -5673,3 +5673,101 @@ SDL_Rect ONScripter::textWindowRect()
     r.x = x0; r.y = y0; r.w = x1 - x0; r.h = y1 - y0;
     return r;
 }
+
+// CONscripter: --filter crt,pc98,...: the screen as shown goes through these
+// filters, in the order given. Only what goes to the window changes: the
+// picture the game draws (saves, screenshots, the trace's shots) stays as it is.
+bool ONScripter::setScreenFilter(const char *names)
+{
+    static const char *list[] = { "crt", "pc98", "gameboy", "sepia", "mono", "vhs" }; // FILTER_* order
+    screen_filters.clear();
+    std::string all(names);
+    for (size_t start = 0; start <= all.size(); ) {
+        size_t end = all.find(',', start);
+        if (end == std::string::npos) end = all.size();
+        std::string name = all.substr(start, end - start);
+        int i = 0;
+        while (i < 6 && name != list[i]) ++i;
+        if (i == 6) return false;
+        screen_filters.push_back(i);
+        start = end + 1;
+    }
+    return true;
+}
+
+// Filters rect of accumulation_surface into filter_buf and returns it, with
+// its pitch. Patterns (scanlines, dither) follow screen coordinates, so a
+// part of the screen updated alone lines up with the rest; vhs widens rect,
+// as its colours spread 2 pixels sideways.
+const unsigned char *ONScripter::filterScreen(SDL_Rect &rect, int &pitch)
+{
+    static const int bayer[16] = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 };
+    static const Uint8 gb[4][3] = { { 15, 56, 15 }, { 48, 98, 48 }, { 139, 172, 15 }, { 155, 188, 15 } };
+    const SDL_PixelFormat *f = accumulation_surface->format;
+    const Uint32 keep = ~(f->Rmask | f->Gmask | f->Bmask); // alpha
+    bool vhs = std::find(screen_filters.begin(), screen_filters.end(), (int)FILTER_VHS) != screen_filters.end();
+    if (vhs) {
+        int x0 = rect.x - 2 < 0 ? 0 : rect.x - 2;
+        int x1 = rect.x + rect.w + 2 > screen_width ? screen_width : rect.x + rect.w + 2;
+        rect.x = x0; rect.w = x1 - x0;
+    }
+    filter_buf.resize((size_t)rect.w * rect.h);
+    const int src_pitch = accumulation_surface->pitch / sizeof(ONSBuf);
+    const ONSBuf *src = (const ONSBuf*)accumulation_surface->pixels;
+    for (int y = 0; y < rect.h; ++y) {
+        const int sy = rect.y + y;
+        const ONSBuf *row = src + sy * src_pitch;
+        ONSBuf *out = filter_buf.data() + (size_t)y * rect.w;
+        for (int x = 0; x < rect.w; ++x) {
+            const int sx = rect.x + x;
+            ONSBuf p = row[sx];
+            int r = (p >> f->Rshift) & 0xff, g = (p >> f->Gshift) & 0xff, b = (p >> f->Bshift) & 0xff;
+            if (vhs) { // red from 2 pixels right, blue from 2 left
+                r = (row[sx + 2 < screen_width ? sx + 2 : screen_width - 1] >> f->Rshift) & 0xff;
+                b = (row[sx - 2 >= 0 ? sx - 2 : 0] >> f->Bshift) & 0xff;
+            }
+            const int d = bayer[(sy & 3) * 4 + (sx & 3)]; // 0..15
+            for (int k : screen_filters) {
+                switch (k) {
+                case FILTER_CRT: { // darker odd lines, a faint RGB stripe mask
+                    int line = (sy & 1) ? 160 : 256;
+                    int m[3] = { 220, 220, 220 };
+                    m[sx % 3] = 256;
+                    r = r * line * m[0] >> 16; g = g * line * m[1] >> 16; b = b * line * m[2] >> 16;
+                    break;
+                }
+                case FILTER_PC98: { // 64 colours (4 levels a channel), ordered dither
+                    int c[3] = { r, g, b };
+                    for (int &v : c) {
+                        int q = (v * 3 + d * 255 / 16) / 255; // the dither rounds
+                        q = q < 0 ? 0 : q > 3 ? 3 : q;
+                        v = q * 85;
+                    }
+                    r = c[0]; g = c[1]; b = c[2];
+                    break;
+                }
+                case FILTER_GAMEBOY: { // 4 greens, ordered dither
+                    int l = (77 * r + 150 * g + 29 * b) >> 8;
+                    int q = (l * 3 + d * 255 / 16) / 255;
+                    q = q < 0 ? 0 : q > 3 ? 3 : q;
+                    r = gb[q][0]; g = gb[q][1]; b = gb[q][2];
+                    break;
+                }
+                case FILTER_SEPIA: {
+                    int nr = (101 * r + 197 * g + 48 * b) >> 8;
+                    int ng = (89 * r + 176 * g + 43 * b) >> 8;
+                    int nb = (70 * r + 137 * g + 34 * b) >> 8;
+                    r = nr > 255 ? 255 : nr; g = ng > 255 ? 255 : ng; b = nb;
+                    break;
+                }
+                case FILTER_MONO:
+                    r = g = b = (77 * r + 150 * g + 29 * b) >> 8;
+                    break;
+                }
+            }
+            out[x] = (p & keep) | ((Uint32)r << f->Rshift) | ((Uint32)g << f->Gshift) | ((Uint32)b << f->Bshift);
+        }
+    }
+    pitch = rect.w * sizeof(ONSBuf);
+    return (const unsigned char*)filter_buf.data();
+}
