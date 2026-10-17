@@ -2021,8 +2021,8 @@ void ONScripter::autoPlayPage()
 }
 
 /* --goto label and --vars file: a run starts at a label, with variables
- * set, as if "goto *label" were the first line of *start (the define
- * section has run). The vars file is UTF-8: lines "%312=876" and
+ * set, as if "goto *label" ended *start's own lines (the define section
+ * and the game's setup there have run). The vars file is UTF-8: lines "%312=876" and
  * "$5=text to the end of the line", "#" comments. --dump-vars file writes
  * one, at F8 and when the engine exits. */
 void ONScripter::setStartGoto( const char *label )
@@ -2207,6 +2207,23 @@ void ONScripter::startAt()
         utils::printError( "--goto: no label *%s\n", start_goto );
         startupFailed();
     }
+    start_goto_due = true;
+    if (!strcmp( start_goto, "start" )) startGoto( NULL ); // *start itself: from its first line
+}
+
+// Before each line while --goto waits (executeLabel): once the script,
+// at no gosub's depth, reaches a line outside *define and *start (their
+// setup: settings' defaults, the text window), it goes to the label.
+void ONScripter::startGoto( char *line_start )
+{
+    if (line_start){ // NULL: now
+        if (last_nest_info != &root_nest_info) return;
+        int i = script_h.getLabelIndex( line_start );
+        if (i < 0) return; // before the first label: still the setup
+        const char *label = script_h.getLabelName( i );
+        if (!strcmp( label, "define" ) || !strcmp( label, "start" )) return;
+    }
+    start_goto_due = false;
     setCurrentLabel( start_goto );
     if (checkpoint_start){
         storeSaveFile();

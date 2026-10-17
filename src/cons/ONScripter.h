@@ -1080,6 +1080,8 @@ private:
     char *start_vars;                // --vars file
     char *dump_vars_path;            // --dump-vars file
     void startAt();
+    bool start_goto_due = false;     // --goto: jump once *start's own lines have run
+    void startGoto( char *line_start );
     int start_load;                  // --load slot, -1 for none
     int checkpoint_every, checkpoint_slot, checkpoint_count, checkpoint_pages;
     bool checkpoint_start;           // --checkpoint-start
