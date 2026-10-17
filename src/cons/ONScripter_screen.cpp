@@ -22,6 +22,7 @@
 
 #include "ONScripter.h"
 #include "Utils.h"
+#include "coding2utf16.h"
 #include <sys/stat.h>
 #include <time.h>
 #include <limits.h>
@@ -34,6 +35,7 @@
 
 void traceString( std::string &out, const char *text, int len=-1, bool json=true );
 std::string fromUTF8( const char *text );
+extern Coding2UTF16 *coding2utf16;
 
 #ifdef USE_LUA
 #include <lua.hpp>
@@ -224,12 +226,15 @@ static std::string slotText( const std::string &tmpl, int no, time_t t, const ch
             i += back ? 2 : 1;
             std::vector<std::string> parts;
             std::string all = text ? text : "";
-            for (size_t from = 0 ; ; ){
-                size_t to = split.empty() ? std::string::npos : all.find( split, from );
-                parts.push_back( all.substr( from, to == std::string::npos ? std::string::npos : to - from ) );
-                if (to == std::string::npos) break;
-                from = to + split.size();
+            size_t from = 0;
+            for (size_t j=0 ; j<all.size() ; ){ // split only at a character's start (a Shift-JIS trail byte can be '|')
+                if (!split.empty() && all.compare( j, split.size(), split ) == 0){
+                    parts.push_back( all.substr( from, j - from ) );
+                    from = j += split.size();
+                }
+                else j += (IS_TWO_BYTE( (unsigned char)all[j] ) && !coding2utf16->force_utf8 && j+1 < all.size()) ? 2 : 1;
             }
+            parts.push_back( all.substr( from ) );
             int k = in[i] - '1';
             if (k < (int)parts.size()) out += parts[back ? parts.size() - 1 - k : k];
         }

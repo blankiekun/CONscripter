@@ -37,7 +37,7 @@ printf '%s' '*define
 loadgosub *loaded
 game
 *start
-mov $10,"一章|節"
+mov $10,"一章ポ|節"
 あ\
 screen "save",%5
 lsp 999,"X:save"+str(%5)+"/"+str(%20),0,0
@@ -58,7 +58,7 @@ check "actions" "$acts" "save:open save:select save:set save:save save:select sa
 check "save 1 kept" "$(ls sv | grep -c '^save1.dat$')" "1"
 check "save 2 and its thumbnail deleted" "$(ls sv | grep -c '^save2.dat$\|^savethumb2.bmp$')" "0"
 check "thumbnail size" "$(magick identify -format '%wx%h' sv/savethumb1.bmp 2>&1)" "40x30"
-check "slot text" "$(grep -a -c '"src":"strsp [0-9]*,\\"01 一章\\"' t.jsonl | sed 's/^[1-9][0-9]*$/drawn/')" "drawn"
+check "slot text" "$(grep -a -c '"src":"strsp [0-9]*,\\"01 一章ポ\\"' t.jsonl | sed 's/^[1-9][0-9]*$/drawn/')" "drawn"
 check "split part 2" "$(grep -a -c '"src":"strsp [0-9]*,\\"\[節\]\[節\]\\"' t.jsonl | sed 's/^[1-9][0-9]*$/drawn/')" "drawn"
 check "end" "$(tail -1 t.jsonl | grep -o '"reason":"[^"]*"')" '"reason":"until label"'
 exit $fail
