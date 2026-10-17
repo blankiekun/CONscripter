@@ -91,7 +91,7 @@ enum { ONLY_OLD, ONLY_NEW, BOTH };
 // shift. (Everything in locals: out may alias ints, so the compiler would
 // read them again after each pixel written.)
 template <bool BILINEAR, int SHOWN>
-void drawSpan( Uint32 *out, int x0, int x1, int y, const int *vin, const int *d, int ms, const Picture src, const Picture dst )
+void warpSpan( Uint32 *out, int x0, int x1, int y, const int *vin, const int *d, int ms, const Picture src, const Picture dst )
 {
     int v[VALUES];
     for (int n=0 ; n<VALUES ; n++) v[n] = vin[n];
@@ -206,14 +206,14 @@ void ONScripter::warpFrame( SDL_Surface *map, int cells, int c, float t )
                 int m1 = 128 + ((v[MASK] + d[MASK] * (x1 - x0 - 1) + (1 << (ms - 1))) >> ms);
                 int shown = m0 <= 0 && m1 <= 0 ? ONLY_OLD : m0 >= 255 && m1 >= 255 ? ONLY_NEW : BOTH;
                 if (bilinear){
-                    if (shown == ONLY_OLD) drawSpan<true, ONLY_OLD>( out, x0, x1, y, v, d, ms, src, dst );
-                    else if (shown == ONLY_NEW) drawSpan<true, ONLY_NEW>( out, x0, x1, y, v, d, ms, src, dst );
-                    else drawSpan<true, BOTH>( out, x0, x1, y, v, d, ms, src, dst );
+                    if (shown == ONLY_OLD) warpSpan<true, ONLY_OLD>( out, x0, x1, y, v, d, ms, src, dst );
+                    else if (shown == ONLY_NEW) warpSpan<true, ONLY_NEW>( out, x0, x1, y, v, d, ms, src, dst );
+                    else warpSpan<true, BOTH>( out, x0, x1, y, v, d, ms, src, dst );
                 }
                 else{
-                    if (shown == ONLY_OLD) drawSpan<false, ONLY_OLD>( out, x0, x1, y, v, d, ms, src, dst );
-                    else if (shown == ONLY_NEW) drawSpan<false, ONLY_NEW>( out, x0, x1, y, v, d, ms, src, dst );
-                    else drawSpan<false, BOTH>( out, x0, x1, y, v, d, ms, src, dst );
+                    if (shown == ONLY_OLD) warpSpan<false, ONLY_OLD>( out, x0, x1, y, v, d, ms, src, dst );
+                    else if (shown == ONLY_NEW) warpSpan<false, ONLY_NEW>( out, x0, x1, y, v, d, ms, src, dst );
+                    else warpSpan<false, BOTH>( out, x0, x1, y, v, d, ms, src, dst );
                 }
             }
             for (int n=0 ; n<nb ; n++){

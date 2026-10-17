@@ -4454,12 +4454,20 @@ void ONScripter::effectRule( const char *params, int duration )
     static char *rule_name = NULL;
     static SDL_Surface *rule = NULL;
     bool warp = !strncmp(params, "cons_warp.dll", 13);
-    int param[3] = {0, 0, 0}; // (the file name), cells, curve
-    readDllParams(params, param, 3);
-    int cells = param[1];
+    // file,cells or file,cells,curve, read from the right: the file name
+    // may hold commas, as before the curve was added
     const char *p = strchr(params, '/');
-    const char *comma = p ? strchr(p, ',') : NULL;
-    if (!comma) cells = 0;
+    const char *comma = p ? strrchr(p, ',') : NULL;
+    int cells = comma ? atoi(comma + 1) : 0, curve = 0;
+    if (comma){
+        const char *before = comma - 1;
+        while (before > p && isdigit((unsigned char)*before)) before--;
+        if (before > p && *before == ',' && before + 1 < comma && comma[1] && strspn(comma + 1, "0123456789") == strlen(comma + 1)){
+            curve = cells;
+            cells = atoi(before + 1);
+            comma = before;
+        }
+    }
 #if defined(BPP16)
     cells = 0; // 16-bit surfaces: a plain cross-fade, the rule never loaded
 #endif
@@ -4481,7 +4489,7 @@ void ONScripter::effectRule( const char *params, int duration )
     }
     float pr = duration > 0 ? (float)effect_counter / duration : 1.0f;
     if (pr > 1.0f) pr = 1.0f;
-    if (param[2]) pr = curveAt(param[2], (int)(pr * 1024)) / 1024.0f;
+    if (curve) pr = curveAt(curve, (int)(pr * 1024)) / 1024.0f;
     float f = pr * (cells - 1);
     int c = (int)f;
     if (c > cells - 2) c = cells - 2;
