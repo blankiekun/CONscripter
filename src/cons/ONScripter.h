@@ -250,6 +250,7 @@ public:
     int screenCommand(); // ONScripter_screen.cpp
     void setSkipScreens( const char *kinds );
     int spfreeCommand();
+    int spwaveCommand();
     int spovertextCommand();
     int spblendCommand();
     int bitandCommand();
@@ -642,6 +643,8 @@ private:
     std::vector<int> curve_table[MAX_CURVES];
     bool proceedSpriteMotions(int current_time, bool draw = true);
     int nextSpriteMotionTime();
+    bool stepSpriteWave(AnimationInfo &ai, int current_time);
+    int waveShift(const AnimationInfo &ai, int row, int drawn_h);
     // CONscripter: lsp sprites from hi down to lo in drawing order, with
     // the ones spz moves drawn right over their sprite
     void drawSpriteRange( SDL_Surface *surface, SDL_Rect &clip, int hi, int lo );
