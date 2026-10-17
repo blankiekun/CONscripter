@@ -706,7 +706,11 @@ Impl `ONScripter::getspmodeCommand` etc.
 when the image loads (no per-frame cost). kind: 1 colour p1,p2,p3; 2 grey;
 3 negative; 4 + p1 (-255..255); 5 grey + offsets (sepia `28,-8,-38`); 6 blur
 radius p1,p2; 7 hue +p1/256 turn, saturation p2 (-256 grey..256); 8 lightness
-inverted. blend: 0 copy, 1 multiply, 2 add, 3 screen. strength 0-256 (256).
+inverted; 9 levels: each p (r, g, b) is gamma×65536 + low×256 + high, gamma
+in 1/1000, a channel v becoming low + (high−low)·(v/255)^(1000/gamma) (gamma
+0: low; `65536255` leaves it); 10 those levels on the grey (54r+183g+19b)/256.
+blend: 0 copy, 1 multiply, 2 add, 3 screen, 4 overlay, 5 colour dodge
+(pixels ≤ 3 go black). strength 0-256 (256).
 Up to 4 stack; `spfilter num,0` removes. Stays through `lsp`, removed by
 `csp`, saved. `spfilter 10,1,1,256,148,152,200` (night tint).
 Impl `ONScripter::spfilterCommand`.

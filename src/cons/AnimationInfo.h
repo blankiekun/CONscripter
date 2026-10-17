@@ -115,13 +115,17 @@ public:
            FILTER_BLUR       = 6, // mean of the pixels up to param[0], param[1] pixels away (x, y)
            FILTER_HUE_SATURATION = 7, // hue turned by param[0]/256 of a turn, saturation scaled toward 0 or full by param[1] (-256..256)
            FILTER_LIGHTNESS_INVERT = 8, // lightness inverted, hue and saturation kept
-           FILTER_LAST       = FILTER_LIGHTNESS_INVERT
+           FILTER_LEVELS     = 9, // param = r, g, b levels, each gamma*65536 + low*256 + high (gamma in 1/1000)
+           FILTER_GREY_LEVELS = 10, // greyscale (54 r + 183 g + 19 b)/256, then FILTER_LEVELS
+           FILTER_LAST       = FILTER_GREY_LEVELS
     };
     // How a filter's colour is combined with the pixel's.
     enum { FILTER_BLEND_COPY     = 0,
            FILTER_BLEND_MULTIPLY = 1,
            FILTER_BLEND_ADD      = 2,
-           FILTER_BLEND_SCREEN   = 3
+           FILTER_BLEND_SCREEN   = 3,
+           FILTER_BLEND_OVERLAY  = 4,
+           FILTER_BLEND_DODGE    = 5
     };
     enum { MAX_FILTER_NUM = 4 };
     struct Filter {

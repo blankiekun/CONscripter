@@ -1379,10 +1379,33 @@ static void hslToRgb( float h, float s, float l, int *c )
     c[2] = hueToRgb( m1, m2, h - 1.0f / 3 );
 }
 
-// The colour a pointwise filter makes from the pixel c.
-static void filterColour( const AnimationInfo::Filter &f, const int *c, int *d )
+// FILTER_LEVELS' table for each channel: param[k] = gamma*65536 +
+// low*256 + high, gamma in 1/1000 (1000 none, 0 or less makes the channel
+// low). v becomes low + (high - low) * (v/255)^(1000/gamma).
+static void levelsTable( const AnimationInfo::Filter &f, Uint8 *lut )
 {
-    if (f.kind == AnimationInfo::FILTER_COLOUR){
+    for (int k=0 ; k<3 ; k++){
+        int gamma = f.param[k] >> 16, low = (f.param[k] >> 8) & 0xff, high = f.param[k] & 0xff;
+        for (int v=0 ; v<256 ; v++){
+            float g = gamma <= 0 ? 0 : gamma == 1000 ? v : 255 * powf( v / 255.0f, 1000.0f / gamma );
+            int o = (int)floorf( low + (high - low) * g / 255 + 0.5f );
+            lut[k*256 + v] = o < 0 ? 0 : o > 255 ? 255 : o;
+        }
+    }
+}
+
+// The colour a pointwise filter makes from the pixel c (lut: the filter's
+// levelsTable, for FILTER_LEVELS and FILTER_GREY_LEVELS).
+static void filterColour( const AnimationInfo::Filter &f, const int *c, int *d, const Uint8 *lut )
+{
+    if (f.kind == AnimationInfo::FILTER_LEVELS){
+        for (int k=0 ; k<3 ; k++) d[k] = lut[k*256 + c[k]];
+    }
+    else if (f.kind == AnimationInfo::FILTER_GREY_LEVELS){
+        int grey = (c[0]*54 + c[1]*183 + c[2]*19) >> 8;
+        for (int k=0 ; k<3 ; k++) d[k] = lut[k*256 + grey];
+    }
+    else if (f.kind == AnimationInfo::FILTER_COLOUR){
         for (int k=0 ; k<3 ; k++) d[k] = f.param[k];
     }
     else if (f.kind == AnimationInfo::FILTER_GREYSCALE){
@@ -1429,6 +1452,10 @@ static void blendFilter( const AnimationInfo::Filter &f, int *c, int *d )
         if      (f.blend == AnimationInfo::FILTER_BLEND_MULTIPLY) d[k] = c[k] * d[k] / 255;
         else if (f.blend == AnimationInfo::FILTER_BLEND_ADD)      d[k] = (c[k] + d[k] > 255) ? 255 : c[k] + d[k];
         else if (f.blend == AnimationInfo::FILTER_BLEND_SCREEN)   d[k] = 255 - (255 - c[k]) * (255 - d[k]) / 255;
+        else if (f.blend == AnimationInfo::FILTER_BLEND_OVERLAY)
+            d[k] = c[k] < 128 ? 2 * c[k] * d[k] / 255 : 255 - 2 * (255 - c[k]) * (255 - d[k]) / 255;
+        else if (f.blend == AnimationInfo::FILTER_BLEND_DODGE) // dark pixels (3 or less) go black, as Tsukihime's shader
+            d[k] = c[k] <= 3 ? 0 : d[k] >= 255 || 255 * c[k] / (255 - d[k]) > 255 ? 255 : 255 * c[k] / (255 - d[k]);
         c[k] += (d[k] - c[k]) * f.strength / 256;
     }
 }
@@ -1498,6 +1525,10 @@ void AnimationInfo::applyFilterList( SDL_Surface *surface, const SDL_Rect &rect,
         }
         int last = first;
         while (last < num && filter[last].kind != FILTER_BLUR) last++;
+        Uint8 *lut = new Uint8[(last - first) * 768];
+        for (int i=first ; i<last ; i++)
+            if (filter[i].kind == FILTER_LEVELS || filter[i].kind == FILTER_GREY_LEVELS)
+                levelsTable( filter[i], lut + (i - first) * 768 );
         for (int y=rect.y ; y<rect.y+rect.h ; y++){
             Uint32 *p = (Uint32 *)((Uint8 *)surface->pixels + y*surface->pitch) + rect.x;
             for (int x=0 ; x<rect.w ; x++, p++){
@@ -1507,7 +1538,7 @@ void AnimationInfo::applyFilterList( SDL_Surface *surface, const SDL_Rect &rect,
                 for (int i=first ; i<last ; i++){
                     if (filter[i].kind == FILTER_NONE) continue;
                     int d[3];
-                    filterColour( filter[i], c, d );
+                    filterColour( filter[i], c, d, lut + (i - first) * 768 );
                     blendFilter( filter[i], c, d );
                 }
                 *p = (*p & ~(fmt->Rmask | fmt->Gmask | fmt->Bmask)) |
@@ -1516,6 +1547,7 @@ void AnimationInfo::applyFilterList( SDL_Surface *surface, const SDL_Rect &rect,
                      ((Uint32)c[2] << fmt->Bshift);
             }
         }
+        delete[] lut;
         first = last;
     }
     SDL_UnlockSurface( surface );

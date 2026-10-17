@@ -114,9 +114,12 @@ int trackGain( int channel ) // 0-4096; the trace reads it too
  *   mean of the pixels up to param x,y pixels away; 7 the pixel with its
  *   hue turned by param/256 of a turn and its saturation moved by the
  *   second param (-256 grey .. 0 kept .. 256 full); 8 the pixel with its
- *   lightness inverted (a negative that keeps the hue).
+ *   lightness inverted (a negative that keeps the hue); 9 levels: each
+ *   param (r, g, b) is gamma*65536 + low*256 + high, gamma in 1/1000, and
+ *   the channel v becomes low + (high-low) * (v/255)^(1000/gamma) (gamma
+ *   0: low); 10 the same levels on the greyscale (54 r + 183 g + 19 b)/256.
  *   blend combines that colour with the pixel's: 0 copy (default),
- *   1 multiply, 2 add, 3 screen. strength 0-256 (default 256) is how much
+ *   1 multiply, 2 add, 3 screen, 4 overlay, 5 colour dodge. strength 0-256 (default 256) is how much
  *   of the result replaces the pixel. So "spfilter 10,1,1,256,255,200,160"
  *   tints sprite 10 warm, and "spfilter 10,1,0,256,0,0,0" makes it a black
  *   silhouette.
@@ -155,7 +158,7 @@ int ONScripter::spfilterCommand()
         utils::printError("spfilter: unknown kind %d\n", f.kind);
         return RET_CONTINUE;
     }
-    else if (f.blend < AnimationInfo::FILTER_BLEND_COPY || f.blend > AnimationInfo::FILTER_BLEND_SCREEN){
+    else if (f.blend < AnimationInfo::FILTER_BLEND_COPY || f.blend > AnimationInfo::FILTER_BLEND_DODGE){
         utils::printError("spfilter: unknown blend %d\n", f.blend);
         return RET_CONTINUE;
     }
@@ -1197,7 +1200,7 @@ int ONScripter::screenfilterCommand()
         utils::printError("screenfilter: unknown kind %d\n", f.kind);
         return RET_CONTINUE;
     }
-    else if (f.blend < AnimationInfo::FILTER_BLEND_COPY || f.blend > AnimationInfo::FILTER_BLEND_SCREEN){
+    else if (f.blend < AnimationInfo::FILTER_BLEND_COPY || f.blend > AnimationInfo::FILTER_BLEND_DODGE){
         utils::printError("screenfilter: unknown blend %d\n", f.blend);
         return RET_CONTINUE;
     }
