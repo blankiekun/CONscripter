@@ -51,7 +51,7 @@ CONscripter is the engine behind two companion projects:
 | Linux | x86, x64, arm, aarch64 | Static or dynamic link; video in the window through the player's ffmpeg |
 | macOS | universal (Apple silicon and Intel), macOS 10.13+ (11.0+ on Apple silicon), static: no Homebrew needed | Video in the window through the player's ffmpeg; unsigned |
 | Android | API 22+ (Android 5.1) | SD cards through SAF, scoped storage, non-English paths, video through the system player, 16 KB pages |
-| RetroArch | libretro core `conscripter_libretro`; Switch (`conscripter_libretro_libnx.nro`), PS Vita (`conscripter_libretro_vita.self`) | |
+| RetroArch | libretro core `conscripter_libretro`; Switch (`conscripter_libretro_libnx.nro`), PS Vita (`conscripter_libretro_vita.self`), Miyoo Mini (`conscripter_libretro_miyoo.so`) | |
 | Kobo (KOReader) | armhf (static) | E-ink through FBInk: effects and text shown at once; touch and page keys; a sleep screen on the power button; video through its own ffmpeg, no sound |
 
 ## CONscripter additions
@@ -239,6 +239,11 @@ On a PS Vita with RetroArch installed, copy the release's
 `info/`) and load it from RetroArch's "Load Core". RetroArch gives the
 core all free memory (about 300 MB), which a game with pictures as big
 as above only just fits.
+
+On a Miyoo Mini or Mini+ (Onion OS), copy the release's
+`conscripter_libretro_miyoo.so` to `RetroArch/.retroarch/cores/` on the
+SD card as `conscripter_libretro.so`. The device has 128 MB of memory:
+games with pictures much over 1280x720 may not fit.
 
 ### (7) Kobo (KOReader)
 
