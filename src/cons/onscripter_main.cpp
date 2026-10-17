@@ -462,7 +462,8 @@ void parseOption(int argc, char *argv[]) {
             }
             else if ( !strcmp( argv[0]+1, "-no-text-overlay" ) ){
 #if defined(WEB)
-                EM_ASM({ Module.consNoTextOverlay = 1; }); // the text hooks check it
+                // the text hooks check it; a value the page set (its viewer's choice) wins
+                EM_ASM({ if (Module.consNoTextOverlay === undefined) Module.consNoTextOverlay = 1; });
 #endif
             }
             else if ( !strcmp( argv[0]+1, "-skip-screens" ) ){

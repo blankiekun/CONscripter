@@ -170,7 +170,7 @@ public:
 #define ONS_SHOT_EVENT (SDL_USEREVENT+8) // CONscripter: a --shot-after time came
 // SDL_USEREVENT+10: kobo.h's sleep_event
 #define ONS_FREQ_END_EVENT (SDL_USEREVENT+11) // CONscripter: a chfreq sound came to its end
-    enum { WEB_SET_AUTO = 1, WEB_SET_SKIP = 2, WEB_SET_RUBY = 3, WEB_SET_TEXT_SPEED = 4 };
+    enum { WEB_SET_AUTO = 1, WEB_SET_SKIP = 2, WEB_SET_RUBY = 3, WEB_SET_TEXT_SPEED = 4, WEB_RESEND_TEXT = 5 };
     void setStartGoto(const char *label); // CONscripter: --goto, --vars, --dump-vars
     void setStartVars(const char *path);
     void setStartLoad(int slot); // CONscripter: --load, --checkpoint-every, --checkpoint-slot
@@ -1477,6 +1477,7 @@ private:
     void writeStrsp( char *text, const StrspFont &sf, int cells, uchar3 *colors, bool output_flag );
     void readStrsp( char **text, StrspFont &sf, int &cells, uchar3 *&colors );
     void sendSpriteTexts();
+    void resendWebText();
     void enterTextDisplayMode(bool text_flag = true);
     void leaveTextDisplayMode(bool force_leave_flag = false);
     bool doClickEnd();

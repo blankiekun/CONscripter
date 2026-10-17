@@ -1526,6 +1526,11 @@ The engine calls these on `self` when defined:
 `--no-text-overlay` (on the command line or in `ons_args`), or `consNoTextOverlay: 1`
 on the module object the page passes to `cons()`, stops `consText`, `consChoice`,
 `consSprites`, `consBacklog` and `consOverlay`: the page draws no text overlay.
+The engine reads `Module.consNoTextOverlay` at each hook, so the page can turn the
+overlay off and on while the game runs; a value the page set before the start wins
+over `--no-text-overlay`. After turning it back on, `_consResendText()` sends the page
+(as skipped text) and string sprites on the screen again (not choices, nor in the system
+menu or backlog).
 
 The page calls these on the module (`cons()`'s object); acted on at the next
 wait (at once at a click wait):
@@ -1534,6 +1539,7 @@ wait (at once at a click wait):
 - `_consSetRuby(on)` — 0 stops drawing ruby (space kept; hooks still get
   `(base/reading)`).
 - `_consSetTextSpeed(ms)` — ms per character, 0 instant, -1 the game's.
+- `_consResendText()` — the text hooks again for what is on the screen.
 
 ## Save files
 
