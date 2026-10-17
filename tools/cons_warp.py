@@ -2,7 +2,7 @@
 """Warp maps for CONscripter's cons_warp.dll transitions.
 
 The cell format is in src/cons/ONScripter_warp.cpp and COMMANDS.md
-("Transitions"). This tool writes maps that redo the cons_slide, cons_zoom,
+("Transitions"). This tool writes maps that redo the retired cons_slide, cons_zoom,
 cons_flip, cons_cube, cons_melt and cons_wave plugins, and renders a map
 the slow way (floating point) to check the engine's output against.
 

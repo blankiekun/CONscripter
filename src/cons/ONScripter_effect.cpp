@@ -497,18 +497,7 @@ bool ONScripter::drawEffectFrame( EffectLink *effect, int effect_no )
               effectTrvswave(effect->anim.image_name, effect_duration);
             }
 #endif
-            else if (!strncmp(effect->anim.image_name, "cons_slide.dll", 14))
-                effectSlide(effect->anim.image_name, effect_duration);
-            else if (!strncmp(effect->anim.image_name, "cons_zoom.dll", 13))
-                effectZoom(effect->anim.image_name, effect_duration);
-            else if (!strncmp(effect->anim.image_name, "cons_flip.dll", 13))
-                effectFlip(effect->anim.image_name, effect_duration);
-            else if (!strncmp(effect->anim.image_name, "cons_cube.dll", 13))
-                effectCube(effect->anim.image_name, effect_duration);
-            else if (!strncmp(effect->anim.image_name, "cons_melt.dll", 13))
-                effectMelt(effect->anim.image_name, effect_duration);
-            else if (!strncmp(effect->anim.image_name, "cons_wave.dll", 13))
-                effectWave(effect->anim.image_name, effect_duration);
+            else if (effectRetired(effect->anim.image_name, effect_duration)) {}
             else if (!strncmp(effect->anim.image_name, "cons_blur.dll", 13))
                 effectBlur(effect->anim.image_name, effect_duration);
             else if (!strncmp(effect->anim.image_name, "cons_rule.dll", 13) || !strncmp(effect->anim.image_name, "cons_warp.dll", 13))

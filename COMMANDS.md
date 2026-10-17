@@ -1317,19 +1317,14 @@ Text handling [cons]:
 ## Transitions (effect 99)
 
 [cons] plugins; stock builds draw them as cross-fades.
-Code: `src/cons/ONScripter_effect.cpp` and `ONScripter_cons.cpp` (grep `cons_slide` etc.).
+Code: `src/cons/ONScripter_effect.cpp`, `ONScripter_cons.cpp` (grep `cons_blur` etc.) and `ONScripter_warp.cpp`.
 
-- `"cons_slide.dll/layer,dx,dy"` — one screen in direction dx,dy (-1/0/1).
-  layer 0 new slides in, 1 old slides out, 2 both.
-- `"cons_zoom.dll/mode,scale[,curve]"` — zoom to scale % (5100 = 51×),
-  eased by progress^curve. mode 0 new shrinks in, 1 old grows out,
-  2 into old then out of new, 3 as 0 with the old growing.
-- `"cons_flip.dll/axis,layer"` — card flip edge-on (axis 0 width, 1 height);
-  layer 0 new grows from a line, 1 old shrinks.
-- `"cons_cube.dll/dx,dy"` — cube quarter turn.
-- `"cons_melt.dll/stretch[,seed]"` — the old picture melts down.
-- `"cons_wave.dll/direction,amplitude,waves"` — cross-fade with waving rows
-  (0/2) or columns (1/3). MAGES InOut_Act 1.
+- Retired: `cons_slide`, `cons_zoom`, `cons_flip`, `cons_cube`, `cons_melt`,
+  `cons_wave` (`.dll/params`): they are `cons_warp.dll` maps now
+  (`tools/cons_warp.py make slide 0,-1,0`, ...). A script still naming one
+  (a build made before the maps) gets a plain cross-fade over the same
+  time, with one warning per name on stderr and a `retired transition`
+  trace warning; rebuild it to get the transition back.
 - `"cons_blur.dll/radius[,new_only]"` — cross-fade with horizontal blur.
   MAGES InOut_Act 6.
 - `"cons_rule.dll/file,cells[,curve]"` — a transition from data: `file` holds
@@ -1363,7 +1358,7 @@ Code: `src/cons/ONScripter_effect.cpp` and `ONScripter_cons.cpp` (grep `cons_sli
   and the flags come from the nearer cell. About 2 ms a frame at
   1280x720 (4 ms on the web), zooms 12 (15).
 
-`effect 20,99,800,"cons_slide.dll/0,-1,0"` slides the new picture in from the right.
+`effect 20,99,800,"cons_warp.dll/warp\slide_0_-1_0.png,2"` slides the new picture in from the right (the map from `tools/cons_warp.py make slide 0,-1,0`).
 
 ## Web hooks
 
