@@ -1183,6 +1183,9 @@ return {
   hide = { window = true, sprites = {34, 35} }, -- hidden while open (only those shown), shown again after
   filter = {4, 6, 0, 256, 1, 1, 0}, -- a screenfilter while open (slot first), cleared after
   dialog = "confirm",     -- the screen that asks actions' questions (default "confirm")
+  fade = 300,             -- a cross-fade (ms, as print 10) when it opens and when it closes
+  open = {ms = 150, zoom_x = 0, x = 512, alpha = 0},  -- each sprite's motion at open, below
+  close = {ms = 150, zoom_x = 0, x = 512, alpha = 0}, -- and at close (the close waits for it)
   cancel = {"close"},     -- what right-click and Esc do (default: close with 0)
   pages = 3,              -- the screen's own pages (tabs), shown from 1; without it the save slots' pages
   page_var = "%50",       -- with pages: holds the page shown (read at open, written at close)
@@ -1191,6 +1194,17 @@ return {
   widgets = { ... },      -- drawn in order, the first at the bottom
 }
 ```
+
+**Transitions**: `open` and `close` (on the screen, for every widget, or
+on a widget, its own; `open = false` none) move each of the widget's
+pictures by `spmotion`: open from the key to the picture as drawn, close
+from the picture to the key, and the screen is removed when the longest
+close ends. The key: `ms`, `zoom_x`, `zoom_y` (percent, 100), `alpha`
+(0-256, 256), `x`, `y` (the point the zoom keeps in place, default the
+picture's centre: `zoom_x = 0, x = 512` unrolls sideways out of the line
+x 512), `curve` (spmotion's). `fade = ms` on a `toggle`, `radio` or
+`slider` cross-fades the screen to its new look when it changes the
+value.
 
 Every widget is a table whose first element is its type; `page = n` on
 any widget shows it only on page n (the screen's `pages`, else the save
@@ -1307,7 +1321,9 @@ load or delete) ends the list; so does a question answered no.
 
 `confirm = "question"` on an action asks first on the `dialog` screen
 (opened with the question as `arg`, `%N` replaced by the slot): a close
-value other than 0 is yes; no ends the list. A `save` asks only over an
+value other than 0 is yes; no ends the list. `dialog = "name"` on the
+action asks on that screen instead (a game's own picture question, drawn
+over this screen; `confirm` may then be left out). A `save` asks only over an
 existing save. To be added in the same format: binding to an engine
 setting (`setting =` in place of `var`), sounds.
 

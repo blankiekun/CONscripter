@@ -821,6 +821,8 @@ private:
     void screenCloseAll();
     int screenWait( struct ConsScreen *s );
     void screenKnob( struct ConsScreen *s, int w, int v );
+    int screenMotions( struct ConsScreen *s, const char *key );
+    void screenFade( int ms );
     void screenFill( struct ConsScreen *s, int w, int v );
     int screenKnobKey( struct ConsScreen *s, int button );
     bool screenDragWait();

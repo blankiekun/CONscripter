@@ -72,6 +72,10 @@ struct ConsScreen {
     std::map<int, int> fills, texts; // a slider's fill picture and text sprites, by widget number
     int drag = 0;               // the knob button being dragged (0 none)
     int grab_x = 0, grab_y = 0; // where it was taken from the knob's centre (0 from the track)
+    std::vector<int> owners;    // the widget each of `sprites` belongs to (0 none)
+    int cur_w = 0;              // the widget being drawn
+    bool shown = false;         // drawn once: its open motions and fade done
+    int fade_next = 0;          // a cross-fade (ms) for the next draw: a widget's state changed
 };
 
 enum { SCREEN_STAY, SCREEN_CLOSE, SCREEN_GOSUB, SCREEN_LOADED };
@@ -273,6 +277,7 @@ int ONScripter::screenSprite( ConsScreen *s )
             sprite_handle_layer[i] = LAYER_SCREEN + 1;
             sprite_handle_var[i] = -1;
             s->sprites.push_back( NS_SPRITE_NUM + i );
+            s->owners.push_back( s->cur_w );
             return NS_SPRITE_NUM + i;
         }
     errorAndExit( "screen: no sprite handle left" );
@@ -411,6 +416,7 @@ void ONScripter::screenClear( ConsScreen *s )
         sprite_handle_layer[no - NS_SPRITE_NUM] = 0;
     }
     s->sprites.clear();
+    s->owners.clear();
     s->knobs.clear();
     s->fills.clear();
     s->texts.clear();
@@ -698,12 +704,15 @@ void ONScripter::screenDraw( ConsScreen *s )
     int n = lua_istable( L, -1 ) ? (int)lua_rawlen( L, -1 ) : 0;
     if (s->view_w > 0){ // a gallery's viewer covers the screen
         lua_rawgeti( L, -1, s->view_w );
+        s->cur_w = s->view_w;
         screenViewer( s );
+        s->cur_w = 0;
         lua_pop( L, 3 );
         return;
     }
     for (int i=1 ; i<=n ; i++){
         lua_rawgeti( L, -1, i );
+        s->cur_w = i;
         std::string type = indexStr( L, 1 );
         int x = fieldInt( L, "x", 0 ), y = fieldInt( L, "y", 0 );
         int page = fieldInt( L, "page", 0 );
@@ -790,7 +799,54 @@ void ONScripter::screenDraw( ConsScreen *s )
         else if (type == "gallery") screenGallery( s, i );
         lua_pop( L, 1 );
     }
+    s->cur_w = 0;
     lua_pop( L, 2 );
+}
+
+// A cross-fade (print 10) over ms to what is drawn now, the text window left as it is.
+void ONScripter::screenFade( int ms )
+{
+    tmp_effect.effect = 10;
+    tmp_effect.duration = ms;
+    if (!setEffect( &tmp_effect )) while (doEffect( &tmp_effect ));
+}
+
+/* The screen's `open` or `close` motion (key) on each sprite drawn: the
+ * widget's own (false: none), else the screen's. {ms, zoom_x, zoom_y
+ * (percent), alpha (0-256), x, y (the point the zoom keeps in place;
+ * default the sprite's centre), curve (spmotion's)}: open from there to
+ * the sprite as drawn, close from the sprite to there. Returns the
+ * longest one's ms. */
+int ONScripter::screenMotions( ConsScreen *s, const char *key )
+{
+    lua_State *L = s->L;
+    bool open = !strcmp( key, "open" );
+    int longest = 0;
+    lua_rawgeti( L, LUA_REGISTRYINDEX, s->table );
+    lua_getfield( L, -1, "widgets" );
+    for (size_t k=0 ; k<s->sprites.size() ; k++){
+        AnimationInfo &ai = sprite_info[s->sprites[k]];
+        if (s->owners[k] > 0 && lua_istable( L, -1 )) lua_rawgeti( L, -1, s->owners[k] ); else lua_pushnil( L );
+        if (lua_istable( L, -1 )) lua_getfield( L, -1, key ); else lua_pushnil( L );
+        if (lua_isnil( L, -1 )){ lua_pop( L, 1 ); lua_getfield( L, -3, key ); }
+        int ms = lua_istable( L, -1 ) ? fieldInt( L, "ms", 0 ) : 0;
+        if (ms > 0 && ai.visible){
+            int w = ai.pos.w * screen_ratio2 / screen_ratio1, h = ai.pos.h * screen_ratio2 / screen_ratio1;
+            int cx = ai.orig_pos.x + w / 2, cy = ai.orig_pos.y + h / 2;
+            int zx = fieldInt( L, "zoom_x", 100 ), zy = fieldInt( L, "zoom_y", 100 );
+            // the offset that keeps (x, y) in place while the sprite zooms about its centre
+            int ox = (fieldInt( L, "x", cx ) - cx) * (100 - zx) / 100, oy = (fieldInt( L, "y", cy ) - cy) * (100 - zy) / 100;
+            std::string there = std::to_string( ox ) + "," + std::to_string( oy ) + "," + std::to_string( zx ) + "," +
+                                std::to_string( zy ) + ",0," + std::to_string( fieldInt( L, "alpha", 256 ) );
+            std::string rest = "0,0,100,100,0,256", curve = std::to_string( fieldInt( L, "curve", 0 ) );
+            screenExec( "spmotion " + std::to_string( s->sprites[k] ) + (open ? ",0" : ",2") + ",0," + (open ? there : rest) +
+                        ",0," + std::to_string( ms ) + "," + (open ? rest : there) + "," + curve );
+            longest = std::max( longest, ms );
+        }
+        lua_pop( L, 2 );
+    }
+    lua_pop( L, 2 );
+    return longest;
 }
 
 /* saveslots (on top of the stack), widget number w: the page's slots, each
@@ -868,11 +924,13 @@ void ONScripter::screenSlots( ConsScreen *s, int w )
 int ONScripter::screenConfirm( ConsScreen *s, int slot )
 {
     lua_State *L = s->L;
-    std::string q = fieldStr( L, "confirm" );
-    if (q.empty()) return 1;
-    lua_rawgeti( L, LUA_REGISTRYINDEX, s->table );
-    std::string dialog = fieldStr( L, "dialog", "confirm" );
-    lua_pop( L, 1 );
+    std::string q = fieldStr( L, "confirm" ), dialog = fieldStr( L, "dialog" ); // the action's own dialog first
+    if (q.empty() && dialog.empty()) return 1;
+    if (dialog.empty()){
+        lua_rawgeti( L, LUA_REGISTRYINDEX, s->table );
+        dialog = fieldStr( L, "dialog", "confirm" );
+        lua_pop( L, 1 );
+    }
     char no[16];
     snprintf( no, sizeof(no), "%02d", slot );
     for (size_t i ; (i = q.find( "%N" )) != std::string::npos ; ) q.replace( i, 2, no );
@@ -946,7 +1004,7 @@ int ONScripter::screenActions( ConsScreen *s, int start, int *value )
         bool stop = false; // a confirm answered no, or the action can't be taken: the rest is left out
 
         // a question before any other action (save, load and delete ask their own way, below)
-        if (what != "save" && what != "load" && what != "delete" && !fieldStr( L, "confirm" ).empty()){
+        if (what != "save" && what != "load" && what != "delete" && (!fieldStr( L, "confirm" ).empty() || !fieldStr( L, "dialog" ).empty())){
             int yes = screenConfirm( s, slot );
             if (yes < 0) return SCREEN_LOADED;
             if (yes == 0){
@@ -1242,6 +1300,16 @@ int ONScripter::screenRun( ConsScreen *s, int *value )
             if (ret != SCREEN_STAY) return ret;
         }
         screenDraw( s );
+        int fade = s->fade_next;
+        s->fade_next = 0;
+        if (!s->shown){ // opening: its motions, its fade
+            s->shown = true;
+            screenMotions( s, "open" );
+            lua_rawgeti( L, LUA_REGISTRYINDEX, s->table );
+            fade = fieldInt( L, "fade", 0 );
+            lua_pop( L, 1 );
+        }
+        if (fade > 0) screenFade( fade );
         int button = s->drag ? s->drag : screenWait( s ); // back from a gosub mid-drag: the drag goes on
 
         lua_rawgeti( L, LUA_REGISTRYINDEX, s->table );
@@ -1285,6 +1353,7 @@ int ONScripter::screenRun( ConsScreen *s, int *value )
                     for (const std::string &r : vars) screenSet( r, to );
                     screenTrace( s, "set", 0, to );
                     changed = true;
+                    s->fade_next = fieldInt( L, "fade", 0 );
                 }
             }
             if (type == "gallery"){
@@ -1379,9 +1448,15 @@ int ONScripter::screenOpen( const std::string &name, const std::string &arg, int
     int ret = screenRun( s, value );
     if (ret == SCREEN_GOSUB) return ret;
     if (ret != SCREEN_LOADED){
+        int ms = screenMotions( s, "close" );
+        if (ms > 0) screenExec( "wait " + std::to_string( ms ) );
+        lua_rawgeti( s->L, LUA_REGISTRYINDEX, s->table );
+        int fade = fieldInt( s->L, "fade", 0 );
+        lua_pop( s->L, 1 );
         screens.pop_back();
         screenHide( s );
-        flush( refreshMode() );
+        if (fade > 0) screenFade( fade );
+        else flush( refreshMode() );
     }
     return ret;
 }
