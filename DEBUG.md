@@ -297,9 +297,13 @@ limits each run, `--seed` makes the exploration repeatable, and
 ## Starting anywhere
 
 A bug far into a game can be reached directly instead of playing up to
-it. `--goto label` starts at that label once the `*define` section has
-run, and `--vars file` sets variables first, so the scene runs as it
-would on its route:
+it. `--goto label` starts at that label once the `*define` section and
+`*start`'s own lines have run (the game's setup there: a converted
+game's settings and their defaults, the text window), as soon as the
+script reaches a line outside the two at no `gosub`'s depth (a title
+screen's first label, or a `goto` out of `*start`). `--vars file` sets
+variables first, before `*start` runs, so the scene runs as it would on
+its route:
 
 ```sh
 python3 tools/cons_trace_vars.py trace.jsonl --page 4120 -o vars.txt
@@ -359,7 +363,7 @@ conscripter --root . --save-dir /tmp/saves --trace from4000.jsonl --load 903
 ```
 
 `--checkpoint-start` (with `--goto`) makes one checkpoint at the label
-itself, before any of it runs: loading it plays the scene from its first
+itself, after `*start`'s setup and before any of the label runs: loading it plays the scene from its first
 line, effects and all, where a checkpoint at the first click wait would
 start after them.
 

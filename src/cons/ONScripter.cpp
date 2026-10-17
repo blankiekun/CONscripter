@@ -1207,6 +1207,13 @@ void ONScripter::executeLabel()
             continue;
         }
         char *line_start = script_h.getCurrent();
+        if (start_goto_due){ // CONscripter: --goto, after *start's setup
+            startGoto( line_start );
+            if (!start_goto_due){
+                readToken();
+                continue;
+            }
+        }
         if (!trace_shot_at.empty()) traceShotAt( line_start ); // CONscripter: --shot-at, --shot-after
         if (trace_shot_after_next < trace_shot_after.size()) traceShotAfter();
         if (until_index >= 0 && script_h.getLabelIndex( line_start ) == until_index){ // CONscripter: --until
