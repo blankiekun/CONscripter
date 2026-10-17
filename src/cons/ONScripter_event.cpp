@@ -28,6 +28,7 @@
 #include "kobo.h"
 #endif
 #include "Utils.h"
+#include <math.h>
 #if defined(WEB)
 #include <emscripten.h>
 #endif
@@ -144,32 +145,181 @@ ONS_Key transKey(ONS_Key key)
     return key;
 }
 
-ONS_Key transControllerButton(Uint8 button)
+// CONscripter: what each pad button does (padmap changes it): a key the
+// engine already reads, or PAD_BACKLOG / PAD_HIDE for its own actions.
+// LT and RT, axes in SDL, come after SDL's buttons as PAD_LT, PAD_RT.
+enum { PAD_LT = SDL_CONTROLLER_BUTTON_MAX, PAD_RT, PAD_BUTTONS };
+static const ONS_Key PAD_BACKLOG = -1, PAD_HIDE = -2;
+static ONS_Key pad_map[PAD_BUTTONS] = {
+    SDLK_RETURN,            /* A: advance, confirm */
+    SDLK_ESCAPE,            /* B: cancel, the menu */
+    SDLK_a,                 /* X: auto mode (a game's getkey A) */
+    PAD_HIDE,               /* Y: hide the text window */
+    SDLK_0,                 /* BACK: text speed */
+    SDLK_F10,               /* GUIDE: full screen */
+    SDLK_ESCAPE,            /* START: the menu */
+    SDLK_UNKNOWN,           /* LEFTSTICK */
+    SDLK_UNKNOWN,           /* RIGHTSTICK */
+    PAD_BACKLOG,            /* LEFTSHOULDER: backlog, as the wheel */
+    SDLK_RCTRL,             /* RIGHTSHOULDER: skip while held */
+    SDLK_UP,                /* DPAD_UP */
+    SDLK_DOWN,              /* DPAD_DOWN */
+    SDLK_LEFT,              /* DPAD_LEFT */
+    SDLK_RIGHT,             /* DPAD_RIGHT */
+    SDLK_UNKNOWN,           /* MISC1 */
+    SDLK_UNKNOWN,           /* PADDLE1 */
+    SDLK_UNKNOWN,           /* PADDLE2 */
+    SDLK_UNKNOWN,           /* PADDLE3 */
+    SDLK_UNKNOWN,           /* PADDLE4 */
+    SDLK_UNKNOWN,           /* TOUCHPAD */
+    SDLK_RETURN,            /* PAD_LT: advance */
+    SDLK_RETURN,            /* PAD_RT: advance */
+};
+
+#define ONS_PAD_EVENT (SDL_USEREVENT+12) // CONscripter: a held stick's tick
+#define PAD_DEADZONE 12000   // of 32767
+#define PAD_TRIGGER 16000    // LT/RT count as pressed past this
+#define PAD_TICK_MS 16
+#define PAD_REPEAT_FIRST 400 // ms the left stick waits before it repeats
+#define PAD_REPEAT_NEXT 120
+#define PAD_POINTER_SPEED 1200 // window pixels a second at full tilt
+
+static SDL_TimerID pad_timer = 0;
+static int pad_dir = -1;        // the left stick's d-pad button, -1 centred
+static Uint32 pad_next = 0;     // when it repeats
+static bool pad_trigger[2] = {false, false};
+static float pad_px = -1, pad_py = -1; // the right stick's pointer, window pixels
+
+static Uint32 padTimerCallback( Uint32 interval, void *param )
 {
-    ONS_Key button_map[SDL_CONTROLLER_BUTTON_MAX] = {
-        SDLK_RETURN,            /* A */
-        SDLK_ESCAPE,            /* B */
-        SDLK_RCTRL,             /* X */
-        SDLK_SPACE,             /* Y */
-        SDLK_0,                 /* BACK */
-        SDLK_F10,               /* GUIDE */
-        SDLK_a,                 /* START */
-        SDLK_RCTRL,             /* LEFTSTICK */
-        SDLK_RETURN,            /* RIGHTSTICK */
-        SDLK_o,                 /* LEFTSHOULDER */
-        SDLK_s,                 /* RIGHTSHOULDER */
-        SDLK_UP,                /* DPAD_UP */
-        SDLK_DOWN,              /* DPAD_DOWN */
-        SDLK_LEFT,              /* DPAD_LEFT */
-        SDLK_RIGHT,             /* DPAD_RIGHT */
-        SDLK_UNKNOWN,           /* MISC1 */
-        SDLK_UNKNOWN,           /* PADDLE1 */
-        SDLK_UNKNOWN,           /* PADDLE2 */
-        SDLK_UNKNOWN,           /* PADDLE3 */
-        SDLK_UNKNOWN,           /* PADDLE4 */
-        SDLK_UNKNOWN,           /* TOUCHPAD */
-    };
-    return button_map[button];
+    SDL_Event event;
+    event.type = ONS_PAD_EVENT;
+    SDL_PushEvent( &event );
+    return 0; // padTick starts the next one while a stick is held
+}
+
+// padmap "button","key": what a pad button does. Buttons by SDL's names
+// (a b x y back guide start leftstick rightstick leftshoulder rightshoulder
+// dpup dpdown dpleft dpright, and lefttrigger righttrigger); keys by
+// SDL's names ("Return", "Escape", "A", "Right Ctrl", "Left", "F1"), or
+// "backlog", "hide", "" for nothing.
+int ONScripter::padmapCommand()
+{
+    const char *buf = script_h.readStr();
+    int button = SDL_GameControllerGetButtonFromString( buf );
+    if      (!strcmp( buf, "lefttrigger" ))  button = PAD_LT;
+    else if (!strcmp( buf, "righttrigger" )) button = PAD_RT;
+    const char *key = script_h.readStr();
+    if (button < 0){
+        utils::printError("padmap: no pad button \"%s\"\n", buf);
+        return RET_CONTINUE;
+    }
+    if      (!strcmp( key, "backlog" )) pad_map[button] = PAD_BACKLOG;
+    else if (!strcmp( key, "hide" ))    pad_map[button] = PAD_HIDE;
+    else if (!key[0])                   pad_map[button] = SDLK_UNKNOWN;
+    else{
+        ONS_Key k = SDL_GetKeyFromName( key );
+        if (k == SDLK_UNKNOWN) utils::printError("padmap: no key \"%s\"\n", key);
+        else pad_map[button] = k;
+    }
+    return RET_CONTINUE;
+}
+
+// A pad button pressed (down) or let go: as its key, or its own action;
+// true: the wait ends.
+bool ONScripter::padButton( int button, bool down )
+{
+    if (button < 0 || button >= PAD_BUTTONS) return false;
+    SDL_KeyboardEvent key;
+    SDL_zero( key );
+    key.keysym.sym = pad_map[button];
+    if (key.keysym.sym == SDLK_UNKNOWN) return false;
+    if (key.keysym.sym < 0) return !down && padAction( key.keysym.sym ); // on release
+    key.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+    key.keysym.sym = transKey( key.keysym.sym );
+    if (down){
+        bool ret = keyDownEvent( &key );
+        if (btndown_flag) ret |= keyPressEvent( &key );
+        return ret;
+    }
+    keyUpEvent( &key );
+    return keyPressEvent( &key );
+}
+
+// A pad button's own action (PAD_BACKLOG, PAD_HIDE), on release; true:
+// the wait ends.
+bool ONScripter::padAction( ONS_Key action )
+{
+    if (action == PAD_BACKLOG){
+        SDL_MouseWheelEvent wheel;
+        SDL_zero( wheel );
+        wheel.type = SDL_MOUSEWHEEL;
+        wheel.y = 1;
+        // mouseWheelEvent takes the pointer from the wheel's x/y: keep it
+        int x = current_button_state.x, y = current_button_state.y;
+        bool ret = mouseWheelEvent( &wheel );
+        current_button_state.x = x;
+        current_button_state.y = y;
+        return ret;
+    }
+    // PAD_HIDE: as a right click with no rmenu, in a text wait
+    if (!(event_mode & WAIT_TEXT_MODE) || system_menu_mode != SYSTEM_NULL) return false;
+    current_button_state.button = -1;
+    sprintf(current_button_state.str, "RCLICK");
+    system_menu_mode = SYSTEM_WINDOWERASE;
+    return true;
+}
+
+// Sticks, polled every PAD_TICK_MS while one is off centre: the left one
+// taps the d-pad (repeating while held), the right one moves the pointer.
+bool ONScripter::padTick()
+{
+    if (!controller) return false;
+    Sint16 lx = SDL_GameControllerGetAxis( controller, SDL_CONTROLLER_AXIS_LEFTX );
+    Sint16 ly = SDL_GameControllerGetAxis( controller, SDL_CONTROLLER_AXIS_LEFTY );
+    Sint16 rx = SDL_GameControllerGetAxis( controller, SDL_CONTROLLER_AXIS_RIGHTX );
+    Sint16 ry = SDL_GameControllerGetAxis( controller, SDL_CONTROLLER_AXIS_RIGHTY );
+    Uint32 now = (SDL_GetTicks)();
+
+    int dir = -1;
+    if (abs( lx ) > PAD_DEADZONE || abs( ly ) > PAD_DEADZONE){
+        if (abs( lx ) > abs( ly )) dir = lx > 0 ? SDL_CONTROLLER_BUTTON_DPAD_RIGHT : SDL_CONTROLLER_BUTTON_DPAD_LEFT;
+        else                       dir = ly > 0 ? SDL_CONTROLLER_BUTTON_DPAD_DOWN : SDL_CONTROLLER_BUTTON_DPAD_UP;
+    }
+    bool tap = dir >= 0 && (dir != pad_dir || (int)(now - pad_next) >= 0);
+    if (dir >= 0 && dir != pad_dir) pad_next = now + PAD_REPEAT_FIRST;
+    else if (tap) pad_next = now + PAD_REPEAT_NEXT;
+    pad_dir = dir;
+    bool right = abs( rx ) > PAD_DEADZONE || abs( ry ) > PAD_DEADZONE;
+    pad_timer = dir >= 0 || right ? SDL_AddTimer( PAD_TICK_MS, padTimerCallback, NULL ) : 0;
+    if (tap && (padButton( dir, true ) | padButton( dir, false ))) return true;
+
+    if (right){
+        int w, h, mx, my;
+        SDL_GetWindowSize( window, &w, &h );
+        SDL_GetMouseState( &mx, &my );
+        if (pad_px < 0 || fabsf( pad_px - mx ) >= 1 || fabsf( pad_py - my ) >= 1){ pad_px = mx; pad_py = my; }
+        float step = PAD_POINTER_SPEED * PAD_TICK_MS / 1000.0f / 32767;
+        pad_px += (abs( rx ) > PAD_DEADZONE ? rx : 0) * step;
+        pad_py += (abs( ry ) > PAD_DEADZONE ? ry : 0) * step;
+        if (pad_px < 0) pad_px = 0; else if (pad_px > w-1) pad_px = w-1;
+        if (pad_py < 0) pad_py = 0; else if (pad_py > h-1) pad_py = h-1;
+#if defined(WEB)
+        // the browser can't move its pointer (SDL_WarpMouse is unsupported):
+        // the game sees the move, in its own pixels as the web build's are
+        SDL_MouseMotionEvent motion;
+        SDL_zero( motion );
+        motion.type = SDL_MOUSEMOTION;
+        motion.x = (int)pad_px * screen_width / w;
+        motion.y = (int)pad_py * screen_height / h;
+        if (mouseMoveEvent( &motion )) return true;
+#else
+        warpMouse( (int)pad_px, (int)pad_py );
+#endif
+    }
+    else pad_px = -1;
+
+    return false;
 }
 
 void ONScripter::flushEventSub( SDL_Event &event )
@@ -1410,12 +1560,29 @@ void ONScripter::runEventLoop()
             }
             break;
 
+          case SDL_CONTROLLERAXISMOTION: // CONscripter: triggers as buttons, sticks polled
+            if (event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ||
+                event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT){
+                int t = event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT;
+                bool down = event.caxis.value > PAD_TRIGGER;
+                if (down != pad_trigger[t]){
+                    pad_trigger[t] = down;
+                    if (padButton( PAD_LT + t, down )) return;
+                }
+            }
+            else if (!pad_timer && abs( event.caxis.value ) > PAD_DEADZONE){
+                if (padTick()) return;
+            }
+            break;
+
+          case ONS_PAD_EVENT:
+            if (padTick()) return;
+            break;
+
           case SDL_CONTROLLERBUTTONDOWN:
-            event.key.type = SDL_KEYDOWN;
-            event.key.keysym.sym = transControllerButton(event.cbutton.button);
-            event.key.keysym.mod = 0;
-            if(event.key.keysym.sym == SDLK_UNKNOWN)
-                break;
+          case SDL_CONTROLLERBUTTONUP:
+            if (padButton( event.cbutton.button, event.type == SDL_CONTROLLERBUTTONDOWN )) return;
+            break;
 
           case SDL_KEYDOWN:
             event.key.keysym.sym = transKey(event.key.keysym.sym);
@@ -1424,13 +1591,6 @@ void ONScripter::runEventLoop()
                 ret |= keyPressEvent( &event.key );
             if (ret) return;
             break;
-
-          case SDL_CONTROLLERBUTTONUP:
-            event.key.type = SDL_KEYUP;
-            event.key.keysym.sym = transControllerButton(event.cbutton.button);
-            event.key.keysym.mod = 0;
-            if(event.key.keysym.sym == SDLK_UNKNOWN)
-                break;
 
           case SDL_KEYUP:
             event.key.keysym.sym = transKey(event.key.keysym.sym);
