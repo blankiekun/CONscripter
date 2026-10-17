@@ -1128,8 +1128,8 @@ Impl `ONScripter::copysavegameCommand`.
 
 ## Screens [cons]
 
-Screens the engine draws: save and load menus, settings (backlog, extras
-and the title to follow, in the same format). A screen is
+Screens the engine draws: save and load menus, settings, the backlog
+(extras and the title to follow, in the same format). A screen is
 a Lua file in the archive (or loose), `screens/<name>.lua`, that returns a
 table describing it; the engine draws it with sprite handles over
 everything else (over `spnew`'s overlay layer; a screen opened over
@@ -1168,6 +1168,8 @@ return {
   dialog = "confirm",     -- the screen that asks actions' questions (default "confirm")
   cancel = {"close"},     -- what right-click and Esc do (default: close with 0)
   pages = 3,              -- the screen's own pages (tabs), shown from 1; without it the save slots' pages
+  wheel_up = {"scroll", "+1"},  -- what the mouse wheel does (also Left/Right); without them nothing
+  wheel_down = {"scroll", "-1", at_end = {"close"}},
   widgets = { ... },      -- drawn in order, the first at the bottom
 }
 ```
@@ -1185,6 +1187,7 @@ slots').
 | `{"slider", ...}` | a value of `var` from `min` (0) to `max` (10) by `step` (1): `text` at `x`, `y` (fields as `text`) with `%v` the value, `%V` in full-width digits, `%B` a bar (`marks`' first per step up to the value, the second after: `{"■", "□"}`), and `minus`, `plus` buttons (`{text = ..., x, y, ...}` as a text button, or `{file = ..., cells}`). `action` runs after each change |
 | `{"toggle", ...}` | flips `var` between `on` (1) and `off` (0): `text` with `%C` the mark for on or off (`marks`), drawn as a text button (`color`, `hover`). `var` may be a list, set together (the first read). `action` runs after each change |
 | `{"radio", ...}` | sets `var` to `value` (1); on while it holds it; otherwise as `toggle` |
+| `{"list", source = "log", ...}` | the text log (the backlog): pages from the one on screen back, the newest at the bottom of the box `x`, `y`, `h`, each under its speaker's name (the page's tag `[name\|voice]`, as `gettaglog` gives it) in `name_color`; a page with a voice has `voice_mark` (`　♪`) after the name, which is then a button (`hover` colour) playing it on channel `voice_channel` (0). Text fields as `text` (`size`, `line_height`, `cols`, `shadow`); with `rubyon` the lines are drawn a line gap higher. Stops at the first page that doesn't fit. `{"scroll", "+1"}` goes a page back, `"-1"` forward; a button with it is disabled when it can't |
 | `{"saveslots", ...}` | below |
 
 **saveslots**: `rows` × `cols` save slots a page, at `x + col*dx`,
@@ -1224,6 +1227,7 @@ load or delete) ends the list; so does a question answered no.
 |---|---|
 | `{"close"[, value]}` | closes the screen; `screen`'s `%var` gets value |
 | `{"open", "name"[, "arg"]}` | opens another screen over this one, then comes back to it (it can't `gosub`) |
+| `{"scroll", "+1"}` | scrolls the list a page back (`"-1"`: forward, to the page on screen); when it can't, `at_end` runs instead (a table action) |
 | `{"page", n}` | shows page n of the save slots (`"+1"`, `"-1"`: the next, the previous) |
 | `{"save"[, n]}`, `{"load"[, n]}`, `{"delete"[, n]}` | slot n, else the slot acted on. `save` writes the game as it was when the screen opened (as `savegame2` with `save_text`) and the thumbnail; `load` closes every screen and loads (`loadgosub` runs); `delete` removes the save and its thumbnail |
 | `{"set", "%var", value}` | sets a variable (`slot = true` in place of the value: the slot acted on) |
@@ -1234,7 +1238,8 @@ load or delete) ends the list; so does a question answered no.
 value other than 0 is yes; no ends the list. A `save` asks only over an
 existing save. To be added in the same format: binding to an engine
 setting (`setting =` in place of `var`), picture sliders (a track and a
-knob), `list`, `gallery`, sounds, and the `voice` action.
+knob, dragged), lists of other sources (scene replay, music room),
+`gallery`, sounds.
 
 A confirm dialog:
 

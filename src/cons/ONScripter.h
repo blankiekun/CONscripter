@@ -799,6 +799,9 @@ private:
     bool screenEnabled( struct ConsScreen *s );
     void screenDraw( struct ConsScreen *s );
     void screenSlots( struct ConsScreen *s, int w );
+    ScriptParser::Page *screenLogPage( int k );
+    bool screenScrollable( struct ConsScreen *s, int n );
+    void screenList( struct ConsScreen *s, int w );
     int screenConfirm( struct ConsScreen *s, int slot );
     void screenSave( struct ConsScreen *s, int slot );
     int screenActions( struct ConsScreen *s, int start, int *value );
