@@ -24,13 +24,14 @@ import numpy as np
 from PIL import Image
 
 OLD_X, OLD_Y, MASK, NEW_X, NEW_Y = range(5)
+SMOOTH, BLACK = 128, 64  # a block's flags: bilinear sampling, black outside the picture
 
 
 # --- transitions: each returns, at progress p for grid points at pixel
 # indices X, Y (arrays), the source positions (pixel indices) in the old
 # and the new picture, the mask, its sharpness (0: a level 0-255; 8: a
 # signed distance in pixels, positive where the new picture shows) and
-# whether to sample bilinearly.
+# the block flags (SMOOTH, BLACK; True is SMOOTH).
 
 def edge_dist(X, Y, rx, ry, W, H, sx, sy):
     """Signed distance of pixel centres to a screen-sized rectangle at rx, ry
@@ -42,7 +43,7 @@ def edge_dist(X, Y, rx, ry, W, H, sx, sy):
 
 
 def slide(p, X, Y, W, H, layer=0, dx=-1, dy=0):
-    # (a diagonal push leaves a black corner, which a map can't draw)
+    # a diagonal push leaves a black corner: outside the pictures reads black
     ox, oy = W * p, H * p
     ident = (X, Y)
     if layer == 0:
@@ -50,8 +51,14 @@ def slide(p, X, Y, W, H, layer=0, dx=-1, dy=0):
         return ident, (X - rx, Y - ry), edge_dist(X, Y, rx, ry, W, H, -dx, -dy), 8, False
     rx, ry = dx * ox, dy * oy
     old = (X - rx, Y - ry)
-    new = ident if layer == 1 else (X - rx + dx * W, Y - ry + dy * H)
-    return old, new, -edge_dist(X, Y, rx, ry, W, H, dx, dy), 8, False
+    if layer == 1:
+        return old, ident, -edge_dist(X, Y, rx, ry, W, H, dx, dy), 8, False
+    new = (X - rx + dx * W, Y - ry + dy * H)
+    if not (dx and dy):
+        return old, new, -edge_dist(X, Y, rx, ry, W, H, dx, dy), 8, False
+    # diagonal: split by x alone, each picture's part off the other's rows
+    # reads black (the plugin's black corners), so the mask stays straight
+    return old, new, -edge_dist(X, Y, rx, ry, W, H, dx, 0), 8, BLACK
 
 
 def zoom(p, X, Y, W, H, mode=0, scale=200, curve=1):
@@ -123,7 +130,7 @@ def melt_delay(W, seed):
     x = np.arange(W, dtype=np.float32)
     u = x * np.float32(10) / np.float32(W)
     i = u.astype(np.int32)
-    t = u - i
+    t = u - i.astype(np.float32)  # (float32 as the plugin: int32 would make it float64)
     q0, q1, q2, q3 = pt[i], pt[i + 1], pt[i + 2], pt[i + 3]
     v = 0.5 * (2 * q1 + (q2 - q0) * t + (2 * q0 - 5 * q1 + 4 * q2 - q3) * t * t
                + (3 * q1 - q0 - 3 * q2 + q3) * t * t * t)
@@ -161,6 +168,13 @@ KINDS = {'slide': slide, 'zoom': zoom, 'flip': flip, 'cube': cube, 'melt': melt,
 DEFAULT_CELLS = {'slide': 2, 'zoom': 65, 'flip': 33, 'cube': 33, 'melt': 33, 'wave': 65}
 
 
+def default_cells(kind, params):
+    # a diagonal slide in or out has a corner, whose distance isn't straight in time
+    if kind == 'slide' and len(params) == 3 and params[0] != 2 and params[1] and params[2]:
+        return 33
+    return DEFAULT_CELLS[kind]
+
+
 # --- the file
 
 def u16(a):
@@ -179,7 +193,7 @@ def make_cell(fn, p, W, H, gw, gh, params):
         for ch, v in enumerate(vals):
             cell[plane * gh:(plane + 1) * gh, :, ch] = v >> 8
             cell[(plane + 1) * gh:(plane + 2) * gh, :, ch] = v & 255
-    cell[2 * gh:3 * gh, :, 2] = 255 if smooth else 0
+    cell[2 * gh:3 * gh, :, 2] = SMOOTH if smooth is True else smooth
     cell[3 * gh:4 * gh, :, 2] = 8 if sharp else 0
     return cell
 
@@ -191,7 +205,7 @@ def make(kind, params, W, H, grid, cells):
 
 
 def decode(m, cells):
-    """Per cell: the five values (centred), smooth and sharpness."""
+    """Per cell: the five values (centred), the block flags and sharpness."""
     gh, gw = m.shape[0] // 4, m.shape[1] // cells
     m = m.astype(np.int64)
     out = []
@@ -199,7 +213,7 @@ def decode(m, cells):
         cm = m[:, c * gw:(c + 1) * gw]
         v = lambda plane, ch: (cm[plane * gh:(plane + 1) * gh, :, ch] << 8 | cm[(plane + 1) * gh:(plane + 2) * gh, :, ch]) - 32768
         out.append((np.stack([v(0, 0), v(0, 1), v(0, 2), v(2, 0), v(2, 1)]).astype(np.float64),
-                    cm[2 * gh:3 * gh, :, 2] >= 128, np.minimum(cm[3 * gh:4 * gh, :, 2], 8)))
+                    cm[2 * gh:3 * gh, :, 2], np.minimum(cm[3 * gh:4 * gh, :, 2], 8)))
     return out
 
 
@@ -219,13 +233,17 @@ def render(m, cells, pct, old, new):
     J, I = np.meshgrid(j, i, indexing='ij')
     FY, FX = np.meshgrid(fy, fx, indexing='ij')
     v = (vals[:, J, I] * (1 - FX) + vals[:, J, I + 1] * FX) * (1 - FY) + (vals[:, J + 1, I] * (1 - FX) + vals[:, J + 1, I + 1] * FX) * FY
-    smooth, sharp = k[1][J, I], k[2][J, I]
+    flags, sharp = k[1][J, I], k[2][J, I]
+    smooth, black = (flags & SMOOTH) != 0, (flags & BLACK) != 0
     level = np.clip(128 + np.floor(v[MASK] * 2.0 ** sharp / 16 + 0.5), 0, 255).astype(np.int64)
     YY, XX = np.meshgrid(y, x, indexing='ij')
 
     def sample(img, vx, vy):
-        near = img[np.clip(YY + np.floor(vy / 16 + 0.5).astype(int), 0, H - 1), np.clip(XX + np.floor(vx / 16 + 0.5).astype(int), 0, W - 1)]
+        nx, ny = XX + np.floor(vx / 16 + 0.5).astype(int), YY + np.floor(vy / 16 + 0.5).astype(int)
+        near = img[np.clip(ny, 0, H - 1), np.clip(nx, 0, W - 1)]
         x16, y16 = XX * 16 + np.floor(vx + 0.5).astype(int), YY * 16 + np.floor(vy + 0.5).astype(int)
+        bx, by = np.where(smooth, (x16 + 8) >> 4, nx), np.where(smooth, (y16 + 8) >> 4, ny)
+        outside = black & ((bx < 0) | (bx >= W) | (by < 0) | (by >= H))
         sx, sy, ax, ay = x16 >> 4, y16 >> 4, x16 & 15, y16 & 15
         ax = np.where((sx < 0) | (sx >= W - 1), 0, ax)
         ay = np.where((sy < 0) | (sy >= H - 1), 0, ay)
@@ -235,7 +253,7 @@ def render(m, cells, pct, old, new):
         top = img[sy, sx] * (16 - ax) + img[sy, sx1] * ax
         bottom = img[sy1, sx] * (16 - ax) + img[sy1, sx1] * ax
         bil = (top * (16 - ay) + bottom * ay + 128) >> 8
-        return np.where(smooth[..., None], bil, near)
+        return np.where(outside[..., None], 0, np.where(smooth[..., None], bil, near))
     a = sample(old.astype(np.int64), v[OLD_X], v[OLD_Y])
     b = sample(new.astype(np.int64), v[NEW_X], v[NEW_Y])
     L = level[..., None]
@@ -264,6 +282,10 @@ def test():
     out = render(make('wave', (0, 0, 15), W, H, 8, 2), 2, 50, old, new)
     want = (old.astype(int) * (255 - 128) + new.astype(int) * 128) // 255
     assert (out == want).all()
+    # a diagonal push: the corners neither picture covers are black
+    out = render(make('slide', (2, -1, -1), W, H, 8, 2), 2, 50, old, new)
+    assert (out[:48, 80:] == 0).all() and (out[48:, :80] == 0).all()
+    assert (out[:48, :80] == old[48:, 80:]).all() and (out[48:, 80:] == new[:48, :80]).all()
     print('ok')
 
 
@@ -291,8 +313,8 @@ def main():
     a = ap.parse_args()
     if a.cmd == 'make':
         W, H = map(int, a.size.split('x'))
-        cells = a.cells or DEFAULT_CELLS[a.kind]
         params = [int(v) for v in a.params.split(',')]
+        cells = a.cells or default_cells(a.kind, params)
         Image.fromarray(make(a.kind, params, W, H, a.grid, cells)).save(a.o, optimize=True)
         print(f'cons_warp.dll/{a.o},{cells}')
     elif a.cmd == 'render':
