@@ -238,9 +238,11 @@ void ONScripter::traceWrite( std::string &record )
 
 // "22-48,lsp2:12-23,ld:1": sprites left out of the trace (a game's own
 // menus and button bar), applied when the trace starts.
+// Each list adds to those before: the command line's, the game's ons_args', CONS_TRACE_IGNORE.
 void ONScripter::setTraceIgnore( const char *spec )
 {
-    setStr( &trace_ignore_spec, spec );
+    std::string all = trace_ignore_spec ? std::string( trace_ignore_spec ) + "," + spec : spec;
+    setStr( &trace_ignore_spec, all.c_str() );
 }
 
 // The sprites --trace-ignore leaves out, for the trace and --auto-play.

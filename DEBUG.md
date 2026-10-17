@@ -28,6 +28,10 @@ sprites with `--trace-ignore` or `CONS_TRACE_IGNORE`: comma-separated
 numbers or ranges, `lsp` sprites by default, `lsp2:` or `ld:` before the
 others. Ignored sprites are left out of every record, their commands
 aren't logged, and their buttons aren't listed.
+Lists add up: the command line's (the option may be given more than
+once), one in the game's `ons_args` (a converted game lists its button
+bar there, so `--auto-play` never opens its menus from the bar) and
+`CONS_TRACE_IGNORE`.
 
 ```sh
 conscripter --root . --trace trace.jsonl --trace-ignore 22-48,lsp2:12-23
