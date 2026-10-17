@@ -174,6 +174,7 @@ public:
     void setAutoPlayReal(); // CONscripter: --real-time
     void setTraceVars(const char *spec); // CONscripter: --trace-vars
     void setTraceLongWait(int ms); // CONscripter: --trace-long-wait
+    void setAudioStats();          // CONscripter: --audio-stats
     void setTraceMaxImage(int mb); // CONscripter: --trace-max-image
     void setRoundtrip(int pages, int slot); // CONscripter: --roundtrip-every, --roundtrip-slot
     void setDumpVars(const char *path);
@@ -1125,6 +1126,8 @@ private:
     void traceRamp( int kind, int ch, int to, int ms ); // chvolfade (0), chpan (1), chfreq (2) ramping to `to` over ms
     void traceSounds();              // the event loop: "sound" records of ramps that reached their value
     void traceSoundEnded( int ch );  // a sound played to its end (ch -1: the music)
+    void audioStatsOpened();
+    void traceAudioStats();          // "audio" records (ONScripter_cons.cpp)
     static void traceErrorHook( const char *message );
     static void traceExitHook();
     

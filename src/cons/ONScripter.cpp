@@ -374,6 +374,7 @@ void ONScripter::openAudio(int freq)
 
         Mix_AllocateChannels( ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS+ONS_MIX_FADE_CHANNELS );
         Mix_ChannelFinished( waveCallback );
+        audioStatsOpened(); // CONscripter: --audio-stats
     }
 }
 

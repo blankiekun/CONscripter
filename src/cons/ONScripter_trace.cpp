@@ -1414,6 +1414,7 @@ void ONScripter::traceRamp( int kind, int ch, int to, int ms )
 
 void ONScripter::traceSounds()
 {
+    traceAudioStats();
     Uint32 now = SDL_GetTicks();
     while (1){ // the ones due, the earliest first
         int k = -1, i = 0;
