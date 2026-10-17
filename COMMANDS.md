@@ -1162,7 +1162,8 @@ A movie file (`.mp4`, `.m4v`, `.webm`, `.mpg`, `.mpeg`, `.ogv`, `.mov`,
 `lsp2`, `bg` or `ld` plays in the picture's place, without its sound, while
 the game waits: the sprite order, the tag's transparency (`:a` takes the
 right half as the alpha), `spmotion`, `spzoom` and the text window over it
-work as for a picture. `":c;movie\cut.mp4"` plays once and stays on its last
+work as for a picture. It goes on playing during an effect (`print`, `bg`
+with an effect), which shows its frames as they come. `":c;movie\cut.mp4"` plays once and stays on its last
 frame, `":c/1,0,0;movie\loop.mp4"` loops. `csp` (or another picture) stops
 it; a save keeps the name, so a load starts it again. Under `--auto-play`
 only its first frame shows. Linux/macOS decode through ffmpeg, the web build
