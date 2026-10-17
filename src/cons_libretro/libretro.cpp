@@ -252,6 +252,11 @@ retro_load_game(const struct retro_game_info* game)
     if (ons.openScript() != 0)
         return false;
 
+#if defined(_3DS)
+    // the 3DS's top screen is 400 pixels wide: a wider game is drawn at that
+    // width, which keeps its pictures and screens small enough to fit memory
+    ons.setMaxScreenWidth(400);
+#endif
     if (ons.init() != 0) {
         log_cb(RETRO_LOG_ERROR, "Failed to initialize ONScripter.\n");
         return false;

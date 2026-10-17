@@ -193,6 +193,7 @@ public:
     void setWindowWidth(int width);
     void setWindowHeight(int height);
     void setSharpness(float sharpness);
+    void setMaxScreenWidth(int w){ max_screen_width = w; }
     int  getWidth(){ return screen_width;};
     int  getHeight(){return screen_height;};
     ButtonState &getCurrentButtonState(){return current_button_state;};
@@ -1475,6 +1476,10 @@ private:
     int  indent_offset;
 
     int force_window_width, force_window_height;
+    int max_screen_width = 0; // CONscripter: 0, or the widest the game is drawn (see init)
+    bool scale_on_decode = false; // CONscripter: loadWebP decodes at screen_ratio...
+    bool decoded_scaled = false;  // ...and says it did, so setAnimImage doesn't scale again
+    int decoded_full_w, decoded_full_h; // the picture's own size, when decoded_scaled
     float sharpness = NAN;
     // CONscripter: --filter, how the screen is shown (ONScripter_cons.cpp)
     enum { FILTER_CRT, FILTER_PC98, FILTER_GAMEBOY, FILTER_SEPIA, FILTER_MONO, FILTER_VHS };

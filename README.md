@@ -51,7 +51,7 @@ CONscripter is the engine behind two companion projects:
 | Linux | x86, x64, arm, aarch64 | Static or dynamic link; video in the window through the player's ffmpeg |
 | macOS | universal (Apple silicon and Intel), macOS 10.13+ (11.0+ on Apple silicon), static: no Homebrew needed | Video in the window through the player's ffmpeg; unsigned |
 | Android | API 22+ (Android 5.1) | SD cards through SAF, scoped storage, non-English paths, video through the system player, 16 KB pages |
-| RetroArch | libretro core `conscripter_libretro`; Switch (`conscripter_libretro_libnx.nro`), PS Vita (`conscripter_libretro_vita.self`), Miyoo Mini (`conscripter_libretro_miyoo.so`), Wii U (`conscripter_libretro_wiiu.rpx`) | |
+| RetroArch | libretro core `conscripter_libretro`; Switch (`conscripter_libretro_libnx.nro`), PS Vita (`conscripter_libretro_vita.self`), Miyoo Mini (`conscripter_libretro_miyoo.so`), Wii U (`conscripter_libretro_wiiu.rpx`), 3DS (`conscripter_libretro.3dsx`) | |
 | Kobo (KOReader) | armhf (static) | E-ink through FBInk: effects and text shown at once; touch and page keys; a sleep screen on the power button; video through its own ffmpeg, no sound |
 
 ## CONscripter additions
@@ -248,6 +248,12 @@ games with pictures much over 1280x720 may not fit.
 On a Wii U with RetroArch (Aroma), copy the release's
 `conscripter_libretro_wiiu.rpx` to `sd:/retroarch/cores/` as
 `conscripter_libretro.rpx` and load it from RetroArch's "Load Core".
+
+On a 3DS, copy the release's `conscripter_libretro.3dsx` to `/3ds/` on
+the SD card and start it from the Homebrew Launcher. A game wider than
+the top screen's 400 pixels is drawn 400 wide, pictures included, to fit
+the 3DS's memory. A New 3DS (124 MB for RetroArch) is needed for a long
+script: Tsukihime's is 27 MB on its own.
 
 ### (7) Kobo (KOReader)
 

@@ -183,6 +183,10 @@ if (NINTENDO_SWITCH OR NINTENDO_WIIU OR NINTENDO_3DS)
   set_source_files_properties(deps/SDL/src/thread/pthread/SDL_systhread.c
     PROPERTIES COMPILE_DEFINITIONS __NACL__)
 endif ()
+if (NINTENDO_3DS)
+  # SDL_RWFromFile calls it on 3DS
+  target_sources(sdl2 PRIVATE deps/SDL/src/file/n3ds/SDL_rwopsromfs.c)
+endif ()
 
 add_library(sdl2_image STATIC
   deps/SDL_image/src/IMG.c
