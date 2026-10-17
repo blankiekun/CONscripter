@@ -262,6 +262,7 @@ void ONScripter::flushEventSub( SDL_Event &event )
     }
     else if ( event.type == ONS_CHUNK_EVENT ){ // for processing btntim2 and automode correctly
         if ( wave_sample[event.user.code] ){
+            if (event.user.code < ONS_MIX_CHANNELS) traceSoundEnded( event.user.code ); // CONscripter
             Mix_FreeChunk( wave_sample[event.user.code] );
             wave_sample[event.user.code] = NULL;
             if (event.user.code == MIX_LOOPBGM_CHANNEL0 && 
@@ -1246,7 +1247,11 @@ void ONScripter::runEventLoop()
             bool sleeps = next_time <= 0 || next_time - (int)now >= FRAME_MS;
             if (!busy && sleeps && present_pending) presentScreen();
             else if (!busy && !sleeps && now - present_time >= FRAME_MS) presentPending();
-            if (!consClockWait(&event) && !waitNextEvent(&event)) break; // CONscripter: the virtual clock's timers first
+            if (trace_fp) traceSounds(); // CONscripter
+            consIdle( true );
+            bool got = consClockWait(&event) || waitNextEvent(&event); // CONscripter: the virtual clock's timers first
+            consIdle( false );
+            if (!got) break;
         }
         tmp_event = event; // fix android long click problem
 #if defined(USE_SMPEG)

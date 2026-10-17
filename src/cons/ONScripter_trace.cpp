@@ -40,6 +40,11 @@
 #include <emscripten.h>
 #endif
 
+// The longest stretch the command being traced kept the main thread
+// working without waiting (wall time): its ev's ms_cpu, over a frame.
+static bool busy_on = false;
+static Uint32 busy_from = 0, busy_most = 0;
+
 // A channel's volume as heard (ONScripter_cons.cpp), 0-4096.
 int trackGain( int channel );
 int trackFreq( int channel );
@@ -781,8 +786,15 @@ int ONScripter::traceCommand( const char *name, FuncList method )
             break;
         }
 
+    bool on0 = busy_on;
+    Uint32 from0 = busy_from, most0 = busy_most;
+    busy_on = true; busy_most = 0; busy_from = (SDL_GetTicks)();
     int ret = (this->*method)();
-    if (kind == 0 || !trace_sprite) return ret;
+    consIdle( true );
+    Uint32 busy = busy_most;
+    busy_on = on0; busy_from = from0; busy_most = most0;
+    bool slow = busy > FRAME_MS;
+    if ((kind == 0 && !slow) || !trace_sprite) return ret;
 
     char buf[64];
     snprintf( buf, sizeof(buf), "{\"t\":\"ev\",\"pg\":%d,\"ms\":%u,\"cmd\":\"%s\",\"at\":", trace_page, SDL_GetTicks(), name );
@@ -810,7 +822,8 @@ int ONScripter::traceCommand( const char *name, FuncList method )
     else if (!trace_effect.empty())
         r += ",\"effect\":" + trace_effect;
     r += trace_sound;
-    if (kind == 1 && !changed) return ret;
+    if (slow) r += ",\"ms_cpu\":" + std::to_string( busy );
+    if (kind == 1 && !changed && !slow) return ret;
     if (kind == 3){
         if (!trace_shown) return ret;
         trace_shown = false;
@@ -1387,6 +1400,57 @@ void ONScripter::traceChannel( int ch )
     if (audio_open_flag && !(wave_sample[ch] && Mix_Playing( ch ))) trace_sound += ",\"empty\":true";
 }
 
+// Ramps not yet at their value, by kind and channel (+1: chvolfade -1 is
+// the music): when they get there, "end" 0 when none.
+static const char *ramp_cmd[3] = { "chvolfade", "chpan", "chfreq" };
+static struct { Uint32 end; int to; } trace_ramp[3][ONS_MIX_CHANNELS+1];
+
+void ONScripter::traceRamp( int kind, int ch, int to, int ms )
+{
+    if (!trace_fp || ch < -1 || ch >= ONS_MIX_CHANNELS) return;
+    trace_ramp[kind][ch+1].end = ms > 0 ? SDL_GetTicks() + ms : 0;
+    trace_ramp[kind][ch+1].to = to;
+}
+
+void ONScripter::traceSounds()
+{
+    Uint32 now = SDL_GetTicks();
+    while (1){ // the ones due, the earliest first
+        int k = -1, i = 0;
+        for (int a=0 ; a<3 ; a++)
+            for (int b=0 ; b<=ONS_MIX_CHANNELS ; b++)
+                if (trace_ramp[a][b].end && (int)(now - trace_ramp[a][b].end) >= 0 &&
+                    (k < 0 || (int)(trace_ramp[a][b].end - trace_ramp[k][i].end) < 0)){ k = a; i = b; }
+        if (k < 0) break;
+        char buf[160];
+        snprintf( buf, sizeof(buf), "{\"t\":\"sound\",\"pg\":%d,\"ms\":%u,\"ch\":%d,\"cmd\":\"%s\",\"to\":%d}",
+                  trace_page, trace_ramp[k][i].end, i-1, ramp_cmd[k], trace_ramp[k][i].to );
+        std::string r = buf;
+        traceWrite( r );
+        trace_ramp[k][i].end = 0;
+    }
+    // the music has no end event when it plays once
+    static bool music_heard = false;
+    if (Mix_PlayingMusic()) music_heard = true;
+    else if (music_heard && music_file_name && audio_open_flag && !Mix_PausedMusic()){
+        traceSoundEnded( -1 );
+        music_heard = false;
+    }
+    else if (!music_file_name) music_heard = false;
+}
+
+void ONScripter::traceSoundEnded( int ch )
+{
+    if (!trace_fp) return;
+    const char *name = ch < 0 ? (music_file_name ? music_file_name : midi_file_name) : trace_se_name[ch];
+    char buf[96];
+    snprintf( buf, sizeof(buf), "{\"t\":\"sound\",\"pg\":%d,\"ms\":%u,\"ch\":%d,\"ended\":true,\"file\":", trace_page, SDL_GetTicks(), ch );
+    std::string r = buf;
+    traceString( r, name );
+    r += '}';
+    traceWrite( r );
+}
+
 // dwave, wave and the like, before they play a sound (name, or NULL for
 // the one dwaveload loaded) on a channel: the trace's ev gets
 // ,"ch":n,"file":"..." and ,"cut":"..." when it stops another sound still
@@ -1529,8 +1593,18 @@ SDL_bool consRemoveTimer( SDL_TimerID id )
     return SDL_FALSE;
 }
 
+void consIdle( bool idle )
+{
+    if (!busy_on) return;
+    Uint32 now = (SDL_GetTicks)();
+    if (!idle) busy_from = now;
+    else if (now - busy_from > busy_most) busy_most = now - busy_from;
+}
+
 void consDelay( Uint32 ms )
 {
+    consIdle( true );
+    struct Resume { ~Resume(){ consIdle( false ); } } resume;
     if (!clock_virtual){ (SDL_Delay)( ms ); return; }
     clock_ms += ms;
     (SDL_Delay)( ms ? 1 : 0 ); // other threads (decoders, sounds) still run
