@@ -1239,7 +1239,9 @@ value.
 
 Every widget is a table whose first element is its type; `page = n` on
 any widget shows it only on page n (the screen's `pages`, else the save
-slots'), `pages = {a, b}` on pages a to b. Wherever a field names a
+slots'), `pages = {a, b}` on pages a to b, and `when = {"%var", value}` only
+while the variable holds the value (read each time the screen is drawn: a
+lock's mark that shows as soon as a screen opened over it sets it). Wherever a field names a
 variable (`var`, `page_var`, a `set` action), `"?name[i]"` is a `defarr`
 element.
 
@@ -1354,7 +1356,7 @@ load or delete) ends the list; so does a question answered no.
 | `{"open", "name"[, "arg"]}` | opens another screen over this one, then comes back to it (it can't `gosub`) |
 | `{"page", n}` | shows page n of the save slots (`"+1"`, `"-1"`: the next, the previous; `round = true` from the last to the first and back); `fade = ms` cross-fades to it |
 | `{"scroll", "+1"}` | scrolls the list a page back (a list of rows: a row) (`"-1"`: forward, to the page on screen); when it can't, `at_end` runs instead (a table action) |
-| `{"save"[, n]}`, `{"load"[, n]}`, `{"delete"[, n]}` | slot n, else the slot acted on. `save` writes the game as it was when the screen opened (as `savegame2` with `save_text`) and the thumbnail; `load` closes every screen and loads (`loadgosub` runs); `delete` removes the save and its thumbnail |
+| `{"save"[, n]}`, `{"load"[, n]}`, `{"delete"[, n]}` | slot n, else the slot acted on. `save` writes the game as it was when the screen opened (as `savegame2` with `save_text`) and the thumbnail (on a screen without save slots, such as a slot's own window opened over them, the `save_text` and the thumbnail of the nearest screen under it that has them); `load` closes every screen and loads (`loadgosub` runs); `delete` removes the save and its thumbnail |
 | `{"set", "%var", value}` | sets a variable (`slot = true` in place of the value: the slot acted on) |
 | `{"bgm", "file"}` | plays the music from its start, looping (as `bgm`, no fade) |
 | `{"gosub", "*label"}` | runs the label with the screen up; the actions after it run when it returns |
