@@ -4284,12 +4284,15 @@ bool ONScripter::isProportional( FontInfo *info )
     return w_i != w_w;
 }
 
-// The width of half-width character c over half a cell, in script pixels.
-int ONScripter::hankakuExtra( FontInfo *glyph_info, char c )
+// The width of the half-width character at c over half a cell, in script pixels.
+int ONScripter::hankakuExtra( FontInfo *glyph_info, const char *c )
 {
     if (!isProportional(glyph_info)) return 0;
-    unsigned short unicode = (unsigned char)c;
-    if ((c & 0xe0) == 0xa0 || (c & 0xe0) == 0xc0) unicode = unicode - 0xa0 + 0xff60; // half-width kana, as drawGlyph
+    unsigned short unicode = (unsigned char)*c;
+    if (coding2utf16->force_utf8){
+        if (unicode >= 0x80) unicode = coding2utf16->convUTF8ToUTF16(&c);
+    }
+    else if ((*c & 0xe0) == 0xa0 || (*c & 0xe0) == 0xc0) unicode = unicode - 0xa0 + 0xff60; // half-width kana, as drawGlyph
     int a, adv;
     if (TTF_GlyphMetrics((TTF_Font*)glyph_info->ttf_font[0], unicode, &a, &a, &a, &a, &adv) != 0) return 0;
     return adv * screen_ratio2 / screen_ratio1 - glyph_info->font_size_xy[0] / 2;
@@ -4305,9 +4308,9 @@ bool ONScripter::breakAtSpace( const char *buf, FontInfo *info )
     FontInfo *glyph_info = textSizeFont(info, scaled_font);
     if (!isProportional(glyph_info)) return false;
     int w = 0;
-    for (const char *p = buf; *p && *p != 0x0a && !IS_TWO_BYTE(*p) && (p == buf || *p != ' '); p++){
+    for (const char *p = buf; *p && *p != 0x0a && charCells(p) == 1 && (p == buf || *p != ' '); p += charBytes(p)){
         if (*p == '@' || *p == '\\' || *p == '#' || *p == '(' || (*p == '!' && strchr("swdzic", p[1]) && p[1])) break;
-        w += info->pitch_xy[0]/2 + hankakuExtra(glyph_info, *p);
+        w += info->pitch_xy[0]/2 + hankakuExtra(glyph_info, p);
     }
     return info->isEndOfLine(0, w - 1);
 }
@@ -4333,13 +4336,13 @@ void ONScripter::centreLine( const char *buf )
             p += 7;
             continue;
         }
-        if (IS_TWO_BYTE(*p)){
+        if (charCells(p) == 2){
             w += f->pitch_xy[0];
-            p += coding2utf16->force_utf8 ? UTF8_N_BYTE(*p) : 2;
+            p += charBytes(p);
             continue;
         }
-        w += f->pitch_xy[0]/2 + hankakuExtra(glyph_info, *p);
-        p++;
+        w += f->pitch_xy[0]/2 + hankakuExtra(glyph_info, p);
+        p += charBytes(p);
     }
     int room = f->num_xy[0]*f->pitch_xy[0] - (f->xy[0]*f->pitch_xy[0]/2 + f->hankaku_dx) - w;
     if (room < 2) return;
@@ -4361,9 +4364,9 @@ bool ONScripter::pastPage( const char *text )
     // on the last line: drawChar's own line break
     FontInfo scaled_font;
     FontInfo *glyph_info = textSizeFont(f, scaled_font);
-    if (IS_TWO_BYTE(text[0])) return f->isEndOfLine();
+    if (charCells(text) == 2) return f->isEndOfLine();
     return f->isEndOfLine() || (!f->isLineEmpty() && isProportional(glyph_info) &&
-                                f->isEndOfLine(1, hankakuExtra(glyph_info, text[0]) - 1));
+                                f->isEndOfLine(1, hankakuExtra(glyph_info, text) - 1));
 }
 
 // The numbers after the '/' of an effect's dll name ("cons_zoom.dll/0,5100").

@@ -672,6 +672,17 @@ int ScriptParser::midCommand()
     unsigned int start = script_h.readInt();
     unsigned int len   = script_h.readInt();
 
+    // CONscripter: in UTF-8 start and len count as Shift_JIS bytes would
+    // (charCells), so a script's arithmetic works in either encoding
+    if (coding2utf16->force_utf8){
+        unsigned int b = 0, cells = 0;
+        for (; save_buf[b] && cells < start; b += charBytes(save_buf + b)) cells += charCells(save_buf + b);
+        unsigned int e = b;
+        for (cells = 0; save_buf[e] && cells < len; e += charBytes(save_buf + e)) cells += charCells(save_buf + e);
+        start = save_buf[b] ? b : strlen(save_buf);
+        len = e - b;
+    }
+
     ScriptHandler::VariableData &vd = script_h.getVariableData(no);
     if ( vd.str ) delete[] vd.str;
     if ( start >= strlen(save_buf) ){
@@ -830,7 +841,13 @@ int ScriptParser::lenCommand()
     
     const char *buf = script_h.readStr();
 
-    script_h.setInt( &script_h.pushed_variable, strlen( buf ) );
+    // CONscripter: in UTF-8 the length Shift_JIS bytes would have (charCells: 2 for a full-width character)
+    int n = 0;
+    if (coding2utf16->force_utf8)
+        for (const char *p = buf; *p; p += charBytes(p)) n += charCells(p);
+    else
+        n = strlen( buf );
+    script_h.setInt( &script_h.pushed_variable, n );
 
     return RET_CONTINUE;
 }

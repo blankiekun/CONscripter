@@ -32,9 +32,11 @@
 #include <string>
 #include <unordered_map>
 #include "BaseReader.h"
+#include "coding2utf16.h"
 
 // CONscripter: in Shift_JIS, 0xa0-0xdf are half-width katakana (cons_sjis)
 extern bool cons_sjis;
+extern Coding2UTF16 *coding2utf16;
 #define IS_TWO_BYTE(x) \
         ( ((unsigned char)(x) > (unsigned char)0x80) && ((unsigned char)(x) !=(unsigned char) 0xff) && \
           !(cons_sjis && (unsigned char)(x) >= (unsigned char)0xa0 && (unsigned char)(x) <= (unsigned char)0xdf) )
@@ -44,6 +46,31 @@ extern bool cons_sjis;
     (((unsigned char)(x) & 0xE0) == 0xC0) ? 2 : ( \
     (((unsigned char)(x) & 0xF0) == 0xE0) ? 3 : ( \
     (((unsigned char)(x) & 0xF8) == 0xF0) ? 4 : 0))))
+
+// CONscripter: the bytes of the character at p in the script's encoding
+// (1 for a stray byte).
+inline int charBytes( const char *p )
+{
+    if (coding2utf16->force_utf8){
+        int n = UTF8_N_BYTE(*p);
+        for (int i=1 ; i<n ; i++) if (((unsigned char)p[i] & 0xc0) != 0x80) return i; // cut short
+        return n ? n : 1;
+    }
+    return IS_TWO_BYTE(*p) && p[1] && p[1] != 0x0a ? 2 : 1;
+}
+
+// CONscripter: the half-width cells the character at p takes, as its
+// Shift_JIS bytes would: 1 for ASCII and half-width katakana, else 2; in
+// UTF-8 also 1 for the Latin letters Shift_JIS lacks (U+00C0-024F but × ÷).
+inline int charCells( const char *p )
+{
+    const unsigned char *u = (const unsigned char*)p;
+    if (!coding2utf16->force_utf8) return IS_TWO_BYTE(*p) ? 2 : 1;
+    if (u[0] < 0x80) return 1;
+    if (u[0] == 0xef && ((u[1] == 0xbd && u[2] >= 0xa1) || (u[1] == 0xbe && u[2] <= 0x9f))) return 1; // U+FF61-FF9F
+    if (u[0] == 0xc3) return (u[1] == 0x97 || u[1] == 0xb7) ? 2 : 1;
+    return (u[0] >= 0xc4 && u[0] <= 0xc9) ? 1 : 2;
+}
 
 typedef unsigned char uchar3[3];
 

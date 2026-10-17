@@ -970,7 +970,7 @@ private:
     void centreLine( const char *buf );
     FontInfo *textSizeFont( FontInfo *info, FontInfo &scaled );
     bool isProportional( FontInfo *info );
-    int hankakuExtra( FontInfo *glyph_info, char c );
+    int hankakuExtra( FontInfo *glyph_info, const char *c );
     bool breakAtSpace( const char *buf, FontInfo *info );
     bool pastPage( const char *text );
 

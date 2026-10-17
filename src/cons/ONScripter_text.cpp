@@ -88,6 +88,24 @@ extern Coding2UTF16 *coding2utf16;
 #define IS_TRANSLATION_REQUIRED(x)	\
         ( *(x) == (char)0x81 && *((x)+1) >= 0x41 && *((x)+1) <= 0x44 )
 
+// CONscripter: the same characters in UTF-8 text, by code point
+static bool rotatedInTate( const char *text, unsigned short u )
+{
+    if (!coding2utf16->force_utf8) return IS_ROTATION_REQUIRED(text);
+    return charCells(text) == 1 || u == 0xffe3 || u == 0xff3f || u == 0x30fc ||
+        u == 0x2010 || u == 0x2014 || u == 0x2015 || u == 0x2500 || u == 0x301c || u == 0xff5e ||
+        u == 0x2016 || u == 0x2225 || u == 0xff5c || u == 0x2026 || u == 0x2025 ||
+        u == 0xff08 || u == 0xff09 || u == 0x3014 || u == 0x3015 || u == 0xff3b || u == 0xff3d ||
+        u == 0xff5b || u == 0xff5d || (u >= 0x3008 && u <= 0x3011) || u == 0x00f7 ||
+        (u >= 0x2190 && u <= 0x2193);
+}
+
+static bool translatedInTate( const char *text, unsigned short u )
+{
+    if (!coding2utf16->force_utf8) return IS_TRANSLATION_REQUIRED(text);
+    return u == 0x3001 || u == 0x3002 || u == 0xff0c || u == 0xff0e;
+}
+
 void ONScripter::shiftHalfPixelX(SDL_Surface *surface)
 {
     SDL_LockSurface( surface );
@@ -125,7 +143,8 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
     unsigned short unicode;
     if (IS_TWO_BYTE(text[0])){
         if(coding2utf16->force_utf8) {
-            unicode = coding2utf16->convUTF8ToUTF16((const char **)&text);
+            const char *t = text; // CONscripter: text stays on the character (rotatedInTate)
+            unicode = coding2utf16->convUTF8ToUTF16(&t);
         }
         else {
             unsigned index = ((unsigned char*)text)[0];
@@ -140,6 +159,9 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
 
     // CONscripter: SJIS 0x815C is mapped to U+2500; a font without it
     // (the English build's) shows the missing-glyph box, so use U+2015.
+    // In UTF-8, U+2015 (0x815C's character) is drawn the same way: the
+    // box-drawing line joins up in "――", the bar doesn't in some fonts.
+    if (unicode == 0x2015 && coding2utf16->force_utf8) unicode = 0x2500;
     if (unicode == 0x2500 && !TTF_GlyphIsProvided((TTF_Font*)info->ttf_font[0], unicode)) unicode = 0x2015;
 
     int minx, maxx, miny, maxy, advanced;
@@ -178,7 +200,7 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
     }
 
     bool rotate_flag = false;
-    if ( info->getTateyokoMode() == FontInfo::TATE_MODE && IS_ROTATION_REQUIRED(text) ) rotate_flag = true;
+    if ( info->getTateyokoMode() == FontInfo::TATE_MODE && rotatedInTate(text, unicode) ) rotate_flag = true;
     
     dst_rect.x = xy[0];
     dst_rect.y = xy[1];
@@ -195,7 +217,7 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
     }
     else if ( rotate_flag ) dst_rect.x += miny - minx;
 
-    if ( info->getTateyokoMode() == FontInfo::TATE_MODE && IS_TRANSLATION_REQUIRED(text) ){
+    if ( info->getTateyokoMode() == FontInfo::TATE_MODE && translatedInTate(text, unicode) ){
         dst_rect.x += info->font_size_xy[0]/2;
         dst_rect.y -= info->font_size_xy[0]/2;
     }
@@ -277,16 +299,14 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
 
     // CONscripter: a proportional half-width character that would run past
     // the window's right edge starts the next line
-    int extra = IS_TWO_BYTE(text[0]) ? 0 : hankakuExtra(glyph_info, text[0]);
+    bool wide = charCells(text) == 2;
+    int extra = wide ? 0 : hankakuExtra(glyph_info, text);
     if ( info->isEndOfLine() ||
-         (!IS_TWO_BYTE(text[0]) && !info->isLineEmpty() && isProportional(glyph_info) &&
+         (!wide && !info->isLineEmpty() && isProportional(glyph_info) &&
           info->isEndOfLine(1, extra - 1)) ){
         info->newLine();
         for (int i=0 ; i<indent_offset ; i++){
-            if (lookback_flag){
-                current_page->add(0x81);
-                current_page->add(0x40);
-            }
+            if (lookback_flag) for (const char *c = coding2utf16->space ; *c ; c++) current_page->add(*c); // CONscripter: in the script's encoding
             info->advanceCharInHankaku(2);
         }
     }
@@ -353,16 +373,17 @@ void ONScripter::drawChar( char* text, FontInfo *info, bool flush_flag, bool loo
             else flushDirect( dst_rect, REFRESH_NONE_MODE );
         }
 
-        if (IS_TWO_BYTE(text[0])){
+        if (wide){
             info->advanceCharInHankaku(2);
             if (glyph_info != info) info->addLineOffset(glyph_info->font_size_xy[0] - info->font_size_xy[0]);
             break;
         }
         info->advanceCharInHankaku(1);
         if (glyph_info != info) info->addLineOffset((glyph_info->font_size_xy[0] - info->font_size_xy[0])/2);
-        extra = hankakuExtra(glyph_info, text2[0]);
+        extra = hankakuExtra(glyph_info, text2);
         info->addLineOffset(extra);
         info->hankaku_dx += extra;
+        if (text2[1]) break; // CONscripter: a half-width character of several UTF-8 bytes
         text2[0] = text[1];
         if (text2[0] == 0) break;
     }
@@ -906,11 +927,13 @@ void ONScripter::startRuby(const char *buf, FontInfo &info)
         else if ( *buf == ')' || *buf == '\0' ){
             break;
         }
-        else{
+        else{ // CONscripter: counted in half-width cells (charCells), as Shift_JIS bytes were
             if ( ruby_struct.stage == RubyStruct::BODY )
-                ruby_struct.body_count++;
+                ruby_struct.body_count += charCells(buf);
             else if ( ruby_struct.stage == RubyStruct::RUBY )
-                ruby_struct.ruby_count++;
+                ruby_struct.ruby_count += charCells(buf);
+            buf += charBytes(buf);
+            continue;
         }
         buf++;
     }
@@ -921,15 +944,18 @@ void ONScripter::startRuby(const char *buf, FontInfo &info)
 
 void ONScripter::endRuby(bool flush_flag, bool lookback_flag, SDL_Surface *surface, AnimationInfo *cache_info)
 {
-    char out_text[3]= {'\0', '\0', '\0'};
+    char out_text[5]= {'\0', '\0', '\0', '\0', '\0'};
     if ( sentence_font.rubyon_flag && !ruby_hidden ){ // CONscripter: the web page may hide it
         ruby_font.clear();
         const char *buf = ruby_struct.ruby_start;
         while( buf < ruby_struct.ruby_end ){
-            out_text[0] = *buf;
-            out_text[1] = *(buf+1);
+            // CONscripter: a character at a time (charBytes); two half-width ones together as before
+            int n = charBytes(buf);
+            if (n == 1 && buf + 1 < ruby_struct.ruby_end && charBytes(buf+1) == 1) n = 2;
+            memset(out_text, 0, sizeof(out_text));
+            memcpy(out_text, buf, n);
             drawChar( out_text, &ruby_font, flush_flag, lookback_flag, surface, cache_info );
-            buf+=2;
+            buf += n;
         }
     }
     ruby_struct.stage = RubyStruct::NONE;
@@ -1026,40 +1052,34 @@ int ONScripter::textCommand()
 bool ONScripter::checkLineBreak(const char *buf, FontInfo *fi)
 {
     if (!is_kinsoku) return false;
-    
-    // check start kinsoku
-    if (isStartKinsoku( buf+2 ) ||
-        (buf[2]=='_' && isStartKinsoku( buf+3 ))){
-        const char *buf2 = buf;
-        if (buf2[2] == '_') buf2++;
-        int i = 2;
-        while (!fi->isEndOfLine(i)){
-            // CONscripter: the string may end at buf2[i] (a strsp text is
-            // allocated to its length): stop before reading past it
-            if      ( buf2[i] == 0x0a || buf2[i] == 0 || buf2[i+1] == 0x0a || buf2[i+1] == 0 ) break;
-            else if ( buf2[i+2] == 0x0a || buf2[i+2] == 0 ) break;
-            else if ( !IS_TWO_BYTE( buf2[i+2] ) ) buf2++;
-            else if ( isStartKinsoku( buf2+i+2 ) ) i += 2;
-            else break;
-        }
 
+    // CONscripter: by characters (charBytes), in Shift_JIS and UTF-8: the
+    // character at buf goes to the next line when the start-kinsoku ones
+    // after it (、。」) would begin that line, or when it is an end-kinsoku
+    // one (「) that would end this one. The string may end anywhere (a
+    // strsp text is allocated to its length): stop at its end.
+    int n = charBytes(buf);
+    const char *k = buf + n;
+    if (*k == '_') k++;
+    if (isStartKinsoku(k)){
+        int i = charCells(buf);
+        while (!fi->isEndOfLine(i)){
+            const char *next = k + charBytes(k);
+            if (*next == '_') next++;
+            if (*next == 0x0a || *next == 0 || !isStartKinsoku(next)) break;
+            i += charCells(k);
+            k = next;
+        }
         if (fi->isEndOfLine(i)) return true;
     }
-        
-    // check end kinsoku
-    if (isEndKinsoku( buf )){
-        const char *buf2 = buf;
-        int i = 2;
-        while (!fi->isEndOfLine(i)){
-            // CONscripter: the string may end at buf2[i] (a strsp text is
-            // allocated to its length): stop before reading past it
-            if      ( buf2[i] == 0x0a || buf2[i] == 0 || buf2[i+1] == 0x0a || buf2[i+1] == 0 ) break;
-            else if ( buf2[i+2] == 0x0a || buf2[i+2] == 0 ) break;
-            else if ( !IS_TWO_BYTE( buf2[i+2] ) ) buf2++;
-            else if ( isEndKinsoku( buf2+i ) ) i += 2;
-            else break;
-        }
 
+    if (isEndKinsoku(buf)){
+        int i = charCells(buf);
+        k = buf + n;
+        while (!fi->isEndOfLine(i) && *k && *k != 0x0a && isEndKinsoku(k)){
+            i += charCells(k);
+            k += charBytes(k);
+        }
         if (fi->isEndOfLine(i)) return true;
     }
 
@@ -1118,8 +1138,7 @@ bool ONScripter::processText()
         if ( checkLineBreak( script_h.getStringBuffer() + string_buffer_offset, &sentence_font ) ){
             sentence_font.newLine();
             for (int i=0 ; i<indent_offset ; i++){
-                current_page->add(0x81);
-                current_page->add(0x40);
+                for (const char *c = coding2utf16->space ; *c ; c++) current_page->add(*c); // CONscripter: in the script's encoding
                 sentence_font.advanceCharInHankaku(2);
             }
         }

@@ -52,9 +52,11 @@ jobs:
         cd script
         bash ./cross_web.sh
 
-    # plays tests/web/0.txt in headless Chrome and checks the page hooks
+    # plays tests/web/0.txt in headless Chrome and checks the page hooks, in Shift-JIS and in UTF-8
     - name: web smoke test
-      run: python3 -I tests/web/smoke.py build_web
+      run: |
+        python3 -I tests/web/smoke.py build_web
+        python3 -I tests/web/smoke.py build_web --enc:utf8
 
     - name: prepare release
       if: github.ref_type == 'tag'

@@ -210,6 +210,10 @@ Impl `ScriptParser::globalonCommand`.
 
 ### len / mid / cmp / atoi / itoa / itoa2
 `len %a,$s`; `mid $d,$s,start,len` (bytes); `cmp %r,$a,$b` (-1/0/1);
+[cons] in a UTF-8 script (`--enc:utf8`) `len` and `mid` count as the
+Shift-JIS bytes would: 2 for a full-width character, 1 for ASCII, half-width
+katakana and the Latin letters Shift-JIS lacks (`é`), so a script's width
+arithmetic works in either encoding.
 `atoi %a,$s`; `itoa $s,%a` (`itoa2` full-width digits).
 Impl `ScriptParser::lenCommand`, `midCommand`, `cmpCommand`, `atoiCommand`,
 `itoaCommand`.
@@ -366,6 +370,10 @@ Impl `ONScripter::exec_dllCommand`.
 `kinsoku on|off`; `setkinsoku "start","end"`, `addkinsoku "start","end"`
 (define) — line-break rules. Impl `ONScripter::kinsokuCommand`,
 `ScriptParser::setkinsokuCommand`, `addkinsokuCommand`.
+[cons] The default lists (`」』）］｝、。，．・？！ヽヾゝゞ々ー` may not start a
+line, `「『（［｛` may not end one) are in effect in Shift-JIS and UTF-8
+scripts; before, they were set before the encoding was known and matched
+nothing.
 
 ### roff (define), rmenu, rmode
 `rmenu "name",func,...` — the right-click menu items (functions as
@@ -1627,6 +1635,19 @@ No command involved:
   Files must be loose.
 - **Japanese loose file names** found on Linux, macOS and web (Shift-JIS
   names looked up as UTF-8 first).
+- **UTF-8 scripts** (`--enc:utf8`) lay text out as Shift-JIS ones do:
+  half-width katakana and the Latin letters Shift-JIS lacks (U+00C0-024F
+  but `×` `÷`) take a half-width cell (proportional with a proportional
+  font), every other non-ASCII character a full one; `―` (U+2015) is drawn
+  as Shift-JIS 0x815C is (U+2500 when the font has it, joined up); ruby, kinsoku,
+  vertical text (the turned and moved marks), the backlog, `len`/`mid`,
+  `getlog`, `screen` text (`align = "centre"`) and the trace's `src` work
+  by character. Archive (`.nsa`) names are in the script's encoding; a
+  name, or a save's string, that isn't valid UTF-8 is read as Shift-JIS
+  (written while the game's script was Shift-JIS). `itoa2` and `%var` in text give half-width
+  digits (as ONScripter-jh). Characters past U+FFFF aren't drawn.
+- **`screen`'s `arg`** from a Shift-JIS script reaches the table in UTF-8
+  (it was shown garbled).
 - **Web**: `ons_args` fetched in lazily loaded games; `gloval.sav` written
   at waits when changed (≤ every 2 s), `kidoku.dat` every 30 s, then synced.
 - **Screen updates** go up once before the engine waits (a timer tick, a

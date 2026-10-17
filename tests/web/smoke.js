@@ -4,7 +4,8 @@ const log = [], errors = [];
 let phase = 'start';
 const str = a => (a instanceof Uint8Array ? String.fromCharCode(...a) : a);
 for (const n of ['consText', 'consChoice', 'consSprites', 'consBacklog', 'consOverlay'])
-  self[n] = (...a) => log.push({ phase, hook: n, text: str(a[0]), arg: a[1], y: a[2], size: a[3], off: a[5] });
+  self[n] = (...a) => log.push({ phase, hook: n, text: str(a[0]), arg: a[1], y: a[2], size: a[3], off: a[5],
+                                 boxes: (a.find(x => x instanceof Int32Array) || []).length / 4 });
 const cerr = console.error.bind(console);
 console.error = (...a) => {
   const s = a.join(' ');

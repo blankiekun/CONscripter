@@ -24,6 +24,9 @@
 
 #include "SarReader.h"
 #include "Utils.h"
+#include "coding2utf16.h"
+
+extern Coding2UTF16 *coding2utf16;
 #define WRITE_LENGTH 4096
 
 #if defined(PSP)
@@ -134,10 +137,17 @@ void SarReader::readArchive( ArchiveInfo *ai, int archive_type, unsigned int off
 
             int c;
             while( (c = fgetc( ai->file_handle )) != EOF && (ch = key_table[c]) ){
-                if ( 'a' <= ch && ch <= 'z' ) ch += 'A' - 'a';
                 if (count < (int)sizeof(ai->fi_list[i].name) - 1) ai->fi_list[i].name[count++] = ch; // CONscripter: a longer name is cut
             }
             ai->fi_list[i].name[count] = '\0';
+            // CONscripter: a Shift_JIS name for a UTF-8 script (an archive
+            // written for it before it turned UTF-8) is looked up in UTF-8
+            if (coding2utf16->force_utf8 && !isUTF8( ai->fi_list[i].name )){
+                std::string u = sjisToUTF8( ai->fi_list[i].name );
+                snprintf( ai->fi_list[i].name, sizeof(ai->fi_list[i].name), "%s", u.c_str() );
+            }
+            for (char *p = ai->fi_list[i].name ; *p ; p++)
+                if ( 'a' <= *p && *p <= 'z' ) *p += 'A' - 'a';
 
             if ( archive_type == ARCHIVE_TYPE_NSA )
                 ai->fi_list[i].compression_type = readChar( ai->file_handle );

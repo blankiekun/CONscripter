@@ -2629,25 +2629,13 @@ int ONScripter::getlogCommand()
             char *p = page->text;
             char *p2 = buf = new char[page->text_count];
             count = 0;
-            for (int i=0 ; i<page->text_count ; i++){
-                if (coding2utf16->force_utf8) {
-                    int leading = UTF8_N_BYTE(*p);
-                    for(int j=0; i < leading; j++) {
-                        p2[count++] = *p++;
-                    }
-                    i++;
-                }
-                else {
-                    if (IS_TWO_BYTE(*p)){
-                        p2[count++] = *p++;
-                        p2[count++] = *p++;
-                        i++;
-                    }
-                    else if (*p != 0x0a)
-                        p2[count++] = *p++;
-                    else
-                        p++;
-                }
+            for (int i=0 ; i<page->text_count ; ){
+                // CONscripter: a character at a time in UTF-8 too (it looped on i)
+                int n = charBytes(p);
+                if (n > page->text_count - i) n = page->text_count - i;
+                if (n == 1 && *p == 0x0a) p++;
+                else for (int j=0 ; j<n ; j++) p2[count++] = *p++;
+                i += n;
             }
         }
     
