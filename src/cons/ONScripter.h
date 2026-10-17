@@ -687,6 +687,7 @@ private:
     void effectWave( const char *params, int duration );
     void effectBlur( const char *params, int duration );
     void effectRule( const char *params, int duration );
+    void warpFrame( SDL_Surface *map, int cells, int c, float t ); // ONScripter_warp.cpp
 
 #ifdef USE_BUILTIN_EFFECTS
     //cascade

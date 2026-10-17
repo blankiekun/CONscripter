@@ -508,6 +508,7 @@ set(CONSCRIPTER_CODE
     src/cons/ONScripter_trace.cpp
     src/cons/ONScripter_savepoint.cpp
     src/cons/ONScripter_names.cpp
+    src/cons/ONScripter_warp.cpp
     src/cons/ONScripter_effect.cpp
     src/cons/ONScripter_effect_breakup.cpp
     src/cons/ONScripter_event.cpp

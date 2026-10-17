@@ -511,7 +511,7 @@ bool ONScripter::drawEffectFrame( EffectLink *effect, int effect_no )
                 effectWave(effect->anim.image_name, effect_duration);
             else if (!strncmp(effect->anim.image_name, "cons_blur.dll", 13))
                 effectBlur(effect->anim.image_name, effect_duration);
-            else if (!strncmp(effect->anim.image_name, "cons_rule.dll", 13))
+            else if (!strncmp(effect->anim.image_name, "cons_rule.dll", 13) || !strncmp(effect->anim.image_name, "cons_warp.dll", 13))
                 effectRule(effect->anim.image_name, effect_duration);
             else {
                 // do crossfade
