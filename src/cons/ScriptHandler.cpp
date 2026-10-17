@@ -26,6 +26,11 @@
 #include "ScriptHandler.h"
 #include "Utils.h"
 #include "coding2utf16.h"
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 #if defined(WEB)
 #include <emscripten.h>
@@ -152,19 +157,40 @@ void ScriptHandler::setSaveDir(const char *path)
     strcpy(save_dir, path);
 }
 
-FILE *ScriptHandler::fopen( const char *path, const char *mode, bool use_save_dir )
+std::string ScriptHandler::fullPath( const char *path, bool use_save_dir )
 {
-    char filename[256];
-    if (use_save_dir && save_dir)
-        sprintf( filename, "%s%s", save_dir, path );
-    else
-        sprintf( filename, "%s%s", archive_path, path );
-
-    for ( unsigned int i=0 ; i<strlen( filename ) ; i++ )
+    std::string filename = std::string(use_save_dir && save_dir ? save_dir : archive_path) + path;
+    for ( size_t i=0 ; i<filename.size() ; i++ )
         if ( filename[i] == '/' || filename[i] == '\\' )
             filename[i] = DELIMITER;
+    return filename;
+}
 
-    return ::fopen( filename, mode );
+FILE *ScriptHandler::fopen( const char *path, const char *mode, bool use_save_dir )
+{
+    return ::fopen( fullPath( path, use_save_dir ).c_str(), mode );
+}
+
+FILE *ScriptHandler::openReplacement( const std::string &path )
+{
+    return ::fopen( (path + ".tmp").c_str(), "wb" );
+}
+
+bool ScriptHandler::commitReplacement( FILE *fp, const std::string &path, bool written )
+{
+    std::string tmp = path + ".tmp";
+    bool ok = written && fflush( fp ) == 0 && !ferror( fp );
+#if !defined(_WIN32)
+    if (ok) fsync( fileno( fp ) );
+#endif
+    if (fclose( fp ) != 0) ok = false;
+#if defined(_WIN32)
+    if (ok) ok = MoveFileExA( tmp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING ) != 0;
+#else
+    if (ok) ok = ::rename( tmp.c_str(), path.c_str() ) == 0;
+#endif
+    if (!ok) ::remove( tmp.c_str() );
+    return ok;
 }
 
 void ScriptHandler::setKeyTable( const unsigned char *key_table )
@@ -665,13 +691,15 @@ void ScriptHandler::saveKidokuData()
 {
     FILE *fp;
 
-    if ( ( fp = fopen( "kidoku.dat", "wb", true ) ) == NULL ){
+    std::string path = fullPath( "kidoku.dat", true );
+    if ( ( fp = openReplacement( path ) ) == NULL ){
         utils::printError("can't write kidoku.dat\n");
         return;
     }
 
     writeKidokuCons( fp ); // CONscripter
-    fclose( fp );
+    if (!commitReplacement( fp, path ))
+        utils::printError("can't write kidoku.dat\n");
 }
 
 void ScriptHandler::loadKidokuData()
