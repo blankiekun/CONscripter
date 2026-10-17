@@ -330,9 +330,9 @@ int ONScripter::screenText( ConsScreen *s, const std::string &text, int x, int y
         for (const std::string &c : *colors) color_args += "," + quoted( c );
     }
     if (no < 0) no = screenSprite( s );
-    // a text with line breaks can't be in the command: strsp takes it from
+    // a text with line breaks or double quotes can't be in the command: strsp takes it from
     // screen_strsp_text (the command's own text, the breaks as spaces, shows in the trace)
-    bool lines = text.find( 0x0a ) != std::string::npos;
+    bool lines = text.find( 0x0a ) != std::string::npos || text.find( '"' ) != std::string::npos;
     std::string shown = text;
     for (char &c : shown) if (c == 0x0a) c = ' ';
     if (lines) screen_strsp_text = text.c_str();
@@ -572,7 +572,10 @@ void ONScripter::screenRows( ConsScreen *s, int w )
     lua_setfield( L, -2, "rows" );
     for (int k=0 ; k<shown && top + k < (int)log_rows.size() ; k++){
         const LogRow &r = log_rows[top + k];
-        if (!r.text.empty()) screenText( s, r.text, x, y + k * dy );
+        // a row of half-width text after a backquote: drawn as logrows measured it
+        // (each letter its own width), its leading spaces kept
+        bool half = std::none_of( r.text.begin(), r.text.end(), []( char c ){ return (unsigned char)c >= 0x80; } );
+        if (!r.text.empty()) screenText( s, half ? "`" + r.text : r.text, x, y + k * dy );
         bool muted = off >= 0 && r.tag >= 0 && screenGet( "%" + std::to_string( off + r.tag ) ) != 0;
         s->voices.push_back( muted ? std::string() : r.voice );
         if (muted || r.voice.empty() || !fieldTable( L, "voice" )) continue;
