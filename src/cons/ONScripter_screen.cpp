@@ -629,7 +629,12 @@ void ONScripter::screenViewer( ConsScreen *s )
     lua_newtable( L );
     lua_pushboolean( L, 1 );
     lua_setfield( L, -2, "opaque" );
-    screenImage( s, 0, 0, fileName( fromUTF8( files[s->view_variant].c_str() ) ).c_str() );
+    int cg = screenImage( s, 0, 0, fileName( fromUTF8( files[s->view_variant].c_str() ) ).c_str() );
+    // centred as bg draws a picture of another size (a larger one cropped evenly)
+    // shortcut: a smaller CG shows what is under the screen around it, not bg's black.
+    SDL_Surface *img = sprite_info[cg].image_surface;
+    if (img && (img->w != screen_width || img->h != screen_height))
+        screenExec( "amsp " + std::to_string( cg ) + "," + std::to_string( (screen_width - img->w) / 2 ) + "," + std::to_string( (screen_height - img->h) / 2 ) );
     lua_pop( L, 1 );
     if (s->view_hidden || !fieldTable( L, "viewer" )) return;
     if (fieldTable( L, "panel" )){
