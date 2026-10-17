@@ -44,6 +44,8 @@ extern Coding2UTF16 *coding2utf16;
 static const int LAYER_SCREEN = 3;
 // a slot's button is its widget's number (index in `widgets` times 100) plus the slot's place on the page
 static const int WIDGET_BUTTONS = 100;
+// a gallery's cells are its buttons 1-90, its viewer's previous, next, hide and back 91-94
+static const int GALLERY_CELLS = 90, VIEWER_BUTTONS = 91;
 
 struct ConsScreen {
     std::string name, kind, arg;
@@ -60,6 +62,8 @@ struct ConsScreen {
     int pending = LUA_NOREF, pending_next = 0; // the actions left after a gosub
     int scroll = 0;             // a list's first entry (log: pages back from the one on screen)
     std::vector<std::string> voices; // a list's voice per button (its place on screen)
+    int view_w = 0, view_cell = 0, view_variant = 0; // a gallery's viewer: widget, cell (1-based), variant shown
+    bool view_hidden = false;   // its panel hidden (a click shows it)
 };
 
 enum { SCREEN_STAY, SCREEN_CLOSE, SCREEN_GOSUB, SCREEN_LOADED };
@@ -119,19 +123,19 @@ static std::string fileName( std::string f )
     return f;
 }
 
-// "%12", "%name", "$3", "name" (an integer): the variable through the script parser
+// "%12", "%name", "$3", "?name[4]", "name" (an integer): the variable through the script parser
 bool ONScripter::screenVariable( const char *ref, bool str, ScriptHandler::VariableInfo &vi )
 {
     std::string s = fromUTF8( ref );
     if (s.empty()) return false;
-    if (s[0] != '%' && s[0] != '$') s = (str ? "$" : "%") + s;
+    if (s[0] != '%' && s[0] != '$' && s[0] != '?') s = (str ? "$" : "%") + s;
     std::vector<char> buf( s.begin(), s.end() );
     buf.push_back( 0 );
     script_h.enterExternalScript( buf.data() );
     script_h.readVariable();
     vi = script_h.current_variable;
     script_h.leaveExternalScript();
-    return vi.type == ScriptHandler::VAR_INT || vi.type == ScriptHandler::VAR_STR;
+    return vi.type == ScriptHandler::VAR_INT || vi.type == ScriptHandler::VAR_STR || vi.type == ScriptHandler::VAR_ARRAY;
 }
 
 static int luaVar( lua_State *L )
@@ -146,13 +150,13 @@ int ONScripter::screenLuaVar( lua_State *L )
     std::string ref = lua_isnumber( L, 1 ) ? std::string(str ? "$" : "%") + std::to_string( lua_tointeger( L, 1 ) ) : luaL_checkstring( L, 1 );
     ScriptHandler::VariableInfo vi;
     if (!screenVariable( ref.c_str(), str, vi )) return luaL_error( L, "no variable %s", ref.c_str() );
-    ScriptHandler::VariableData &d = script_h.getVariableData( vi.var_no );
     if (vi.type == ScriptHandler::VAR_STR){
+        const char *v = script_h.getVariableData( vi.var_no ).str;
         std::string utf8;
-        traceString( utf8, d.str ? d.str : "", -1, false ); // in UTF-8, as the table is
+        traceString( utf8, v ? v : "", -1, false ); // in UTF-8, as the table is
         lua_pushstring( L, utf8.c_str() );
     }
-    else lua_pushinteger( L, d.num );
+    else lua_pushinteger( L, script_h.getIntVariable( &vi ) );
     return 1;
 }
 
@@ -331,13 +335,13 @@ void ONScripter::screenTextButton( ConsScreen *s, const std::string &text, int x
 int ONScripter::screenGet( const std::string &ref )
 {
     ScriptHandler::VariableInfo vi;
-    return screenVariable( ref.c_str(), false, vi ) ? script_h.getVariableData( vi.var_no ).num : 0;
+    return screenVariable( ref.c_str(), false, vi ) && vi.type != ScriptHandler::VAR_STR ? script_h.getIntVariable( &vi ) : 0;
 }
 
 void ONScripter::screenSet( const std::string &ref, int value )
 {
     ScriptHandler::VariableInfo vi;
-    if (screenVariable( ref.c_str(), false, vi )) script_h.setNumVariable( vi.var_no, value );
+    if (screenVariable( ref.c_str(), false, vi ) && vi.type != ScriptHandler::VAR_STR) script_h.setInt( &vi, value );
 }
 
 // The widget's (on top) `var`: a name, or a list of them set together (the first read).
@@ -522,6 +526,150 @@ void ONScripter::screenList( ConsScreen *s, int w )
     }
 }
 
+// A gallery cell's (on top) CGs: their files and whether each was seen.
+static void cellCgs( lua_State *L, std::vector<std::string> &files, std::vector<bool> &seen )
+{
+    files.clear(); seen.clear();
+    if (!fieldTable( L, "cgs" )) return;
+    int n = (int)lua_rawlen( L, -1 );
+    for (int i=1 ; i<=n ; i++){
+        lua_rawgeti( L, -1, i );
+        files.push_back( fieldStr( L, "file" ) );
+        seen.push_back( fieldInt( L, "seen", 0 ) != 0 );
+        lua_pop( L, 1 );
+    }
+    lua_pop( L, 1 );
+}
+
+/* gallery (on top), widget number w: `cells` in a grid of `cols` at x, y
+ * by dx, dy. A cell is open when one of its `cgs` was seen: its `thumb`
+ * (two cells) at the place plus `thumb_dx`, `thumb_dy`, a button opening
+ * the viewer; else `locked` at the place. */
+void ONScripter::screenGallery( ConsScreen *s, int w )
+{
+    lua_State *L = s->L;
+    int x0 = fieldInt( L, "x", 0 ), y0 = fieldInt( L, "y", 0 ), dx = fieldInt( L, "dx", 0 ), dy = fieldInt( L, "dy", 0 );
+    int cols = std::max( 1, fieldInt( L, "cols", 1 ) ), tdx = fieldInt( L, "thumb_dx", 0 ), tdy = fieldInt( L, "thumb_dy", 0 );
+    std::string locked = fieldStr( L, "locked" );
+    if (!fieldTable( L, "cells" )) return;
+    int n = std::min( (int)lua_rawlen( L, -1 ), GALLERY_CELLS );
+    for (int k=1 ; k<=n ; k++){
+        lua_rawgeti( L, -1, k );
+        int x = x0 + ((k-1) % cols) * dx, y = y0 + ((k-1) / cols) * dy;
+        std::vector<std::string> files;
+        std::vector<bool> seen;
+        cellCgs( L, files, seen );
+        bool open = std::find( seen.begin(), seen.end(), true ) != seen.end();
+        std::string thumb = fieldStr( L, "thumb" );
+        int cells = fieldInt( L, "cells", 2 );
+        lua_pop( L, 1 );
+        lua_newtable( L ); // the picture's fields
+        lua_pushinteger( L, open ? cells : 1 );
+        lua_setfield( L, -2, "cells" );
+        if (open){
+            int no = screenImage( s, x + tdx, y + tdy, fileName( fromUTF8( thumb.c_str() ) ).c_str() );
+            screenExec( "spbtn " + std::to_string( no ) + "," + std::to_string( w * WIDGET_BUTTONS + k ) );
+        }
+        else if (!locked.empty()) screenImage( s, x, y, fileName( fromUTF8( locked.c_str() ) ).c_str() );
+        lua_pop( L, 1 );
+    }
+    lua_pop( L, 1 );
+}
+
+// The viewer's variant from v, stepping by step past those not seen (-1: none).
+static int seenVariant( const std::vector<bool> &seen, int v, int step )
+{
+    int n = (int)seen.size();
+    for (int i=0 ; i<n ; i++){
+        int k = ((v + i * step) % n + n) % n;
+        if (seen[k]) return k;
+    }
+    return -1;
+}
+
+/* The viewer of gallery (on top): the cell's CG over the whole screen, and
+ * unless hidden its `viewer` panel: pictures, `name`, then `previous`,
+ * `next`, `hide`, `back` buttons. */
+void ONScripter::screenViewer( ConsScreen *s )
+{
+    lua_State *L = s->L;
+    std::vector<std::string> files;
+    std::vector<bool> seen;
+    if (fieldTable( L, "cells" )){
+        lua_rawgeti( L, -1, s->view_cell );
+        if (lua_istable( L, -1 )) cellCgs( L, files, seen );
+        lua_pop( L, 2 );
+    }
+    if (s->view_variant < 0 || s->view_variant >= (int)files.size()) return;
+    lua_newtable( L );
+    lua_pushboolean( L, 1 );
+    lua_setfield( L, -2, "opaque" );
+    screenImage( s, 0, 0, fileName( fromUTF8( files[s->view_variant].c_str() ) ).c_str() );
+    lua_pop( L, 1 );
+    if (s->view_hidden || !fieldTable( L, "viewer" )) return;
+    if (fieldTable( L, "panel" )){
+        int n = (int)lua_rawlen( L, -1 );
+        for (int i=1 ; i<=n ; i++){
+            lua_rawgeti( L, -1, i );
+            screenImage( s, fieldInt( L, "x", 0 ), fieldInt( L, "y", 0 ) );
+            lua_pop( L, 1 );
+        }
+        lua_pop( L, 1 );
+    }
+    if (fieldTable( L, "name" )){
+        screenImage( s, fieldInt( L, "x", 0 ), fieldInt( L, "y", 0 ) );
+        lua_pop( L, 1 );
+    }
+    const char *keys[] = { "previous", "next", "hide", "back" };
+    for (int b=0 ; b<4 ; b++){
+        if (!fieldTable( L, keys[b] )) continue;
+        int no = screenImage( s, fieldInt( L, "x", 0 ), fieldInt( L, "y", 0 ) );
+        screenExec( "spbtn " + std::to_string( no ) + "," + std::to_string( s->view_w * WIDGET_BUTTONS + VIEWER_BUTTONS + b ) );
+        lua_pop( L, 1 );
+    }
+    lua_pop( L, 1 );
+}
+
+/* list (on top), widget number w, source "items": `items` in columns of
+ * `rows` at x, y by dx (a column) and dy (a row), those with `shown =
+ * false` left out (the rest close up): `selector` (two cells: nothing,
+ * under the pointer) a button running the item's `action`, `new_mark`
+ * when the item's `new` is true, its `text` (fields as `text`, the item's
+ * `color` in place of the list's). Positions in the row are relative. */
+void ONScripter::screenItems( ConsScreen *s, int w )
+{
+    lua_State *L = s->L;
+    int x0 = fieldInt( L, "x", 0 ), y0 = fieldInt( L, "y", 0 ), dx = fieldInt( L, "dx", 0 ), dy = fieldInt( L, "dy", 0 );
+    int rows = std::max( 1, fieldInt( L, "rows", 1 ) ), max = rows * std::max( 1, fieldInt( L, "cols", 1 ) );
+    int tx = fieldInt( L, "text_x", 0 ), ty = fieldInt( L, "text_y", 0 );
+    std::string color = fieldStr( L, "color", "#FFFFFF" );
+    if (!fieldTable( L, "items" )) return;
+    int n = std::min( (int)lua_rawlen( L, -1 ), WIDGET_BUTTONS - 1 ), shown = 0;
+    for (int k=1 ; k<=n && shown<max ; k++){
+        lua_rawgeti( L, -1, k );
+        if (!fieldInt( L, "shown", 1 )){ lua_pop( L, 1 ); continue; }
+        int x = x0 + (shown / rows) * dx, y = y0 + (shown % rows) * dy;
+        bool is_new = fieldInt( L, "new", 0 ) != 0;
+        std::vector<std::string> colors = { fieldStr( L, "color", color.c_str() ) };
+        std::string text = fromUTF8( fieldStr( L, "text" ).c_str() );
+        lua_pop( L, 1 );
+        lua_pushvalue( L, -2 ); // the list's own fields for its parts
+        if (fieldTable( L, "selector" )){
+            int no = screenImage( s, x + fieldInt( L, "x", 0 ), y + fieldInt( L, "y", 0 ) );
+            screenExec( "spbtn " + std::to_string( no ) + "," + std::to_string( w * WIDGET_BUTTONS + k ) );
+            lua_pop( L, 1 );
+        }
+        if (is_new && fieldTable( L, "new_mark" )){
+            screenImage( s, x + fieldInt( L, "x", 0 ), y + fieldInt( L, "y", 0 ) );
+            lua_pop( L, 1 );
+        }
+        screenText( s, text, x + tx, y + ty, &colors );
+        lua_pop( L, 1 );
+        shown++;
+    }
+    lua_pop( L, 1 );
+}
+
 void ONScripter::screenDraw( ConsScreen *s )
 {
     lua_State *L = s->L;
@@ -529,18 +677,29 @@ void ONScripter::screenDraw( ConsScreen *s )
     lua_rawgeti( L, LUA_REGISTRYINDEX, s->table );
     lua_getfield( L, -1, "widgets" );
     int n = lua_istable( L, -1 ) ? (int)lua_rawlen( L, -1 ) : 0;
+    if (s->view_w > 0){ // a gallery's viewer covers the screen
+        lua_rawgeti( L, -1, s->view_w );
+        screenViewer( s );
+        lua_pop( L, 3 );
+        return;
+    }
     for (int i=1 ; i<=n ; i++){
         lua_rawgeti( L, -1, i );
         std::string type = indexStr( L, 1 );
         int x = fieldInt( L, "x", 0 ), y = fieldInt( L, "y", 0 );
         int page = fieldInt( L, "page", 0 );
         if (page > 0 && page != s->page){ lua_pop( L, 1 ); continue; }
+        if (fieldTable( L, "pages" )){ // shown on pages a to b
+            bool in = s->page >= indexInt( L, 1, 1 ) && s->page <= indexInt( L, 2, 1 );
+            lua_pop( L, 1 );
+            if (!in){ lua_pop( L, 1 ); continue; }
+        }
 
         if (type == "image") screenImage( s, x, y );
         else if (type == "text") screenText( s, fromUTF8( fieldStr( L, "text" ).c_str() ), x, y );
         else if (type == "button" && fieldStr( L, "file" ).empty()){
-            bool on = true;
-            if (fieldTable( L, "action" )){
+            bool on = fieldInt( L, "enabled", 1 ) != 0;
+            if (on && fieldTable( L, "action" )){
                 on = screenEnabled( s );
                 lua_pop( L, 1 );
             }
@@ -564,6 +723,14 @@ void ONScripter::screenDraw( ConsScreen *s )
                 lua_pop( L, 1 );
             }
         }
+        else if ((type == "toggle" || type == "radio") && !fieldStr( L, "file" ).empty()){ // pictures: `file`, `on_file` while on
+            std::vector<std::string> vars = widgetVars( L );
+            int v = vars.empty() ? 0 : screenGet( vars[0] );
+            bool state = type == "radio" ? v == fieldInt( L, "value", 1 ) : v == fieldInt( L, "on", 1 );
+            std::string on_file = fieldStr( L, "on_file" );
+            int no = screenImage( s, x, y, state && !on_file.empty() ? fileName( fromUTF8( on_file.c_str() ) ).c_str() : NULL );
+            screenExec( "spbtn " + std::to_string( no ) + "," + std::to_string( i * WIDGET_BUTTONS ) );
+        }
         else if (type == "toggle" || type == "radio"){
             std::vector<std::string> vars = widgetVars( L );
             int v = vars.empty() ? 0 : screenGet( vars[0] );
@@ -573,10 +740,21 @@ void ONScripter::screenDraw( ConsScreen *s )
             std::string text = boundText( fieldStr( L, "text", "%C" ), v, 0, 0, 1, on, off, state );
             screenTextButton( s, fromUTF8( text.c_str() ), x, y, i * WIDGET_BUTTONS, false );
         }
+        else if (type == "button" && fieldTable( L, "current" )){ // its page range shown: `selected` in its place, not a button
+            bool in = s->page >= indexInt( L, 1, 1 ) && s->page <= indexInt( L, 2, 1 );
+            lua_pop( L, 1 );
+            std::string sel = fieldStr( L, "selected" );
+            if (in && !sel.empty()){ // one picture, not the button's cells
+                lua_newtable( L );
+                screenImage( s, x, y, fileName( fromUTF8( sel.c_str() ) ).c_str() );
+                lua_pop( L, 1 );
+            }
+            else if (!in) screenExec( "spbtn " + std::to_string( screenImage( s, x, y ) ) + "," + std::to_string( i * WIDGET_BUTTONS ) );
+        }
         else if (type == "button"){
             int no = screenImage( s, x, y );
-            bool on = true;
-            if (fieldTable( L, "action" )){
+            bool on = fieldInt( L, "enabled", 1 ) != 0;
+            if (on && fieldTable( L, "action" )){
                 on = screenEnabled( s );
                 lua_pop( L, 1 );
             }
@@ -588,7 +766,9 @@ void ONScripter::screenDraw( ConsScreen *s )
             }
         }
         else if (type == "saveslots") screenSlots( s, i );
+        else if (type == "list" && fieldStr( L, "source", "log" ) == "items") screenItems( s, i );
         else if (type == "list") screenList( s, i );
+        else if (type == "gallery") screenGallery( s, i );
         lua_pop( L, 1 );
     }
     lua_pop( L, 2 );
@@ -701,7 +881,7 @@ void ONScripter::screenSave( ConsScreen *s, int slot )
             if (!ref.empty() && screenVariable( ref.c_str(), true, vi )){
                 ScriptHandler::VariableData &d = script_h.getVariableData( vi.var_no );
                 if (vi.type == ScriptHandler::VAR_STR && d.str) text = d.str;
-                else if (vi.type == ScriptHandler::VAR_INT) text = std::to_string( d.num );
+                else if (vi.type != ScriptHandler::VAR_STR) text = std::to_string( script_h.getIntVariable( &vi ) );
             }
             lua_pop( L, 1 );
             break;
@@ -774,6 +954,11 @@ int ONScripter::screenActions( ConsScreen *s, int start, int *value )
                 lua_pop( L, 1 );
             }
         }
+        else if (what == "bgm"){ // plays the music from its start, looping
+            screenExec( "bgmfadein 0" );
+            screenExec( "bgm " + quoted( fileName( fromUTF8( indexStr( L, 2 ).c_str() ) ) ) );
+            screenTrace( s, "bgm", 0, INT_MIN );
+        }
         else if (what == "page"){
             int page = pageTarget( indexStr( L, 2 ), s->page, slotPages( L, s->table ) );
             if (page > 0){ s->page = page; s->selected = 0; }
@@ -815,7 +1000,7 @@ int ONScripter::screenActions( ConsScreen *s, int start, int *value )
                 if (vi.type == ScriptHandler::VAR_STR)
                     setStr( &script_h.getVariableData( vi.var_no ).str, fromUTF8( lua_isstring( L, -1 ) ? lua_tostring( L, -1 ) : "" ).c_str() );
                 else
-                    script_h.setNumVariable( vi.var_no, to_slot ? s->selected : (int)lua_tointeger( L, -1 ) );
+                    script_h.setInt( &vi, to_slot ? s->selected : (int)lua_tointeger( L, -1 ) );
                 lua_pop( L, 1 );
             }
             screenTrace( s, "set", slot, INT_MIN );
@@ -922,6 +1107,15 @@ void ONScripter::screenShow( ConsScreen *s )
         if (s->filter_slot > 0) screenExec( cmd );
         lua_pop( L, 1 );
     }
+    // the screen's own pages: from its page_var (and written back at close)
+    {
+        std::string ref = fieldStr( L, "page_var" );
+        int pages = fieldInt( L, "pages", 0 );
+        if (pages > 0 && !ref.empty()){
+            int p = screenGet( ref );
+            s->page = p >= 1 && p <= pages ? p : 1;
+        }
+    }
     // the save slots' page: the page variable's, else the one shown last
     lua_getfield( L, -1, "widgets" );
     int n = lua_istable( L, -1 ) ? (int)lua_rawlen( L, -1 ) : 0;
@@ -930,8 +1124,7 @@ void ONScripter::screenShow( ConsScreen *s )
         if (indexStr( L, 1 ) == "saveslots"){
             int pages = fieldInt( L, "pages", 1 );
             std::string ref = fieldStr( L, "page_var" );
-            ScriptHandler::VariableInfo vi;
-            if (!ref.empty() && screenVariable( ref.c_str(), false, vi )) s->page = script_h.getVariableData( vi.var_no ).num;
+            if (!ref.empty()) s->page = screenGet( ref );
             else s->page = screen_pages[s->name];
             if (s->page < 1 || s->page > pages) s->page = 1;
         }
@@ -948,14 +1141,13 @@ void ONScripter::screenHide( ConsScreen *s )
     // the page for next time
     screen_pages[s->name] = s->page;
     lua_rawgeti( L, LUA_REGISTRYINDEX, s->table );
+    if (fieldInt( L, "pages", 0 ) > 0 && !fieldStr( L, "page_var" ).empty()) screenSet( fieldStr( L, "page_var" ), s->page );
     lua_getfield( L, -1, "widgets" );
     int n = lua_istable( L, -1 ) ? (int)lua_rawlen( L, -1 ) : 0;
     for (int i=1 ; i<=n ; i++){
         lua_rawgeti( L, -1, i );
         std::string ref = fieldStr( L, "page_var" );
-        ScriptHandler::VariableInfo vi;
-        if (indexStr( L, 1 ) == "saveslots" && !ref.empty() && screenVariable( ref.c_str(), false, vi ))
-            script_h.setNumVariable( vi.var_no, s->page );
+        if (indexStr( L, 1 ) == "saveslots" && !ref.empty()) screenSet( ref, s->page );
         lua_pop( L, 1 );
     }
     lua_pop( L, 2 );
@@ -1031,7 +1223,11 @@ int ONScripter::screenRun( ConsScreen *s, int *value )
         int button = screenWait( s );
 
         lua_rawgeti( L, LUA_REGISTRYINDEX, s->table );
-        if ((button == -2 || button == -3) && fieldTable( L, button == -2 ? "wheel_up" : "wheel_down" )){
+        if (s->view_w > 0 && (button == -1 || button == 0)){ // the viewer: back, or a click shows the panel
+            if (button == -1) s->view_w = 0;
+            else s->view_hidden = false;
+        }
+        else if ((button == -2 || button == -3) && fieldTable( L, button == -2 ? "wheel_up" : "wheel_down" )){
             ret = screenActions( s, 0, value );
             if (ret != SCREEN_LOADED) lua_pop( L, 1 );
         }
@@ -1067,7 +1263,43 @@ int ONScripter::screenRun( ConsScreen *s, int *value )
                     changed = true;
                 }
             }
-            if (type == "list"){ // a name: its page's voice
+            if (type == "gallery"){
+                std::vector<std::string> files;
+                std::vector<bool> seen;
+                int cell = k >= VIEWER_BUTTONS ? s->view_cell : k;
+                if (fieldTable( L, "cells" )){
+                    lua_rawgeti( L, -1, cell );
+                    if (lua_istable( L, -1 )) cellCgs( L, files, seen );
+                    lua_pop( L, 2 );
+                }
+                if (k < VIEWER_BUTTONS){ // a cell: the viewer on its first CG seen
+                    int v = seenVariant( seen, 0, 1 );
+                    if (v >= 0){
+                        s->view_w = button / WIDGET_BUTTONS; s->view_cell = k; s->view_variant = v; s->view_hidden = false;
+                        screenTrace( s, "view", 0, k );
+                    }
+                }
+                else if (k == VIEWER_BUTTONS || k == VIEWER_BUTTONS + 1){
+                    int step = k == VIEWER_BUTTONS ? -1 : 1;
+                    int v = seenVariant( seen, s->view_variant + step, step );
+                    if (v >= 0) s->view_variant = v;
+                    screenTrace( s, "variant", 0, s->view_variant );
+                }
+                else if (k == VIEWER_BUTTONS + 2) s->view_hidden = true;
+                else s->view_w = 0;
+            }
+            else if (type == "list" && fieldStr( L, "source", "log" ) == "items"){
+                if (fieldTable( L, "items" )){
+                    lua_rawgeti( L, -1, k );
+                    if (lua_istable( L, -1 ) && fieldTable( L, "action" )){
+                        ret = screenActions( s, 0, value );
+                        if (ret == SCREEN_LOADED) return ret;
+                        lua_pop( L, 1 );
+                    }
+                    lua_pop( L, 2 );
+                }
+            }
+            else if (type == "list"){ // a name: its page's voice
                 if (k >= 1 && k <= (int)s->voices.size() && !s->voices[k-1].empty()){
                     screenExec( "dwave " + std::to_string( fieldInt( L, "voice_channel", 0 ) ) + "," + quoted( s->voices[k-1] ) );
                     screenTrace( s, "voice", 0, s->scroll + k - 1 );
