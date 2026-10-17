@@ -1154,7 +1154,8 @@ and doesn't come back. Opening a screen clears the button definitions (as
 
 The file is UTF-8 Lua (base, string, table and math libraries), run each
 time the screen opens, so it can compute its table from the game's state:
-`var(n | "name")` gives an integer variable (`%n` or a `defvar` name),
+`var(n | "name")` gives an integer variable (`%n`, a `defvar` name, or a
+`defarr` element `"?name[i]"`),
 `str(n | "name")` a string variable (in UTF-8), and `arg` is the `screen`
 command's third argument (a confirm dialog's question). Text is converted
 to the script's encoding. Coordinates are screen pixels; file names as in
@@ -1168,6 +1169,7 @@ return {
   dialog = "confirm",     -- the screen that asks actions' questions (default "confirm")
   cancel = {"close"},     -- what right-click and Esc do (default: close with 0)
   pages = 3,              -- the screen's own pages (tabs), shown from 1; without it the save slots' pages
+  page_var = "%50",       -- with pages: holds the page shown (read at open, written at close)
   wheel_up = {"scroll", "+1"},  -- what the mouse wheel does (also Left/Right); without them nothing
   wheel_down = {"scroll", "-1", at_end = {"close"}},
   widgets = { ... },      -- drawn in order, the first at the bottom
@@ -1176,17 +1178,23 @@ return {
 
 Every widget is a table whose first element is its type; `page = n` on
 any widget shows it only on page n (the screen's `pages`, else the save
-slots').
+slots'), `pages = {a, b}` on pages a to b. Wherever a field names a
+variable (`var`, `page_var`, a `set` action), `"?name[i]"` is a `defarr`
+element.
 
 | Widget | Fields |
 |---|---|
 | `{"image", ...}` | `file`, `x`, `y`; `cells` (a strip of n cells), `alpha` (0-255), `opaque` (`:c`, no alpha), `blend` (`add`, `multiply`, `sub`, `screen`: `spblend`), `scale` (percent, about its centre: `spzoom`) |
 | `{"text", ...}` | `text`, `x`, `y`, `size` (20), `cols` (40), `rows` (1), `bold`, `shadow`, `color` (`"#rrggbb"`), `align = "centre"` (x is the centre, measured as the script measures: half-width characters half as wide). Drawn as `strsp` |
-| `{"button", ...}` | an image (fields as above, cell 1 under the pointer) and `action`; `disabled` (the cell shown when the action can't be taken: no slot selected, an empty slot to load or delete, the page shown; without it the normal cell), `pressed` (the cell while held, `spbtn`'s third argument) |
+| `{"button", ...}` | an image (fields as above, cell 1 under the pointer) and `action`; `disabled` (the cell shown when the action can't be taken: no slot selected, an empty slot to load or delete, the page shown; without it the normal cell), `pressed` (the cell while held, `spbtn`'s third argument); `enabled = 0` (or `false`) always shows it as disabled, not a button |
+| `{"button", current = {a, b}, ...}` | a tab: on pages a to b its `selected` picture (one cell) in its place and no button; elsewhere the button |
 | `{"button", text = ...}` | a button drawn as text (fields as `text`): `color` (`#FFFFFF`), `hover` (under the pointer), `disabled_color` (when its action can't be taken, as a tab for the page shown) |
 | `{"slider", ...}` | a value of `var` from `min` (0) to `max` (10) by `step` (1): `text` at `x`, `y` (fields as `text`) with `%v` the value, `%V` in full-width digits, `%B` a bar (`marks`' first per step up to the value, the second after: `{"■", "□"}`), and `minus`, `plus` buttons (`{text = ..., x, y, ...}` as a text button, or `{file = ..., cells}`). `action` runs after each change |
 | `{"toggle", ...}` | flips `var` between `on` (1) and `off` (0): `text` with `%C` the mark for on or off (`marks`), drawn as a text button (`color`, `hover`). `var` may be a list, set together (the first read). `action` runs after each change |
 | `{"radio", ...}` | sets `var` to `value` (1); on while it holds it; otherwise as `toggle` |
+| `{"toggle", file = ...}`, `{"radio", file = ...}` | drawn as a picture button (fields as `image`, cell 1 under the pointer); `on_file` in place of `file` while on |
+| `{"list", source = "items", ...}` | `items` (`{text = ..., action = ..., new = true, shown = false, color = ...}`) in columns of `rows` at `x`, `y` by `dx` (a column), `dy` (a row), up to `cols` columns; those with `shown = false` are left out and the rest close up. Each: `selector` (`{file, cells, x, y}`, relative; cell 1 nothing, 2 under the pointer) a button running the item's `action`, `new_mark` (`{file, x, y}`) when `new`, its `text` at `text_x`, `text_y` (fields as `text`; `color`, the item's in place of the list's). A scene list, a music room |
+| `{"gallery", ...}` | below |
 | `{"list", source = "log", ...}` | the text log (the backlog): pages from the one on screen back, the newest at the bottom of the box `x`, `y`, `h`, each under its speaker's name (the page's tag `[name\|voice]`, as `gettaglog` gives it) in `name_color`; a page with a voice has `voice_mark` (`　♪`) after the name, which is then a button (`hover` colour) playing it on channel `voice_channel` (0). Text fields as `text` (`size`, `line_height`, `cols`, `shadow`); with `rubyon` the lines are drawn a line gap higher. Stops at the first page that doesn't fit. `{"scroll", "+1"}` goes a page back, `"-1"` forward; a button with it is disabled when it can't |
 | `{"saveslots", ...}` | below |
 
@@ -1219,6 +1227,29 @@ runs). Positions inside a slot are relative to its corner:
   the text, or reads saves of an older build ("date|chapter" and "chapter"
   both show the chapter as `%T-1`).
 
+**gallery**: a CG gallery's page, up to 90 `cells` in a grid of `cols`
+at `x + col*dx`, `y + row*dy`. A cell is `{thumb = "file", cells = 2,
+cgs = {{file = "cg.png", seen = 0 or 1}, ...}}`: open when one of its
+CGs is seen, then its `thumb` (cell 1, 2 under the pointer) at the place
+plus `thumb_dx`, `thumb_dy` is a button; else `locked` (a picture) at the
+place. `seen` is a value, so the table computes it:
+`seen = var("?cg_seen[12]")`. A click on a cell opens the viewer: the
+cell's first seen CG over the whole screen (opaque) and the `viewer`
+panel: `panel` (a list of pictures), `name` (a picture) and the
+`previous`, `next`, `hide`, `back` buttons (`{file, cells, x, y}`).
+Previous and next step through the cell's seen CGs (round), hide hides the
+panel until a click, back and right-click go back to the grid. One
+gallery widget per page (`page = n`), each with its own cells and viewer.
+
+```lua
+{"gallery", page = 1, x = 40, y = 120, dx = 150, dy = 110, cols = 5, locked = "sys/locked.png",
+  thumb_dx = -4, thumb_dy = -4,
+  viewer = {panel = {{file = "sys/panel.png", x = 0, y = 540}}, name = {file = "sys/name1.png", x = 20, y = 550},
+    previous = {file = "sys/prev.png", cells = 2, x = 500, y = 550}, next = {file = "sys/next.png", cells = 2, x = 560, y = 550},
+    hide = {file = "sys/hide.png", cells = 2, x = 620, y = 550}, back = {file = "sys/back.png", cells = 2, x = 680, y = 550}},
+  cells = {{thumb = "thumb/01.png", cgs = {{file = "cg/01a.png", seen = var("?cg_seen[1]")}, {file = "cg/01b.png", seen = var("?cg_seen[2]")}}}}}
+```
+
 **Actions**: a table `{"what", ...}`, or a list of them run in order. A
 `save`, `load` or `delete` that can't be taken (no slot, an empty slot to
 load or delete) ends the list; so does a question answered no.
@@ -1231,6 +1262,7 @@ load or delete) ends the list; so does a question answered no.
 | `{"page", n}` | shows page n of the save slots (`"+1"`, `"-1"`: the next, the previous) |
 | `{"save"[, n]}`, `{"load"[, n]}`, `{"delete"[, n]}` | slot n, else the slot acted on. `save` writes the game as it was when the screen opened (as `savegame2` with `save_text`) and the thumbnail; `load` closes every screen and loads (`loadgosub` runs); `delete` removes the save and its thumbnail |
 | `{"set", "%var", value}` | sets a variable (`slot = true` in place of the value: the slot acted on) |
+| `{"bgm", "file"}` | plays the music from its start, looping (as `bgm`, no fade) |
 | `{"gosub", "*label"}` | runs the label with the screen up; the actions after it run when it returns |
 
 `confirm = "question"` on an action asks first on the `dialog` screen
@@ -1238,8 +1270,7 @@ load or delete) ends the list; so does a question answered no.
 value other than 0 is yes; no ends the list. A `save` asks only over an
 existing save. To be added in the same format: binding to an engine
 setting (`setting =` in place of `var`), picture sliders (a track and a
-knob, dragged), lists of other sources (scene replay, music room),
-`gallery`, sounds.
+knob, dragged), sounds.
 
 A confirm dialog:
 

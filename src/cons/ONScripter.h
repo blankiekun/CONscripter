@@ -803,6 +803,9 @@ private:
     ScriptParser::Page *screenLogPage( int k );
     bool screenScrollable( struct ConsScreen *s, int n );
     void screenList( struct ConsScreen *s, int w );
+    void screenGallery( struct ConsScreen *s, int w );
+    void screenViewer( struct ConsScreen *s );
+    void screenItems( struct ConsScreen *s, int w );
     int screenConfirm( struct ConsScreen *s, int slot );
     void screenSave( struct ConsScreen *s, int slot );
     int screenActions( struct ConsScreen *s, int start, int *value );
