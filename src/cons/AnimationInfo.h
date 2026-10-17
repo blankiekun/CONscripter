@@ -182,12 +182,14 @@ public:
     int trail_time;            // ticks the motion was last stepped at
     SDL_Rect trail_rect;       // where the copies were drawn (w 0: none)
 
-    /* CONscripter: a wave (spwave): for wave_ms ms from wave_start each
-       row of the picture is drawn shifted sideways (ONScripter::waveShift).
+    /* CONscripter: a wave (spwave): from wave_start each row of the
+       picture is drawn shifted sideways (ONScripter::waveShift), its amp
+       going wave_amp0 -> wave_amp1 over wave_ms, then held there.
        Stays across lsp; reset by remove(). */
-    int wave_ms;               // 0: none (at game speed)
+    bool wave_on() const { return wave_period > 0; }
+    int wave_ms;               // ramp time (at game speed)
     int wave_start;            // ticks it started
-    int wave_period;           // its phase (1/256 turn) over the picture's height
+    int wave_period;           // its phase (1/256 turn) over the picture's height; 0: no wave
     int wave_amp0, wave_amp1;  // px, from and to over wave_ms
     int wave_curve;            // as spmotion's
     int wave_tick;             // the phase step drawn now (one per 33 ms)
