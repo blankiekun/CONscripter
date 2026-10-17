@@ -821,6 +821,7 @@ void ONScripter::screenDraw( ConsScreen *s )
         int x = fieldInt( L, "x", 0 ), y = fieldInt( L, "y", 0 );
         int page = fieldInt( L, "page", 0 );
         if (page > 0 && page != s->page){ lua_pop( L, 1 ); continue; }
+        if (!screenWhen( L )){ lua_pop( L, 1 ); continue; } // shown only while a variable holds a value
         if (fieldTable( L, "pages" )){ // shown on pages a to b
             bool in = s->page >= indexInt( L, 1, 1 ) && s->page <= indexInt( L, 2, 1 );
             lua_pop( L, 1 );
@@ -1088,31 +1089,40 @@ int ONScripter::screenConfirm( ConsScreen *s, int slot )
 
 void ONScripter::screenSave( ConsScreen *s, int slot )
 {
-    lua_State *L = s->L;
-    // the widget's shot size and text: the first saveslots
+    // the widget's shot size and text: the first saveslots, this screen's,
+    // else the nearest one's under it (a slot's window opened over the slots)
     int shot_w = 0, shot_h = 0;
     std::string text;
-    lua_rawgeti( L, LUA_REGISTRYINDEX, s->table );
-    lua_getfield( L, -1, "widgets" );
-    int n = lua_istable( L, -1 ) ? (int)lua_rawlen( L, -1 ) : 0;
-    for (int i=1 ; i<=n ; i++){
-        lua_rawgeti( L, -1, i );
-        if (indexStr( L, 1 ) == "saveslots"){
-            if (fieldTable( L, "shot" )){ shot_w = indexInt( L, 1, 0 ); shot_h = indexInt( L, 2, 0 ); lua_pop( L, 1 ); }
-            else if (fieldTable( L, "thumb" )){ shot_w = fieldInt( L, "w", 0 ); shot_h = fieldInt( L, "h", 0 ); lua_pop( L, 1 ); }
-            std::string ref = fieldStr( L, "save_text" );
-            ScriptHandler::VariableInfo vi;
-            if (!ref.empty() && screenVariable( ref.c_str(), true, vi )){
-                ScriptHandler::VariableData &d = script_h.getVariableData( vi.var_no );
-                if (vi.type == ScriptHandler::VAR_STR && d.str) text = d.str;
-                else if (vi.type != ScriptHandler::VAR_STR) text = std::to_string( script_h.getIntVariable( &vi ) );
+    std::vector<ConsScreen*> order( 1, s );
+    for (auto it = screens.rbegin() ; it != screens.rend() ; ++it) if (*it != s) order.push_back( *it );
+    bool found = false;
+    for (ConsScreen *from : order){
+        lua_State *L = from->L;
+        lua_rawgeti( L, LUA_REGISTRYINDEX, from->table );
+        lua_getfield( L, -1, "widgets" );
+        int n = lua_istable( L, -1 ) ? (int)lua_rawlen( L, -1 ) : 0;
+        for (int i=1 ; i<=n && !found ; i++){
+            lua_rawgeti( L, -1, i );
+            if (indexStr( L, 1 ) == "saveslots"){
+                found = true;
+                s = from; // its shot
+                if (fieldTable( L, "shot" )){ shot_w = indexInt( L, 1, 0 ); shot_h = indexInt( L, 2, 0 ); lua_pop( L, 1 ); }
+                else if (fieldTable( L, "thumb" )){ shot_w = fieldInt( L, "w", 0 ); shot_h = fieldInt( L, "h", 0 ); lua_pop( L, 1 ); }
+                std::string ref = fieldStr( L, "save_text" );
+                ScriptHandler::VariableInfo vi;
+                if (!ref.empty() && screenVariable( ref.c_str(), true, vi )){
+                    ScriptHandler::VariableData &d = script_h.getVariableData( vi.var_no );
+                    if (vi.type == ScriptHandler::VAR_STR && d.str) text = d.str;
+                    else if (vi.type != ScriptHandler::VAR_STR) text = std::to_string( script_h.getIntVariable( &vi ) );
+                }
+                lua_pop( L, 1 );
+                break;
             }
             lua_pop( L, 1 );
-            break;
         }
-        lua_pop( L, 1 );
+        lua_pop( L, 2 );
+        if (found) break;
     }
-    lua_pop( L, 2 );
 
     if (s->shot && shot_w > 0 && shot_h > 0){
         SDL_Surface *surface = AnimationInfo::alloc32bitSurface( shot_w, shot_h, texture_format );
