@@ -4688,6 +4688,7 @@ bool ONScripter::webEvent( int code, int value )
             stopAnimation( clickstr_state );
             return true;
         }
+        if (event_mode == WAIT_TIMER_MODE) return true; // a wait ends, as Ctrl ends it
     }
     else if (code == WEB_SET_SKIP && !value && (skip_mode & SKIP_NORMAL)){
         skip_mode &= ~SKIP_NORMAL;
