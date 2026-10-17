@@ -72,6 +72,9 @@ int ONScripter::calcDurationToNextAnimation()
     int fade_time = nextSoundFadeTime(); // CONscripter: chvolfade -1
     if (fade_time > 0 && (min == 0 || min > fade_time))
         min = fade_time;
+    int window_fade_time = nextWindowFadeTime(); // CONscripter: windowfade
+    if (window_fade_time > 0 && (min == 0 || min > window_fade_time))
+        min = window_fade_time;
     int movie_time = nextSpriteMovieTime(); // CONscripter: movies as pictures
     if (movie_time > 0 && (min == 0 || min > movie_time))
         min = movie_time;
@@ -103,6 +106,7 @@ void ONScripter::proceedAnimation(int current_time)
     proceedScreenEffects(current_time); // CONscripter
     proceedSpriteMotions(current_time);
     proceedSoundFades(current_time);
+    proceedWindowFade(current_time);
     proceedSpriteMovies(current_time);
 
 #ifdef USE_LUA
@@ -515,6 +519,9 @@ void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
     int trans = anim->trans;
     // (an lsp without an alpha has trans -1, drawn opaque)
     int factor = anim->motion_alpha;
+    if (window_fade < 256 && (anim == &cursor_info[0] || anim == &cursor_info[1] ||
+                              (windowchip_sprite_no >= 0 && anim == &sprite_info[windowchip_sprite_no])))
+        factor = factor * window_fade / 256; // windowfade: part of the window
     if (factor != 256) anim->trans = (trans < 0 ? 255 : trans) * factor / 256;
     auto draw = [&]( SDL_Rect &at, SDL_Rect &c ){
         if (!anim->affine_flag && (anim->zoom_x != 100 || anim->zoom_y != 100 || anim->motion_zoom != 100 || anim->motion_zoom_y != 100 || anim->motion_rot != 0 || anim->zoom_rot != 0))

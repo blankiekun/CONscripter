@@ -878,6 +878,7 @@ void ONScripter::resetSub()
     clearScreenFilters();
     clearScreenEffects();
     screen_flash_opacity = 0;
+    stopWindowFade();
 
     stopCommand();
     loopbgmstopCommand();
@@ -1436,6 +1437,8 @@ void ONScripter::shadowTextDisplay( SDL_Surface *surface, SDL_Rect &clip )
         color[0] = current_font->window_color[0];
         color[1] = current_font->window_color[1];
         color[2] = current_font->window_color[2];
+        for (int c=0 ; c<3 && window_fade < 256 ; c++) // windowfade: towards no darkening
+            color[c] = 255 - (255 - color[c]) * window_fade / 256;
         for ( int i=rect.y ; i<rect.y + rect.h ; i++ ){
 #ifdef USE_SIMD
             int remain = rect.w;
@@ -1475,8 +1478,8 @@ void ONScripter::shadowTextDisplay( SDL_Surface *surface, SDL_Rect &clip )
     else if ( sentence_font_info.image_surface ){
         // windowtrans scales the picture's own opacity.
         int trans = sentence_font_info.trans;
-        if (window_trans < 255)
-            sentence_font_info.trans = (trans < 0 ? 255 : trans) * window_trans / 255;
+        if (window_trans < 255 || window_fade < 256) // and windowfade
+            sentence_font_info.trans = (trans < 0 ? 255 : trans) * window_trans / 255 * window_fade / 256;
         drawTaggedSurface( surface, &sentence_font_info, clip );
         sentence_font_info.trans = trans;
     }

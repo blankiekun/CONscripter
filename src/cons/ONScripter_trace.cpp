@@ -765,7 +765,7 @@ static const struct { const char *name; int kind; } trace_commands[] = {
     {"consset",2}, {"btnse",2},
     {"screenfilter",5}, {"screenshake",5}, {"screenripple",5}, {"screenpulse",5}, {"screenzoom",5},
     {"pushscreen",5}, {"monocro",5}, {"nega",5}, {"quake",5}, {"quakex",5}, {"quakey",5},
-    {"allsphide",5}, {"allspresume",5}, {"allsp2hide",5}, {"allsp2resume",5}, {"windowtrans",5}, {"screenflash",5},
+    {"allsphide",5}, {"allspresume",5}, {"allsp2hide",5}, {"allsp2resume",5}, {"windowtrans",5}, {"windowfade",5}, {"screenflash",5},
     {"print",3},
     {"effect",4},
 };
