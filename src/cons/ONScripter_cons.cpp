@@ -3821,9 +3821,13 @@ int ONScripter::copysavegameCommand()
  * itself, or scaled set up at the tag's size. */
 FontInfo *ONScripter::textSizeFont( FontInfo *info, FontInfo &scaled )
 {
-    if (info != &sentence_font || (text_size_percent == 100 && !text_italic)) return info;
+    if (info != &sentence_font || (text_size_percent == 100 && !text_italic && text_outline < 0)) return info;
     scaled = *info;
     scaled.is_italic = text_italic;
+    if (text_outline >= 0){ // "!o": the shadow drawn as an outline of this colour
+        scaled.is_shadow = true;
+        scaled.outline = text_outline;
+    }
     for (int i=0 ; i<2 ; i++)
         scaled.font_size_xy[i] = info->font_size_xy[i] * text_size_percent / 100;
     if (scaled.font_size_xy[0] < 1 || scaled.font_size_xy[1] < 1) return info;

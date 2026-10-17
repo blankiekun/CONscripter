@@ -862,6 +862,7 @@ private:
     // CONscripter: text size tag "!zNNN" (percent of the window's font size)
     int text_size_percent;
     bool text_italic; // "!i1" ... "!i0"
+    int text_outline; // "!o#RRGGBB" ... "!o0": 0xRRGGBB, -1 none
     void centreLine( const char *buf );
     FontInfo *textSizeFont( FontInfo *info, FontInfo &scaled );
     bool isProportional( FontInfo *info );

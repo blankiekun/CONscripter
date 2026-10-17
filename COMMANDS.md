@@ -1103,6 +1103,10 @@ In script text lines:
   pitch unchanged; the backlog shows normal size.
 - **`!i1` … `!i0` [cons]** — italic text (the font's synthetic italic)
   until `!i0` (or `!i`); `reset` clears it; the backlog shows it upright.
+- **`!o#RRGGBB` … `!o0` [cons]** — the following text is drawn with a 1 px
+  outline of that colour in place of its shadow (as `strspoutline` does for
+  `strsp`), until `!o0`; `reset` clears it; the backlog shows it plain.
+  `!o` is a tag only before `#` or a digit, in any text.
 - **`!c` [cons]** — the rest of the text line (to its end, `@` or `\`) is
   centred in the room left on the window's line (horizontal text).
 - **`!vNNN` [cons]** — waits until the voice (channel 0) has played NNN
