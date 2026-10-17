@@ -311,7 +311,7 @@ void ScriptParser::readNamedVars( bool global, bool pending )
         }
         else if (val.kind == '?'){
             int size = readInt();
-            if (size < 0 || file_io_buf_ptr + (size_t)size * 4 > file_io_buf_len) return; // damaged
+            if (size < 0 || file_io_buf_ptr + (size_t)size * 4 > file_io_read_len) return; // damaged
             for (int k=0 ; k<size ; k++) val.nums.push_back( readInt() );
         }
         else return; // damaged
@@ -333,7 +333,7 @@ void ScriptParser::writeGlovalNames( bool output_flag )
 
 void ScriptParser::readGlovalNames()
 {
-    if (file_io_buf_ptr + 4 > file_io_buf_len || readInt() != CONS_GLOVAL_NAMES) return;
+    if (file_io_buf_ptr + 4 > file_io_read_len || readInt() != CONS_GLOVAL_NAMES) return;
     readNamedVars( true, true );
 }
 
