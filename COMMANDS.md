@@ -1340,7 +1340,8 @@ runs). Positions inside a slot are relative to its corner:
   text (`savegame2`'s);
 - `hover = {image = {file, x, y}, lines = {...}, preview = {x, y, w, h}}`:
   shown only while the pointer is on the slot (with `button`): the
-  picture from the slot's corner, the lines (as `lines`) and the preview
+  picture from the slot's corner (`under = {file, x, y}`: one drawn under the
+  thumbnail, a slot's chosen look), the lines (as `lines`) and the preview
   (the thumbnail scaled into the box) where they say;
 - `lines = { {x, y, size, ..., text = "...", empty = "..."} }`: text lines
   (fields as `text`); `text` for a slot with a save, `empty` without one.
