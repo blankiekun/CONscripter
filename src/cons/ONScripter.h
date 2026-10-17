@@ -88,8 +88,13 @@ bool consClockWait( SDL_Event *event );
 #define DEFAULT_VOLUME 100
 #define ONS_MIX_CHANNELS 50
 #define ONS_MIX_EXTRA_CHANNELS 4
-#if defined(USE_CONS_OPUS) // CONscripter: an Opus sound as WAV (new[]), or NULL when it's no Opus
-unsigned char *decodeOpus(const unsigned char *data, unsigned long length, unsigned long *wav_length);
+#if defined(USE_CONS_OPUS) // CONscripter: Opus sounds, decoded as they play (ONScripter_cons.cpp)
+SDL_RWops *opusWavRW(const unsigned char *data, unsigned long length); // as a WAV; NULL when it's no Opus
+Mix_Chunk *opusChunk(const unsigned char *data, unsigned long length, const SDL_AudioSpec &spec, void **filling);
+bool opusChunkStart(int channel, void *filling, unsigned char *data);
+void opusChunkFinish(int channel);
+bool opusPiece(const unsigned char *data, unsigned long length, double from, double count, bool loop,
+               const SDL_AudioSpec &spec, std::vector<Sint16> *pcm, double *length_s);
 #endif
 // CONscripter: movies through the player's ffmpeg where nothing else plays them
 #if !defined(_WIN32) && !defined(IOS) && !defined(ANDROID) && !defined(WEB) && !defined(__LIBRETRO__) && !defined(USE_SMPEG)

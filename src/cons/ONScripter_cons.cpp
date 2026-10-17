@@ -3117,8 +3117,8 @@ void ONScripter::dropStoppedSoundEvents()
 }
 
 /* The loop inside a sound file, in sample frames at its rate: LOOPSTART
- * and LOOPEND (or LOOPLENGTH) of an Ogg Vorbis file's comments, or the
- * first loop of a WAV's smpl chunk (decodeOpus writes Opus tags there).
+ * and LOOPEND (or LOOPLENGTH) of an Ogg Vorbis or Opus file's comments,
+ * or the first loop of a WAV's smpl chunk.
  * SDL_mixer loops music by these itself, but a chunk (dwaveloop) only
  * whole: the next playChannel loops inside it (setChunkLoop). */
 // The loop of the next sound playChannel starts (bytes; end 0: the whole).
@@ -3141,12 +3141,14 @@ static bool soundLoop( const unsigned char *buf, unsigned long len, Sint64 *star
     }
     if (len < 4 || memcmp( buf, "OggS", 4 )) return false;
     const unsigned char *id = NULL, *cm = NULL;
-    for (unsigned long i = 0; i + 7 < len && i < 65536 && !cm; i++){
+    bool opus = len >= 36 && !memcmp( buf + 28, "OpusHead", 8 ); // tags in 48 kHz samples, as SDL_mixer reads them
+    for (unsigned long i = 0; i + 8 < len && i < 65536 && !cm; i++){
         if (!memcmp( buf + i, "\x01vorbis", 7 )) id = buf + i;
         if (!memcmp( buf + i, "\x03vorbis", 7 )) cm = buf + i;
+        if (opus && !memcmp( buf + i, "OpusTags", 8 )) id = buf, cm = buf + i + 1; // (its magic is a byte longer)
     }
     if (!id || !cm) return false;
-    *rate = (int)le32(id - buf + 12);
+    *rate = opus ? 48000 : (int)le32(id - buf + 12);
     // (A comment header split over pages isn't read: tags sit early.)
     unsigned long at = cm - buf + 7;
     at += 4 + le32(at);
@@ -3461,6 +3463,9 @@ int ONScripter::chfreqCommand()
         track_freq[ch].ended = false;
         track_freq[ch].last = from;
         if (!cut_track[ch].loop){ // looped underneath, so that a slower sound isn't cut short
+#if defined(USE_CONS_OPUS)
+            opusChunkFinish( ch ); // playing it again ends its filling
+#endif
             Mix_PlayChannel( ch, cut_track[ch].chunk, -1 ); // (the playing sound's end isn't signalled)
             Mix_RegisterEffect( ch, cutTrackEffect, NULL, NULL );
         }
@@ -3657,7 +3662,10 @@ void ONScripter::crossFadeOutBGM( int ms )
             from = 0; // a looping music goes round
         }
     }
-    else{ // shortcut: not Ogg Vorbis (WAV, Opus as WAV: quick; MP3: decoded whole)
+#if defined(USE_CONS_OPUS)
+    else if (opusPiece( mb, music_buffer_length, s0 > 0 ? s0 : 0, (ms + ahead) / 1000.0, music_play_loop_flag, audio_format, &src, &length )){}
+#endif
+    else{ // shortcut: not Ogg Vorbis or Opus (WAV: quick; MP3: decoded whole)
         Mix_Chunk *whole = Mix_LoadWAV_RW( SDL_RWFromMem( music_buffer, music_buffer_length ), 1 );
         if (!whole) return;
         Uint32 n = whole->alen / frame, at = s0 > 0 ? (Uint32)(s0 * dev_rate) : 0;
@@ -5997,7 +6005,11 @@ int ONScripter::logvoiceCommand()
  * hands SDL_mixer a WAV: 48 kHz 16-bit stereo, with a LOOPSTART /
  * LOOPEND (or LOOPLENGTH) tag, in 48 kHz samples as SDL_mixer reads them
  * from Opus, as the WAV's loop (smpl). Any file name works: the data is
- * recognised by its header. */
+ * recognised by its header. The WAV is decoded as it is read
+ * (opusWavRW), so a music streams from it on the mixer's thread, and a
+ * sound is decoded ahead of where it plays (opusChunk): decoding either
+ * whole stalled the main thread (300 ms for a 3-minute music, 30-50 ms
+ * for a looping sound), and a picture moving then hitched. */
 #if defined(USE_CONS_OPUS)
 #include <opusfile.h>
 
@@ -6024,34 +6036,106 @@ static Sint64 opusTagSamples(const OpusTags *tags, const char *name)
     return (Sint64)(t * 48000);
 }
 
-unsigned char *decodeOpus(const unsigned char *data, unsigned long length, unsigned long *wav_length)
+struct OpusWav {
+    OggOpusFile *of;
+    std::vector<unsigned char> head; // the WAV's header
+    Sint64 frames, at;               // the WAV's data frames; where it is read (bytes)
+    Sint64 first;                    // pcm holds frames [first, first+n); the decoder is at first+n
+    int n;
+    opus_int16 pcm[11520];           // 120 ms of 48 kHz stereo, opusfile's largest
+};
+
+static Sint64 SDLCALL opusWavSize(SDL_RWops *rw)
+{
+    OpusWav *w = (OpusWav *)rw->hidden.unknown.data1;
+    return (Sint64)w->head.size() + w->frames * 4;
+}
+
+static Sint64 SDLCALL opusWavSeek(SDL_RWops *rw, Sint64 offset, int whence)
+{
+    OpusWav *w = (OpusWav *)rw->hidden.unknown.data1;
+    Sint64 at = whence == RW_SEEK_SET ? offset : whence == RW_SEEK_CUR ? w->at + offset : opusWavSize(rw) + offset;
+    if (at < 0) return SDL_SetError("Opus: seek before the start");
+    return w->at = at;
+}
+
+static size_t SDLCALL opusWavRead(SDL_RWops *rw, void *ptr, size_t size, size_t num)
+{
+    OpusWav *w = (OpusWav *)rw->hidden.unknown.data1;
+    unsigned char *out = (unsigned char *)ptr;
+    Sint64 head = w->head.size(), end = opusWavSize(rw);
+    size_t want = size * num, done = 0;
+    while (done < want && w->at < end) {
+        if (w->at < head) {
+            size_t k = std::min(want - done, (size_t)(head - w->at));
+            memcpy(out + done, w->head.data() + w->at, k);
+            w->at += k;
+            done += k;
+            continue;
+        }
+        Sint64 f = (w->at - head) / 4;
+        if (f < w->first || f >= w->first + w->n) {
+            // Anywhere but where the decoder is (a loop, a position) is a seek
+            bool ok = f == w->first + w->n || op_pcm_seek(w->of, f) == 0;
+            int n = 0;
+            if (ok) do n = op_read_stereo(w->of, w->pcm, sizeof(w->pcm) / sizeof(w->pcm[0])); while (n == OP_HOLE); // a gap: go on
+            w->first = n > 0 ? f : -1;
+            w->n = n > 0 ? n : 0;
+            if (n <= 0) break;
+        }
+        Sint64 from = w->at - head - w->first * 4;
+        size_t k = std::min(want - done, (size_t)(w->n * 4 - from));
+        for (size_t i = 0; i < k; i++) { // WAV is little-endian
+            opus_int16 s = w->pcm[(from + i) / 2];
+            out[done + i] = (from + i) & 1 ? (s >> 8) & 0xff : s & 0xff;
+        }
+        w->at += k;
+        done += k;
+    }
+    return size ? done / size : 0;
+}
+
+static size_t SDLCALL opusWavWrite(SDL_RWops *, const void *, size_t, size_t)
+{
+    return 0;
+}
+
+static int SDLCALL opusWavClose(SDL_RWops *rw)
+{
+    OpusWav *w = (OpusWav *)rw->hidden.unknown.data1;
+    op_free(w->of);
+    delete w;
+    SDL_FreeRW(rw);
+    return 0;
+}
+
+SDL_RWops *opusWavRW(const unsigned char *data, unsigned long length)
 {
     if (length < 36 || memcmp(data, "OggS", 4) != 0 || memcmp(data + 28, "OpusHead", 8) != 0)
         return NULL;
     int err = 0;
     OggOpusFile *of = op_open_memory(data, length, &err);
     if (!of) return NULL;
-    std::vector<opus_int16> pcm;
-    ogg_int64_t total = op_pcm_total(of, -1);
-    if (total > 0) pcm.reserve((size_t)total * 2);
-    opus_int16 buf[11520]; // 120 ms of 48 kHz stereo, opusfile's largest
-    for (;;) {
-        int n = op_read_stereo(of, buf, sizeof(buf) / sizeof(buf[0]));
-        if (n == OP_HOLE) continue; // a gap in the data: keep going
-        if (n <= 0) break;
-        pcm.insert(pcm.end(), buf, buf + n * 2);
-    }
-    Sint64 frames = pcm.size() / 2;
+    Sint64 frames = op_pcm_total(of, -1);
     const OpusTags *tags = op_tags(of, -1);
     Sint64 loop_start = tags ? opusTagSamples(tags, "LOOPSTART") : -1;
     Sint64 loop_end = tags ? opusTagSamples(tags, "LOOPEND") : -1;
     Sint64 loop_length = tags ? opusTagSamples(tags, "LOOPLENGTH") : -1;
-    op_free(of);
-    if (frames == 0) return NULL;
+    SDL_RWops *rw = frames > 0 ? SDL_AllocRW() : NULL;
+    if (!rw) {
+        op_free(of);
+        return NULL;
+    }
     if (loop_start >= 0 && loop_end < 0 && loop_length > 0) loop_end = loop_start + loop_length;
     bool loop = loop_start >= 0 && loop_end > loop_start && loop_end <= frames;
 
-    std::vector<unsigned char> head;
+    OpusWav *w = new OpusWav;
+    w->of = of;
+    w->frames = frames;
+    w->at = 0;
+    w->first = -1;
+    w->n = 0;
+    std::vector<unsigned char> &head = w->head;
     Uint32 data_bytes = (Uint32)(frames * 4);
     Uint32 smpl_bytes = loop ? 36 + 24 : 0;
     head.insert(head.end(), {'R', 'I', 'F', 'F'});
@@ -6077,17 +6161,162 @@ unsigned char *decodeOpus(const unsigned char *data, unsigned long length, unsig
     }
     head.insert(head.end(), {'d', 'a', 't', 'a'});
     putLE32(head, data_bytes);
-    unsigned char *wav = new (std::nothrow) unsigned char[head.size() + data_bytes];
-    if (!wav) return NULL;
-    memcpy(wav, head.data(), head.size());
-    // WAV is little-endian
-    unsigned char *out = wav + head.size();
-    for (size_t i = 0; i < pcm.size(); i++) {
-        out[2 * i] = pcm[i] & 0xff;
-        out[2 * i + 1] = (pcm[i] >> 8) & 0xff;
+
+    rw->type = SDL_RWOPS_UNKNOWN;
+    rw->size = opusWavSize;
+    rw->seek = opusWavSeek;
+    rw->read = opusWavRead;
+    rw->write = opusWavWrite;
+    rw->close = opusWavClose;
+    rw->hidden.unknown.data1 = w;
+    return rw;
+}
+
+/* An Opus sound played as a chunk: SDL_mixer keeps a chunk whole, in the
+ * device's format, so it is made at its full length, silent, and filled
+ * from the WAV through an audio stream (to the device's format): its first
+ * OPUS_CHUNK_AHEAD_MS at once, the rest by an effect on its channel, 8
+ * times as much as each mix takes, ahead of where it plays (chfreq reads
+ * it at most 4 times as fast). The effect ends with its sound (done): a
+ * sound stopped early keeps silence after what was filled; chfreq, which
+ * plays it again, fills it first (opusChunkFinish). */
+#define OPUS_CHUNK_AHEAD_MS 500
+struct OpusChunk { SDL_RWops *rw; SDL_AudioStream *cvt; Mix_Chunk *chunk; Uint32 filled, frame; unsigned char *data; };
+static OpusChunk *opus_chunk[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS]; // filling, on each channel
+
+static void opusFill(OpusChunk *z, Uint32 upto)
+{
+    Uint8 in[16384];
+    if (upto > z->chunk->alen) upto = z->chunk->alen;
+    upto -= upto % z->frame;
+    while (z->filled < upto) {
+        int got = SDL_AudioStreamGet(z->cvt, z->chunk->abuf + z->filled, upto - z->filled);
+        if (got > 0) {
+            z->filled += got;
+            continue;
+        }
+        if (got < 0 || !z->rw) { // all there is: the rest stays silent
+            z->filled = z->chunk->alen;
+            break;
+        }
+        size_t n = SDL_RWread(z->rw, in, 1, sizeof(in));
+        if (n > 0) SDL_AudioStreamPut(z->cvt, in, (int)n);
+        else {
+            SDL_RWclose(z->rw);
+            z->rw = NULL;
+            SDL_AudioStreamFlush(z->cvt);
+        }
     }
-    *wav_length = head.size() + data_bytes;
-    return wav;
+}
+
+static void opusChunkFree(OpusChunk *z)
+{
+    if (z->rw) SDL_RWclose(z->rw);
+    SDL_FreeAudioStream(z->cvt);
+    delete[] z->data;
+    delete z;
+}
+
+static void SDLCALL opusChunkEffect(int, void *, int len, void *udata)
+{
+    OpusChunk *z = (OpusChunk *)udata;
+    opusFill(z, z->filled + (Uint32)len * 8);
+}
+
+static void SDLCALL opusChunkDone(int channel, void *udata)
+{
+    if (channel >= 0 && channel < ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS && opus_chunk[channel] == udata)
+        opus_chunk[channel] = NULL;
+    opusChunkFree((OpusChunk *)udata);
+}
+
+/* The chunk of an Opus sound (NULL when data isn't one), its first part
+ * filled; *filling, unless that was all of it, goes to opusChunkStart once
+ * the chunk plays. data must last until then. */
+Mix_Chunk *opusChunk(const unsigned char *data, unsigned long length, const SDL_AudioSpec &spec, void **filling)
+{
+    *filling = NULL;
+    SDL_RWops *rw = opusWavRW(data, length);
+    if (!rw) return NULL;
+    OpusWav *w = (OpusWav *)rw->hidden.unknown.data1;
+    Uint32 frame = spec.channels * (SDL_AUDIO_BITSIZE(spec.format) / 8);
+    Uint64 bytes = (Uint64)w->frames * spec.freq / 48000 * frame;
+    SDL_AudioStream *cvt = SDL_NewAudioStream(AUDIO_S16LSB, 2, 48000, spec.format, spec.channels, spec.freq);
+    Mix_Chunk *chunk = cvt && bytes > 0 && bytes < 0x7fffffff ? (Mix_Chunk *)SDL_calloc(1, sizeof(Mix_Chunk)) : NULL;
+    Uint8 *abuf = chunk ? (Uint8 *)SDL_calloc(1, (size_t)bytes) : NULL;
+    if (!abuf || SDL_RWseek(rw, w->head.size(), RW_SEEK_SET) < 0) {
+        SDL_free(chunk);
+        if (cvt) SDL_FreeAudioStream(cvt);
+        SDL_RWclose(rw);
+        return NULL;
+    }
+    chunk->allocated = 1; // Mix_FreeChunk frees abuf
+    chunk->abuf = abuf;
+    chunk->alen = (Uint32)bytes;
+    chunk->volume = MIX_MAX_VOLUME;
+    OpusChunk *z = new OpusChunk{ rw, cvt, chunk, 0, frame, NULL };
+    opusFill(z, (Uint32)((Uint64)spec.freq * OPUS_CHUNK_AHEAD_MS / 1000 * frame));
+    if (z->filled < chunk->alen) *filling = z;
+    else opusChunkFree(z);
+    return chunk;
+}
+
+/* The chunk opusChunk made plays on channel: the rest of it is filled as
+ * it plays. Takes data (new[]) over and returns true, or fills it all now
+ * (no effect could be added) and returns false. */
+bool opusChunkStart(int channel, void *filling, unsigned char *data)
+{
+    OpusChunk *z = (OpusChunk *)filling;
+    if (!Mix_RegisterEffect(channel, opusChunkEffect, opusChunkDone, z)) {
+        opusFill(z, z->chunk->alen);
+        opusChunkFree(z);
+        return false;
+    }
+    z->data = data;
+    if (channel < ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS) opus_chunk[channel] = z;
+    return true;
+}
+
+/* An Opus sound's seconds [from, from+count) in the device's format
+ * (16-bit), going round when loop, in *pcm, and its length in *length (s);
+ * false when it isn't Opus. */
+bool opusPiece(const unsigned char *data, unsigned long length, double from, double count, bool loop,
+               const SDL_AudioSpec &spec, std::vector<Sint16> *pcm, double *length_s)
+{
+    SDL_RWops *rw = opusWavRW(data, length);
+    if (!rw) return false;
+    OpusWav *w = (OpusWav *)rw->hidden.unknown.data1;
+    SDL_AudioStream *cvt = SDL_NewAudioStream(AUDIO_S16LSB, 2, 48000, AUDIO_S16SYS, spec.channels, spec.freq);
+    Sint64 at = (Sint64)(from * 48000), left = (Sint64)(count * 48000);
+    if (loop) at %= w->frames;
+    std::vector<Uint8> in;
+    while (cvt && left > 0 && at < w->frames) {
+        Sint64 n = std::min(left, w->frames - at);
+        in.resize((size_t)n * 4);
+        SDL_RWseek(rw, w->head.size() + at * 4, RW_SEEK_SET);
+        size_t got = SDL_RWread(rw, in.data(), 1, in.size());
+        if (got == 0) break;
+        SDL_AudioStreamPut(cvt, in.data(), (int)got);
+        left -= n;
+        if (!loop) break;
+        at = 0; // a looping music goes round
+    }
+    *length_s = w->frames / 48000.0;
+    SDL_RWclose(rw);
+    if (!cvt) return false;
+    SDL_AudioStreamFlush(cvt);
+    int bytes = SDL_AudioStreamAvailable(cvt);
+    pcm->resize(bytes / 2);
+    if (bytes > 0) SDL_AudioStreamGet(cvt, pcm->data(), bytes);
+    SDL_FreeAudioStream(cvt);
+    return true;
+}
+
+// The sound on channel filled to its end now (called under the audio lock).
+void opusChunkFinish(int channel)
+{
+    if (channel >= 0 && channel < ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS && opus_chunk[channel])
+        opusFill(opus_chunk[channel], opus_chunk[channel]->chunk->alen);
 }
 #endif // USE_CONS_OPUS
 
