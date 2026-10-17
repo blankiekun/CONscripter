@@ -22,6 +22,7 @@
 
 #include "ONScripter.h"
 #include "Utils.h"
+#include "coding2utf16.h"
 #include <sys/stat.h>
 #include <time.h>
 #include <limits.h>
@@ -34,6 +35,7 @@
 
 void traceString( std::string &out, const char *text, int len=-1, bool json=true );
 std::string fromUTF8( const char *text );
+extern Coding2UTF16 *coding2utf16;
 
 #ifdef USE_LUA
 #include <lua.hpp>
@@ -204,8 +206,10 @@ time_t ONScripter::screenSaveTime( int no )
 }
 
 /* A slot's text line: %N the slot in two digits, %n as is, %Y %y %m %d %H
- * %M %S the save's time, %T its text, %% a %. In the script's encoding. */
-static std::string slotText( const std::string &tmpl, int no, time_t t, const char *text )
+ * %M %S the save's time, %T its text, %T1 to %T9 its parts cut at `split`
+ * (%T-1 to %T-9 from the last),
+ * %% a %. In the script's encoding. */
+static std::string slotText( const std::string &tmpl, int no, time_t t, const char *text, const std::string &split )
 {
     std::string in = fromUTF8( tmpl.c_str() ), out;
     struct tm *tm = t ? localtime( &t ) : NULL;
@@ -216,6 +220,24 @@ static std::string slotText( const std::string &tmpl, int no, time_t t, const ch
         buf[0] = 0;
         if (c == 'N') snprintf( buf, sizeof(buf), "%02d", no );
         else if (c == 'n') snprintf( buf, sizeof(buf), "%d", no );
+        else if (c == 'T' && i+1 < in.size() && ((in[i+1] >= '1' && in[i+1] <= '9') ||
+                 (in[i+1] == '-' && i+2 < in.size() && in[i+2] >= '1' && in[i+2] <= '9'))){
+            bool back = in[i+1] == '-';
+            i += back ? 2 : 1;
+            std::vector<std::string> parts;
+            std::string all = text ? text : "";
+            size_t from = 0;
+            for (size_t j=0 ; j<all.size() ; ){ // split only at a character's start (a Shift-JIS trail byte can be '|')
+                if (!split.empty() && all.compare( j, split.size(), split ) == 0){
+                    parts.push_back( all.substr( from, j - from ) );
+                    from = j += split.size();
+                }
+                else j += (IS_TWO_BYTE( (unsigned char)all[j] ) && !coding2utf16->force_utf8 && j+1 < all.size()) ? 2 : 1;
+            }
+            parts.push_back( all.substr( from ) );
+            int k = in[i] - '1';
+            if (k < (int)parts.size()) out += parts[back ? parts.size() - 1 - k : k];
+        }
         else if (c == 'T'){ if (text) out += text; }
         else if (c == '%') out += '%';
         else if (tm && strchr( "YymdHMS", c )){
@@ -431,11 +453,12 @@ void ONScripter::screenSlots( ConsScreen *s, int w )
             lua_pop( L, 1 );
         }
         char *text = t ? readSaveStrFromFile( slot ) : NULL;
+        std::string split = fromUTF8( fieldStr( L, "split" ).c_str() );
         if (fieldTable( L, "lines" )){
             int n = (int)lua_rawlen( L, -1 );
             for (int j=1 ; j<=n ; j++){
                 lua_rawgeti( L, -1, j );
-                std::string line = slotText( fieldStr( L, t ? "text" : "empty" ), slot, t, text );
+                std::string line = slotText( fieldStr( L, t ? "text" : "empty" ), slot, t, text, split );
                 if (!line.empty()) screenText( s, line, bx + fieldInt( L, "x", 0 ), by + fieldInt( L, "y", 0 ) );
                 lua_pop( L, 1 );
             }
