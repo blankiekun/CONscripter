@@ -4059,7 +4059,7 @@ int ONScripter::delsavegameCommand()
 
 /* copysavegame from,to
  *   Copies save file from to save file to, as it is (its savegame2 text
- *   too); when from doesn't exist, deletes to instead. For a script that
+ *   too); when from doesn't exist, to is left as it is. For a script that
  *   keeps saves of its own beside a slot (the pages of nested scenes).
  *   In the web build the save directory is synced afterwards. */
 int ONScripter::copysavegameCommand()
@@ -4082,18 +4082,15 @@ int ONScripter::copysavegameCommand()
 #endif
     for (size_t i=0 ; i+1<names.size() ; i+=2){
         std::string src = dir + names[i], dst = dir + names[i+1];
-        FILE *in = fopen(src.c_str(), "rb");
-        if (!in){
-            if (::remove(dst.c_str()) != 0 && errno != ENOENT)
-                utils::printError("copysavegame: can't delete %s\n", dst.c_str());
-            continue;
-        }
+        // ::fopen: dir already holds the folder, the member fopen would add archive_path again
+        FILE *in = ::fopen(src.c_str(), "rb");
+        if (!in) continue; // never delete a player's save because the source is missing
         std::vector<char> data;
         char buf[4096];
         size_t n;
         while ((n = fread(buf, 1, sizeof(buf), in)) > 0) data.insert(data.end(), buf, buf + n);
         fclose(in);
-        FILE *out = fopen(dst.c_str(), "wb");
+        FILE *out = ::fopen(dst.c_str(), "wb");
         if (!out || fwrite(data.data(), 1, data.size(), out) != data.size())
             utils::printError("copysavegame: can't write %s\n", dst.c_str());
         if (out) fclose(out);
