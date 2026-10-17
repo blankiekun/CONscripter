@@ -29,6 +29,9 @@
 #include "sjis2utf16.h"
 #include "version.h"
 #include "stdlib.h"
+#include <ctype.h>
+#include <string>
+#include <vector>
 
 ONScripter ons;
 Coding2UTF16 *coding2utf16 = NULL;
@@ -400,6 +403,20 @@ extern "C" bool playVideoWeb(const char *path, bool click_flag, bool loop_flag)
 }
 #endif
 
+// CONscripter: steps to an option's value; an option without one is
+// reported (a startup failure, or only noted in ons_args) instead of read past the end
+static bool nextArg(int &argc, char **&argv)
+{
+    if (argc <= 1){
+        if (g_options_file) utils::printInfo(" option %s in ons_args needs a value\n", argv[0]);
+        else g_bad_options += std::string(g_bad_options.empty() ? "" : ", ") + "option " + argv[0] + " needs a value";
+        return false;
+    }
+    argc--;
+    argv++;
+    return true;
+}
+
 void parseOption(int argc, char *argv[]) {
     while (argc > 0) {
         if ( argv[0][0] == '-' ){
@@ -413,18 +430,15 @@ void parseOption(int argc, char *argv[]) {
 
             // load options
             else if ( !strcmp( argv[0]+1, "f" ) || !strcmp( argv[0]+1, "-font" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setFontFile(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "r" ) || !strcmp( argv[0]+1, "-root" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setArchivePath(argv[0]);
             }
             else if ( !strcmp(argv[0]+1, "-save-dir") ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.makeSaveDir(argv[0]); // CONscripter
                 ons.setSaveDir(argv[0]);
             }
@@ -432,18 +446,15 @@ void parseOption(int argc, char *argv[]) {
                 ons.setDebugLevel(1);
             }
             else if ( !strcmp( argv[0]+1, "-trace" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setTraceFile(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-trace-ignore" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setTraceIgnore(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-auto-play" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setAutoPlay(atoi(argv[0]));
             }
             else if ( !strcmp( argv[0]+1, "-real-time" ) ){
@@ -455,149 +466,121 @@ void parseOption(int argc, char *argv[]) {
 #endif
             }
             else if ( !strcmp( argv[0]+1, "-skip-screens" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setSkipScreens(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-auto-choice" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setAutoChoice(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-shot-pages" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setTraceShots(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-shot-every" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setTraceShotEvery(atoi(argv[0]));
             }
             else if ( !strcmp( argv[0]+1, "-shot-dir" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setTraceShotDir(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-shot-at" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setTraceShotAt(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-shot-after" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setTraceShotAfter(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-shot-effects" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setTraceShotEffects(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-replay" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setReplay(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-taken" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setTaken(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-choose" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setChoose(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-choices" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setChoices(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-known-labels" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setKnownLabels(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-stop-known" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setStopKnown(atoi(argv[0]));
             }
             else if ( !strcmp( argv[0]+1, "-load" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setStartLoad(atoi(argv[0]));
             }
             else if ( !strcmp( argv[0]+1, "-checkpoint-every" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setCheckpoints(atoi(argv[0]), -1);
             }
             else if ( !strcmp( argv[0]+1, "-checkpoint-start" ) ){
                 ons.setCheckpointStart();
             }
             else if ( !strcmp( argv[0]+1, "-checkpoint-slot" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setCheckpoints(-1, atoi(argv[0]));
             }
             else if ( !strcmp( argv[0]+1, "-audio-stats" ) ){
                 ons.setAudioStats();
             }
             else if ( !strcmp( argv[0]+1, "-trace-long-wait" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setTraceLongWait(atoi(argv[0]));
             }
             else if ( !strcmp( argv[0]+1, "-trace-max-image" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setTraceMaxImage(atoi(argv[0]));
             }
             else if ( !strcmp( argv[0]+1, "-roundtrip-every" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setRoundtrip(atoi(argv[0]), -1);
             }
             else if ( !strcmp( argv[0]+1, "-roundtrip-slot" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setRoundtrip(-1, atoi(argv[0]));
             }
             else if ( !strcmp( argv[0]+1, "-trace-vars" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setTraceVars(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-goto" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setStartGoto(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-vars" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setStartVars(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-dump-vars" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setDumpVars(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-until" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setUntil(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-max-pages" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setMaxPages(atoi(argv[0]));
             }
             else if ( !strcmp( argv[0]+1, "-seed" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setSeed(atoi(argv[0]));
             }
             else if (!strcmp(argv[0]+1, "-enc:sjis")){
@@ -616,13 +599,11 @@ void parseOption(int argc, char *argv[]) {
                 ons.setWindowMode();
             }
             else if ( !strcmp( argv[0]+1, "-width" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setWindowWidth(atoi(argv[0]));
             }
             else if ( !strcmp( argv[0]+1, "-height" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setWindowHeight(atoi(argv[0]));
             }
             else if ( !strcmp( argv[0]+1, "-fullscreen" ) ){
@@ -632,14 +613,12 @@ void parseOption(int argc, char *argv[]) {
                 ons.setFullscreenMode(2);
             }
             else if ( !strcmp( argv[0]+1, "-filter" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 if (!ons.setScreenFilter(argv[0]))
                     g_bad_options += std::string(g_bad_options.empty() ? "" : ", ") + "unknown --filter " + argv[0] + " (crt, pc98, gameboy, sepia, mono, vhs)";
             }
             else if ( !strcmp( argv[0]+1, "-sharpness" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setSharpness(atof(argv[0]));
             }
             else if (!strcmp(argv[0]+1, "-no-video")){
@@ -654,18 +633,15 @@ void parseOption(int argc, char *argv[]) {
                 ons.enableCDAudio();
             }
             else if ( !strcmp( argv[0]+1, "-cdnumber" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setCDNumber(atoi(argv[0]));
             }
             else if ( !strcmp( argv[0]+1, "-registry" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setRegistryFile(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-dll" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setDLLFile(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-force-button-shortcut" ) ){
@@ -684,8 +660,7 @@ void parseOption(int argc, char *argv[]) {
                 ons.enableEdit();
             }
             else if ( !strcmp( argv[0]+1, "-key-exe" ) ){
-                argc--;
-                argv++;
+                if (!nextArg(argc, argv)) break;
                 ons.setKeyEXE(argv[0]);
             }
             else if (!strcmp(argv[0]+1, "-fontcache")){
@@ -793,18 +768,20 @@ int main(int argc, char *argv[])
     }
     else fp = open_args(argfilename, "r");
     if (fp) {
-        char **args = new char*[16];
-        int argn = 0;
-        args[argn] = new char[64];
-        while (argn < 16 && (fscanf(fp, "%s", args[argn]) > 0)) {
-            ++argn;
-            if (argn < 16) args[argn] = new char[64];
+        // CONscripter: tokens of any length and number (was 16 of up to 63 chars)
+        std::vector<std::string> tokens(1);
+        for (int c ; (c = fgetc(fp)) != EOF ; ){
+            if (!isspace(c)) tokens.back() += (char)c;
+            else if (!tokens.back().empty()) tokens.emplace_back();
         }
+        fclose(fp);
+        if (tokens.back().empty()) tokens.pop_back();
+        std::vector<char*> args;
+        for (std::string &t : tokens) args.push_back(&t[0]);
+        args.push_back(NULL);
         g_options_file = true;
-        parseOption(argn, args);
+        parseOption((int)tokens.size(), args.data());
         g_options_file = false;
-        for (int i = 0; i < argn; ++i) delete[] args[i];
-        delete[] args;
     }
 
     if (coding2utf16 == NULL) coding2utf16 = new GBK2UTF16();

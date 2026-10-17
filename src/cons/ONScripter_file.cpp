@@ -55,11 +55,11 @@ extern "C" void c2pstrcpy(Str255 dst, const char *src);	//#include <TextUtils.h>
 
 void ONScripter::searchSaveFile( SaveFileInfo &save_file_info, int no )
 {
-    char file_name[256];
+    char file_name[4096]; // CONscripter: room for a long --save-dir; snprintf below
 
     script_h.getStringFromInteger( save_file_info.sjis_no, no, (num_save_file >= 10)?2:1 );
 #if defined(LINUX) || defined(MACOSX) || defined(IOS) || defined(ANDROID)
-    sprintf( file_name, "%ssave%d.dat", save_dir?save_dir:archive_path, no );
+    snprintf( file_name, sizeof(file_name), "%ssave%d.dat", save_dir?save_dir:archive_path, no );
     struct stat buf;
     struct tm *tm;
     // printf("## searchSaveFile %s\n", file_name);
@@ -79,7 +79,7 @@ void ONScripter::searchSaveFile( SaveFileInfo &save_file_info, int no )
     save_file_info.hour   = tm->tm_hour;
     save_file_info.minute = tm->tm_min;
 #elif defined(WINRT)
-    sprintf(file_name, "%ssave%d.dat", save_dir ? save_dir : archive_path, no);
+    snprintf(file_name, sizeof(file_name), "%ssave%d.dat", save_dir ? save_dir : archive_path, no);
     WCHAR file_nameW[256];
     MultiByteToWideChar(CP_ACP, 0, file_name, -1, file_nameW, 256);
     WIN32_FILE_ATTRIBUTE_DATA wfad;
@@ -96,7 +96,7 @@ void ONScripter::searchSaveFile( SaveFileInfo &save_file_info, int no )
     save_file_info.hour   = stm.wHour;
     save_file_info.minute = stm.wMinute;
 #elif defined(WIN32) || defined(_WIN32)
-    sprintf( file_name, "%ssave%d.dat", save_dir?save_dir:archive_path, no );
+    snprintf( file_name, sizeof(file_name), "%ssave%d.dat", save_dir?save_dir:archive_path, no );
     HANDLE  handle;
     FILETIME    tm, ltm;
     SYSTEMTIME  stm;
@@ -121,7 +121,7 @@ void ONScripter::searchSaveFile( SaveFileInfo &save_file_info, int no )
     save_file_info.hour   = stm.wHour;
     save_file_info.minute = stm.wMinute;
 #elif defined(MACOS9)
-    sprintf( file_name, "%ssave%d.dat", save_dir?save_dir:archive_path, no );
+    snprintf( file_name, sizeof(file_name), "%ssave%d.dat", save_dir?save_dir:archive_path, no );
     CInfoPBRec  pb;
     Str255      p_file_name;
     FSSpec      file_spec;
@@ -145,7 +145,7 @@ void ONScripter::searchSaveFile( SaveFileInfo &save_file_info, int no )
     save_file_info.hour   = tm.hour;
     save_file_info.minute = tm.minute;
 #elif defined(PSP)
-    sprintf( file_name, "%ssave%d.dat", save_dir?save_dir:archive_path, no );
+    snprintf( file_name, sizeof(file_name), "%ssave%d.dat", save_dir?save_dir:archive_path, no );
     SceIoStat buf;
     if ( sceIoGetstat(file_name, &buf)<0 ){
         save_file_info.valid = false;
