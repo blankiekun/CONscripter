@@ -549,6 +549,20 @@ void ONScripter::sendSpriteTexts()
 #endif
 }
 
+// CONscripter: the text hooks again for the page and string sprites on the screen, as
+// skipped text (already counted), for a web page that turns its text overlay back on.
+// shortcut: choices on the screen aren't resent; they come with the next select.
+void ONScripter::resendWebText()
+{
+#if defined(WEB)
+    EM_ASM({ if (self.consOverlay && !Module.consNoTextOverlay) self.consOverlay('reset'); });
+    if (!(display_mode & DISPLAY_MODE_TEXT))
+        EM_ASM({ if (self.consOverlay && !Module.consNoTextOverlay) self.consOverlay('hide'); });
+    textHook(current_page->text, current_page->text_count, 1);
+    sendSpriteTexts();
+#endif
+}
+
 // CONscripter: clears the text layer and the area it holds text in.
 void ONScripter::clearTextLayer()
 {

@@ -4481,6 +4481,8 @@ EMSCRIPTEN_KEEPALIVE void consSetSkip( int on ){ pushWebEvent( ONScripter::WEB_S
 EMSCRIPTEN_KEEPALIVE void consSetRuby( int on ){ pushWebEvent( ONScripter::WEB_SET_RUBY, on ); }
 // ms per character, 0 at once, -1 the game's own speed
 EMSCRIPTEN_KEEPALIVE void consSetTextSpeed( int ms ){ pushWebEvent( ONScripter::WEB_SET_TEXT_SPEED, ms ); }
+// the text hooks again for what is on the screen (after consNoTextOverlay is cleared)
+EMSCRIPTEN_KEEPALIVE void consResendText(){ pushWebEvent( ONScripter::WEB_RESEND_TEXT, 0 ); }
 }
 #endif
 
@@ -4524,6 +4526,8 @@ bool ONScripter::webEvent( int code, int value )
     }
     else if (code == WEB_SET_RUBY) ruby_hidden = !value; // from the next text drawn
     else if (code == WEB_SET_TEXT_SPEED) text_speed_override = value >= 0 ? value : -1;
+    // shortcut: not in the system menu or backlog (their text comes with the next page)
+    else if (code == WEB_RESEND_TEXT && system_menu_mode == SYSTEM_NULL) resendWebText();
     return false;
 }
 
