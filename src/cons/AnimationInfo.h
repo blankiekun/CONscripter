@@ -118,7 +118,10 @@ public:
            FILTER_LEVELS     = 9, // param = r, g, b levels, each gamma*65536 + low*256 + high (gamma in 1/1000)
            FILTER_GREY_LEVELS = 10, // greyscale (54 r + 183 g + 19 b)/256, then FILTER_LEVELS
            FILTER_GREY_WEIGHTS = 11, // grey r*param[0]/256 + g*param[1]/256 + b*param[2]/256, each term rounded down
-           FILTER_LAST       = FILTER_GREY_WEIGHTS
+           FILTER_ALTER_LEVELS = 12, // FILTER_LEVELS on each channel decoded as sRGB and raised to 1/2.2 (in float, one rounding)
+           FILTER_ALTER_GREY_LEVELS = 13, // FILTER_GREY_LEVELS on those decoded values
+           FILTER_ALTER_LEVELS_KEEP = 14, // FILTER_ALTER_LEVELS, but a green or blue at 0 stays 0
+           FILTER_LAST       = FILTER_ALTER_LEVELS_KEEP
     };
     // How a filter's colour is combined with the pixel's.
     enum { FILTER_BLEND_COPY     = 0,

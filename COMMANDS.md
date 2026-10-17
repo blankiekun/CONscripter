@@ -724,6 +724,11 @@ inverted; 9 levels: each p (r, g, b) is gamma×65536 + low×256 + high, gamma
 in 1/1000, a channel v becoming low + (high−low)·(v/255)^(1000/gamma) (gamma
 0: low; `65536255` leaves it); 10 those levels on the grey (54r+183g+19b)/256;
 11 the grey of weights p1,p2,p3 (r, g, b in 1/256, each term rounded down).
+12 levels as 9 on each channel first decoded as sRGB and raised to 1/2.2
+(255·srgb⁻¹(v/255)^0.4545: a shader sampling an sRGB texture and
+re-encoding it), in float with one rounding; 13 those levels on the grey
+(54r+183g+19b)/256 of the decoded values; 14 as 12, but a green or blue
+of 0 stays 0.
 blend: 0 copy, 1 multiply, 2 add, 3 screen, 4 overlay, 5 colour dodge
 (pixels ≤ 3 go black). strength 0-256 (256).
 Up to 4 stack; `spfilter num,0` removes. Stays through `lsp`, removed by
