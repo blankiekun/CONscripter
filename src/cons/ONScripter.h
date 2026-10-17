@@ -755,6 +755,12 @@ private:
     // CONscripter: extra state after the NScripter save data (ONScripter_cons.cpp)
     void loadSaveFileCons();
     void saveSaveFileCons( bool output_flag );
+    // CONscripter: places in the script by label, line and the line's hash (ONScripter_savepoint.cpp)
+    void loadScriptPosition();
+    void saveSavePoints( bool output_flag );
+    void loadSavePoints();
+    void writeSavePoint( char *address, bool output_flag );
+    char *readSavePoint( bool after, const char *what, int *label, int *line );
     // CONscripter: play time (getplaytime), counted from playtime_start on
     // top of playtime_base; the save data's offset of it (writeSaveFile
     // brings it up to date there).

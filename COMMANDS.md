@@ -256,6 +256,12 @@ Impl `ScriptParser::filelogCommand`, `labellogCommand`.
 ### kidokuskip / kidokumode
 `kidokuskip` — skip mode stops at unread text; `kidokumode 1` — skip only
 read text. Impl `ScriptParser::kidokuskipCommand`, `kidokumodeCommand`.
+CONscripter: `kidoku.dat` keeps the read marks by label, line in the
+label and the line's hash (`ScriptHandler::writeKidokuCons`,
+ONScripter_savepoint.cpp), so after a rebuild of `0.txt` a line read
+before stays read wherever it moved inside its label; marks of a changed
+or deleted line, or of a label gone, are dropped. A stock `kidoku.dat`
+(a bitmap of byte offsets) is still read when its size fits the script.
 
 ### english (define)
 `english` — English (half-width) mode. Impl `ScriptParser::englishCommand`.
@@ -372,6 +378,15 @@ Impl `ScriptParser::clickstrCommand`, `linepageCommand`.
 ### savepoint / saveon / saveoff
 `savepoint` — the save records this place; `saveoff`/`saveon` stop/start
 recording at text. Impl `ONScripter::savepointCommand` etc.
+CONscripter: a save keeps where it resumes, and where each `gosub` and
+`for` returns, as the label, the line in it (0 is the `*label` line), the
+byte in the line and the line's hash (ONScripter_savepoint.cpp), so a save
+still loads at its line after a rebuild of `0.txt` that moved it. On load
+the line is found by its hash, nearest to its old number; a line no longer
+there falls back to the line at that number in the label (a return place:
+the line after it), then to the label's start, with one `load: ...` error
+line and a `save place lost` trace warning; a label gone keeps the stock
+place (the line number in the whole script).
 
 ## Text and text window
 

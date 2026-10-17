@@ -663,7 +663,7 @@ void ScriptHandler::saveKidokuData()
         return;
     }
 
-    fwrite( kidoku_buffer, 1, script_buffer_length/8, fp );
+    writeKidokuCons( fp ); // CONscripter
     fclose( fp );
 }
 
@@ -676,7 +676,7 @@ void ScriptHandler::loadKidokuData()
     memset( kidoku_buffer, 0, script_buffer_length/8 + 1 );
 
     if ( ( fp = fopen( "kidoku.dat", "rb", true ) ) != NULL ){
-        fread( kidoku_buffer, 1, script_buffer_length/8, fp );
+        readKidokuCons( fp ); // CONscripter
         fclose( fp );
     }
 }

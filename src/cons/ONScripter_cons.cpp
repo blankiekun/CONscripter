@@ -47,7 +47,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 22 // only this version's block is read; the "Version n" comments below
+#define CONS_SAVE_VERSION 25 // only this version's block is read; the "Version n" comments below
                             // name the parts in the order they are written
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
@@ -2638,6 +2638,10 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         for (int i=0 ; i<MAX_SCREEN_FILTER ; i++)
             writeInt( z[i], output_flag );
     }
+
+    // Version 25: where the script resumes and where each gosub and for
+    // returns, by label, line and the line's hash (ONScripter_savepoint.cpp).
+    saveSavePoints( output_flag );
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -3679,6 +3683,8 @@ void ONScripter::loadSaveFileCons()
             if (i < MAX_SCREEN_FILTER) z[i] = v;
         }
     }
+
+    loadSavePoints();
 }
 
 /* --save-dir path: makes the folder, and the folders it is in, if they
