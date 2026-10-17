@@ -786,6 +786,8 @@ private:
     std::map<std::string, int> screen_pages; // the save slots' page each screen showed last
     const char *screen_strsp_text = NULL; // strsp's text in place of its argument (a screen's, with line breaks)
     std::string skip_screens = ",save,load,settings,backlog,extras,"; // the kinds --auto-play closes at once
+    bool screen_waiting = false; // a screen waits for the player (screenWait)
+    bool screenPress( int x, int y ); // a press on a screen's slider knob: dragged from the press
 #ifdef USE_LUA
 public:
     int screenLuaVar( lua_State *L );
@@ -818,6 +820,10 @@ private:
     void screenHide( struct ConsScreen *s );
     void screenCloseAll();
     int screenWait( struct ConsScreen *s );
+    void screenKnob( struct ConsScreen *s, int w, int v );
+    int screenKnobKey( struct ConsScreen *s, int button );
+    bool screenDragWait();
+    int screenDrag( struct ConsScreen *s, int button, int *value );
     int screenRun( struct ConsScreen *s, int *value );
     int screenOpen( const std::string &name, const std::string &arg, int *value );
 #endif
