@@ -560,7 +560,7 @@ handles the wait.
 | `monocro` | The colour of `monocro`, as `"#rrggbb"`, while it is on |
 | `nega` | The `nega` mode, while it is on |
 | `flash` | `[opacity, "#rrggbb"]` while a `screenflash` is on |
-| `filters` | The `screenfilter` slots in use: `{"slot","kind","blend","strength","p":[p1,p2,p3]}` (see COMMANDS.md) |
+| `filters` | The `screenfilter` slots in use: `{"slot","kind","blend","strength","p":[p1,p2,p3]}`, with `"z"` when it has one (see COMMANDS.md) |
 | `fx` | The `screenshake`/`screenripple`/`screenpulse` slots in use: `{"slot","kind":"shake"\|"ripple"\|"pulse"}`, with the ripple's `map` and a shake's `end` (ms) when it has one; a timed wait skipped by auto-play still counts toward that end |
 | `shot` | The picture saved of this page (`--shot-pages`, `--shot-every`) |
 | `sprites_hidden` | `true` while `allsphide` hides the `lsp` and `ld` sprites (they are still listed); `sprites2_hidden` likewise for `allsp2hide` and `lsp2` |

@@ -525,12 +525,16 @@ x,y,sx,sy,rot`, `drawsp num,cell,alpha,x,y`, `drawsp2 num,cell,alpha,x,y,sx,sy,r
 Impl `ONScripter::drawCommand` etc.
 
 ### screenfilter [cons]
-`screenfilter slot,kind[,blend[,strength[,p1,p2,p3]]]` — `spfilter`'s
+`screenfilter slot,kind[,blend[,strength[,p1,p2,p3[,z]]]]` — `spfilter`'s
 filters on the whole picture (background and sprites behind the window,
 where `monocro` applies). Slots 1-4 apply in order; kind 0 clears a slot,
-`screenfilter 0` all. Doesn't draw: follow with `print`. Saved, kept by
-`pushscreen`, cleared by `reset`. `screenfilter 1,4,0,256,-200:print 10`
-(night). Impl `ONScripter::screenfilterCommand`.
+`screenfilter 0` all. With `z` (a sprite number) the slot applies right
+after sprite z (and what `spz` puts over it) is drawn, so the sprites
+above z stay unfiltered; a z in front of the window filters the window
+too. Doesn't draw: follow with `print`. Saved, kept by `pushscreen`,
+cleared by `reset`. `screenfilter 1,4,0,256,-200:print 10` (night);
+`screenfilter 1,6,0,256,4,4,0,999` blurs the background only. Impl
+`ONScripter::screenfilterCommand`.
 
 ### screenflash [cons]
 `screenflash opacity[,"#RRGGBB"]` — add the colour (white) at opacity/256 over

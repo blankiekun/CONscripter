@@ -1039,9 +1039,14 @@ void ONScripter::tracePage( bool dump )
         r += listed ? "," : ",\"filters\":[";
         listed = true;
         char fb[128];
-        snprintf( fb, sizeof(fb), "{\"slot\":%d,\"kind\":%d,\"blend\":%d,\"strength\":%d,\"p\":[%d,%d,%d]}",
+        snprintf( fb, sizeof(fb), "{\"slot\":%d,\"kind\":%d,\"blend\":%d,\"strength\":%d,\"p\":[%d,%d,%d]",
                   i+1, f.kind, f.blend, f.strength, f.param[0], f.param[1], f.param[2] );
         r += fb;
+        if (screen_filter_z[i] >= 0){
+            snprintf( fb, sizeof(fb), ",\"z\":%d", screen_filter_z[i] );
+            r += fb;
+        }
+        r += "}";
     }
     if (listed) r += ']';
     listed = false;
@@ -2484,7 +2489,7 @@ void ONScripter::roundtripState( std::map<std::string, std::string> &state )
     for (int i=0 ; i<MAX_SCREEN_FILTER ; i++){
         AnimationInfo::Filter &f = screen_filter[i];
         if (f.kind == AnimationInfo::FILTER_NONE) continue;
-        snprintf( buf, sizeof(buf), "kind %d blend %d strength %d p %d,%d,%d", f.kind, f.blend, f.strength, f.param[0], f.param[1], f.param[2] );
+        snprintf( buf, sizeof(buf), "kind %d blend %d strength %d p %d,%d,%d z %d", f.kind, f.blend, f.strength, f.param[0], f.param[1], f.param[2], screen_filter_z[i] );
         state["filter " + std::to_string( i+1 )] = buf;
     }
     for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
