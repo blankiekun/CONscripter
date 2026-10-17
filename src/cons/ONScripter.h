@@ -272,6 +272,7 @@ public:
     int screenzoomCommand();
     int windowtransCommand();
     int windowfadeCommand();
+    int languageCommand(); // CONscripter: the text's language, for the web page
     int conssetCommand(); // CONscripter: player settings
     int consgetCommand();
     bool setSetting(const char *key, int v);
@@ -1126,6 +1127,8 @@ private:
     int web_mode_sent;               // auto and skip as last sent to consMode
     int web_window_sent[5];          // the text window as last sent to consWindow
     std::vector<unsigned char> web_globals_written; // gloval.sav as webPersistHook last wrote it
+    std::string text_language;       // `language`: the text's language, sent to consLanguage
+    std::string web_language_sent;   // as last sent to consLanguage
     Uint32 web_persist_time, web_kidoku_time; // when webPersistHook last looked, last wrote kidoku.dat
     bool webEvent( int code, int value );
     void webStateHook();

@@ -229,6 +229,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"menuselectcolor",	&ONScripter::menuselectcolorCommand},
     {"maxkaisoupage",	&ONScripter::maxkaisoupageCommand},
 
+    {"language",		&ONScripter::languageCommand},
     {"luasub",			&ONScripter::luasubCommand},
     {"luacall",			&ONScripter::luacallCommand},
     {"lsph2sub",		&ONScripter::lsp2Command},

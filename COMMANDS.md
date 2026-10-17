@@ -420,6 +420,12 @@ Impl `ONScripter::setwindowCommand`, `setwindow2Command`, `setwindow3Command`.
 Kept across `setwindow` and loads, not saved; `reset` → 255.
 Impl `ONScripter::windowtransCommand`.
 
+### language [cons]
+`language "code"` — the language of the text shown from now on (ISO 639-1:
+`"ja"`, `"en"`); the web page is told at the next wait when it changed
+(`consLanguage`, "Web hooks"). Not saved: a script that switches language sets
+it again after a load. Impl `ONScripter::languageCommand`.
+
 ### windowfade [cons]
 `windowfade alpha,ms[,from[,delay]]` — draw the window (picture or colour),
 its text, its `windowchip` and the click cursor at alpha/256 (0-256), from `from` (default: where it is now), held
@@ -1565,6 +1571,7 @@ The engine calls these on `self` when defined:
 | `consPosition(offset, total, label, read)` | before `consText` | script byte offset of the line, script length, label (no `*`), read 1/0/-1 (no `kidokuskip`) |
 | `consMode(auto, skip)` | auto/skip start or stop | 0/1 each |
 | `consWindow(x, y, w, h, shown)` | text window moves, resizes, shows, hides | rectangle, 1/0 |
+| `consLanguage(code)` | at the first wait after `language` changed it | the code as given (`'ja'`, `'en'`) |
 
 `--no-text-overlay` (on the command line or in `ons_args`), or `consNoTextOverlay: 1`
 on the module object the page passes to `cons()`, stops `consText`, `consChoice`,

@@ -4641,6 +4641,17 @@ bool ONScripter::webEvent( int code, int value )
     return false;
 }
 
+/* language "code" — the language of the text the script shows from now
+ * on (an ISO 639-1 code: "ja", "en"), which the web page is told as
+ * self.consLanguage(code) at the next wait when it changed. Not saved:
+ * a script that switches sets it again after a load.
+ *       language "en" */
+int ONScripter::languageCommand()
+{
+    text_language = script_h.readStr();
+    return RET_CONTINUE;
+}
+
 // Tells the web page when auto or skip mode changed, as
 // self.consMode(auto, skip), and when the text window moved, was resized,
 // shown or hidden, as self.consWindow(x, y, w, h, shown) in screen
@@ -4659,6 +4670,10 @@ void ONScripter::webStateHook()
         memcpy( web_window_sent, window, sizeof(window) );
         EM_ASM({ if (self.consWindow) self.consWindow($0, $1, $2, $3, $4); },
                window[0], window[1], window[2], window[3], window[4]);
+    }
+    if (text_language != web_language_sent){
+        web_language_sent = text_language;
+        EM_ASM({ if (self.consLanguage) self.consLanguage(UTF8ToString($0)); }, text_language.c_str());
     }
 #endif
 }
