@@ -801,13 +801,14 @@ private:
     void screenTrace( struct ConsScreen *s, const char *action, int slot, int value );
     time_t screenSaveTime( int no );
     int screenSprite( struct ConsScreen *s );
-    int screenImage( struct ConsScreen *s, int x, int y, const char *file_override=NULL );
+    int screenImage( struct ConsScreen *s, int x, int y, const char *file_override=NULL, int cells=0 );
     int screenText( struct ConsScreen *s, const std::string &text, int x, int y, const std::vector<std::string> *colors=NULL, int no=-1 );
     void screenTextButton( struct ConsScreen *s, const std::string &text, int x, int y, int no, bool off );
     int screenGet( const std::string &ref );
     void screenSet( const std::string &ref, int value );
     void screenClear( struct ConsScreen *s );
     bool screenEnabled( struct ConsScreen *s );
+    bool screenWhen( struct lua_State *L );
     void screenDraw( struct ConsScreen *s );
     void screenSlots( struct ConsScreen *s, int w );
     ScriptParser::Page *screenLogPage( int k );
