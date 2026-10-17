@@ -93,6 +93,11 @@ def main():
         ("_consResendText sends 'Page two.' as skipped", [r for r in calls("resend", "consText", "Page two.") if r["arg"] == 1]),
         ("_consResendText sends the string sprite", calls("resend", "consSprites", "SPRITE")),
         ("consChoice for both choices", calls("choice", "consChoice", "Left") and calls("choice", "consChoice", "Right")),
+        ("consChoice says the seldisable option is disabled, only it",
+         [r for r in calls("choice", "consChoice", "Gone") if r["off"] == 1]
+         and all(r["off"] == 0 for r in calls("choice", "consChoice", "Left") + calls("choice", "consChoice", "Right"))),
+        ("a click on the disabled option goes nowhere", not [r for r in log if r["hook"] == "consText" and "Page gone." in r["text"]]
+         and not calls("disabled", "consText")),
         ("the choice is picked: consText with 'Page three.'", calls("picked", "consText", "Page three.")),
         ("no page errors", not result["errors"]),
         ("no missing files", not missing),

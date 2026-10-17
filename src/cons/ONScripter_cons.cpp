@@ -688,6 +688,22 @@ int ONScripter::sptrailCommand()
 }
 
 /* CONscripter
+ * seldisable n[,n...]
+ *   Options n (from 1) of the next select, selgosub or selnum are shown
+ *   greyed (selectcolor's off colour at half alpha) and can't be chosen:
+ *   the mouse doesn't light them up or click them, the cursor keys pass
+ *   over them, auto-play doesn't take them. They keep their place and
+ *   number. The next select uses the list up; put seldisable just before
+ *   it (no save is made in between, so a load runs it again).
+ *   seldisable 2:select "行く",*go,"待つ",*wait,"帰る",*home */
+int ONScripter::seldisableCommand()
+{
+    do select_disabled.insert( script_h.readInt() );
+    while (script_h.getEndStatus() & ScriptHandler::END_COMMA);
+    return RET_CONTINUE;
+}
+
+/* CONscripter
  * spwave num,ms,period,amp0,amp1[,curve]
  *   Waves lsp sprite num: each row of its picture is drawn
  *   trunc(sin(2 pi phase / 256) * amp) px to the right, phase being

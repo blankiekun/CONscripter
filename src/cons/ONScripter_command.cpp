@@ -840,6 +840,9 @@ int ONScripter::selectCommand()
                   SOUND_CHUNK, false, MIX_WAVE_CHANNEL );
 
     last_select_link = &root_select_link;
+    std::set<int> disabled; // seldisable's, for this select only
+    disabled.swap( select_disabled );
+    int options = 0;
 
     while(1){
         if ( script_h.getNext()[0] != 0x0a && comma_flag == true ){
@@ -852,6 +855,7 @@ int ONScripter::selectCommand()
             // Text part
             SelectLink *slink = new SelectLink();
             setStr( &slink->text, buf );
+            slink->disabled = disabled.count( ++options ) > 0;
             //utils::printInfo("Select text %s\n", slink->text);
 
             // Label part
@@ -908,9 +912,9 @@ int ONScripter::selectCommand()
         int counter = 1;
         while( last_select_link ){
             if ( *last_select_link->text ){
-                ButtonLink *button = getSelectableSentence( last_select_link->text, &sentence_font );
+                ButtonLink *button = getSelectableSentence( last_select_link->text, &sentence_font, true, false, last_select_link->disabled );
                 root_button_link.insert( button );
-                button->no = counter;
+                button->no = last_select_link->disabled ? 0 : counter;
             }
             counter++;
             last_select_link = last_select_link->next;
@@ -933,15 +937,13 @@ int ONScripter::selectCommand()
 
     // CONscripter: a sprite button the script left (spbtn) is no option:
     // its number found no label and the script stopped
-    int options = 0;
-    for (SelectLink *link = root_select_link.next ; link ; link = link->next) options++;
-
     event_mode = WAIT_TEXT_MODE | WAIT_BUTTON_MODE | WAIT_TIMER_MODE;
     do{
         skip_mode &= ~SKIP_NORMAL;
         if (waitEvent(-1)) return RET_CONTINUE;
     }
-    while(current_button_state.button <= 0 || current_button_state.button > options || skip_mode & SKIP_NORMAL);
+    while(current_button_state.button <= 0 || current_button_state.button > options ||
+          disabled.count( current_button_state.button ) || skip_mode & SKIP_NORMAL);
     if (select_keep){
         automode_flag = kept_auto;
         if (kept_skip) skip_mode |= SKIP_NORMAL;

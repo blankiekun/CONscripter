@@ -4,7 +4,7 @@ const log = [], errors = [];
 let phase = 'start';
 const str = a => (a instanceof Uint8Array ? String.fromCharCode(...a) : a);
 for (const n of ['consText', 'consChoice', 'consSprites', 'consBacklog', 'consOverlay'])
-  self[n] = (...a) => log.push({ phase, hook: n, text: str(a[0]), arg: a[1], y: a[2], size: a[3] });
+  self[n] = (...a) => log.push({ phase, hook: n, text: str(a[0]), arg: a[1], y: a[2], size: a[3], off: a[5] });
 const cerr = console.error.bind(console);
 console.error = (...a) => {
   const s = a.join(' ');
@@ -43,9 +43,12 @@ function click(choice) { // the middle of the choice's first character, from con
   g_cons_module._consResendText();
   await until(() => seen('consText', 'Page two.') && seen('consSprites', 'SPRITE'), 5000);
   phase = 'choice';
-  enter(); await until(() => seen('consChoice', 'Right'), 5000);
+  enter(); await until(() => seen('consChoice', 'Gone'), 5000);
+  phase = 'disabled'; // seldisable's option: a click on it does nothing
+  click(log.find(r => r.phase === 'choice' && r.hook === 'consChoice' && r.text.includes('Gone')));
+  await wait(1500);
   phase = 'picked';
-  click(log.find(r => r.phase === 'choice' && r.hook === 'consChoice'));
+  click(log.find(r => r.phase === 'choice' && r.hook === 'consChoice' && r.text.includes('Left')));
   await until(() => seen('consText', 'Page three.'), 5000);
   await wait(500);
   fetch('/result', { method: 'POST', body: JSON.stringify({ log, errors }) });

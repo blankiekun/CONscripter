@@ -881,6 +881,7 @@ void ONScripter::traceSelect( int picked )
         traceString( r, link->text );
         r += ",\"label\":";
         traceString( r, link->label );
+        if (link->disabled) r += ",\"disabled\":true";
         r += '}';
     }
     snprintf( buf, sizeof(buf), "],\"picked\":%d}", picked );

@@ -246,6 +246,7 @@ public:
     int spzCommand();
     int spclipCommand();
     int sptrailCommand();
+    int seldisableCommand();
     int spnewCommand(); // ONScripter_names.cpp
     int screenCommand(); // ONScripter_screen.cpp
     void setSkipScreens( const char *kinds );
@@ -546,10 +547,12 @@ private:
         SelectLink *next;
         char *text;
         char *label;
+        bool disabled; // CONscripter: seldisable, shown greyed and not selectable
 
         SelectLink(){
             next = NULL;
             text = label = NULL;
+            disabled = false;
         };
 
         ~SelectLink(){
@@ -559,6 +562,7 @@ private:
     } root_select_link;
     NestInfo select_label_info;
     int  shortcut_mouse_line;
+    std::set<int> select_disabled; // CONscripter: seldisable's options for the next select
 
     void initSDL();
     void calcRenderRect();
@@ -596,7 +600,7 @@ private:
     void clearCurrentPage();
     void shadowTextDisplay( SDL_Surface *surface, SDL_Rect &clip );
     void newPage();
-    ButtonLink *getSelectableSentence( char *buffer, FontInfo *info, bool flush_flag = true, bool nofile_flag = false );
+    ButtonLink *getSelectableSentence( char *buffer, FontInfo *info, bool flush_flag = true, bool nofile_flag = false, bool disabled = false );
     void decodeExbtnControl( const char *ctl_str, SDL_Rect *check_src_rect=NULL, SDL_Rect *check_dst_rect=NULL );
     void saveAll();
     void loadEnvData();

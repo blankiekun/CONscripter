@@ -857,13 +857,17 @@ void ONScripter::shiftCursorOnButton( int diff )
     for (num=0 ; button ; num++) 
         button = button->next;
 
-    shortcut_mouse_line += diff;
-    if      (shortcut_mouse_line < 0)    shortcut_mouse_line = num-1;
-    else if (shortcut_mouse_line >= num) shortcut_mouse_line = 0;
+    // CONscripter: a button with no area (a seldisable option) is passed over
+    for (int tries=0 ; tries<num ; tries++){
+        shortcut_mouse_line += diff;
+        if      (shortcut_mouse_line < 0)    shortcut_mouse_line = num-1;
+        else if (shortcut_mouse_line >= num) shortcut_mouse_line = 0;
 
-    button = root_button_link.next;
-    for (int i=0 ; i<shortcut_mouse_line ; i++) 
-        button  = button->next;
+        button = root_button_link.next;
+        for (int i=0 ; i<shortcut_mouse_line ; i++) 
+            button  = button->next;
+        if (button->select_rect.w > 0 && button->select_rect.h > 0) break;
+    }
     
     if (button){
         int x = button->select_rect.x + button->select_rect.w/2;
