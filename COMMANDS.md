@@ -1313,7 +1313,8 @@ CGs is seen, then its `thumb` (cell 1, 2 under the pointer) at the place
 plus `thumb_dx`, `thumb_dy` is a button; else `locked` (a picture) at the
 place. `seen` is a value, so the table computes it:
 `seen = var("?cg_seen[12]")`. A click on a cell opens the viewer: the
-cell's first seen CG over the whole screen (opaque) and the `viewer`
+cell's first seen CG over the whole screen (opaque; centred as `bg` centres a picture
+of another size) and the `viewer`
 panel: `panel` (a list of pictures), `name` (a picture) and the
 `previous`, `next`, `hide`, `back` buttons (`{file, cells, x, y}`).
 Previous and next step through the cell's seen CGs (round), hide hides the
