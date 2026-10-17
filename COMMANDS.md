@@ -1382,7 +1382,7 @@ load or delete) ends the list; so does a question answered no.
 
 | Action | Does |
 |---|---|
-| `{"close"[, value]}` | closes the screen; `screen`'s `%var` gets value. `hold = true`: no close motions or fade, and the display keeps the screen until the script's next `print`, which changes from it (a cross-fade from a menu straight to what the script draws next) |
+| `{"close"[, value]}` | closes the screen; `screen`'s `%var` gets value. `hold = true`: no close motions or fade, and the display keeps the screen until the script's next `print`, which changes from it (a cross-fade from a menu straight to what the script draws next); a screen opened before then (another tab of a menu) takes the held screen's thumbnail shot, the game as it was under it |
 | `{"open", "name"[, "arg"]}` | opens another screen over this one, then comes back to it (it can't `gosub`) |
 | `{"page", n}` | shows page n of the save slots (`"+1"`, `"-1"`: the next, the previous; `round = true` from the last to the first and back); `fade = ms` cross-fades to it |
 | `{"scroll", "+1"}` | scrolls the list a page back (a list of rows: a row) (`"-1"`: forward, to the page on screen); when it can't, `at_end` runs instead (a table action) |

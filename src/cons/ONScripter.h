@@ -841,6 +841,9 @@ private:
     int screenDrag( struct ConsScreen *s, int button, int *value );
     int screenRun( struct ConsScreen *s, int *value );
     int screenOpen( const std::string &name, const std::string &arg, int *value );
+    // the shot of a screen closed with hold, taken by the next screen
+    // opened before the display changes (a tab of a menu opening another)
+    SDL_Surface *screen_held_shot = NULL;
 #endif
     // CONscripter: play time (getplaytime), counted from playtime_start on
     // top of playtime_base; the save data's offset of it (writeSaveFile
