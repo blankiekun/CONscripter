@@ -348,6 +348,21 @@ int NSGetIntValue(lua_State *state)
     return 1;
 }
 
+// CONscripter: NSVarNo("name"): the slot of a numalias (defvar, defstr, defarr's names among them), nil if none
+int NSVarNo(lua_State *state)
+{
+    lua_getglobal( state, ONS_LUA_HANDLER_PTR );
+    LUAHandler *lh = (LUAHandler*)lua_topointer( state, -1 );
+
+    std::string name = luaL_checkstring( state, 1 );
+    for (size_t i=0 ; i<name.size() ; i++) name[i] = tolower( (unsigned char)name[i] ); // readLabel's case
+    int no;
+    if (lh->sh->findNumAlias( name.c_str(), &no )) lua_pushinteger( state, no );
+    else                                           lua_pushnil( state );
+
+    return 1;
+}
+
 int NSGetKey(lua_State *state)
 {
     lua_getglobal(state, ONS_LUA_HANDLER_PTR);
@@ -1027,6 +1042,7 @@ static const struct luaL_Reg lua_lut[] = {
     LUA_FUNC_LUT(NSSp2Visible),
     LUA_FUNC_LUT(NSTimer),
     LUA_FUNC_LUT(NSUpdate),
+    LUA_FUNC_LUT(NSVarNo),
     {NULL, NULL}
 };
 

@@ -751,7 +751,7 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
             top = 9;
         else
             top = z_order;
-        drawSpriteRange( surface, clip, MAX_SPRITE_NUM-1, top+1 );
+        drawSpriteRange( surface, clip, NS_SPRITE_NUM-1, top+1 ); // CONscripter: the handles by their layer
     }
 
     if ( !all_sprite_hide_flag ){

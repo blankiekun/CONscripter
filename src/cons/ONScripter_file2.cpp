@@ -131,7 +131,7 @@ int ONScripter::loadSaveFile2( int file_version )
     for (i=0 ; i<MAX_TEXTURE_NUM ; i++) texture_info[i].reset();
     smpeg_info = NULL;
 
-    for ( i=0 ; i<MAX_SPRITE_NUM ; i++ ){
+    for ( i=0 ; i<NS_SPRITE_NUM ; i++ ){ // CONscripter: the handles are in the CONscripter block
         AnimationInfo *ai = &sprite_info[i];
         
         ai->remove();
@@ -508,7 +508,7 @@ void ONScripter::saveSaveFile2( bool output_flag )
     writeInt( -1, output_flag );
     writeInt( -1, output_flag );
     
-    for ( i=0 ; i<MAX_SPRITE_NUM ; i++ ){
+    for ( i=0 ; i<NS_SPRITE_NUM ; i++ ){ // CONscripter: the handles are in the CONscripter block
         AnimationInfo *ai = &sprite_info[i];
         writeStr( ai->image_name,   output_flag );
         writeInt( ai->orig_pos.x,   output_flag );

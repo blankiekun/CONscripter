@@ -30,6 +30,9 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
+#include <string>
+#include <vector>
+#include <algorithm>
 
 #include "ScriptHandler.h"
 #include "NsaReader.h"
@@ -111,6 +114,9 @@ public:
     int pretextgosubCommand();
     int pagetagCommand();
     int numaliasCommand();
+    int defvarCommand(); // ONScripter_names.cpp
+    int defstrCommand();
+    int defarrCommand();
     int nsadirCommand();
     int nsaCommand();
     int nextCommand();
@@ -508,6 +514,51 @@ protected:
     void writeVariables( int from, int to, bool output_flag );
     void readVariables( int from, int to );
     void writeArrayVariable( bool output_flag );
+
+    /* CONscripter: defvar, defstr, defarr (ONScripter_names.cpp): each name
+     * gets its own slot from namedVarBase() up, a numalias to it, and is
+     * saved by name; globals in gloval.sav after the numbered ones */
+    // above the numbered ones (;$V range, ;value border), which saves, gloval.sav and reset handle by number
+    int namedVarBase(){ return std::max( 10000, std::max( script_h.variable_range, script_h.global_variable_border ) ); }
+    struct NamedVar{
+        std::string name;
+        int no;
+        char kind;   // '%', '$' or '?'
+        int size;    // '?': elements
+        bool global;
+        int def_num;
+        std::string def_str;
+    };
+    std::vector<NamedVar> named_vars;
+    // gloval.sav's named globals, read before the define section declares them
+    struct NamedValue{
+        std::string name;
+        char kind;
+        std::vector<int> nums; // '%' one, '?' its elements
+        std::string str;       // '$'
+    };
+    std::vector<NamedValue> pending_globals;
+    void defineNamed( char kind );
+    void setNamedDefault( const NamedVar &v );
+    void applyNamedValue( const NamedVar &v, const NamedValue &val );
+    const NamedVar *findNamedVar( const char *name );
+    const NamedVar *namedVarAt( int no ); // the name whose slot (or array) is no
+    void resetNamedVars( bool global );
+    void writeNamedVars( bool global, bool output_flag );
+    void readNamedVars( bool global, bool pending );
+    void writeGlovalNames( bool output_flag );
+    void readGlovalNames();
+    void clearNamedVars();
+    // the trace, --dump-vars, --vars: the values that aren't 0 or empty,
+    // keyed "%name", "$name", "?name[i]"; one such key's slot
+    struct NamedEntry{
+        std::string key;
+        int num;
+        const char *str;
+    };
+    void namedEntries( std::vector<NamedEntry> &out );
+    int *namedSlot( const char *key, char *kind, int *no );
+    std::string varKey( char kind, int no );
     void readArrayVariable();
     void writeLog( ScriptHandler::LogInfo &info );
     void readLog( ScriptHandler::LogInfo &info );
