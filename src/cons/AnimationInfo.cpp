@@ -1528,41 +1528,55 @@ static void applyBlur( SDL_Surface *surface, const SDL_Rect &rect, const Animati
     SDL_PixelFormat *fmt = surface->format;
     Uint32 shift[3] = { fmt->Rshift, fmt->Gshift, fmt->Bshift };
     Uint32 mask[3] = { fmt->Rmask, fmt->Gmask, fmt->Bmask };
-    int *row = new int[(w + 1) * 3], *sum = new int[w * h * 3];
-
-    // Across: running sums along each row.
-    for (int y=0 ; y<h ; y++){
-        Uint32 *p = (Uint32 *)((Uint8 *)surface->pixels + (rect.y + y)*surface->pitch) + rect.x;
-        for (int k=0 ; k<3 ; k++) row[k] = 0;
-        for (int x=0 ; x<w ; x++)
-            for (int k=0 ; k<3 ; k++)
-                row[(x+1)*3+k] = row[x*3+k] + (int)((p[x] & mask[k]) >> shift[k]);
-        for (int x=0 ; x<w ; x++){
-            int x0 = x - rx < 0 ? 0 : x - rx, x1 = x + rx + 1 > w ? w : x + rx + 1;
-            for (int k=0 ; k<3 ; k++)
-                sum[(y*w + x)*3+k] = (row[x1*3+k] - row[x0*3+k]) * 16 / (x1 - x0);
+    // The row means of the rows up to ry ahead, in a ring of 2 ry + 2 rows,
+    // and their running sums down each column: row by row, so the picture
+    // is read in order (a big one doesn't fit in the cache), and a row is
+    // written only after the rows below it that need its pixels were read.
+    int ring = 2*ry + 2;
+    bool plain = f.blend == AnimationInfo::FILTER_BLEND_COPY && f.strength == 256;
+    int *row = new int[(w + 1) * 3], *sum = new int[w * ring * 3], *col = new int[w * 3]();
+    // a / n as a multiply: exact for the a < 4096 n here while 4096 n * n < 2^32
+    int nmax = std::max( std::min( 2*rx + 1, w ), std::min( 2*ry + 1, h ) );
+    std::vector<Uint64> inv( nmax <= 1024 ? nmax + 1 : 0 );
+    for (int n=1 ; n<(int)inv.size() ; n++) inv[n] = ((1ULL << 32) + n - 1) / n;
+#define BLUR_DIV(a, n) (inv.empty() ? (a) / (n) : (int)(((Uint64)(a) * inv[n]) >> 32))
+    for (int y=-ry ; y<h ; y++){
+        int add = y + ry, drop = y - ry - 1; // the rows entering and leaving the window
+        if (add < h){
+            Uint32 *p = (Uint32 *)((Uint8 *)surface->pixels + (rect.y + add)*surface->pitch) + rect.x;
+            int *s = sum + (add % ring) * w * 3;
+            for (int k=0 ; k<3 ; k++) row[k] = 0;
+            for (int x=0 ; x<w ; x++)
+                for (int k=0 ; k<3 ; k++)
+                    row[(x+1)*3+k] = row[x*3+k] + (int)((p[x] & mask[k]) >> shift[k]);
+            for (int x=0 ; x<w ; x++){
+                int x0 = x - rx < 0 ? 0 : x - rx, x1 = x + rx + 1 > w ? w : x + rx + 1;
+                for (int k=0 ; k<3 ; k++){
+                    s[x*3+k] = BLUR_DIV( (row[x1*3+k] - row[x0*3+k]) * 16, x1 - x0 );
+                    col[x*3+k] += s[x*3+k];
+                }
+            }
         }
-    }
-    // Down: the means of those, blended over the pixels.
-    int *col = new int[(h + 1) * 3];
-    for (int x=0 ; x<w ; x++){
-        for (int k=0 ; k<3 ; k++) col[k] = 0;
-        for (int y=0 ; y<h ; y++)
-            for (int k=0 ; k<3 ; k++)
-                col[(y+1)*3+k] = col[y*3+k] + sum[(y*w + x)*3+k];
-        for (int y=0 ; y<h ; y++){
-            int y0 = y - ry < 0 ? 0 : y - ry, y1 = y + ry + 1 > h ? h : y + ry + 1;
-            Uint32 *p = (Uint32 *)((Uint8 *)surface->pixels + (rect.y + y)*surface->pitch) + rect.x + x;
+        if (drop >= 0){
+            int *s = sum + (drop % ring) * w * 3;
+            for (int i=0 ; i<w*3 ; i++) col[i] -= s[i];
+        }
+        if (y < 0) continue;
+        int y0 = y - ry < 0 ? 0 : y - ry, y1 = y + ry + 1 > h ? h : y + ry + 1;
+        Uint32 *p = (Uint32 *)((Uint8 *)surface->pixels + (rect.y + y)*surface->pitch) + rect.x;
+        for (int x=0 ; x<w ; x++, p++){
             int c[3], d[3];
             for (int k=0 ; k<3 ; k++){
                 c[k] = (int)((*p & mask[k]) >> shift[k]);
-                d[k] = ((col[y1*3+k] - col[y0*3+k]) / (y1 - y0) + 8) / 16;
+                d[k] = (BLUR_DIV( col[x*3+k], y1 - y0 ) + 8) >> 4;
             }
-            blendFilter( f, c, d );
+            if (plain) for (int k=0 ; k<3 ; k++) c[k] = d[k]; // what blendFilter gives, faster
+            else blendFilter( f, c, d );
             *p = (*p & ~(mask[0] | mask[1] | mask[2])) |
                  ((Uint32)c[0] << shift[0]) | ((Uint32)c[1] << shift[1]) | ((Uint32)c[2] << shift[2]);
         }
     }
+#undef BLUR_DIV
     delete[] row;
     delete[] sum;
     delete[] col;
