@@ -869,8 +869,9 @@ follows, and the exit code is 128 plus the signal's number.
 ```
 
 `action` is `open`, `select`, `page` (`value` the page), `save`, `load`,
-`delete`, `no save` / `no load` / `no delete` (the question answered no),
-`set`, `gosub`, `open` (another screen), `close` (`value` what it gave) or
+`delete`, `no save` / `no load` / `no delete` / `no close` ... (the
+question answered no), `set` (a slider, toggle or radio: `value` the new
+value), `gosub`, `open` (another screen), `close` (`value` what it gave) or
 `skipped` (`--auto-play` closed it); `slot` is the save slot acted on.
 `at` is the `screen` command's place (for a screen opened over another,
 the first one's). Each wait for the player also writes a `choice` record

@@ -1128,8 +1128,8 @@ Impl `ONScripter::copysavegameCommand`.
 
 ## Screens [cons]
 
-Screens the engine draws: the save and load menus so far (settings,
-backlog, extras and the title to follow, in the same format). A screen is
+Screens the engine draws: save and load menus, settings (backlog, extras
+and the title to follow, in the same format). A screen is
 a Lua file in the archive (or loose), `screens/<name>.lua`, that returns a
 table describing it; the engine draws it with sprite handles over
 everything else (over `spnew`'s overlay layer; a screen opened over
@@ -1167,18 +1167,24 @@ return {
   filter = {4, 6, 0, 256, 1, 1, 0}, -- a screenfilter while open (slot first), cleared after
   dialog = "confirm",     -- the screen that asks actions' questions (default "confirm")
   cancel = {"close"},     -- what right-click and Esc do (default: close with 0)
+  pages = 3,              -- the screen's own pages (tabs), shown from 1; without it the save slots' pages
   widgets = { ... },      -- drawn in order, the first at the bottom
 }
 ```
 
 Every widget is a table whose first element is its type; `page = n` on
-any widget shows it only while the save slots show page n.
+any widget shows it only on page n (the screen's `pages`, else the save
+slots').
 
 | Widget | Fields |
 |---|---|
 | `{"image", ...}` | `file`, `x`, `y`; `cells` (a strip of n cells), `alpha` (0-255), `opaque` (`:c`, no alpha), `blend` (`add`, `multiply`, `sub`, `screen`: `spblend`), `scale` (percent, about its centre: `spzoom`) |
 | `{"text", ...}` | `text`, `x`, `y`, `size` (20), `cols` (40), `rows` (1), `bold`, `shadow`, `color` (`"#rrggbb"`), `align = "centre"` (x is the centre, measured as the script measures: half-width characters half as wide). Drawn as `strsp` |
 | `{"button", ...}` | an image (fields as above, cell 1 under the pointer) and `action`; `disabled` (the cell shown when the action can't be taken: no slot selected, an empty slot to load or delete, the page shown; without it the normal cell), `pressed` (the cell while held, `spbtn`'s third argument) |
+| `{"button", text = ...}` | a button drawn as text (fields as `text`): `color` (`#FFFFFF`), `hover` (under the pointer), `disabled_color` (when its action can't be taken, as a tab for the page shown) |
+| `{"slider", ...}` | a value of `var` from `min` (0) to `max` (10) by `step` (1): `text` at `x`, `y` (fields as `text`) with `%v` the value, `%V` in full-width digits, `%B` a bar (`marks`' first per step up to the value, the second after: `{"■", "□"}`), and `minus`, `plus` buttons (`{text = ..., x, y, ...}` as a text button, or `{file = ..., cells}`). `action` runs after each change |
+| `{"toggle", ...}` | flips `var` between `on` (1) and `off` (0): `text` with `%C` the mark for on or off (`marks`), drawn as a text button (`color`, `hover`). `var` may be a list, set together (the first read). `action` runs after each change |
+| `{"radio", ...}` | sets `var` to `value` (1); on while it holds it; otherwise as `toggle` |
 | `{"saveslots", ...}` | below |
 
 **saveslots**: `rows` × `cols` save slots a page, at `x + col*dx`,
@@ -1223,12 +1229,12 @@ load or delete) ends the list; so does a question answered no.
 | `{"set", "%var", value}` | sets a variable (`slot = true` in place of the value: the slot acted on) |
 | `{"gosub", "*label"}` | runs the label with the screen up; the actions after it run when it returns |
 
-`confirm = "question"` on `save`, `load` or `delete` asks first on the
-`dialog` screen (opened with the question as `arg`, `%N` replaced by the
-slot): a close value other than 0 is yes. A `save` asks only over an
-existing save. To be added in the same format: `slider`, `toggle`,
-`radio` (bound to a setting or variable), `list`, `gallery`, sounds, and
-the `voice` action.
+`confirm = "question"` on an action asks first on the `dialog` screen
+(opened with the question as `arg`, `%N` replaced by the slot): a close
+value other than 0 is yes; no ends the list. A `save` asks only over an
+existing save. To be added in the same format: binding to an engine
+setting (`setting =` in place of `var`), picture sliders (a track and a
+knob), `list`, `gallery`, sounds, and the `voice` action.
 
 A confirm dialog:
 
