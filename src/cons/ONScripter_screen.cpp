@@ -300,23 +300,18 @@ int ONScripter::screenText( ConsScreen *s, const std::string &text, int x, int y
         for (const std::string &c : *colors) color_args += "," + quoted( c );
     }
     int no = screenSprite( s );
-    // a text with line breaks goes through a string variable, kept and put back
-    const int TEXT_VAR = 4095;
+    // a text with line breaks can't be in the command: strsp takes it from
+    // screen_strsp_text (the command's own text, the breaks as spaces, shows in the trace)
     bool lines = text.find( 0x0a ) != std::string::npos;
-    std::string kept;
-    bool had = false;
-    if (lines){
-        ScriptHandler::VariableData &tv = script_h.getVariableData( TEXT_VAR );
-        had = tv.str != NULL;
-        if (had) kept = tv.str;
-        setStr( &tv.str, text.c_str() );
-    }
-    screenExec( "strsp " + std::to_string( no ) + "," + (lines ? "$" + std::to_string( TEXT_VAR ) : quoted( text )) + "," +
+    std::string shown = text;
+    for (char &c : shown) if (c == 0x0a) c = ' ';
+    if (lines) screen_strsp_text = text.c_str();
+    screenExec( "strsp " + std::to_string( no ) + "," + quoted( shown ) + "," +
                 std::to_string( x ) + "," + std::to_string( y ) + "," +
                 std::to_string( fieldInt( L, "cols", 40 ) ) + "," + std::to_string( fieldInt( L, "rows", 1 ) ) + "," +
                 std::to_string( size ) + "," + std::to_string( size ) + ",0," + std::to_string( fieldInt( L, "pitch", 0 ) ) + "," +
                 std::to_string( fieldInt( L, "bold", 0 ) ) + "," + std::to_string( fieldInt( L, "shadow", 0 ) ) + color_args );
-    if (lines) setStr( &script_h.getVariableData( TEXT_VAR ).str, had ? kept.c_str() : NULL );
+    screen_strsp_text = NULL;
     return no;
 }
 

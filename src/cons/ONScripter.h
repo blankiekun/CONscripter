@@ -780,6 +780,7 @@ private:
     // CONscripter: screens the engine draws (ONScripter_screen.cpp); the open ones, the last on top
     std::vector<struct ConsScreen*> screens;
     std::map<std::string, int> screen_pages; // the save slots' page each screen showed last
+    const char *screen_strsp_text = NULL; // strsp's text in place of its argument (a screen's, with line breaks)
     std::string skip_screens = ",save,load,settings,backlog,extras,"; // the kinds --auto-play closes at once
 #ifdef USE_LUA
 public:
