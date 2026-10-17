@@ -110,6 +110,19 @@ function(config_darwin TARGET_NAME)
     endif()
 
     include(FindPkgConfig)
+    if(STATIC_PORT_ROOT) # script/cross_darwin.sh: static ports, PKG_CONFIG_LIBDIR points at them
+        pkg_check_modules(SDL2_PORTS REQUIRED SDL2_ttf SDL2_image SDL2_mixer)
+        target_include_directories(${TARGET_NAME} PRIVATE
+            ${STATIC_PORT_ROOT}/include
+            ${SDL2_PORTS_STATIC_INCLUDE_DIRS}
+        )
+        target_link_libraries(${TARGET_NAME} PRIVATE
+            ${STATIC_PORT_ROOT}/lib/liblua.a
+            bz2 # macOS's own
+            ${SDL2_PORTS_STATIC_LDFLAGS}
+        )
+        return()
+    endif()
     pkg_check_modules(SDL2 REQUIRED sdl2)
     pkg_check_modules(SDL2_TTF REQUIRED SDL2_ttf)
     pkg_check_modules(SDL2_IMAGE REQUIRED SDL2_image)
