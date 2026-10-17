@@ -95,4 +95,35 @@ check "settings values" "$(grep -ao 'X:settings_ok' log2.txt | head -1)" "X:sett
 acts=$(grep -a '"t":"screen"' t2.jsonl | sed 's/.*"screen":"\([a-z]*\)".*"action":"\([a-z ]*\)".*/\1:\2/' | tr '\n' ' ')
 check "settings actions" "$acts" "settings:open settings:set settings:gosub settings:set settings:set settings:page settings:set confirm:open confirm:close settings:no close confirm:open confirm:close settings:close "
 check "tab shown as current on page 2" "$(grep -a -c '"src":"strsp [0-9]*,\\"次\\",400,10,3,1,16,16,0,0,0,0,\\"#F0C040\\"' t2.jsonl | sed 's/^[1-9][0-9]*$/drawn/')" "drawn"
+
+# backlog: widgets 1 list (names with a voice: 101..), 2 older (200), 3 newer (300), 4 close (400)
+cat > screens/backlog.lua <<'LUA'
+return { kind = "backlog", wheel_up = {"scroll", "+1"}, wheel_down = {"scroll", "-1", at_end = {"close"}}, widgets = {
+  {"list", source="log", x=20, y=20, h=200, size=16, line_height=20, cols=30, name_color="#D8C088", hover="#FFFFFF"},
+  {"button", text="上", x=500, y=20, size=16, cols=2, disabled_color="#808080", action={"scroll", "+1"}},
+  {"button", text="下", x=500, y=60, size=16, cols=2, disabled_color="#808080", action={"scroll", "-1"}},
+  {"button", text="閉", x=500, y=100, size=16, cols=2, action={"close"}},
+}}
+LUA
+printf '%s' '*define
+pretextgosub *pretext
+game
+*start
+[太郎|v1.wav]一頁目。\
+[花子|]二頁目の一行目、@
+二頁目の二行目。\
+三頁目。\
+screen "backlog"
+end
+*pretext
+saveon
+return
+' | iconv -f utf-8 -t cp932 > 0.txt
+SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout -k 5 30 "$BIN" -r . --enc:sjis --save-dir sv --trace t3.jsonl \
+  --auto-play 0 --skip-screens none --choose '*start:9=200,200,101,300,300,400' > log3.txt 2>&1
+check "backlog exit" "$?" "0"
+acts=$(grep -a '"t":"screen"' t3.jsonl | sed 's/.*"action":"\([a-z ]*\)".*"value":\(-*[0-9]*\).*/\1=\2/;s/.*"action":"\([a-z ]*\)".*/\1/' | tr '\n' ' ')
+check "backlog actions" "$acts" "open scroll=1 scroll=2 voice=3 scroll=1 scroll=0 close=0 "
+check "backlog name with its voice" "$(grep -a -c '"src":"strsp [0-9]*,\\"太郎　♪\\"' t3.jsonl | sed 's/^[1-9][0-9]*$/drawn/')" "drawn"
+check "backlog voice played" "$(grep -a -c '"cmd":"dwave".*v1.wav' t3.jsonl | sed 's/^[1-9][0-9]*$/played/')" "played"
 exit $fail

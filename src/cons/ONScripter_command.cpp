@@ -384,7 +384,8 @@ int ONScripter::strspCommand()
         dirty_rect.add( ai->pos );
 
     ai->removeTag();
-    setStr(&ai->file_name, script_h.readStr());
+    const char *text = script_h.readStr();
+    setStr(&ai->file_name, screen_strsp_text ? screen_strsp_text : text); // CONscripter: a screen's text with line breaks
     ai->orig_pos.x = script_h.readInt();
     ai->orig_pos.y = script_h.readInt();
     ai->scalePosXY( screen_ratio1, screen_ratio2 );

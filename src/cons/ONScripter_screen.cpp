@@ -58,6 +58,8 @@ struct ConsScreen {
     bool saveon = true;         // internal_saveon_flag at open
     SDL_Surface *shot = NULL;   // the screen as it was at open: the thumbnail
     int pending = LUA_NOREF, pending_next = 0; // the actions left after a gosub
+    int scroll = 0;             // a list's first entry (log: pages back from the one on screen)
+    std::vector<std::string> voices; // a list's voice per button (its place on screen)
 };
 
 enum { SCREEN_STAY, SCREEN_CLOSE, SCREEN_GOSUB, SCREEN_LOADED };
@@ -298,10 +300,18 @@ int ONScripter::screenText( ConsScreen *s, const std::string &text, int x, int y
         for (const std::string &c : *colors) color_args += "," + quoted( c );
     }
     int no = screenSprite( s );
-    screenExec( "strsp " + std::to_string( no ) + "," + quoted( text ) + "," + std::to_string( x ) + "," + std::to_string( y ) + "," +
+    // a text with line breaks can't be in the command: strsp takes it from
+    // screen_strsp_text (the command's own text, the breaks as spaces, shows in the trace)
+    bool lines = text.find( 0x0a ) != std::string::npos;
+    std::string shown = text;
+    for (char &c : shown) if (c == 0x0a) c = ' ';
+    if (lines) screen_strsp_text = text.c_str();
+    screenExec( "strsp " + std::to_string( no ) + "," + quoted( shown ) + "," +
+                std::to_string( x ) + "," + std::to_string( y ) + "," +
                 std::to_string( fieldInt( L, "cols", 40 ) ) + "," + std::to_string( fieldInt( L, "rows", 1 ) ) + "," +
-                std::to_string( size ) + "," + std::to_string( size ) + ",0,0," + std::to_string( fieldInt( L, "bold", 0 ) ) + "," +
-                std::to_string( fieldInt( L, "shadow", 0 ) ) + color_args );
+                std::to_string( size ) + "," + std::to_string( size ) + ",0," + std::to_string( fieldInt( L, "pitch", 0 ) ) + "," +
+                std::to_string( fieldInt( L, "bold", 0 ) ) + "," + std::to_string( fieldInt( L, "shadow", 0 ) ) + color_args );
+    screen_strsp_text = NULL;
     return no;
 }
 
@@ -438,8 +448,78 @@ bool ONScripter::screenEnabled( ConsScreen *s )
             int p = pageTarget( to, s->page, slotPages( L, s->table ) );
             return p > 0 && p != s->page;
         }
+        if (what == "scroll") return screenScrollable( s, atoi( to.c_str() ) );
     }
     return true;
+}
+
+// Text log page k back from the one on screen (0); NULL past the oldest or when empty.
+ScriptParser::Page *ONScripter::screenLogPage( int k )
+{
+    Page *page = current_page;
+    while (page && page != start_page && k > 0){
+        k--;
+        page = page->previous;
+    }
+    return (k > 0 || !page || page->text_count == 0) ? NULL : page;
+}
+
+// Whether a list can scroll by n ("+1" older, "-1" newer).
+bool ONScripter::screenScrollable( ConsScreen *s, int n )
+{
+    int to = s->scroll + n;
+    return to >= 0 && to != s->scroll && (n < 0 || screenLogPage( to ) != NULL);
+}
+
+/* list (on top), widget number w, source "log": the text log's pages from
+ * s->scroll back, the newest at the bottom of the box x, y, h, each under
+ * its speaker's name (the page's tag, "name|voice"); with a voice the
+ * name is a button playing it. Stops at the first page that doesn't fit
+ * (the first is shown anyway). */
+void ONScripter::screenList( ConsScreen *s, int w )
+{
+    lua_State *L = s->L;
+    s->voices.clear();
+    if (fieldStr( L, "source", "log" ) != "log") return;
+    int ax = fieldInt( L, "x", 0 ), ay = fieldInt( L, "y", 0 ), ah = fieldInt( L, "h", 0 );
+    int size = fieldInt( L, "size", 20 ), lh = fieldInt( L, "line_height", size );
+    int gap = lh - size;
+    int lift = sentence_font.rubyon_flag ? gap : 0; // with rubyon strsp draws the lines a gap lower
+    std::string name_color = fieldStr( L, "name_color", "#FFFFFF" ), hover = fieldStr( L, "hover", "#FFFFFF" );
+    std::string mark = fromUTF8( fieldStr( L, "voice_mark", "　♪" ).c_str() );
+    lua_pushinteger( L, gap );
+    lua_setfield( L, -2, "pitch" );
+    int y = ay + ah;
+    for (int k=0 ; k<WIDGET_BUTTONS-1 ; k++){
+        Page *p = screenLogPage( s->scroll + k );
+        if (!p) break;
+        std::string text( p->text, p->text_count ), name, voice;
+        int lines = 1;
+        for (char c : text) if (c == 0x0a) lines++;
+        if (p->tag){
+            std::string tag = p->tag;
+            size_t bar = tag.find( '|' );
+            name = tag.substr( 0, bar );
+            if (bar != std::string::npos) voice = tag.substr( bar + 1 );
+        }
+        int named = (!name.empty() || !voice.empty()) ? 1 : 0;
+        int top = y - (lines + named) * lh - lh / 2;
+        if (top < ay && k > 0) break;
+        if (top < ay) top = ay;
+        lua_pushinteger( L, lines );
+        lua_setfield( L, -2, "rows" );
+        screenText( s, text, ax, top + named * lh - lift );
+        lua_pushinteger( L, 1 );
+        lua_setfield( L, -2, "rows" );
+        if (named){
+            std::vector<std::string> colors = { name_color };
+            if (!voice.empty()) colors.push_back( hover );
+            int sp = screenText( s, voice.empty() ? name : name + mark, ax, top - lift, &colors );
+            if (!voice.empty()) screenExec( "spbtn " + std::to_string( sp ) + "," + std::to_string( w * WIDGET_BUTTONS + k + 1 ) );
+        }
+        s->voices.push_back( voice );
+        y = top;
+    }
 }
 
 void ONScripter::screenDraw( ConsScreen *s )
@@ -508,6 +588,7 @@ void ONScripter::screenDraw( ConsScreen *s )
             }
         }
         else if (type == "saveslots") screenSlots( s, i );
+        else if (type == "list") screenList( s, i );
         lua_pop( L, 1 );
     }
     lua_pop( L, 2 );
@@ -680,6 +761,18 @@ int ONScripter::screenActions( ConsScreen *s, int start, int *value )
             *value = indexInt( L, 2, 0 );
             screenTrace( s, "close", 0, *value );
             ret = SCREEN_CLOSE;
+        }
+        else if (what == "scroll"){
+            int n = atoi( indexStr( L, 2 ).c_str() );
+            if (screenScrollable( s, n )){
+                s->scroll += n;
+                screenTrace( s, "scroll", 0, s->scroll );
+            }
+            else if (fieldTable( L, "at_end" )){ // can't: this instead (close at the newest page)
+                ret = screenActions( s, 0, value );
+                if (ret == SCREEN_LOADED) return ret;
+                lua_pop( L, 1 );
+            }
         }
         else if (what == "page"){
             int page = pageTarget( indexStr( L, 2 ), s->page, slotPages( L, s->table ) );
@@ -903,7 +996,14 @@ int ONScripter::screenWait( ConsScreen *s )
     trace_cmd_start = s->at; // --auto-play's choices are made at the screen command
     event_mode = WAIT_BUTTON_MODE | WAIT_TIMER_MODE;
     refreshMouseOverButton();
+    lua_rawgeti( s->L, LUA_REGISTRYINDEX, s->table );
+    bool wheel = fieldTable( s->L, "wheel_up" ) ? (lua_pop( s->L, 1 ), true) : false;
+    if (fieldTable( s->L, "wheel_down" )){ lua_pop( s->L, 1 ); wheel = true; }
+    lua_pop( s->L, 1 );
+    bool usewheel = usewheel_flag;
+    if (wheel) usewheel_flag = true; // the wheel gives -2 (up) and -3 (down)
     waitEvent( -1 );
+    usewheel_flag = usewheel;
     int button = current_button_state.button;
     if (trace_fp) traceButtons( button );
     if (auto_play_flag) autoPlayChosen( button );
@@ -931,7 +1031,11 @@ int ONScripter::screenRun( ConsScreen *s, int *value )
         int button = screenWait( s );
 
         lua_rawgeti( L, LUA_REGISTRYINDEX, s->table );
-        if (button == -1){ // right-click, Esc
+        if ((button == -2 || button == -3) && fieldTable( L, button == -2 ? "wheel_up" : "wheel_down" )){
+            ret = screenActions( s, 0, value );
+            if (ret != SCREEN_LOADED) lua_pop( L, 1 );
+        }
+        else if (button == -1){ // right-click, Esc
             if (fieldTable( L, "cancel" )){
                 ret = screenActions( s, 0, value );
                 if (ret != SCREEN_LOADED) lua_pop( L, 1 );
@@ -963,7 +1067,13 @@ int ONScripter::screenRun( ConsScreen *s, int *value )
                     changed = true;
                 }
             }
-            if (type == "slider" || type == "toggle" || type == "radio"){
+            if (type == "list"){ // a name: its page's voice
+                if (k >= 1 && k <= (int)s->voices.size() && !s->voices[k-1].empty()){
+                    screenExec( "dwave " + std::to_string( fieldInt( L, "voice_channel", 0 ) ) + "," + quoted( s->voices[k-1] ) );
+                    screenTrace( s, "voice", 0, s->scroll + k - 1 );
+                }
+            }
+            else if (type == "slider" || type == "toggle" || type == "radio"){
                 if (changed && fieldTable( L, "action" )){ // after the change: apply it
                     ret = screenActions( s, 0, value );
                     if (ret != SCREEN_LOADED) lua_pop( L, 1 );
