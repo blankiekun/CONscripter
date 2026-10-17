@@ -67,9 +67,11 @@ public:
         int num_dim;
         int dim[20];
         int *data;
+        bool named; // CONscripter: defarr's; saved by name, not in the numbered list
         ArrayVariable(){
             next = NULL;
             data = NULL;
+            named = false;
         };
         ~ArrayVariable(){
             if (data) delete[] data;
@@ -178,6 +180,9 @@ public:
 
     void setInt( VariableInfo *var_info, int val, int offset=0 );
     void setNumVariable( int no, int val );
+    // CONscripter (ONScripter_names.cpp): defarr's array, and a numalias by name
+    ArrayVariable *addArrayVariable( int no, int size );
+    bool findNumAlias( const char *name, int *no );
     void pushVariable();
     int  getIntVariable( VariableInfo *var_info=NULL );
 

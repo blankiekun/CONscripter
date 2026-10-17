@@ -3222,13 +3222,17 @@ int ONScripter::defineresetCommand()
     saveGlovalData();
 
     script_h.reset();
+    clearNamedVars(); // CONscripter: the define section declares them again
+    resetSpriteHandles();
     ScriptParser::reset();
     reset();
 
     setCurrentLabel( "define" );
 
-    if ( loadFileIOBuf( "gloval.sav" ) > 0 )
+    if ( loadFileIOBuf( "gloval.sav" ) > 0 ){
         readVariables( script_h.global_variable_border, script_h.variable_range );
+        readGlovalNames();
+    }
 
 #ifdef USE_LUA
     lua_handler.init(this, &script_h, screen_ratio1, screen_ratio2);
@@ -3254,7 +3258,7 @@ int ONScripter::cspCommand()
         si = sprite2_info;
     }
     else{
-        num = MAX_SPRITE_NUM;
+        num = MAX_SPRITE_NUM; // CONscripter: spnew's handles' pictures too; the handles stay held
         si = sprite_info;
     }
 

@@ -47,8 +47,8 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 25 // only this version's block is read; the "Version n" comments below
-                            // name the parts in the order they are written
+#define CONS_SAVE_VERSION 26 // only this version's block is read; the "Version n" comments below
+                            // name the parts in the order they are written (version 26's first)
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
 
@@ -697,25 +697,47 @@ void ONScripter::drawOverTextSprites( SDL_Surface *surface, SDL_Rect &clip )
     }
 }
 
+// The sprites spz put over sprite `target`, the higher number first; over a
+// handle, those over it next (a handle among them has its own).
+void ONScripter::drawSpritesOver( SDL_Surface *surface, SDL_Rect &clip, int target, int depth )
+{
+    for (int k=MAX_SPRITE_NUM-1 ; k>=0 ; k--){
+        AnimationInfo &over = sprite_info[k];
+        if (over.z_over != target) continue;
+        if (over.image_surface && over.visible){
+            if (over.trail_passes > 0) trailCopies( over, surface, &clip );
+            drawTaggedSurface( surface, &over, clip );
+        }
+        if (k >= NS_SPRITE_NUM && depth < 8) drawSpritesOver( surface, clip, k, depth+1 ); // 8: a loop of spz is cut
+    }
+}
+
 void ONScripter::drawSpriteRange( SDL_Surface *surface, SDL_Rect &clip, int hi, int lo )
 {
     bool moved = false;
     for (int i=0 ; i<MAX_SPRITE_NUM && !moved ; i++)
         if (sprite_info[i].z_over >= 0) moved = true;
+    // CONscripter: spnew's handles, each drawn right over its layer's numbered sprite
+    int handles[SPRITE_HANDLE_NUM], num_handles = 0;
+    for (int i=MAX_SPRITE_NUM-1 ; i>=NS_SPRITE_NUM ; i--){
+        AnimationInfo &ai = sprite_info[i];
+        if (ai.z_over < 0 && (ai.image_surface || moved)) handles[num_handles++] = i;
+    }
     for (int i=hi ; i>=lo ; i--){
         AnimationInfo &ai = sprite_info[i];
         if (ai.image_surface && ai.visible && (!moved || ai.z_over < 0)){
             if (ai.trail_passes > 0) trailCopies( ai, surface, &clip );
             drawTaggedSurface( surface, &ai, clip );
         }
-        if (moved){
-            for (int k=MAX_SPRITE_NUM-1 ; k>=0 ; k--){
-                AnimationInfo &over = sprite_info[k];
-                if (over.z_over == i && over.image_surface && over.visible){
-                    if (over.trail_passes > 0) trailCopies( over, surface, &clip );
-                    drawTaggedSurface( surface, &over, clip );
-                }
+        if (moved) drawSpritesOver( surface, clip, i, 0 );
+        for (int k=0 ; k<num_handles ; k++){ // high to low: the lower handle on top
+            AnimationInfo &h = sprite_info[handles[k]];
+            if (spriteHandleOver( handles[k] ) != i) continue;
+            if (h.image_surface && h.visible){
+                if (h.trail_passes > 0) trailCopies( h, surface, &clip );
+                drawTaggedSurface( surface, &h, clip );
             }
+            if (moved) drawSpritesOver( surface, clip, handles[k], 0 );
         }
         // screenfilter's z: the sprites drawn after i aren't filtered
         applyScreenFilters( surface, clip, i );
@@ -2300,6 +2322,11 @@ void ONScripter::saveSaveFileCons( bool output_flag )
     writeInt( CONS_SAVE_MAGIC, output_flag );
     writeInt( CONS_SAVE_VERSION, output_flag );
 
+    // Version 26: the named locals and spnew's handles with their pictures
+    // (writeNamesSection, ONScripter_names.cpp), first: they set the
+    // handles' numbers the later parts are read by.
+    writeNamesSection( output_flag );
+
     // Version 1: sprite filters. Count, then per sprite its number, filter count
     // and each filter's kind, blend, strength and three parameters.
     int num = 0;
@@ -3334,12 +3361,14 @@ void ONScripter::loadSaveFileCons()
 #ifdef USE_LUA
     lua_handler.loadState( NULL ); // a save without Lua data has no script globals
 #endif
+    clearHandleSprites(); // a save without the block: no handle pictures, named locals at their defaults
     if (readInt() != CONS_SAVE_MAGIC) return;
     int version = readInt();
     if (version != CONS_SAVE_VERSION){ // older layouts aren't read
         utils::printError("save: CONscripter data version %d, this build reads %d; left out\n", version, CONS_SAVE_VERSION);
         return;
     }
+    readNamesSection();
 
     int num = readInt();
     for (int n=0 ; n<num ; n++){
@@ -4602,8 +4631,10 @@ void ONScripter::webPersistHook()
     if (globalon_flag){
         file_io_buf_ptr = 0;
         writeVariables( script_h.global_variable_border, script_h.variable_range, false );
+        writeGlovalNames( false );
         allocFileIOBuf();
         writeVariables( script_h.global_variable_border, script_h.variable_range, true );
+        writeGlovalNames( true );
         if (web_globals_written.size() != file_io_buf_ptr ||
             memcmp( web_globals_written.data(), file_io_buf, file_io_buf_ptr )){
             if (saveFileIOBuf( "gloval.sav" ) == 0){

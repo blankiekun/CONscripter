@@ -380,6 +380,7 @@ void ONScripter::openAudio(int freq)
 
 ONScripter::ONScripter()
 {
+    resetSpriteHandles(); // CONscripter
     is_script_read = false;
     screen_stack_num = 0;
     screen_effect_flush_time = 0;
@@ -895,6 +896,7 @@ void ONScripter::resetSub()
     createBackground();
     for (i=0 ; i<3 ; i++) tachi_info[i].reset();
     for (i=0 ; i<MAX_SPRITE_NUM ; i++) sprite_info[i].reset();
+    clearHandleSprites(); // CONscripter: the named locals too; handles stay held
     for (i=0 ; i<MAX_SPRITE2_NUM ; i++) sprite2_info[i].reset();
     for (i=0; i<MAX_TEXTURE_NUM; i++) texture_info[i].reset();
     smpeg_info = NULL;

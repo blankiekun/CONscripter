@@ -74,7 +74,11 @@ bool consClockWait( SDL_Event *event );
 #define DEFAULT_BLIT_FLAG (0)
 //#define DEFAULT_BLIT_FLAG (SDL_RLEACCEL)
 
-#define MAX_SPRITE_NUM 1000
+// CONscripter: sprites 0-999 are NScripter's numbered ones; 1000 up are the
+// handles spnew hands out (ONScripter_names.cpp), drawn by layer
+#define NS_SPRITE_NUM 1000
+#define SPRITE_HANDLE_NUM 1000
+#define MAX_SPRITE_NUM (NS_SPRITE_NUM + SPRITE_HANDLE_NUM)
 #define SPTRAIL_MAX 32 // CONscripter: sptrail's most copies (128 cost 29 ms a frame for a 1280x720 sprite natively)
 #define MAX_SPRITE2_NUM 256
 #define MAX_TEXTURE_NUM 16
@@ -240,6 +244,8 @@ public:
     int spzCommand();
     int spclipCommand();
     int sptrailCommand();
+    int spnewCommand(); // ONScripter_names.cpp
+    int spfreeCommand();
     int spovertextCommand();
     int spblendCommand();
     int bitandCommand();
@@ -761,6 +767,17 @@ private:
     void loadSavePoints();
     void writeSavePoint( char *address, bool output_flag );
     char *readSavePoint( bool after, const char *what, int *label, int *line );
+    // ONScripter_names.cpp: spnew's handles (sprite_handle_layer[h - NS_SPRITE_NUM]:
+    // 0 free, else layer + 1; sprite_handle_var: the variable spnew wrote into)
+    int sprite_handle_layer[SPRITE_HANDLE_NUM];
+    int sprite_handle_var[SPRITE_HANDLE_NUM];
+    void resetSpriteHandles();
+    int newSpriteHandle( int layer );
+    int spriteHandleOver( int no );
+    void writeNamesSection( bool output_flag );
+    void readNamesSection();
+    void clearHandleSprites();
+    void drawSpritesOver( SDL_Surface *surface, SDL_Rect &clip, int target, int depth ); // ONScripter_cons.cpp
     // CONscripter: play time (getplaytime), counted from playtime_start on
     // top of playtime_base; the save data's offset of it (writeSaveFile
     // brings it up to date there).
@@ -1110,7 +1127,7 @@ private:
     std::vector<int> trace_num_vars, trace_str_vars; // the variables watched
     std::vector<int> trace_num_seen; // their values as last recorded
     std::vector<std::string> trace_str_seen;
-    void traceVarsSetup();
+    void traceVarsSetup( bool names=false ); // names: the second pass, once the define section ran
     void traceVarChanges( char *at );
     int trace_long_wait;             // --trace-long-wait ms
     bool trace_overflow;             // the page's text went past the window's last line

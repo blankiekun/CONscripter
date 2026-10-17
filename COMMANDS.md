@@ -151,6 +151,8 @@ holding anything else is refused whole, its globals left as they were.
 `function blink(n) while true do t = (t or 0) + 1 ... cons_frame() end end`
 then `cons_process("blink", "blink", 5)`. Impl `LUAHandler::saveState`,
 `stepProcesses`.
+[cons] `NSVarNo("name")`: a `numalias`'s number (a `defvar`, `defstr` or
+`defarr` name's slot), nil if none: `NSSetIntValue(NSVarNo("score"), 5)`.
 
 ## Variables, strings, maths
 
@@ -185,6 +187,21 @@ Impl `ScriptParser::addCommand` etc.
 ### numalias / stralias (define)
 `numalias name,n`, `stralias name,"s"` — named constants.
 Impl `ScriptParser::numaliasCommand`, `straliasCommand`.
+
+### defvar / defstr / defarr [cons]
+`defvar name[,default][,global]`, `defstr name[,"default"][,global]`,
+`defarr name,size[,global]` — a variable with a name and its own slot (from
+10000 up, above the numbered ones and a `;$V`/`;value` range): `%name`,
+`$name`, `?name[i]` (0 to size-1) work wherever `%N`, `$N`, `?N` do, as a
+`numalias` to the slot. Saves and `gloval.sav` keep them by name, so a new
+build may add, drop or reorder them: a load sets the names it knows and
+leaves the others at their defaults. `global` ones are in `gloval.sav` (after
+the numbered globals, needs `globalon`) and survive `reset`/`definereset`;
+the others go to their default at `reset`, a load and `definereset`. The same
+declaration again (the define section run again) does nothing; a name
+declared before as another kind, or a `numalias` already, is an error. Any
+section; usually `*define`. `defvar seen_ending,global`, `defarr cg,300,global`,
+`mov ?cg[12],1`. Impl `ScriptParser::defineNamed` (`ONScripter_names.cpp`).
 
 ### globalon (define)
 `globalon` — `%200` and above are global, saved in `gloval.sav`.
@@ -600,7 +617,27 @@ Impl `ONScripter::lsp2Command`.
 
 ### csp / csp2
 `csp num` (-1 all) — clear. [cons] also drops `spfilter`, `spzoom`, motions,
-fades, `spz`. Impl `ONScripter::cspCommand`.
+fades, `spz`; `csp -1` clears `spnew`'s sprites too, which stay held (their
+variables keep their numbers; `spfree` gives one back).
+Impl `ONScripter::cspCommand`.
+
+### spnew / spfree [cons]
+`spnew %var[,layer]` — a free sprite number from 1000 up into `%var` (a
+`defvar` name usually), for `lsp`, `msp`, `spz`, buttons and the rest; its
+place among the sprites is its layer's, not its number's: `game` (the
+default; over sprite humanz+1: over every numbered sprite under the standing
+pictures, under them and the window), `ui` (over sprite humanz: with
+`windowback` over the text window, under sprites humanz-1 to 0) or `overlay`
+(over sprite 0: over every numbered sprite); `0`, `1`, `2` for the same.
+Within a layer the lower number is on top; `spnew` gives the lowest free one.
+`spnew` on a variable that holds its handle already keeps the number (and
+sets the layer). `spfree num` clears the sprite (as `csp`) and gives the
+number back. The handles stay held through `reset` and a load (the variable
+holds its number again); `definereset` frees them. Saves keep each handle
+with its variable's name and the handles' pictures; the stock part of a save
+holds sprites 0-999 only. `spz` puts a handle elsewhere, as any sprite.
+`defvar namebox:spnew %namebox,ui:lsp %namebox,"name.png",20,400`.
+Impl `ONScripter::spnewCommand`, `spfreeCommand` (`ONScripter_names.cpp`).
 
 ### vsp / vsp2
 `vsp num,0|1` (-1 all) — visibility. Impl `ONScripter::vspCommand`.
@@ -1209,7 +1246,11 @@ wait (at once at a click wait):
 NScripter data; saves without it load as before. It holds every [cons] state
 marked "saved" above, plus what NScripter data loses: `strsp` sprites (text,
 font, colours, also in the `pushscreen` stack) and looping `dwave` channels
-(restarted on load). Code: `CONS_SAVE_MAGIC` in `src/cons/ONScripter_cons.cpp`.
+(restarted on load). Its first part (version 26) holds the named variables
+(`defvar`, `defstr`, `defarr`; by name) and the `spnew` handles with their
+pictures; the NScripter data holds sprites 0-999. Only the current version's
+block is read: an older save loads its NScripter data alone.
+Code: `CONS_SAVE_MAGIC` in `src/cons/ONScripter_cons.cpp`.
 
 ## Engine behaviour [cons]
 

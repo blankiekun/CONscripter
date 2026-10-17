@@ -37,7 +37,7 @@ Other options add to what the trace holds:
 
 | Option | Adds |
 |---|---|
-| `--trace-vars 300-899,$10-20` | a `var` record for each change of these variables: numbers alone are `%` variables, `$` before the strings; numbers and ranges, comma-separated (0 to the script's `numalias` range, 4096 by default) |
+| `--trace-vars 300-899,$10-20` | a `var` record for each change of these variables: numbers alone are `%` variables, `$` before the strings; numbers and ranges, comma-separated (0 to the script's `numalias` range, 4096 by default); a `defvar` or `defstr` name (`%score`, `$who`) watches that one, recorded under its name |
 | `--audio-stats` | an `audio` record for every 100 ms of sound mixed, for each dwave channel playing and for the whole mix (off by default: nothing is counted) |
 | `--trace-long-wait ms` | a `long wait` warning for each wait, effect or fade the script asks to last longer than this (default 10000) |
 | `--trace-max-image mb` | a `large image` warning for each picture that alone takes more memory than this, in MB (default 64, a 4096x4096 picture) |
@@ -319,7 +319,13 @@ the end of the line, so it can't hold a line break:
 # CONscripter variables, page 4120
 %312=876
 $5=text to the end of the line
+%score=3
+?cg_seen[12]=1
 ```
+
+`defvar`, `defstr` and `defarr` names are written and read by name
+(`%score`, `$who`, `?cg_seen[12]` for an array's element), not by slot,
+in these files and in a dump's `vars`.
 
 A `--vars` run is a test run: it doesn't write `gloval.sav`, so global
 variables in the file (an old dump's unlocks and settings) don't replace

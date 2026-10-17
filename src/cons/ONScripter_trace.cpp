@@ -2281,6 +2281,7 @@ void ONScripter::startAt()
         }
         return;
     }
+    if (trace_fp && trace_vars_spec) traceVarsSetup( true ); // the names --trace-vars gives
     if (start_vars){
         readVarsFile( start_vars );
         // a test run: its global variables (often an old dump's) aren't written over the real gloval.sav
@@ -2336,6 +2337,20 @@ void ONScripter::readVarsFile( const char *path )
         while (*p == ' ' || *p == '\t') p++;
         if (*p == 0 || *p == '#') continue;
         char *end;
+        if ((*p == '%' || *p == '$' || *p == '?') && (isalpha( (unsigned char)p[1] ) || p[1] == '_')){ // a name (defvar ...)
+            char kind;
+            int slot;
+            int *num = namedSlot( p, &kind, &slot );
+            char *eq = strchr( p, '=' );
+            if (!num || !eq){
+                utils::printError( "--vars: %s:%d: no such name or no =: %s\n", path, line_no, line );
+                fclose( fp );
+                startupFailed();
+            }
+            if (kind == '$') setStr( &script_h.getVariableData( slot ).str, fromUTF8( eq+1 ).c_str() );
+            else             *num = atoi( eq+1 );
+            continue;
+        }
         long no = (*p == '%' || *p == '$') ? strtol( p+1, &end, 10 ) : -1;
         if (no < 0 || end == p+1 || *end != '='){
             utils::printError( "--vars: %s:%d: not %%n=number or $n=text: %s\n", path, line_no, line );
@@ -2370,6 +2385,14 @@ void ONScripter::writeVarsFile()
         traceString( text, vd.str, -1, false );
         fprintf( fp, "$%d=%s\n", i, text.c_str() );
     }
+    std::vector<NamedEntry> named;
+    namedEntries( named );
+    for (size_t i=0 ; i<named.size() ; i++){
+        std::string text;
+        if (named[i].str) traceString( text, named[i].str, -1, false );
+        else              text = std::to_string( named[i].num );
+        fprintf( fp, "%s=%s\n", named[i].key.c_str(), text.c_str() );
+    }
     fclose( fp );
 }
 
@@ -2395,6 +2418,16 @@ void ONScripter::traceVars( std::string &out )
         traceString( out, vd.str );
         first = false;
     }
+    std::vector<NamedEntry> named;
+    namedEntries( named );
+    for (size_t i=0 ; i<named.size() ; i++){
+        if (!first) out += ',';
+        traceString( out, named[i].key.c_str() );
+        out += ':';
+        if (named[i].str) traceString( out, named[i].str );
+        else              out += std::to_string( named[i].num );
+        first = false;
+    }
     out += '}';
 }
 
@@ -2407,11 +2440,28 @@ void ONScripter::setTraceVars( const char *spec )
     setStr( &trace_vars_spec, spec );
 }
 
-void ONScripter::traceVarsSetup()
+void ONScripter::traceVarsSetup( bool names )
 {
     for (const char *p = trace_vars_spec ; p && *p ; ){
         bool str = (*p == '$');
         if (*p == '$' || *p == '%') p++;
+        bool name = isalpha( (unsigned char)*p ) || *p == '_'; // defvar, defstr's: once the define section declared it
+        if (name != names){ // the other pass's
+            p = strchr( p, ',' );
+            if (p) p++;
+            continue;
+        }
+        if (name){
+            char kind;
+            int slot;
+            if (!namedSlot( p, &kind, &slot ) || kind == '?')
+                utils::printError( "--trace-vars: no name [%s]\n", p );
+            else if (kind == '$') trace_str_vars.push_back( slot );
+            else                  trace_num_vars.push_back( slot );
+            p = strchr( p, ',' );
+            if (p) p++;
+            continue;
+        }
         char *end;
         int first = strtol( p, &end, 10 ), last = first;
         if (*end == '-') last = strtol( end+1, &end, 10 );
@@ -2428,8 +2478,8 @@ void ONScripter::traceVarsSetup()
         p = strchr( end, ',' );
         if (p) p++;
     }
-    trace_num_seen.assign( trace_num_vars.size(), 0 );
-    trace_str_seen.assign( trace_str_vars.size(), "" );
+    trace_num_seen.resize( trace_num_vars.size(), 0 );
+    trace_str_seen.resize( trace_str_vars.size(), "" );
     trace_vars_flag = true;
     traceVarChanges( NULL ); // the values set before the script starts
 }
@@ -2446,8 +2496,8 @@ void ONScripter::traceVarChanges( char *at )
         snprintf( buf, sizeof(buf), "{\"t\":\"var\",\"pg\":%d,\"at\":", trace_page );
         std::string r = buf;
         traceAt( r, at );
-        snprintf( buf, sizeof(buf), ",\"n\":\"%%%d\",\"v\":%d}", trace_num_vars[i], v );
-        r += buf;
+        snprintf( buf, sizeof(buf), "\",\"v\":%d}", v );
+        r += ",\"n\":\"" + varKey( '%', trace_num_vars[i] ) + buf;
         traceWrite( r );
     }
     for (size_t i=0 ; i<trace_str_vars.size() ; i++){
@@ -2458,8 +2508,7 @@ void ONScripter::traceVarChanges( char *at )
         snprintf( buf, sizeof(buf), "{\"t\":\"var\",\"pg\":%d,\"at\":", trace_page );
         std::string r = buf;
         traceAt( r, at );
-        snprintf( buf, sizeof(buf), ",\"n\":\"$%d\",\"v\":", trace_str_vars[i] );
-        r += buf;
+        r += ",\"n\":\"" + varKey( '$', trace_str_vars[i] ) + "\",\"v\":";
         traceString( r, v );
         r += '}';
         traceWrite( r );
@@ -2609,6 +2658,12 @@ void ONScripter::roundtripState( std::map<std::string, std::string> &state )
         if (vd.num) state["%" + std::to_string( i )] = std::to_string( vd.num );
         if (vd.str && vd.str[0]) traceString( state["$" + std::to_string( i )], vd.str );
     }
+    std::vector<NamedEntry> named;
+    namedEntries( named );
+    for (size_t i=0 ; i<named.size() ; i++){
+        if (named[i].str) traceString( state[named[i].key], named[i].str );
+        else              state[named[i].key] = std::to_string( named[i].num );
+    }
 }
 
 // Saves and loads, as savegame and loadgame would (the save holds the
@@ -2641,6 +2696,7 @@ void ONScripter::roundtripClear()
 {
     for (int i=0 ; i<script_h.global_variable_border ; i++)
         script_h.getVariableData( i ).reset( false );
+    resetNamedVars( false ); // CONscripter: as clearHandleSprites leaves them on a load
     monocro_flag = false;
     nega_mode = 0;
     window_trans = 255;

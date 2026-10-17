@@ -74,14 +74,14 @@ def collect(path, page=None, at=None):
 
 
 def key(n):
-    return (n[0] != '%', int(n[1:]) if n[1:].isdigit() else 0)
+    return (n[0] != '%', int(n[1:]) if n[1:].isdigit() else 0, n)
 
 
 def write(vars_, out, header):
     lines = ['# ' + header]
     for n in sorted(vars_, key=key):
         v = vars_[n]
-        if n.startswith('%') and v != 0:
+        if n[0] in '%?' and v != 0:  # ?name[i]: a defarr element
             lines.append('%s=%d' % (n, v))
         elif n.startswith('$') and v != '':
             lines.append('%s=%s' % (n, str(v).replace('\r', '').replace('\n', ' ')))

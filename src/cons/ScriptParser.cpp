@@ -330,8 +330,10 @@ void ScriptParser::saveGlovalData()
 
     file_io_buf_ptr = 0;
     writeVariables( script_h.global_variable_border, script_h.variable_range, false );
+    writeGlovalNames( false );
     allocFileIOBuf();
     writeVariables( script_h.global_variable_border, script_h.variable_range, true );
+    writeGlovalNames( true );
 
     if (saveFileIOBuf( "gloval.sav" ))
         errorAndExit("can't open gloval.sav for writing.");
@@ -491,6 +493,7 @@ void ScriptParser::writeArrayVariable( bool output_flag )
     ScriptHandler::ArrayVariable *av = script_h.getRootArrayVariable();
 
     while(av){
+        if (av->named){ av = av->next; continue; } // CONscripter: saved by name
         int i, dim = 1;
         for ( i=0 ; i<av->num_dim ; i++ )
             dim *= av->dim[i];
@@ -514,6 +517,7 @@ void ScriptParser::readArrayVariable()
     ScriptHandler::ArrayVariable *av = script_h.getRootArrayVariable();
 
     while(av){
+        if (av->named){ av = av->next; continue; } // CONscripter: saved by name
         int i, dim = 1;
         for ( i=0 ; i<av->num_dim ; i++ )
             dim *= av->dim[i];
