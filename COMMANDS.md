@@ -791,6 +791,19 @@ ends it. Stays through `lsp`, removed by `csp`, saved (not by
 `lsp 10,"car.png",0,200:sptrail 10,3,500,40:spmotion 10,0,0,0,0,100,100,0,256,0,1000,800,0,100,100,0,256,0`.
 Impl `ONScripter::sptrailCommand`.
 
+### spwave [cons]
+`spwave num,ms,period,amp0,amp1[,curve]` — for `ms` ms, each row of sprite
+num is drawn trunc(sin(2π·phase/256) × amp) px to the right: phase is
+row × `period` / height (1/256 turns; 256 = one wave over the picture)
+plus one every 33 ms, and amp goes from `amp0` to `amp1` px by `curve`
+(as `spmotion`'s). Then it ends; `spwave num` ends it at once. A zoomed
+picture's rows take the phase of the row they show. Rows are only moved
+(no per-pixel work; amp 0 costs nothing). Stays through `lsp`, removed by
+`csp`, saved (not by `pushscreen`). Nitroplus's `DrawEffect` waves:
+LowWave 64, MiddleWave 512, HighWave 1024, SuperWave 4096.
+`lsp 10,"bg.png",0,0:spwave 10,3000,512,0,20:print 1`.
+Impl `ONScripter::spwaveCommand`.
+
 ### spz [cons]
 `spz num[,over]` — draw sprite `num` just over sprite `over` (between `over`
 and `over-1`); `spz num` resets. `spz 70,61` draws 70 over 61-69, under 60.
