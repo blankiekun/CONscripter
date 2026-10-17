@@ -799,6 +799,18 @@ once (an effect drawn as `print 1`), until the next text, wait for a click
 1 while it does, else 0. Xuse's skip_state_b (最果てのイマ). Not saved.
 Impl `ONScripter::clickskipCommand`, `getclickskipCommand`.
 
+### effectsoft [cons]
+`effectsoft softness[,reverse]` — the next masked effect (15, 18) sweeps a
+threshold over the mask's grey levels instead of the 256-level ramp: at part
+t of the time (eased by `effectcurve`) the threshold is p = 1 + floor(255 t);
+the new screen shows fully where the mask is at most p and fades out over the
+levels above it, losing 255 × 255 ÷ (softness × p) a level (a band about
+softness × p ÷ 255 levels wide). reverse 1: the threshold falls (p = 254 −
+floor(255 t)) and the new screen shows above it, so the old one leaves the
+mask's bright parts first. Nitroplus's `DrawTransition` (装甲悪鬼村正). Used
+by the effect that follows only; not saved.
+`effectsoft 100:print 18,1000,"mask.png"`. Impl `ONScripter::effectsoftCommand`.
+
 ### spcurve [cons]
 `spcurve id,v0,v1,...,vn` — curve id (10-73) for `spmotion` keys: how far
 (0-1024) from one key to the next at n+1 even steps (2 to 1025 values), straight

@@ -392,6 +392,70 @@ int ONScripter::effectcurveCommand()
     return RET_CONTINUE;
 }
 
+/* effectsoft softness[,reverse]
+ *   The next masked effect (15, 18) sweeps a threshold over the mask's grey
+ *   levels instead of the 256-level ramp: at part t of the time (eased by
+ *   effectcurve) the threshold is p = 1 + floor(255 t); the new screen shows
+ *   fully where the mask is at most p and fades out over the levels above it,
+ *   losing 255 x 255 / (softness x p) a level (a band about softness x p / 255
+ *   levels wide). reverse 1: the threshold falls (p = 254 - floor(255 t)) and
+ *   the new screen shows where the mask is above it: the old one leaves the
+ *   bright parts first. Nitroplus's DrawTransition (Muramasa.exe 0044fe00,
+ *   00457bf0). Used once, by the effect that follows; not saved.
+ *   "effectsoft 100:print 18,1000,"mask.png"". */
+int ONScripter::effectsoftCommand()
+{
+    effect_soft = script_h.readInt();
+    if (effect_soft < 0) effect_soft = 0;
+    effect_soft_reverse = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
+
+    return RET_CONTINUE;
+}
+
+/* The new screen over the old through the mask's threshold table
+ * (effectsoft); src1/src2/dst as alphaBlend's. */
+void ONScripter::softMaskBlend( SDL_Surface *mask, int counter, int duration, SDL_Rect *clip )
+{
+    SDL_Rect rect = screen_rect;
+    if ( clip && AnimationInfo::doClipping( &rect, clip ) ) return;
+    if ( mask->format->BytesPerPixel != 4 ) return;
+
+    // The exe's table (00457bf0): 255 up to the threshold, then a ramp down
+    // by k a level, truncated (fistp under a truncating control word).
+    int n = duration > 0 ? (int)((long long)255 * counter / duration) : 255;
+    if (n > 255) n = 255;
+    int p = effect_soft_reverse ? 254 - n : n + 1;
+    double k = 255.0 / (p > 0 ? p : 1) * (255.0 / effect_soft);
+    Uint8 lut[256];
+    for (int g = 0; g < 256; g++){
+        int a = 255;
+        if (g > p){
+            double v = 255.0 - (g - p) * k;
+            a = v < 0 ? 0 : (int)v;
+        }
+        if (p < 0) a = 0;
+        lut[g] = effect_soft_reverse ? 255 - a : a;
+    }
+
+    SDL_Surface *src1 = effect_src_surface, *src2 = effect_dst_surface, *dst = accumulation_surface;
+    SDL_LockSurface(src1); SDL_LockSurface(src2); SDL_LockSurface(dst); SDL_LockSurface(mask);
+    for (int y = rect.y; y < rect.y + rect.h; y++){
+        ONSBuf *s1 = (ONSBuf *)src1->pixels + src1->w * y;
+        ONSBuf *s2 = (ONSBuf *)src2->pixels + src2->w * y;
+        ONSBuf *d = (ONSBuf *)dst->pixels + dst->w * y;
+        const Uint32 *m = (const Uint32 *)((Uint8 *)mask->pixels + mask->pitch * (y % mask->h));
+        for (int x = rect.x; x < rect.x + rect.w; x++){
+            Uint32 a = lut[m[x % mask->w] & 0xFF];
+            a += a >> 7; // 255 -> 256: the new screen exactly
+            Uint32 c1 = s1[x], c2 = s2[x];
+            Uint32 rb = ((((c2 & 0xff00ff) - (c1 & 0xff00ff)) * a >> 8) + (c1 & 0xff00ff)) & 0xff00ff;
+            Uint32 g = ((((c2 & 0x00ff00) - (c1 & 0x00ff00)) * a >> 8) + (c1 & 0x00ff00)) & 0x00ff00;
+            d[x] = rb | g;
+        }
+    }
+    SDL_UnlockSurface(mask); SDL_UnlockSurface(dst); SDL_UnlockSurface(src2); SDL_UnlockSurface(src1);
+}
+
 /* clickskip (define)
  *   A click (or key) that ends a delay or an effect early also ends every
  *   later delay and effect at once (an effect drawn as print 1), until the

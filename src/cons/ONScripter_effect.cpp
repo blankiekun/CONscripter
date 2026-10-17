@@ -188,6 +188,7 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
         presentPending();
         if ( effect_no == 1 ) effect_counter = 0;
         effect_curve = 0; // effectcurve: this effect's only
+        effect_soft = effect_soft_reverse = 0; // effectsoft: the same
         skip_mode &= ~SKIP_TO_EOL;
 
         event_mode = IDLE_EVENT_MODE;
@@ -398,6 +399,10 @@ bool ONScripter::drawEffectFrame( EffectLink *effect, int effect_no )
         break;
 
       case 15: // Fade with mask
+        if (effect_soft && effect->anim.image_surface){ // CONscripter: effectsoft
+            softMaskBlend( effect->anim.image_surface, effect_counter, effect_duration, &dirty_rect.bounding_box );
+            break;
+        }
         alphaBlend( effect->anim.image_surface, ALPHA_BLEND_FADE_MASK, 256 * effect_counter / effect_duration, &dirty_rect.bounding_box );
         break;
 
@@ -410,6 +415,10 @@ bool ONScripter::drawEffectFrame( EffectLink *effect, int effect_no )
         break;
         
       case 18: // Cross fade with mask
+        if (effect_soft && effect->anim.image_surface){ // CONscripter: effectsoft
+            softMaskBlend( effect->anim.image_surface, effect_counter, effect_duration, &dirty_rect.bounding_box );
+            break;
+        }
         alphaBlend( effect->anim.image_surface, ALPHA_BLEND_CROSSFADE_MASK, 256 * effect_counter * 2 / effect_duration, &dirty_rect.bounding_box );
         break;
 
