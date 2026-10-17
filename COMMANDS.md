@@ -1202,12 +1202,35 @@ Code: `src/cons/ONScripter_effect.cpp` and `ONScripter_cons.cpp` (grep `cons_sli
   (0/2) or columns (1/3). MAGES InOut_Act 1.
 - `"cons_blur.dll/radius[,new_only]"` — cross-fade with horizontal blur.
   MAGES InOut_Act 6.
-- `"cons_rule.dll/file,cells"` — a transition from data: `file` holds
+- `"cons_rule.dll/file,cells[,curve]"` — a transition from data: `file` holds
   `cells` grey masks side by side (each stretched to the screen), evenly
   in time, mixed between cells; white shows the new picture, black the old.
   Bake a game's own wipe or dissolve into it (its kernel run on a black old
   and white new picture, a frame per cell) instead of writing a plugin.
-  Transitions that move pixels stay plugins.
+  `curve` (an `spmotion` curve: 1-3, or 10-73 from `spcurve`) eases the time.
+- `"cons_warp.dll/file,cells[,curve]"` — the same with warp cells, which
+  also move pixels: each cell says, on a grid of points (1/8 of the screen
+  is enough: 161x91 at 1280x720), where each pixel reads the old and the
+  new picture and how much of the new one shows. Code:
+  `src/cons/ONScripter_warp.cpp`; `tools/cons_warp.py` writes cells for
+  slides, zooms, flips, cube turns, melts and waves. A cell is
+  `gw` x `4 gh` pixels of an 8-bit RGB PNG (lossless: never re-encode it),
+  four planes of `gw` x `gh` stacked top to bottom; each value `v` is 16
+  bits, its high byte in planes 0 and 2, its low byte in planes 1 and 3:
+  - planes 0/1: R, G the old picture's x, y; B the mask;
+  - planes 2/3: R, G the new picture's x, y; plane 2's B (a byte) 255
+    reads the pictures bilinearly in the block right of and below that
+    point (zooms: 0 nearest, faster); plane 3's B (a byte) the block's
+    mask sharpness `s`, 0-8.
+  Point `(i, j)` lies on pixel `(i w / (gw-1), j h / (gh-1))`. A pixel
+  reads its picture at itself plus `(v - 32768) / 16` pixels (edges
+  repeated). It shows `128 + (v - 32768) * 2^s / 16` (0-255, clamped)
+  of the new picture: with `s` 0 a level (`v = 30720 + 16 * level`), with
+  `s` 8 the signed distance in 1/16 pixel to an edge (positive on the new
+  side), which keeps an edge sharp between points and cells. Values are
+  interpolated bilinearly between points, straight between cells; `s`
+  and the bilinear flag come from the nearer cell. About 2 ms a frame at
+  1280x720 (4 ms on the web), zooms 12 (15).
 
 `effect 20,99,800,"cons_slide.dll/0,-1,0"` slides the new picture in from the right.
 

@@ -4432,7 +4432,7 @@ void ONScripter::effectBlur( const char *params, int duration )
 #endif
 }
 
-/* effect num,99,duration,"cons_rule.dll/file,cells"
+/* effect num,99,duration,"cons_rule.dll/file,cells[,curve]"
  *   A transition drawn from data: file holds cells grey masks side by
  *   side (each stretched to the screen), the first at the start, the last
  *   at the end, evenly in time; between two cells their masks mix. Where
@@ -4441,15 +4441,33 @@ void ONScripter::effectBlur( const char *params, int duration )
  *   emulator, or a port) on a black old and a white new picture and keep
  *   the frames as cells, so the engine needs no code for it. Covers what
  *   mixes the two pictures in place (wipes, dissolves, blinds, soft
- *   edges); transitions that move pixels stay plugins (cons_slide, ...).
+ *   edges). curve (an spmotion curve: 1-3 or an spcurve table) eases the
+ *   time between the first and the last cell.
+ * effect num,99,duration,"cons_warp.dll/file,cells[,curve]"
+ *   The same with warp cells, which also move pixels: each cell holds,
+ *   at reduced size, where every pixel of the screen reads the old and
+ *   the new picture from, and the mask (format in ONScripter_warp.cpp).
+ *   Slides, zooms, flips, melts and waves are such maps.
  *   Fewer than 2 cells or a missing file: a plain cross-fade. */
 void ONScripter::effectRule( const char *params, int duration )
 {
     static char *rule_name = NULL;
     static SDL_Surface *rule = NULL;
+    bool warp = !strncmp(params, "cons_warp.dll", 13);
+    // file,cells or file,cells,curve, read from the right: the file name
+    // may hold commas, as before the curve was added
     const char *p = strchr(params, '/');
     const char *comma = p ? strrchr(p, ',') : NULL;
-    int cells = comma ? atoi(comma + 1) : 0;
+    int cells = comma ? atoi(comma + 1) : 0, curve = 0;
+    if (comma){
+        const char *before = comma - 1;
+        while (before > p && isdigit((unsigned char)*before)) before--;
+        if (before > p && *before == ',' && before + 1 < comma && comma[1] && strspn(comma + 1, "0123456789") == strlen(comma + 1)){
+            curve = cells;
+            cells = atoi(before + 1);
+            comma = before;
+        }
+    }
 #if defined(BPP16)
     cells = 0; // 16-bit surfaces: a plain cross-fade, the rule never loaded
 #endif
@@ -4461,18 +4479,24 @@ void ONScripter::effectRule( const char *params, int duration )
             rule_name = new char[name.size() + 1];
             strcpy(rule_name, name.c_str());
             rule = loadImage(rule_name);
-            if (!rule) utils::printError("cons_rule.dll: can't load %s\n", rule_name);
+            if (!rule) utils::printError("%.13s: can't load %s\n", params, rule_name);
         }
     }
-    if (cells < 2 || !rule || rule->format->BytesPerPixel != 4 || rule->w < cells){
+    if (cells < 2 || !rule || rule->format->BytesPerPixel != 4 || rule->w < cells * (warp ? 2 : 1) ||
+        (warp && (rule->h % 4 || rule->h < 8))){
         alphaBlend( NULL, ALPHA_BLEND_CONST, 256 * effect_counter / (duration > 0 ? duration : 1), &dirty_rect.bounding_box );
         return;
     }
     float pr = duration > 0 ? (float)effect_counter / duration : 1.0f;
     if (pr > 1.0f) pr = 1.0f;
+    if (curve) pr = curveAt(curve, (int)(pr * 1024)) / 1024.0f;
     float f = pr * (cells - 1);
     int c = (int)f;
     if (c > cells - 2) c = cells - 2;
+    if (warp){
+        warpFrame(rule, cells, c, f - c);
+        return;
+    }
     int frac = (int)((f - c) * 256);
     int w = accumulation_surface->w, h = accumulation_surface->h, cw = rule->w / cells;
     int rshift = rule->format->Rshift;
