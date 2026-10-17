@@ -106,6 +106,8 @@ add_library(sdl2 STATIC
   deps/SDL/src/joystick/SDL_joystick.c
   deps/SDL/src/joystick/SDL_steam_virtual_gamepad.c
   deps/SDL/src/joystick/controller_type.c
+  deps/SDL/src/misc/SDL_url.c
+  deps/SDL/src/misc/dummy/SDL_sysurl.c
   deps/SDL/src/joystick/dummy/SDL_sysjoystick.c
   deps/SDL/src/haptic/SDL_haptic.c
   deps/SDL/src/haptic/dummy/SDL_syshaptic.c
@@ -171,6 +173,11 @@ add_library(sdl2 STATIC
 target_include_directories(sdl2 PUBLIC
   deps/SDL/include
 )
+if (NINTENDO_SWITCH)
+  # libnx has no thread priorities or signal masks: take SDL's NaCl path, which skips them
+  set_source_files_properties(deps/SDL/src/thread/pthread/SDL_systhread.c
+    PROPERTIES COMPILE_DEFINITIONS __NACL__)
+endif ()
 
 add_library(sdl2_image STATIC
   deps/SDL_image/src/IMG.c
@@ -348,6 +355,29 @@ endif ()
 target_link_libraries(conscripter_libretro
   bzip2 sdl2 sdl2_image sdl2_mixer sdl2_ttf lua
 )
+
+if (LIBRETRO_STATIC)
+  # RetroArch links one archive per core: fold the dependencies into it
+  set(MERGED $<TARGET_FILE_DIR:conscripter_libretro>/merged.a)
+  file(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/merge.mri CONTENT "CREATE ${MERGED}
+ADDLIB $<TARGET_FILE:conscripter_libretro>
+ADDLIB $<TARGET_FILE:bzip2>
+ADDLIB $<TARGET_FILE:sdl2>
+ADDLIB $<TARGET_FILE:sdl2_image>
+ADDLIB $<TARGET_FILE:sdl2_mixer>
+ADDLIB $<TARGET_FILE:sdl2_ttf>
+ADDLIB $<TARGET_FILE:freetype>
+ADDLIB $<TARGET_FILE:lua>
+SAVE
+END
+")
+  add_custom_command(TARGET conscripter_libretro POST_BUILD
+    COMMAND ${CMAKE_AR} -M < ${CMAKE_BINARY_DIR}/merge.mri
+    COMMAND ${CMAKE_COMMAND} -E rename ${MERGED} $<TARGET_FILE:conscripter_libretro>
+    # SDL_mixer's stb_vorbis (its own build of it) clashes with RetroArch's
+    COMMAND ${CMAKE_OBJCOPY} -w --localize-symbol=stb_vorbis_* $<TARGET_FILE:conscripter_libretro>
+  )
+endif ()
 
 target_include_directories(conscripter_libretro PRIVATE
   ../cons
