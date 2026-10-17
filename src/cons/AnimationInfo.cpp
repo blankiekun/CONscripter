@@ -885,8 +885,8 @@ void AnimationInfo::blendOnSurface2( SDL_Surface *dst_surface, int dst_x, int ds
                 int x2 = ((inv_mat[0][0] * x >> 9) + x_offset2) >> 1;
                 int y2 = ((inv_mat[1][0] * x >> 9) + y_offset2) >> 1;
 
-                if (x2 < src_rect[0][0] || x2 >= src_rect[1][0] ||
-                    y2 < src_rect[0][1] || y2 >= src_rect[1][1]) {
+                if (x2 < src_rect[0][0] || x2 > src_rect[1][0] ||
+                    y2 < src_rect[0][1] || y2 > src_rect[1][1]) {
                     blendLine(line_buffer, line_pos, &dst_buffer_s);
                     dst_buffer_s += line_pos;
                     line_pos = 0;
