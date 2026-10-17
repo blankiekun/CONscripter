@@ -49,7 +49,7 @@ CONscripter is the engine behind two companion projects:
 | Web | Emscripten (WebAssembly) | Saves in IndexedDB, zip export/import of saves, lazy loading of game files, touch and a web menu on phones, WebP images, video in a `<video>` element |
 | Windows | x86, x64 (MinGW, static); x86, x64, ARM64 (MSVC + vcpkg) | Video through the system player |
 | Linux | x86, x64, arm, aarch64 | Static or dynamic link; video in the window through the player's ffmpeg |
-| macOS | x64, arm64 | Video in the window through the player's ffmpeg |
+| macOS | universal (Apple silicon and Intel), macOS 10.13+ (11.0+ on Apple silicon), static: no Homebrew needed | Video in the window through the player's ffmpeg; unsigned |
 | Android | API 22+ (Android 5.1) | SD cards through SAF, scoped storage, non-English paths, video through the system player, 16 KB pages |
 | RetroArch | libretro core `conscripter_libretro` | |
 | Kobo (KOReader) | armhf (static) | E-ink through FBInk: effects and text shown at once; touch and page keys; a sleep screen on the power button; video through its own ffmpeg, no sound |
@@ -137,13 +137,27 @@ vn2ons convert-game /path/to/game -o out/mygame --font /path/to/ipag.ttf --title
 
 See its README for the supported engines and what converts.
 
-### (3) Linux
+### (3) Linux and macOS
 
 Download a static binary from the
 [releases](https://github.com/blankiekun/CONscripter/releases) or build from
 source (see [Build](#2-build)).
 
 ![CONscripter on Linux](screenshot/onsyuri_mo2_linuxtest.jpg)
+
+On macOS, download `conscripter_<version>_universal_darwin` (one binary for
+Apple silicon and Intel Macs, macOS 10.13 or later). It is not signed, so
+macOS refuses it at first: make it runnable and clear the quarantine flag
+once, then start it in the game folder:
+
+```shell
+chmod +x conscripter_*_universal_darwin
+xattr -d com.apple.quarantine conscripter_*_universal_darwin
+```
+
+A game wrapped in a `.app` (as conscripter-convert's GUI makes it) opens
+with right-click > Open the first time (or the same `xattr -dr` on the
+`.app`).
 
 ### (4) Web
 
@@ -428,7 +442,15 @@ ffmpeg (`thirdparty/build/arch_kobo/bin/ffmpeg`). It needs
 `crossbuild-essential-armhf`, `autoconf`, `automake`, `libtool` and
 `pkg-config`, or Docker: `docker/docker_kobo.sh`.
 
-### (9) cross by docker
+### (9) macOS
+
+`cd script && bash cross_darwin.sh` builds the ports (Lua, SDL2, SDL2_image,
+SDL2_ttf, SDL2_mixer) as static libraries for arm64 and x86_64 and joins the
+two engines into `build_darwin/conscripter` with `lipo`; it needs Xcode's
+command line tools and `pkg-config`. `local_darwin.sh` is the quicker build
+against Homebrew's libraries, for that Mac only.
+
+### (10) cross by docker
 
 You can easily build all supported platforms by docker, see `docker/docker_xxx.sh` in detail.
 If you want to build for linux arm in x86 platform, install qemu at first.
