@@ -1248,6 +1248,7 @@ element.
 | `{"list", source = "items", ...}` | `items` (`{text = ..., action = ..., new = true, shown = false, color = ...}`) in columns of `rows` at `x`, `y` by `dx` (a column), `dy` (a row), up to `cols` columns; those with `shown = false` are left out and the rest close up. Each: `selector` (`{file, cells, x, y}`, relative; cell 1 nothing, 2 under the pointer) a button running the item's `action`, `new_mark` (`{file, x, y}`) when `new`, its `text` at `text_x`, `text_y` (fields as `text`; `color`, the item's in place of the list's). A scene list, a music room |
 | `{"gallery", ...}` | below |
 | `{"list", source = "log", ...}` | the text log (the backlog): pages from the one on screen back, the newest at the bottom of the box `x`, `y`, `h`, each under its speaker's name (the page's tag `[name\|voice]`, as `gettaglog` gives it) in `name_color`; a page with a voice has `voice_mark` (`　♪`) after the name, which is then a button (`hover` colour) playing it on channel `voice_channel` (0). Text fields as `text` (`size`, `line_height`, `cols`, `shadow`); with `rubyon` the lines are drawn a line gap higher. Stops at the first page that doesn't fit. `{"scroll", "+1"}` goes a page back, `"-1"` forward; a button with it is disabled when it can't |
+| `{"list", source = "rows", ...}` | the text log as rows, as the last `logrows` laid them out (the script runs it before the screen): `rows` of them at `x`, `y` by `dy`, ending `var`'s value rows back from the newest (0: the newest at the bottom). Text fields as `text`. A row with a voice (its page's first) has `voice` (`{file, cells, x, y, pressed}`, x absolute, y from the row's) before it, a button playing it on channel `voice_channel` (0). `{"scroll", "+1"}` goes a row back, `"-1"` forward (in `var`); a picture slider on the same `var` scrolls it as its knob is dragged. A backlog of fixed rows |
 | `{"saveslots", ...}` | below |
 
 **Picture sliders**: a `slider` with `knob = {file = ..., x, y, cells}`
@@ -1342,8 +1343,8 @@ load or delete) ends the list; so does a question answered no.
 |---|---|
 | `{"close"[, value]}` | closes the screen; `screen`'s `%var` gets value. `hold = true`: no close motions or fade, and the display keeps the screen until the script's next `print`, which changes from it (a cross-fade from a menu straight to what the script draws next) |
 | `{"open", "name"[, "arg"]}` | opens another screen over this one, then comes back to it (it can't `gosub`) |
-| `{"scroll", "+1"}` | scrolls the list a page back (`"-1"`: forward, to the page on screen); when it can't, `at_end` runs instead (a table action) |
 | `{"page", n}` | shows page n of the save slots (`"+1"`, `"-1"`: the next, the previous; `round = true` from the last to the first and back); `fade = ms` cross-fades to it |
+| `{"scroll", "+1"}` | scrolls the list a page back (a list of rows: a row) (`"-1"`: forward, to the page on screen); when it can't, `at_end` runs instead (a table action) |
 | `{"save"[, n]}`, `{"load"[, n]}`, `{"delete"[, n]}` | slot n, else the slot acted on. `save` writes the game as it was when the screen opened (as `savegame2` with `save_text`) and the thumbnail; `load` closes every screen and loads (`loadgosub` runs); `delete` removes the save and its thumbnail |
 | `{"set", "%var", value}` | sets a variable (`slot = true` in place of the value: the slot acted on) |
 | `{"bgm", "file"}` | plays the music from its start, looping (as `bgm`, no fade) |

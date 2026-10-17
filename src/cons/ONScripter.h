@@ -809,6 +809,8 @@ private:
     void screenClear( struct ConsScreen *s );
     bool screenEnabled( struct ConsScreen *s );
     bool screenWhen( struct lua_State *L );
+    bool screenRowsList( struct ConsScreen *s, std::string &var, int &back_max );
+    void screenRows( struct ConsScreen *s, int w );
     void screenDraw( struct ConsScreen *s );
     void screenSlots( struct ConsScreen *s, int w );
     ScriptParser::Page *screenLogPage( int k );
