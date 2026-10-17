@@ -53,13 +53,13 @@ int NsaReader::open( const char *nsa_path )
     int i;
     bool archive_found = false;
     // make archive_name2 smaller, to avoid -Wformat-overflow
-    char archive_name[256], archive_name2[250];
+    char archive_name[4096], archive_name2[250]; // CONscripter: room for a long -r path
 
     if ( !SarReader::open( "arc.sar" ) ) archive_found = true;
 
     if (archive_type & ARCHIVE_TYPE_NS2){
         for ( i=0 ; i<MAX_NS2_ARCHIVE ; i++ ){
-            sprintf( archive_name, "%s%02d.%s", nsa_path?nsa_path:"", i, ns2_archive_ext );
+            snprintf( archive_name, sizeof(archive_name), "%s%02d.%s", nsa_path?nsa_path:"", i, ns2_archive_ext );
             if ( ( archive_info_ns2[i].file_handle = fopen( archive_name, "rb" ) ) == NULL ) break;
         
             archive_found = true;
@@ -75,12 +75,12 @@ int NsaReader::open( const char *nsa_path )
             ArchiveInfo *ai;
         
             if (i == -1){
-                sprintf( archive_name, "%s%s.%s", nsa_path?nsa_path:"", NSA_ARCHIVE_NAME, nsa_archive_ext );
+                snprintf( archive_name, sizeof(archive_name), "%s%s.%s", nsa_path?nsa_path:"", NSA_ARCHIVE_NAME, nsa_archive_ext );
                 ai = &archive_info;
             }
             else{
                 sprintf( archive_name2, NSA_ARCHIVE_NAME2, i+1 );
-                sprintf( archive_name, "%s%s.%s", nsa_path?nsa_path:"", archive_name2, nsa_archive_ext );
+                snprintf( archive_name, sizeof(archive_name), "%s%s.%s", nsa_path?nsa_path:"", archive_name2, nsa_archive_ext );
                 ai = &archive_info2[i];
             }
         

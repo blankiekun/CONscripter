@@ -90,8 +90,10 @@ void SarReader::readArchive( ArchiveInfo *ai, int archive_type, unsigned int off
             unsigned char ch = key_table[fgetc( ai->file_handle )];
             if (ch != '"') break;
             cur_offset++;
+            int c;
             do cur_offset++;
-            while( (ch = key_table[fgetc( ai->file_handle )] ) != '"' );
+            while( (c = fgetc( ai->file_handle )) != EOF && (ch = key_table[c]) != '"' );
+            if (c == EOF) break; // CONscripter: a cut header
             cur_offset += 4;
             readLong( ai->file_handle );
             ai->num_of_files++;
@@ -105,9 +107,10 @@ void SarReader::readArchive( ArchiveInfo *ai, int archive_type, unsigned int off
             unsigned int count = 0;
             //skip the beginning double-quote
             unsigned char ch = key_table[fgetc( ai->file_handle )];
-            while( (ch = key_table[fgetc( ai->file_handle )] ) != '"' ){
+            int c;
+            while( (c = fgetc( ai->file_handle )) != EOF && (ch = key_table[c]) != '"' ){
                 if ( 'a' <= ch && ch <= 'z' ) ch += 'A' - 'a';
-                ai->fi_list[i].name[count++] = ch;
+                if (count < sizeof(ai->fi_list[i].name) - 1) ai->fi_list[i].name[count++] = ch; // CONscripter: a longer name is cut
             }
             ai->fi_list[i].name[count] = '\0';
             ai->fi_list[i].compression_type = getRegisteredCompressionType( ai->fi_list[i].name );
@@ -129,11 +132,12 @@ void SarReader::readArchive( ArchiveInfo *ai, int archive_type, unsigned int off
             unsigned char ch;
             int count = 0;
 
-            while( (ch = key_table[fgetc( ai->file_handle )] ) ){
+            int c;
+            while( (c = fgetc( ai->file_handle )) != EOF && (ch = key_table[c]) ){
                 if ( 'a' <= ch && ch <= 'z' ) ch += 'A' - 'a';
-                ai->fi_list[i].name[count++] = ch;
+                if (count < (int)sizeof(ai->fi_list[i].name) - 1) ai->fi_list[i].name[count++] = ch; // CONscripter: a longer name is cut
             }
-            ai->fi_list[i].name[count] = ch;
+            ai->fi_list[i].name[count] = '\0';
 
             if ( archive_type == ARCHIVE_TYPE_NSA )
                 ai->fi_list[i].compression_type = readChar( ai->file_handle );
