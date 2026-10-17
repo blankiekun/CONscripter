@@ -29,6 +29,8 @@
 #include <string.h>
 #include <string>
 #include <vector>
+#include <map>
+#include <math.h>
 #if defined(WEB)
 #include <emscripten.h>
 #endif
@@ -46,6 +48,8 @@ static const int LAYER_SCREEN = 3;
 static const int WIDGET_BUTTONS = 100;
 // a gallery's cells are its buttons 1-90, its viewer's previous, next, hide and back 91-94
 static const int GALLERY_CELLS = 90, VIEWER_BUTTONS = 91;
+// a slider's buttons: its widget's number plus 1 (minus), 2 (plus), 3 (a picture slider's knob)
+static const int KNOB = 3;
 
 struct ConsScreen {
     std::string name, kind, arg;
@@ -64,6 +68,9 @@ struct ConsScreen {
     std::vector<std::string> voices; // a list's voice per button (its place on screen)
     int view_w = 0, view_cell = 0, view_variant = 0; // a gallery's viewer: widget, cell (1-based), variant shown
     bool view_hidden = false;   // its panel hidden (a click shows it)
+    std::map<int, int> knobs;   // a picture slider's knob sprite, by widget number
+    int drag = 0;               // the knob button being dragged (0 none)
+    int grab_x = 0, grab_y = 0; // where it was taken from the knob's centre (0 from the track)
 };
 
 enum { SCREEN_STAY, SCREEN_CLOSE, SCREEN_GOSUB, SCREEN_LOADED };
@@ -395,6 +402,7 @@ void ONScripter::screenClear( ConsScreen *s )
         sprite_handle_layer[no - NS_SPRITE_NUM] = 0;
     }
     s->sprites.clear();
+    s->knobs.clear();
     deleteButtonLink();
 }
 
@@ -712,6 +720,7 @@ void ONScripter::screenDraw( ConsScreen *s )
             widgetMarks( L, on, off );
             std::string text = boundText( fieldStr( L, "text" ), v, fieldInt( L, "min", 0 ), fieldInt( L, "max", 10 ), fieldInt( L, "step", 1 ), on, off, v != 0 );
             if (!text.empty()) screenText( s, fromUTF8( text.c_str() ), x, y );
+            screenKnob( s, i, v );
             const char *keys[] = { "minus", "plus" };
             for (int k=0 ; k<2 ; k++){
                 if (!fieldTable( L, keys[k] )) continue;
@@ -1191,10 +1200,13 @@ int ONScripter::screenWait( ConsScreen *s )
     lua_rawgeti( s->L, LUA_REGISTRYINDEX, s->table );
     bool wheel = fieldTable( s->L, "wheel_up" ) ? (lua_pop( s->L, 1 ), true) : false;
     if (fieldTable( s->L, "wheel_down" )){ lua_pop( s->L, 1 ); wheel = true; }
+    if (!s->knobs.empty()) wheel = true; // the wheel and Left/Right step a knob
     lua_pop( s->L, 1 );
     bool usewheel = usewheel_flag;
     if (wheel) usewheel_flag = true; // the wheel gives -2 (up) and -3 (down)
+    screen_waiting = true;
     waitEvent( -1 );
+    screen_waiting = false;
     usewheel_flag = usewheel;
     int button = current_button_state.button;
     if (trace_fp) traceButtons( button );
@@ -1220,9 +1232,10 @@ int ONScripter::screenRun( ConsScreen *s, int *value )
             if (ret != SCREEN_STAY) return ret;
         }
         screenDraw( s );
-        int button = screenWait( s );
+        int button = s->drag ? s->drag : screenWait( s ); // back from a gosub mid-drag: the drag goes on
 
         lua_rawgeti( L, LUA_REGISTRYINDEX, s->table );
+        if (button == -2 || button == -3) button = screenKnobKey( s, button );
         if (s->view_w > 0 && (button == -1 || button == 0)){ // the viewer: back, or a click shows the panel
             if (button == -1) s->view_w = 0;
             else s->view_hidden = false;
@@ -1248,7 +1261,8 @@ int ONScripter::screenRun( ConsScreen *s, int *value )
             int k = button % WIDGET_BUTTONS;
             std::string type = indexStr( L, 1 );
             bool changed = false;
-            if (type == "slider" || type == "toggle" || type == "radio"){
+            if (type == "slider" && k == KNOB) ret = screenDrag( s, button, value );
+            else if (type == "slider" || type == "toggle" || type == "radio"){
                 std::vector<std::string> vars = widgetVars( L );
                 int v = vars.empty() ? 0 : screenGet( vars[0] ), to = v;
                 if (type == "slider"){
@@ -1362,6 +1376,188 @@ int ONScripter::screenOpen( const std::string &name, const std::string &arg, int
     return ret;
 }
 
+/* Picture sliders: a slider with `knob` (an image, placed where it is at
+ * `min`) moved `travel` pixels from min to max (down with `vertical`;
+ * negative: left or up), over `track` (an image, or a box {x, y, w, h};
+ * default the knob's sweep). The knob is button widget*100+3 with the
+ * track as its hit area, so the pointer over the track lights the knob
+ * (cell 1). A press there drags it: `var` follows the pointer by `step`
+ * and `action` runs at each change. The wheel and Left/Right over it step
+ * it, moving the knob up or left for the wheel up and Left. */
+
+struct Knob { int x, y, travel, min, max, step; bool vertical; };
+
+// The picture slider on top of the stack.
+static Knob knobOf( lua_State *L )
+{
+    Knob k = { 0, 0, fieldInt( L, "travel", 0 ), fieldInt( L, "min", 0 ), fieldInt( L, "max", 10 ),
+               std::max( 1, fieldInt( L, "step", 1 ) ), fieldInt( L, "vertical", 0 ) != 0 };
+    if (fieldTable( L, "knob" )){ k.x = fieldInt( L, "x", 0 ); k.y = fieldInt( L, "y", 0 ); lua_pop( L, 1 ); }
+    return k;
+}
+
+// The knob's place at value v.
+static void knobAt( const Knob &k, int v, int &x, int &y )
+{
+    int d = k.max > k.min ? (v - k.min) * k.travel / (k.max - k.min) : 0;
+    x = k.x + (k.vertical ? 0 : d);
+    y = k.y + (k.vertical ? d : 0);
+}
+
+// Draws the track and the knob of slider w (on top of the stack) at value v.
+void ONScripter::screenKnob( ConsScreen *s, int w, int v )
+{
+    lua_State *L = s->L;
+    if (!fieldTable( L, "knob" )) return;
+    lua_pop( L, 1 );
+    Knob k = knobOf( L );
+    SDL_Rect area = { 0, 0, 0, 0 };
+    if (fieldTable( L, "track" )){
+        area = { fieldInt( L, "x", 0 ), fieldInt( L, "y", 0 ), fieldInt( L, "w", 0 ), fieldInt( L, "h", 0 ) };
+        if (!fieldStr( L, "file" ).empty()){
+            AnimationInfo &t = sprite_info[screenImage( s, area.x, area.y )];
+            area.w = t.pos.w * screen_ratio2 / screen_ratio1; // a cell's size, in script pixels
+            area.h = t.pos.h * screen_ratio2 / screen_ratio1;
+        }
+        lua_pop( L, 1 );
+    }
+    int x, y;
+    knobAt( k, v, x, y );
+    fieldTable( L, "knob" );
+    int no = screenImage( s, x, y );
+    lua_pop( L, 1 );
+    s->knobs[w] = no;
+    AnimationInfo &ai = sprite_info[no];
+    if (area.w <= 0 || area.h <= 0){ // the knob's sweep
+        int x1, y1;
+        knobAt( k, k.max, x1, y1 );
+        area = { std::min( k.x, x1 ), std::min( k.y, y1 ), abs( x1 - k.x ) + ai.pos.w * screen_ratio2 / screen_ratio1,
+                 abs( y1 - k.y ) + ai.pos.h * screen_ratio2 / screen_ratio1 };
+    }
+    screenExec( "spbtn " + std::to_string( no ) + "," + std::to_string( w * WIDGET_BUTTONS + KNOB ) );
+    for (ButtonLink *bl = root_button_link.next ; bl ; bl = bl->next)
+        if (bl->no == w * WIDGET_BUTTONS + KNOB)
+            bl->select_rect = { area.x * screen_ratio1 / screen_ratio2, area.y * screen_ratio1 / screen_ratio2,
+                                area.w * screen_ratio1 / screen_ratio2, area.h * screen_ratio1 / screen_ratio2 };
+    if (s->drag == w * WIDGET_BUTTONS + KNOB && ai.num_of_cells > 1) ai.setCell( 1 );
+}
+
+// The wheel or Left/Right (button -2, -3) over a knob: its slider's minus or plus button.
+int ONScripter::screenKnobKey( ConsScreen *s, int button )
+{
+    int b = current_over_button;
+    if (b < WIDGET_BUTTONS || b % WIDGET_BUTTONS != KNOB || !s->knobs.count( b / WIDGET_BUTTONS )) return button;
+    lua_State *L = s->L;
+    lua_getfield( L, -1, "widgets" );
+    lua_rawgeti( L, -1, b / WIDGET_BUTTONS );
+    bool up_lowers = (fieldInt( L, "travel", 0 ) > 0) != (button == -3);
+    lua_pop( L, 2 );
+    return b - KNOB + (up_lowers ? 1 : 2);
+}
+
+/* A press on a knob or its track (while a screen waits): it is taken at
+ * once, not at the release, and dragged. x, y: the event's. */
+bool ONScripter::screenPress( int x, int y )
+{
+    if (!screen_waiting || screens.empty()) return false;
+#if !defined(WEB)
+    x = (x - render_view_rect.x) * screen_scale_ratio1;
+    y = (y - render_view_rect.y) * screen_scale_ratio2;
+#endif
+    current_button_state.x = x;
+    current_button_state.y = y;
+    mouseOverCheck( x, y );
+    int b = current_over_button;
+    if (b < WIDGET_BUTTONS || b % WIDGET_BUTTONS != KNOB || !screens.back()->knobs.count( b / WIDGET_BUTTONS )) return false;
+    ConsScreen *s = screens.back();
+    SDL_Rect &k = sprite_info[s->knobs[b / WIDGET_BUTTONS]].pos;
+    bool on = x >= k.x && x < k.x + k.w && y >= k.y && y < k.y + k.h; // on the knob: it keeps its place under the pointer
+    s->grab_x = on ? (x - k.x - k.w / 2) * screen_ratio2 / screen_ratio1 : 0;
+    s->grab_y = on ? (y - k.y - k.h / 2) * screen_ratio2 / screen_ratio1 : 0;
+    current_button_state.button = b;
+    current_button_state.down_flag = true;
+    return true;
+}
+
+// While a knob is dragged: waits for the pointer to move; false when the button is let go.
+bool ONScripter::screenDragWait()
+{
+    ButtonLink *links = root_button_link.next;
+    root_button_link.next = NULL; // no button lights up on the way
+    int over = current_over_button;
+    current_over_button = -1;
+    bool flag = getmouseover_flag;
+    int lower = getmouseover_lower, upper = getmouseover_upper;
+    getmouseover_flag = true; // every move ends the wait
+    getmouseover_lower = INT_MIN;
+    getmouseover_upper = INT_MAX;
+    current_button_state.event_type = 0;
+    event_mode = WAIT_BUTTON_MODE;
+    waitEventSub( -1 );
+    event_mode = IDLE_EVENT_MODE;
+    getmouseover_flag = flag;
+    getmouseover_lower = lower;
+    getmouseover_upper = upper;
+    root_button_link.next = links;
+    current_over_button = over;
+    return !(current_button_state.event_type == SDL_MOUSEBUTTONUP && current_button_state.event_button == SDL_BUTTON_LEFT);
+}
+
+/* The knob `button` (its slider on top of the stack) pressed: follows the
+ * pointer until the button is let go, setting the value and running the
+ * action at each change. A gosub action leaves s->drag set: screenRun
+ * comes back here when it returns. */
+int ONScripter::screenDrag( ConsScreen *s, int button, int *value )
+{
+    lua_State *L = s->L;
+    auto knob = s->knobs.find( button / WIDGET_BUTTONS );
+    std::vector<std::string> vars = widgetVars( L );
+    if ((!s->drag && !current_button_state.down_flag) || knob == s->knobs.end() || vars.empty())
+        return SCREEN_STAY; // a key or --auto-play on the track: nothing to drag
+    s->drag = button;
+    Knob k = knobOf( L );
+    AnimationInfo &ai = sprite_info[knob->second];
+    if (ai.num_of_cells > 1){ ai.setCell( 1 ); dirty_rect.add( ai.pos ); }
+    int ret = SCREEN_STAY;
+    for (bool held = true ;;){
+        // the knob's centre under the pointer
+        int p = (k.vertical ? current_button_state.y : current_button_state.x) * screen_ratio2 / screen_ratio1 -
+                (k.vertical ? s->grab_y : s->grab_x) -
+                (k.vertical ? k.y + ai.pos.h * screen_ratio2 / screen_ratio1 / 2 : k.x + ai.pos.w * screen_ratio2 / screen_ratio1 / 2);
+        int v = screenGet( vars[0] ), to = v;
+        if (k.travel && k.max > k.min){
+            to = k.min + (int)lround( (double)p * (k.max - k.min) / k.travel / k.step ) * k.step;
+            to = std::max( k.min, std::min( k.max, to ) );
+        }
+        if (to != v){
+            for (const std::string &r : vars) screenSet( r, to );
+            screenTrace( s, "set", 0, to );
+            dirty_rect.add( ai.pos );
+            knobAt( k, to, ai.orig_pos.x, ai.orig_pos.y );
+            ai.scalePosXY( screen_ratio1, screen_ratio2 );
+            dirty_rect.add( ai.pos );
+            for (ButtonLink *bl = root_button_link.next ; bl ; bl = bl->next)
+                if (bl->no == button) bl->image_rect = ai.pos;
+            flush( refreshMode() );
+            if (fieldTable( L, "action" )){
+                ret = screenActions( s, 0, value );
+                if (ret == SCREEN_LOADED) return ret; // s is gone
+                lua_pop( L, 1 );
+                if (ret != SCREEN_STAY) break;
+            }
+        }
+        else flush( refreshMode() );
+        if (!held) break;
+        // let go while a gosub action ran (its script may have taken the release)?
+        held = (SDL_GetMouseState( NULL, NULL ) & SDL_BUTTON_LMASK) && screenDragWait();
+    }
+    if (ret != SCREEN_GOSUB){
+        s->drag = 0;
+        current_button_state.down_flag = false;
+    }
+    return ret;
+}
+
 void ONScripter::setSkipScreens( const char *kinds )
 {
     skip_screens = std::string( "," ) + (strcmp( kinds, "none" ) ? kinds : "") + ",";
@@ -1412,5 +1608,7 @@ int ONScripter::screenCommand()
 }
 
 void ONScripter::setSkipScreens( const char * ) {}
+
+bool ONScripter::screenPress( int, int ) { return false; }
 
 #endif

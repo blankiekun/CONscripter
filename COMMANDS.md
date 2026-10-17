@@ -1203,7 +1203,7 @@ element.
 | `{"button", ...}` | an image (fields as above, cell 1 under the pointer) and `action`; `disabled` (the cell shown when the action can't be taken: no slot selected, an empty slot to load or delete, the page shown; without it the normal cell), `pressed` (the cell while held, `spbtn`'s third argument); `enabled = 0` (or `false`) always shows it as disabled, not a button |
 | `{"button", current = {a, b}, ...}` | a tab: on pages a to b its `selected` picture (one cell) in its place and no button; elsewhere the button |
 | `{"button", text = ...}` | a button drawn as text (fields as `text`): `color` (`#FFFFFF`), `hover` (under the pointer), `disabled_color` (when its action can't be taken, as a tab for the page shown) |
-| `{"slider", ...}` | a value of `var` from `min` (0) to `max` (10) by `step` (1): `text` at `x`, `y` (fields as `text`) with `%v` the value, `%V` in full-width digits, `%B` a bar (`marks`' first per step up to the value, the second after: `{"■", "□"}`), and `minus`, `plus` buttons (`{text = ..., x, y, ...}` as a text button, or `{file = ..., cells}`). `action` runs after each change |
+| `{"slider", ...}` | a value of `var` from `min` (0) to `max` (10) by `step` (1): `text` at `x`, `y` (fields as `text`) with `%v` the value, `%V` in full-width digits, `%B` a bar (`marks`' first per step up to the value, the second after: `{"■", "□"}`), and `minus`, `plus` buttons (`{text = ..., x, y, ...}` as a text button, or `{file = ..., cells}`). `action` runs after each change. With `knob` it is a picture slider: below |
 | `{"toggle", ...}` | flips `var` between `on` (1) and `off` (0): `text` with `%C` the mark for on or off (`marks`), drawn as a text button (`color`, `hover`). `var` may be a list, set together (the first read). `action` runs after each change |
 | `{"radio", ...}` | sets `var` to `value` (1); on while it holds it; otherwise as `toggle` |
 | `{"toggle", file = ...}`, `{"radio", file = ...}` | drawn as a picture button (fields as `image`, cell 1 under the pointer); `on_file` in place of `file` while on |
@@ -1211,6 +1211,27 @@ element.
 | `{"gallery", ...}` | below |
 | `{"list", source = "log", ...}` | the text log (the backlog): pages from the one on screen back, the newest at the bottom of the box `x`, `y`, `h`, each under its speaker's name (the page's tag `[name\|voice]`, as `gettaglog` gives it) in `name_color`; a page with a voice has `voice_mark` (`　♪`) after the name, which is then a button (`hover` colour) playing it on channel `voice_channel` (0). Text fields as `text` (`size`, `line_height`, `cols`, `shadow`); with `rubyon` the lines are drawn a line gap higher. Stops at the first page that doesn't fit. `{"scroll", "+1"}` goes a page back, `"-1"` forward; a button with it is disabled when it can't |
 | `{"saveslots", ...}` | below |
+
+**Picture sliders**: a `slider` with `knob = {file = ..., x, y, cells}`
+(an image, placed where it is at `min`) that moves `travel` pixels from
+`min` to `max` (along x, or y with `vertical = true`; negative: left or
+up), over `track` (an image `{file, x, y}`, or an invisible box
+`{x, y, w, h}`; without it the knob's sweep). The pointer over the track
+lights the knob (its cell 1, also while dragged). A press on the track
+puts the knob's centre under the pointer (on the knob, the knob stays
+where it is) and drags it (the mouse, or a
+finger in the web build): `var` follows by `step`, and `action` runs at
+each change, so a volume applies while the knob moves (a `gosub` action
+runs its label and the drag goes on). The wheel and Left/Right with the
+pointer over the track step it, the wheel up and Left moving the knob up
+or left. `text`, `minus` and `plus` work as on any slider. Its button
+is the widget's number times 100 plus 3 (minus 1, plus 2).
+
+```lua
+{"slider", var = "%2920", min = 0, max = 1000, step = 10, vertical = true, travel = -411,
+  knob = {file = "sys/knob.png", cells = 2, x = 860, y = 461},
+  track = {x = 860, y = 50, w = 24, h = 431}, action = {"gosub", "*apply_volume"}}
+```
 
 **saveslots**: `rows` × `cols` save slots a page, at `x + col*dx`,
 `y + row*dy`; `first` (1) is the first page's first slot, `pages` (1) the
@@ -1283,8 +1304,7 @@ load or delete) ends the list; so does a question answered no.
 (opened with the question as `arg`, `%N` replaced by the slot): a close
 value other than 0 is yes; no ends the list. A `save` asks only over an
 existing save. To be added in the same format: binding to an engine
-setting (`setting =` in place of `var`), picture sliders (a track and a
-knob, dragged), sounds.
+setting (`setting =` in place of `var`), sounds.
 
 A confirm dialog:
 

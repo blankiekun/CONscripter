@@ -1368,8 +1368,10 @@ void ONScripter::runEventLoop()
             current_button_state.event_type = event.type;
             current_button_state.event_button = event.button.button;
             if ( !btndown_flag ){
-                if ( event.button.button == SDL_BUTTON_LEFT )
+                if ( event.button.button == SDL_BUTTON_LEFT ){
                     consPressCell( true ); // CONscripter
+                    if (screenPress( event.button.x, event.button.y )) return; // CONscripter: a screen slider's knob
+                }
                 break;
             }
           case SDL_MOUSEBUTTONUP:
