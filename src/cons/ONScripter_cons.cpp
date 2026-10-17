@@ -378,6 +378,37 @@ int ONScripter::effectcurveCommand()
     return RET_CONTINUE;
 }
 
+/* clickskip (define)
+ *   A click (or key) that ends a delay or an effect early also ends every
+ *   later delay and effect at once (an effect drawn as print 1), until the
+ *   next text, wait for a click (click, btnwait, ...) or mpegplay. Xuse's
+ *   skip_state_b (最果てのイマ). getclickskip %v: 1 while it does. */
+int ONScripter::clickskipCommand()
+{
+    if ( current_mode != DEFINE_MODE )
+        errorAndExit( "clickskip: not in the define section." );
+    click_skip_flag = true;
+
+    return RET_CONTINUE;
+}
+
+int ONScripter::getclickskipCommand()
+{
+    script_h.readInt();
+    script_h.setInt( &script_h.current_variable, click_skipping ? 1 : 0 );
+
+    return RET_CONTINUE;
+}
+
+// After a clickable wait (delay, an effect's frame): a click or key ended it,
+// not its time (auto mode's timeouts count as time).
+bool ONScripter::waitInterrupted()
+{
+    return !((automode_flag || autoclick_time > 0) ||
+             (usewheel_flag  && current_button_state.button == -5) ||
+             (!usewheel_flag && current_button_state.button == -2));
+}
+
 // How far (0-1024) along from one key to the next a motion is at p (0-1024)
 // of the time between them, by the next key's curve.
 int ONScripter::curveAt( int curve, int p )

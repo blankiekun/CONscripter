@@ -265,6 +265,8 @@ public:
     int spmotionCommand();
     int spcurveCommand();
     int effectcurveCommand();
+    int clickskipCommand();
+    int getclickskipCommand();
     int spmotionwaitCommand();
     int screenflashCommand();
     int screenfilterCommand();
@@ -677,6 +679,9 @@ private:
     DirtyRect dirty_rect; // only this region is updated
     int  effect_counter, effect_duration; // counter in each effect
     int  effect_curve = 0; // CONscripter: effectcurve, for the next effect
+    bool click_skip_flag = false; // CONscripter: clickskip (define)
+    bool click_skipping = false; // CONscripter: clickskip: a click ended a delay or effect, the next ones end at once
+    bool waitInterrupted();
     int  effect_timer_resolution;
     int  effect_start_time;
     int  effect_start_time_old;
