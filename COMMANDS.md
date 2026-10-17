@@ -512,7 +512,9 @@ Impl `ONScripter::ofscopyCommand`.
 
 ### getscreenshot / savescreenshot / savescreenshot2 / deletescreenshot
 `getscreenshot w,h` — grab the screen; `savescreenshot "file.bmp"` — write
-and free it (`2` keeps it); `deletescreenshot` — free it.
+and free it (`2` keeps it); `deletescreenshot` — free it. With a save
+directory set (`--save-dir`) the file goes there, without its folders;
+one it can't write is a trace `warn`, `screenshot not written`.
 Impl `ONScripter::getscreenshotCommand`, `savescreenshotCommand`,
 `deletescreenshotCommand`.
 

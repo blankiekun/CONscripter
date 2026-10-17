@@ -1032,8 +1032,10 @@ int ONScripter::savescreenshotCommand()
     SDL_RWops *rwops = SDL_RWFromFile(savepath.c_str(), "wb");
 #endif
     // utils::printInfo("## savescreenshotCommand savepath=%s, rwops=%p \n", savepath.c_str(), rwops);
-    if (rwops == nullptr || SDL_SaveBMP_RW(surface, rwops, 1) != 0)
+    if (rwops == nullptr || SDL_SaveBMP_RW(surface, rwops, 1) != 0){
         utils::printError("Save screenshot failed: %s\n", SDL_GetError());
+        if (trace_fp) traceWarn("screenshot not written", savepath.c_str()); // CONscripter
+    }
     SDL_FreeSurface(surface);
 
     return RET_CONTINUE;
