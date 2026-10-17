@@ -316,7 +316,7 @@ int ONScripter::screenImage( ConsScreen *s, int x, int y, const char *file_overr
     return no;
 }
 
-// A text (the table on top: size, cols, rows, bold, shadow, color, align)
+// A text (the table on top: size, cols, rows, bold, shadow, outline, color, align)
 // at x, y; `colors` in place of `color`: one cell each (normal, hover).
 int ONScripter::screenText( ConsScreen *s, const std::string &text, int x, int y, const std::vector<std::string> *colors, int no )
 {
@@ -339,13 +339,21 @@ int ONScripter::screenText( ConsScreen *s, const std::string &text, int x, int y
     // pitch: between lines, gap: between characters (vertical: lines are columns, so x and y swap)
     bool vertical = fieldInt( L, "vertical", 0 );
     int pitch = fieldInt( L, "pitch", 0 ), gap = fieldInt( L, "gap", 0 );
+    // outline = "#rrggbb": a 1 px outline in place of the shadow, as strspoutline
+    std::string outline = fieldStr( L, "outline" );
+    int shadow = fieldInt( L, "shadow", 0 ), old_outline = strsp_outline;
+    if (outline.size() == 7 && outline[0] == '#'){
+        strsp_outline = (int)strtol( outline.c_str() + 1, NULL, 16 );
+        shadow = 1;
+    }
     screenExec( std::string( vertical ? "vstrsp " : "strsp " ) + std::to_string( no ) + "," + quoted( shown ) + "," +
                 std::to_string( x ) + "," + std::to_string( y ) + "," +
                 std::to_string( fieldInt( L, "cols", 40 ) ) + "," + std::to_string( fieldInt( L, "rows", 1 ) ) + "," +
                 std::to_string( size ) + "," + std::to_string( size ) + "," +
                 std::to_string( vertical ? pitch : gap ) + "," + std::to_string( vertical ? gap : pitch ) + "," +
-                std::to_string( fieldInt( L, "bold", 0 ) ) + "," + std::to_string( fieldInt( L, "shadow", 0 ) ) + color_args );
+                std::to_string( fieldInt( L, "bold", 0 ) ) + "," + std::to_string( shadow ) + color_args );
     screen_strsp_text = NULL;
+    strsp_outline = old_outline;
     return no;
 }
 
