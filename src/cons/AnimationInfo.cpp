@@ -375,7 +375,22 @@ int AnimationInfo::doClipping( SDL_Rect *dst, SDL_Rect *clip, SDL_Rect *clipped 
     return 0;
 }
 
+// CONscripter: a pixel's alpha times the sprite's (both 0-255) as a
+// weight 0-256, rounded; 255 x 255 gives 256, so full alpha copies exactly
+static inline Uint32 blendWeight(Uint32 a, Uint32 b) {
+    Uint32 m = a * b + 128;
+    m = (m + (m >> 8)) >> 8; // round(a * b / 255)
+    return m + (m >> 7);
+}
+
 #ifdef USE_SIMD
+template <class V> static inline V blendWeightV(V a, V b) {
+    using namespace simd;
+    V m = a * b + V(128);
+    m = shiftr<8>(m + shiftr<8>(m));
+    return m + shiftr<7>(m);
+}
+
 static void blendPixel32(const Uint32 *src_buffer, Uint32 *__restrict dst_buffer, Uint8 alpha, Uint8 *alphap) {
     using namespace simd;
     uint8x4 src = load(src_buffer), dst = load(dst_buffer);
@@ -383,8 +398,8 @@ static void blendPixel32(const Uint32 *src_buffer, Uint32 *__restrict dst_buffer
     uint16x4 r1 = widen(src, zero);
     uint16x4 dstu = widen(dst, zero);
     r1 -= dstu;
-    uint16x4 a((alpha * *alphap) >> 8);
-    r1 = (r1 * a) >> immint<8>();
+    uint16x4 a(blendWeight(*alphap, alpha));
+    r1 = (r1 * a + uint16x4(128)) >> immint<8>();
     uint8x4 r = narrow_hz(r1);
     r += dst;
     *dst_buffer = uint8x4::cvt2i32(r) | AMASK;
@@ -393,6 +408,7 @@ static void blendPixel32(const Uint32 *src_buffer, Uint32 *__restrict dst_buffer
 static void blend4Pixel32(const Uint32 *src_buffer, Uint32 *__restrict dst_buffer, simd::uint16x8 alpha, simd::uint8x16 alpha_mask, simd::ivec128 zero, simd::uint8x16 amask) {
     using namespace simd;
     uint8x16 src = load_u(src_buffer), dst = load_u(dst_buffer);
+    const uint16x8 half(128);
     uint16x8 dstu = widen_lo(dst, zero);
     uint16x8 r1 = widen_lo(src, zero);
     r1 -= dstu;
@@ -407,15 +423,15 @@ static void blend4Pixel32(const Uint32 *src_buffer, Uint32 *__restrict dst_buffe
     uint16x8 a = uint16x8::set2(*alphap, *(alphap + 4));
     alphap += 8;
 #endif
-    a = (a * alpha) >> immint<8>();
-    r1 = (r1 * a) >> immint<8>();
+    a = blendWeightV(a, alpha);
+    r1 = (r1 * a + half) >> immint<8>();
 #ifdef USE_SIMD_X86_SSSE3
     a = widen_hi(an, zero);
 #else
     a = uint16x8::set2(*alphap, *(alphap + 4));
 #endif
-    a = (a * alpha) >> immint<8>();
-    r2 = (r2 * a) >> immint<8>();
+    a = blendWeightV(a, alpha);
+    r2 = (r2 * a + half) >> immint<8>();
     uint8x16 r = pack_hz(r1, r2);
     r += dst;
     r |= amask;
@@ -426,6 +442,7 @@ static void blend4Pixel32(const Uint32 *src_buffer, Uint32 *__restrict dst_buffe
 static void blend8Pixel32(const Uint32 *src_buffer, Uint32 *__restrict dst_buffer, simd::uint16x16 alpha, simd::uint8x32 alpha_mask, simd::ivec256 zero, simd::uint8x32 amask) {
     using namespace simd;
     uint8x32 src = load256_u(src_buffer), dst = load256_u(dst_buffer);
+    const uint16x16 half(128);
     uint16x16 dstu = widen_lo(dst, zero);
     uint16x16 r1 = widen_lo(src, zero);
     r1 -= dstu;
@@ -434,11 +451,11 @@ static void blend8Pixel32(const Uint32 *src_buffer, Uint32 *__restrict dst_buffe
     r2 -= dstu;
 	uint8x32 an = shuffle(src, alpha_mask);
     uint16x16 a = widen_lo(an, zero);
-    a = (a * alpha) >> immint<8>();
-    r1 = (r1 * a) >> immint<8>();
+    a = blendWeightV(a, alpha);
+    r1 = (r1 * a + half) >> immint<8>();
     a = widen_hi(an, zero);
-    a = (a * alpha) >> immint<8>();
-    r2 = (r2 * a) >> immint<8>();
+    a = blendWeightV(a, alpha);
+    r2 = (r2 * a + half) >> immint<8>();
     uint8x32 r = pack_hz(r1, r2);
     r += dst;
     r |= amask;
@@ -452,26 +469,20 @@ static void blend8Pixel32(const Uint32 *src_buffer, Uint32 *__restrict dst_buffe
 }while(0)
 #else
 #define BLEND_PIXEL() do{\
-    Uint32 mask2 = (*alphap * alpha) >> 8;\
-    Uint32 temp = *dst_buffer & 0xff00ff;\
-    Uint32 mask_rb = (((((*src_buffer & 0xff00ff) - temp ) * mask2 ) >> 8 ) + temp ) & 0xff00ff;\
-    temp = *dst_buffer & 0x00ff00;\
-    Uint32 mask_g  = (((((*src_buffer & 0x00ff00) - temp ) * mask2 ) >> 8 ) + temp ) & 0x00ff00;\
+    Uint32 mask2 = blendWeight(*alphap, alpha), mask1 = 256 - mask2;\
+    Uint32 mask_rb = (((*dst_buffer & 0xff00ff) * mask1 +\
+                       (*src_buffer & 0xff00ff) * mask2 + 0x800080) >> 8) & 0xff00ff;\
+    Uint32 mask_g  = (((*dst_buffer & 0x00ff00) * mask1 +\
+                       (*src_buffer & 0x00ff00) * mask2 + 0x008000) >> 8) & 0x00ff00;\
     *dst_buffer = mask_rb | mask_g | 0xff000000;\
     alphap += 4;\
 }while(0)
 #endif
-// Originally, the above looks like this.
-//      mask1 = mask2 ^ 0xff;
-//      Uint32 mask_rb = (((*dst_buffer & 0xff00ff) * mask1 +
-//                         (*src_buffer & 0xff00ff) * mask2) >> 8) & 0xff00ff;
-//      Uint32 mask_g  = (((*dst_buffer & 0x00ff00) * mask1 +
-//                         (*src_buffer & 0x00ff00) * mask2) >> 8) & 0x00ff00;
 
 // CONscripter: the sprite's colours multiply what is under it (white
 // leaves it, black darkens it), times its alpha (spblend 2)
 #define MULBLEND_PIXEL() do{\
-    Uint32 mask2 = (*alphap * alpha) >> 8;\
+    Uint32 mask2 = blendWeight(*alphap, alpha);\
     Uint32 out = 0xff000000;\
     for (int k=0 ; k<24 ; k+=8){\
         Uint32 f = 255 - (((255 - ((*src_buffer >> k) & 0xff)) * mask2) >> 8);\
@@ -484,7 +495,7 @@ static void blend8Pixel32(const Uint32 *src_buffer, Uint32 *__restrict dst_buffe
 // CONscripter: screen, 255 - (255 - under) * (255 - sprite) / 255 times
 // its alpha: lightens like light added, never past white (spblend 4)
 #define SCREENBLEND_PIXEL() do{\
-    Uint32 mask2 = (*alphap * alpha) >> 8;\
+    Uint32 mask2 = blendWeight(*alphap, alpha);\
     Uint32 out = 0xff000000;\
     for (int k=0 ; k<24 ; k+=8){\
         Uint32 s = (((*src_buffer >> k) & 0xff) * mask2) >> 8, d = (*dst_buffer >> k) & 0xff;\
@@ -495,7 +506,7 @@ static void blend8Pixel32(const Uint32 *src_buffer, Uint32 *__restrict dst_buffe
 }while(0)
 
 #define ADDBLEND_PIXEL() do{\
-    Uint32 mask2 = (*alphap * alpha) >> 8;\
+    Uint32 mask2 = blendWeight(*alphap, alpha);\
     Uint32 mask_rb = (*dst_buffer & RBMASK) + ((((*src_buffer & RBMASK) * mask2) >> 8) & RBMASK);\
     mask_rb |= ((mask_rb & AMASK) ? RMASK : 0) | ((mask_rb & GMASK) ? BMASK : 0);\
     Uint32 mask_g = (*dst_buffer & GMASK) + ((((*src_buffer & GMASK) * mask2) >> 8) & GMASK);\
@@ -542,7 +553,7 @@ inline void rainAddBlend32(const Uint32 *src_buffer, Uint32 *__restrict dst_buff
 #endif // USE_SIMD
 
 #define SUBBLEND_PIXEL(){\
-    Uint32 mask2 = (*alphap * alpha) >> 8;\
+    Uint32 mask2 = blendWeight(*alphap, alpha);\
     Uint32 mask_r = (*dst_buffer & RMASK) -\
                     ((((*src_buffer & RMASK) * mask2) >> 8) & RMASK);\
     mask_r &= ((mask_r & AMASK) ? 0 : RMASK);\

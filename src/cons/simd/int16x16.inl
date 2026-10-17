@@ -24,6 +24,12 @@
 
 namespace simd {
   //Arithmetic
+  inline uint16x16 operator+(uint16x16 a, uint16x16 b) {
+#ifdef USE_SIMD_X86_AVX2
+    return _mm256_add_epi16(a, b);
+#endif
+  }
+
   inline uint16x16 operator-(uint16x16 a, uint16x16 b) {
 #ifdef USE_SIMD_X86_AVX2
     return _mm256_sub_epi16(a, b);

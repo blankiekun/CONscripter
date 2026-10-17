@@ -66,6 +66,8 @@ namespace simd {
   };
 
   //Arithmetic
+  static uint16x8 operator+(uint16x8 a, uint16x8 b);
+
   static uint16x8 operator-(uint16x8 a, uint16x8 b);
 
   static uint16x8 operator-=(uint16x8 &a, uint16x8 b);

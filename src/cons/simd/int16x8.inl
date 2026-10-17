@@ -24,6 +24,14 @@
 
 namespace simd {
   //Arithmetic
+  inline uint16x8 operator+(uint16x8 a, uint16x8 b) {
+#ifdef USE_SIMD_X86_SSE2
+    return _mm_add_epi16(a, b); //PADDW xmm1, xmm2
+#elif USE_SIMD_ARM_NEON
+    return vaddq_u16(a, b);
+#endif
+  }
+
   inline uint16x8 operator-(uint16x8 a, uint16x8 b) {
 #ifdef USE_SIMD_X86_SSE2
     return _mm_sub_epi16(a, b); //PSUBW xmm1, xmm2
