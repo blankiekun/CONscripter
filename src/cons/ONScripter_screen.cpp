@@ -75,6 +75,7 @@ struct ConsScreen {
     std::vector<int> owners;    // the widget each of `sprites` belongs to (0 none)
     int cur_w = 0;              // the widget being drawn
     bool shown = false;         // drawn once: its open motions and fade done
+    bool hold = false;          // closed with hold: left on the display for the script's next print
     int fade_next = 0;          // a cross-fade (ms) for the next draw: a widget's state changed
 };
 
@@ -1016,6 +1017,7 @@ int ONScripter::screenActions( ConsScreen *s, int start, int *value )
 
         if (what == "close"){
             *value = indexInt( L, 2, 0 );
+            s->hold = fieldInt( L, "hold", 0 );
             screenTrace( s, "close", 0, *value );
             ret = SCREEN_CLOSE;
         }
@@ -1448,15 +1450,16 @@ int ONScripter::screenOpen( const std::string &name, const std::string &arg, int
     int ret = screenRun( s, value );
     if (ret == SCREEN_GOSUB) return ret;
     if (ret != SCREEN_LOADED){
-        int ms = screenMotions( s, "close" );
+        bool hold = s->hold; // no close motions, fade or redraw: the script's next print changes from the screen
+        int ms = hold ? 0 : screenMotions( s, "close" );
         if (ms > 0) screenExec( "wait " + std::to_string( ms ) );
         lua_rawgeti( s->L, LUA_REGISTRYINDEX, s->table );
         int fade = fieldInt( s->L, "fade", 0 );
         lua_pop( s->L, 1 );
         screens.pop_back();
         screenHide( s );
-        if (fade > 0) screenFade( fade );
-        else flush( refreshMode() );
+        if (!hold && fade > 0) screenFade( fade );
+        else if (!hold) flush( refreshMode() );
     }
     return ret;
 }
