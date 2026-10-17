@@ -1417,6 +1417,10 @@ static void filterColour( const AnimationInfo::Filter &f, const int *c, int *d, 
     else if (f.kind == AnimationInfo::FILTER_BRIGHTNESS){
         for (int k=0 ; k<3 ; k++) d[k] = c[k] + f.param[0];
     }
+    else if (f.kind == AnimationInfo::FILTER_GREY_WEIGHTS){
+        // Each term rounded down on its own, as a game's lookup tables do.
+        d[0] = d[1] = d[2] = (c[0]*f.param[0] >> 8) + (c[1]*f.param[1] >> 8) + (c[2]*f.param[2] >> 8);
+    }
     else if (f.kind == AnimationInfo::FILTER_MONOTONE){
         int grey = (c[0]*77 + c[1]*150 + c[2]*29) >> 8;
         for (int k=0 ; k<3 ; k++) d[k] = grey + f.param[k];
