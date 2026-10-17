@@ -51,7 +51,7 @@ CONscripter is the engine behind two companion projects:
 | Linux | x86, x64, arm, aarch64 | Static or dynamic link; video in the window through the player's ffmpeg |
 | macOS | universal (Apple silicon and Intel), macOS 10.13+ (11.0+ on Apple silicon), static: no Homebrew needed | Video in the window through the player's ffmpeg; unsigned |
 | Android | API 22+ (Android 5.1) | SD cards through SAF, scoped storage, non-English paths, video through the system player, 16 KB pages |
-| RetroArch | libretro core `conscripter_libretro` | |
+| RetroArch | libretro core `conscripter_libretro`; Switch (`conscripter_libretro_libnx.nro`) | |
 | Kobo (KOReader) | armhf (static) | E-ink through FBInk: effects and text shown at once; touch and page keys; a sleep screen on the power button; video through its own ffmpeg, no sound |
 
 ## CONscripter additions
@@ -224,6 +224,14 @@ or pick any folder through SAF. The package id is
 Build `src/cons_libretro` (see its `CMakeLists.txt`) and load
 `conscripter_libretro` with a game's `0.txt`, `00.txt`, `nscript.dat` or folder.
 Script encoding and mouse emulation are core options.
+
+On a Switch, copy the release's `conscripter_libretro_libnx.nro` to
+`/retroarch/cores/` on the SD card (it is RetroArch with the core built
+in, as RetroArch for Switch has every core) and start it from RetroArch's
+"Load Core". Its build: `.github/workflows/build_libretro.yml`. A game
+picture takes about twice its decoded size while it loads (a 4612x4518
+picture: 167 MB); if a big game runs out of memory, start RetroArch in
+title mode (hold R while opening a game) rather than from the album.
 
 ### (7) Kobo (KOReader)
 
