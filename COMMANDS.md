@@ -141,7 +141,8 @@ libraries, the NS functions) aren't saved.
 coroutine resumed once a frame (~16 ms) while the script goes on;
 `cons_frame()` (= `coroutine.yield`) ends its frame, returning ends it;
 the same name again restarts it. `cons_process_stop(name)`,
-`cons_process_running(name)`. Saved by name, function and arguments; a load
+`cons_process_running(name)`. A process that raises an error is stopped
+(the message on stderr and in the trace, `kind` `lua`); the game goes on. Saved by name, function and arguments; a load
 (or `reset`, which stops them) can't keep a coroutine's place, so a load
 starts each again from the top: keep progress in globals. A process waits
 only with `cons_frame()`: a waiting command run through `NSExec` (`wait`,

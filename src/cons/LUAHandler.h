@@ -62,7 +62,7 @@ public:
     std::string saveState();
     void loadState(const char *chunk);
     void resetProcesses();
-    bool stepProcesses();      // false: none left
+    bool stepProcesses();      // false: a process raised an error (error_str), it was stopped
     bool has_processes;
     int process_next;          // ticks of the next frame
 

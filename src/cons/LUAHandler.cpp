@@ -1264,7 +1264,7 @@ const char *cons_prelude =
 "cons_frame = coroutine.yield\n"
 "function __cons_reset() procs, order = {}, {} end\n"
 "function __cons_step()\n"
-"  local names = {}\n"
+"  local names, errs = {}, {}\n"
 "  for i, n in ipairs(order) do names[i] = n end\n"
 "  for _, name in ipairs(names) do\n"
 "    local x = procs[name]\n"
@@ -1272,17 +1272,21 @@ const char *cons_prelude =
 "      local ok, err\n"
 "      if not x.co then\n"
 "        local fn = _G[x.fn]\n"
-"        if type(fn) ~= 'function' then error('cons_process ' .. tostring(name) .. ': no function ' .. tostring(x.fn)) end\n"
-"        x.co = coroutine.create(fn)\n"
-"        ok, err = coroutine.resume(x.co, unpack(x.args))\n"
+"        if type(fn) ~= 'function' then ok, err = false, 'no function ' .. tostring(x.fn)\n"
+"        else\n"
+"          x.co = coroutine.create(fn)\n"
+"          ok, err = coroutine.resume(x.co, unpack(x.args))\n"
+"        end\n"
 "      else\n"
 "        ok, err = coroutine.resume(x.co)\n"
 "      end\n"
-"      if not ok then error('cons_process ' .. tostring(name) .. ': ' .. tostring(err)) end\n"
-"      if procs[name] == x and coroutine.status(x.co) == 'dead' then cons_process_stop(name) end\n"
+"      if not ok then\n"
+"        errs[#errs+1] = 'cons_process ' .. tostring(name) .. ': ' .. tostring(err)\n"
+"        if procs[name] == x then cons_process_stop(name) end\n"
+"      elseif procs[name] == x and coroutine.status(x.co) == 'dead' then cons_process_stop(name) end\n"
 "    end\n"
 "  end\n"
-"  return #order > 0\n"
+"  return #order > 0, table.concat(errs, '\\n')\n"
 "end\n";
 
 // cons_process started one: the engine steps processes from the next frame.
@@ -1332,16 +1336,20 @@ void LUAHandler::resetProcesses()
 bool LUAHandler::stepProcesses()
 {
     lua_getglobal(state, "__cons_step");
-    if (lua_pcall(state, 0, 1, 0) != 0){
-        strncpy(error_str, lua_tostring(state, -1), sizeof(error_str) - 1);
-        error_str[sizeof(error_str) - 1] = 0;
-        lua_pop(state, 1);
+    const char *err = "";
+    if (lua_pcall(state, 0, 2, 0) != 0){
+        err = lua_tostring(state, -1);
+        lua_pushnil(state);
         has_processes = false;
-        return false;
     }
-    has_processes = lua_toboolean(state, -1) != 0;
-    lua_pop(state, 1);
-    return true;
+    else{
+        has_processes = lua_toboolean(state, -2) != 0;
+        err = lua_tostring(state, -1);
+    }
+    strncpy(error_str, err ? err : "", sizeof(error_str) - 1);
+    error_str[sizeof(error_str) - 1] = 0;
+    lua_pop(state, 2);
+    return error_str[0] == 0;
 }
 
 void LUAHandler::loadInitScript()

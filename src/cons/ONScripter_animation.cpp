@@ -147,8 +147,10 @@ void ONScripter::proceedAnimation(int current_time)
         char *current = script_h.getCurrent();
         if (current_time - lua_handler.process_next > 1000) lua_handler.process_next = current_time; // after a long stop
         while (lua_handler.process_next <= current_time) lua_handler.process_next += 16;
-        if (!lua_handler.stepProcesses())
-            errorAndExit( lua_handler.error_str );
+        if (!lua_handler.stepProcesses()){ // the process that failed is stopped; the game goes on
+            utils::printError("%s\n", lua_handler.error_str);
+            if (trace_fp) traceError( lua_handler.error_str, "lua" );
+        }
         script_h.setCurrent(current);
         readToken();
         string_buffer_offset = tmp_string_buffer_offset;
