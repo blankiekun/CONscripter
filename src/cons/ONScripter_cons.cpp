@@ -2855,7 +2855,118 @@ static void freqTrackEffect( int channel, Sint16 *out, int len )
     cut_track[channel].pos = (Uint32)pos * frame; // for cutChannel and channelPlayedMs
 }
 
+/* --audio-stats: what is heard, in windows of AUDIO_STATS_MS of mixed
+ * sound, for each dwave channel (as the track effect leaves it, times its
+ * channel volume) and for the whole mix (the music and every channel),
+ * counted on the mixer's thread and written by the trace from the main
+ * one. Off: nothing is counted. */
+#define AUDIO_STATS_MS 100
+static bool audio_stats = false;
+static int stats_rate = 44100, stats_chans = 2;
+static Uint64 stats_frames = 0; // mixed so far, counted at the post mix
+static struct { double sq[2]; Uint32 n; int step, cross, last[2]; bool neg; } stats_acc[ONS_MIX_CHANNELS+1]; // last: the mix
+struct AudioStat { int ch; Uint32 audio_ms; int rms[2], hz, step; double pos; };
+static std::vector<AudioStat> stats_done; // under the audio lock
+static int stats_lost = 0;
+
+// len bytes of S16 samples heard on ch (ONS_MIX_CHANNELS: the mix) at
+// volume/MIX_MAX_VOLUME; pos: where the sound is after them, s.
+static void audioStats( int ch, const Sint16 *s, int len, int volume, double pos )
+{
+    int frames = len / 2 / stats_chans, window = stats_rate * AUDIO_STATS_MS / 1000;
+    for (int f=0 ; f<frames ; f++){
+        int l = s[f*stats_chans], r = s[f*stats_chans + stats_chans - 1];
+        int d = abs( l - stats_acc[ch].last[0] ), e = abs( r - stats_acc[ch].last[1] );
+        if (d > stats_acc[ch].step) stats_acc[ch].step = d;
+        if (e > stats_acc[ch].step) stats_acc[ch].step = e;
+        stats_acc[ch].last[0] = l; stats_acc[ch].last[1] = r;
+        stats_acc[ch].sq[0] += (double)l * l; stats_acc[ch].sq[1] += (double)r * r;
+        bool neg = l + r < 0;
+        if (neg != stats_acc[ch].neg) stats_acc[ch].cross++;
+        stats_acc[ch].neg = neg;
+        // shortcut: a sound's last part window waits for the channel's next sound
+        if (++stats_acc[ch].n < (Uint32)window) continue;
+        AudioStat a = { ch, (Uint32)((stats_frames + f + 1) * 1000 / stats_rate), {0, 0},
+                        (int)((Sint64)stats_acc[ch].cross * stats_rate / (2 * stats_acc[ch].n)),
+                        stats_acc[ch].step * volume / MIX_MAX_VOLUME, pos < 0 ? -1 : pos - (double)(frames - f - 1) / stats_rate };
+        for (int i=0 ; i<2 ; i++) a.rms[i] = (int)(sqrt( stats_acc[ch].sq[i] / stats_acc[ch].n ) * volume / MIX_MAX_VOLUME);
+        if (stats_done.size() < 100000) stats_done.push_back( a ); else stats_lost++;
+        stats_acc[ch].sq[0] = stats_acc[ch].sq[1] = 0;
+        stats_acc[ch].n = 0; stats_acc[ch].step = 0; stats_acc[ch].cross = 0;
+    }
+}
+
+static void statsPostMix( void *udata, Uint8 *stream, int len )
+{
+    double pos = -1; // the music's, as this buffer ends (NULL: the one playing, read under the audio lock)
+#if defined(SDL_MIXER_VERSION_ATLEAST) && SDL_MIXER_VERSION_ATLEAST(2,6,0)
+    if (Mix_PlayingMusic()) pos = Mix_GetMusicPosition( NULL );
+#endif
+    audioStats( ONS_MIX_CHANNELS, (Sint16*)stream, len, MIX_MAX_VOLUME, pos );
+    stats_frames += len / 2 / stats_chans;
+}
+
+void ONScripter::setAudioStats()
+{
+    audio_stats = true;
+}
+
+// After Mix_OpenAudio: the post mix counts the whole mix.
+void ONScripter::audioStatsOpened()
+{
+    if (!audio_stats || audio_format.format != AUDIO_S16SYS) return;
+    stats_rate = audio_format.freq;
+    stats_chans = audio_format.channels;
+    Mix_SetPostMix( statsPostMix, NULL );
+}
+
+// From the event loop: the windows heard since, as "audio" records.
+void ONScripter::traceAudioStats()
+{
+    if (!audio_stats || !audio_open_flag) return;
+    std::vector<AudioStat> done;
+    SDL_LockAudio();
+    done.swap( stats_done );
+    int lost = stats_lost;
+    stats_lost = 0;
+    SDL_UnlockAudio();
+    for (size_t i=0 ; i<done.size() ; i++){
+        AudioStat &a = done[i];
+        bool mix = a.ch == ONS_MIX_CHANNELS;
+        char buf[256];
+        int sum = a.rms[0] + a.rms[1];
+        snprintf( buf, sizeof(buf), "{\"t\":\"audio\",\"pg\":%d,\"ms\":%u,\"audio_ms\":%u,\"%s\":%d,\"rms\":[%d,%d],\"bal\":%d,\"hz\":%d,\"step\":%d",
+                  trace_page, SDL_GetTicks(), a.audio_ms, mix ? "mix" : "ch", mix ? 1 : a.ch, a.rms[0], a.rms[1],
+                  sum ? (a.rms[1] - a.rms[0]) * 1000 / sum : 0, a.hz, a.step );
+        std::string r = buf;
+        snprintf( buf, sizeof(buf), ",\"pos\":%.3f", a.pos );
+        if (a.pos >= 0) r += buf;
+        const char *name = mix ? (music_file_name ? music_file_name : midi_file_name) : trace_se_name[a.ch];
+        if (name){
+            r += ",\"file\":";
+            traceString( r, name );
+        }
+        r += '}';
+        traceWrite( r );
+    }
+    if (lost){
+        std::string r = "{\"t\":\"audio\",\"pg\":" + std::to_string( trace_page ) + ",\"lost\":" + std::to_string( lost ) + "}";
+        traceWrite( r );
+    }
+}
+
+static void cutTrackMix( int channel, void *stream, int len );
 static void cutTrackEffect( int channel, void *stream, int len, void *udata )
+{
+    cutTrackMix( channel, stream, len );
+    if (audio_stats && channel >= 0 && channel < ONS_MIX_CHANNELS && track_gain_s16){
+        double pos = track_freq[channel].on ? track_freq[channel].pos / stats_rate :
+            (double)cut_track[channel].pos / (2 * stats_chans) / stats_rate;
+        audioStats( channel, (const Sint16*)stream, len, Mix_Volume( channel, -1 ), pos );
+    }
+}
+
+static void cutTrackMix( int channel, void *stream, int len )
 {
     if (channel < 0 || channel >= ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS) return;
     // A loop inside the sound (LOOPSTART/LOOPEND): what SDL_mixer took

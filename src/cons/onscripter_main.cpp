@@ -69,6 +69,7 @@ void optionHelp()
     printf( "      --trace-ignore 22-48,lsp2:12-23\tleave these sprites out of the trace (or CONS_TRACE_IGNORE)\n");
     printf( "      --trace-vars 300-899,$10-20\twith --trace, a record for each change of these variables\n");
     printf( "      --trace-long-wait ms\twith --trace, warn of a wait, effect or fade asked to last longer (10000)\n");
+    printf( "      --audio-stats\twith --trace, an \"audio\" record every 100 ms of sound, per channel and for the mix\n");
     printf( "      --trace-max-image mb\twith --trace, warn of a single picture taking more memory than this (64)\n");
     printf( "      --roundtrip-every n\twith --trace and --auto-play, save and load every n pages and compare (--roundtrip-slot, 999)\n");
     printf( "      --auto-play pages\tplay by itself, without waiting, for this many pages (0: to the end)\n");
@@ -533,6 +534,9 @@ void parseOption(int argc, char *argv[]) {
                 argc--;
                 argv++;
                 ons.setCheckpoints(-1, atoi(argv[0]));
+            }
+            else if ( !strcmp( argv[0]+1, "-audio-stats" ) ){
+                ons.setAudioStats();
             }
             else if ( !strcmp( argv[0]+1, "-trace-long-wait" ) ){
                 argc--;

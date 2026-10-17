@@ -38,6 +38,7 @@ Other options add to what the trace holds:
 | Option | Adds |
 |---|---|
 | `--trace-vars 300-899,$10-20` | a `var` record for each change of these variables: numbers alone are `%` variables, `$` before the strings; numbers and ranges, comma-separated (0 to the script's `numalias` range, 4096 by default) |
+| `--audio-stats` | an `audio` record for every 100 ms of sound mixed, for each dwave channel playing and for the whole mix (off by default: nothing is counted) |
 | `--trace-long-wait ms` | a `long wait` warning for each wait, effect or fade the script asks to last longer than this (default 10000) |
 | `--trace-max-image mb` | a `large image` warning for each picture that alone takes more memory than this, in MB (default 64, a 4096x4096 picture) |
 
@@ -720,6 +721,31 @@ looks (between events), so it can come after records with a later `ms`.
 Ramps run on the trace's clock, so under the virtual clock (`--auto-play`
 with the dummy driver) a ramp longer than the waits after it never gets
 there; sounds play in real time, so they end by the wall clock.
+
+### `audio`: what was heard, every 100 ms (`--audio-stats`)
+
+```json
+{"t":"audio","pg":0,"ms":1270,"audio_ms":600,"mix":1,"rms":[2908,2298],"bal":-117,"hz":880,"step":553,"pos":0.600,"file":"bgm\\a.ogg"}
+{"t":"audio","pg":0,"ms":1505,"audio_ms":723,"ch":3,"rms":[1743,871],"bal":-333,"hz":880,"step":366,"pos":0.700,"file":"se\\rain.ogg"}
+```
+
+One per 100 ms window of a dwave channel's sound (`ch`, after `chvolfade`,
+`chpan`, `chfreq` and times its channel volume: as heard) or of the whole
+mix (`mix`: the music with every channel, at the output). `rms`: left and
+right RMS (0-32767); `bal`: (right - left) / (right + left), per mille;
+`hz`: the main frequency, from the zero crossings (a mix of tones gives
+the loudest high one); `step`: the largest jump between two samples (a
+click, a skip in the sound: a 440 Hz tone at RMS 2000 steps about 180);
+`pos`: where in its file the window ends, s (for `mix`, the music's; a
+loop shows as `pos` going back). `audio_ms` is the mixer's own clock, the
+window's end in sound mixed since the audio opened: it runs in real time,
+also under the dummy audio driver. `ms` is the trace's clock when the
+record is written (the engine writes them between events, so after a long
+wait several come at once); under the virtual clock (`--auto-play` with
+the dummy video driver) game time jumps through waits while sound plays
+in real time, so a page hears only the few ms its run took: use
+`--real-time`, or no `--auto-play`, to hear a scene as a player does.
+`"lost":n`: windows dropped (100000 waiting to be written).
 
 ### `label`: the first time a label runs
 
