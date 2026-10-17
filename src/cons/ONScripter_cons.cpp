@@ -1638,7 +1638,8 @@ int ONScripter::btnseCommand()
 int ONScripter::speedTime( int ms )
 {
     if (game_speed == 100 || ms <= 0) return ms;
-    return (int)((long long)ms * 100 / game_speed);
+    int t = (int)((long long)ms * 100 / game_speed);
+    return t > 0 ? t : 1; // a time never becomes 0 (an effect divides by its duration)
 }
 
 bool ONScripter::autoWaitsForVoice()
