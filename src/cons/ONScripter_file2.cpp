@@ -434,18 +434,7 @@ int ONScripter::loadSaveFile2( int file_version )
         readInt();
     }
     
-    i = readInt();
-    current_label_info = script_h.getLabelByLine( i );
-    current_line = i - current_label_info.start_line;
-    //utils::printInfo("load %d:%d(%d-%d)\n", current_label_info.start_line, current_line, i, current_label_info.start_line);
-    char *buf = script_h.getAddressByLine( i );
-    
-    j = readInt();
-    for ( i=0 ; i<j ; i++ ){
-        while( *buf != ':' ) buf++;
-        buf++;
-    }
-    script_h.setCurrent( buf );
+    loadScriptPosition(); // CONscripter: kept within the script; loadSavePoints moves it
 
     loadSaveFileCons();
 

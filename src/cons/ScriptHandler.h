@@ -200,6 +200,10 @@ public:
     int getScriptLength(){ return script_buffer_length; };
     int getOffset( const char *address ){ return inScript( address ) ? (int)(address - script_buffer) : -1; };
     int getKidokuState(){ return kidokuskip_flag ? (skip_enabled ? 1 : 0) : -1; }; // the text read before, -1 unknown
+    // CONscripter (ONScripter_savepoint.cpp): kidoku.dat by label, line in it and the line's hash
+    LabelInfo getLabelInfo( int index ){ return label_info[index]; };
+    void writeKidokuCons( FILE *fp );
+    void readKidokuCons( FILE *fp );
 
     ArrayVariable *getRootArrayVariable();
     void loadArrayVariable( FILE *fp );

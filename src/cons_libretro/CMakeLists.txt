@@ -23,6 +23,7 @@ set(SOURCES
   ../cons/ONScripter_command.cpp
   ../cons/ONScripter_cons.cpp
   ../cons/ONScripter_trace.cpp
+  ../cons/ONScripter_savepoint.cpp
   ../cons/ONScripter_effect.cpp
   ../cons/ONScripter_effect_breakup.cpp
   ../cons/ONScripter_event.cpp
