@@ -2137,8 +2137,7 @@ void ONScripter::setUntil( const char *label )
 // Called once the script is read: the label --until waits for.
 void ONScripter::untilSetup()
 {
-    for (int i=0 ; i<script_h.getNumLabels() && until_index < 0 ; i++)
-        if (!strcmp( script_h.getLabelName( i ), until_label )) until_index = i;
+    until_index = script_h.findLabelIndex( until_label );
     if (until_index < 0){
         utils::printError( "--until: no label *%s\n", until_label );
         startupFailed();
@@ -2291,10 +2290,7 @@ void ONScripter::startAt()
         globalon_flag = false;
     }
     if (!start_goto) return;
-    bool found = false;
-    for (int i=0 ; i<script_h.getNumLabels() && !found ; i++)
-        found = !strcmp( script_h.getLabelName( i ), start_goto );
-    if (!found){
+    if (script_h.findLabelIndex( start_goto ) < 0){
         utils::printError( "--goto: no label *%s\n", start_goto );
         startupFailed();
     }

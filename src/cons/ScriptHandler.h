@@ -29,6 +29,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
+#include <unordered_map>
 #include "BaseReader.h"
 
 // CONscripter: in Shift_JIS, 0xa0-0xdf are half-width katakana (cons_sjis)
@@ -201,6 +203,8 @@ public:
     int getLabelIndex( const char *address );
     const char *getLabelName( int index ){ return label_info[index].name; };
     int getNumLabels(){ return num_of_labels; };
+    // CONscripter: a label's index by name, any case (the first of a duplicated name), -1 if none
+    int findLabelIndex( const char *name );
     bool inScript( const char *address ){ return script_buffer && address >= script_buffer && address < script_buffer + script_buffer_length; };
     // CONscripter: for the web page's consPosition
     int getScriptLength(){ return script_buffer_length; };
@@ -237,6 +241,7 @@ public:
         LogLink *current_log;
         int num_logs;
         const char *filename;
+        std::unordered_map<std::string, LogLink*> index; // CONscripter: name -> its link, for the lookup
     } log_info[2];
     LogLink *findAndAddLog( LogInfo &info, const char *name, bool add_flag );
     void resetLog( LogInfo &info );
@@ -369,6 +374,7 @@ private:
 
     LabelInfo *label_info;
     int num_of_labels;
+    std::unordered_map<std::string, int> label_index; // CONscripter: lowercased name -> index
 
     bool skip_enabled;
     bool kidokuskip_flag;

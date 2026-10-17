@@ -935,23 +935,20 @@ struct ScriptHandler::LabelInfo ScriptHandler::lookupLabelNext( const char *labe
 
 ScriptHandler::LogLink *ScriptHandler::findAndAddLog( LogInfo &info, const char *name, bool add_flag )
 {
-    char capital_name[256];
-    for ( unsigned int i=0 ; i<strlen(name)+1 ; i++ ){
-        capital_name[i] = name[i];
+    std::string capital_name( name );
+    for ( size_t i=0 ; i<capital_name.size() ; i++ ){
         if ( 'a' <= capital_name[i] && capital_name[i] <= 'z' ) capital_name[i] += 'A' - 'a';
         else if ( capital_name[i] == '/' ) capital_name[i] = '\\';
     }
-    
-    LogLink *cur = info.root_log.next;
-    while( cur ){
-        if ( !strcmp( cur->name, capital_name ) ) break;
-        cur = cur->next;
-    }
+
+    std::unordered_map<std::string, LogLink*>::const_iterator it = info.index.find( capital_name );
+    LogLink *cur = it == info.index.end() ? NULL : it->second;
     if ( !add_flag || cur ) return cur;
 
     LogLink *link = new LogLink();
-    link->name = new char[strlen(capital_name)+1];
-    strcpy( link->name, capital_name );
+    link->name = new char[capital_name.size()+1];
+    strcpy( link->name, capital_name.c_str() );
+    info.index[capital_name] = link;
     info.current_log->next = link;
     info.current_log = info.current_log->next;
     info.num_logs++;
@@ -971,6 +968,7 @@ void ScriptHandler::resetLog( LogInfo &info )
     info.root_log.next = NULL;
     info.current_log = &info.root_log;
     info.num_logs = 0;
+    info.index.clear();
 }
 
 ScriptHandler::ArrayVariable *ScriptHandler::getRootArrayVariable(){
@@ -1318,6 +1316,7 @@ int ScriptHandler::labelScript()
     int current_line = 0;
     char *buf = script_buffer;
     label_info = new LabelInfo[ num_of_labels+1 ];
+    label_index.clear();
 
     while ( buf < script_buffer + script_buffer_length ){
         SKIP_SPACE( buf );
@@ -1337,6 +1336,7 @@ int ScriptHandler::labelScript()
             }
             SKIP_SPACE( buf );
             label_info[ label_counter ].start_address = buf;
+            label_index.insert( std::make_pair( std::string( label_info[ label_counter ].name ), label_counter ) ); // keeps the first
         }
         else{
             if ( label_counter >= 0 )
@@ -1352,19 +1352,19 @@ int ScriptHandler::labelScript()
     return 0;
 }
 
+int ScriptHandler::findLabelIndex( const char *name )
+{
+    std::string key( name );
+    for (size_t i=0 ; i<key.size() ; i++)
+        if ('A' <= key[i] && key[i] <= 'Z') key[i] += 'a' - 'A';
+    std::unordered_map<std::string, int>::const_iterator it = label_index.find( key );
+    return it == label_index.end() ? -1 : it->second;
+}
+
 int ScriptHandler::findLabel( const char *label )
 {
-    int i;
-    char capital_label[256];
-
-    for ( i=0 ; i<(int)strlen( label )+1 ; i++ ){
-        capital_label[i] = label[i];
-        if ( 'A' <= capital_label[i] && capital_label[i] <= 'Z' ) capital_label[i] += 'a' - 'A';
-    }
-    for ( i=0 ; i<num_of_labels ; i++ ){
-        if ( !strcmp( label_info[i].name, capital_label ) )
-            return i;
-    }
+    int i = findLabelIndex( label );
+    if (i >= 0) return i;
 
     char *p = new char[ strlen(label) + 32 ];
     sprintf(p, "Label \"%s\" is not found.", label);

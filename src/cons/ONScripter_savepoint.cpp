@@ -83,9 +83,7 @@ static int nearestLine( LabelLines &ll, int line, unsigned int hash )
 
 static int labelByName( ScriptHandler &sh, const char *name )
 {
-    for (int i=0 ; i<sh.getNumLabels() ; i++)
-        if (!strcmp( sh.getLabelName( i ), name )) return i;
-    return -1;
+    return sh.findLabelIndex( name );
 }
 
 // The stock place (the line in the whole script and the colons before the
@@ -301,9 +299,6 @@ void ScriptHandler::readKidokuCons( FILE *fp )
         return;
     }
 
-    std::unordered_map<std::string, int> labels;
-    for (int i=0 ; i<num_of_labels ; i++) labels.insert( std::make_pair( std::string( label_info[i].name ), i ) );
-
     size_t pos = sizeof(KIDOKU_MAGIC);
     bool bad = false;
     int lost = 0;
@@ -313,10 +308,10 @@ void ScriptHandler::readKidokuCons( FILE *fp )
         size_t z = pos;
         while (z < d.size() && d[z]) z++;
         if (z == d.size()){ bad = true; break; }
-        std::unordered_map<std::string, int>::iterator it = labels.find( std::string( (char*)&d[pos], z-pos ) );
+        std::unordered_map<std::string, int>::iterator it = label_index.find( std::string( (char*)&d[pos], z-pos ) );
         pos = z+1;
         LabelLines ll;
-        if (it != labels.end()) labelLines( *this, it->second, ll );
+        if (it != label_index.end()) labelLines( *this, it->second, ll );
         unsigned int count;
         GET32( count );
         for (unsigned int c=0 ; !bad && c<count ; c++){
