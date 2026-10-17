@@ -265,6 +265,7 @@ public:
     int spmotionCommand();
     int spcurveCommand();
     int effectcurveCommand();
+    int effectsoftCommand();
     int clickskipCommand();
     int getclickskipCommand();
     int spmotionwaitCommand();
@@ -679,6 +680,8 @@ private:
     DirtyRect dirty_rect; // only this region is updated
     int  effect_counter, effect_duration; // counter in each effect
     int  effect_curve = 0; // CONscripter: effectcurve, for the next effect
+    int  effect_soft = 0, effect_soft_reverse = 0; // CONscripter: effectsoft, for the next masked effect
+    void softMaskBlend( SDL_Surface *mask, int counter, int duration, SDL_Rect *clip );
     bool click_skip_flag = false; // CONscripter: clickskip (define)
     bool click_skipping = false; // CONscripter: clickskip: a click ended a delay or effect, the next ones end at once
     bool waitInterrupted();

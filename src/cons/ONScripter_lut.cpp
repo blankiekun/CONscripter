@@ -103,6 +103,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"spmoviewait",		&ONScripter::spmoviewaitCommand},
     {"spcurve",			&ONScripter::spcurveCommand},
     {"effectcurve",		&ONScripter::effectcurveCommand},
+    {"effectsoft",		&ONScripter::effectsoftCommand},
     {"clickskip",		&ONScripter::clickskipCommand},
     {"getclickskip",	&ONScripter::getclickskipCommand},
     {"screenflash",		&ONScripter::screenflashCommand},
