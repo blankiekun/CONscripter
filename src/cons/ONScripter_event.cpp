@@ -476,11 +476,14 @@ bool ONScripter::waitEvent( int count )
     // chimimouryou: the reader may look up sprite text while the game waits for input.
     // shortcut: timed waits (btntime, automode) don't send it; add them if games need it.
     if (count == -1) sendSpriteTexts();
-    webPersistHook(); // CONscripter: closing the tab is no quit (every wait: auto mode has no click wait)
+    persistHook(); // CONscripter: closing a tab or a killed app is no quit (every wait: auto mode has no click wait)
     webStateHook(); // CONscripter: auto, skip and the text window, for the web page
     
     while(1){
+        bool was_waiting = persist_waiting; // CONscripter: persistNow can write now
+        persist_waiting = true;
         waitEventSub( count );
+        persist_waiting = was_waiting;
         webStateHook();
         if ( system_menu_mode == SYSTEM_NULL ) break;
         if ( system_menu_mode == SYSTEM_RGOSUB ){ // CONscripter: the click wait ends for rgosub's label
@@ -1443,7 +1446,7 @@ void ONScripter::runEventLoop()
 
         if (hold_release && holdRelease( event )) continue; // CONscripter: mpeghold
 #if defined(KOBO)
-        if (event.type == kobo::sleep_event){ kobo::sleep(); continue; }
+        if (event.type == kobo::sleep_event){ persistHook( true ); kobo::sleep(); continue; } // CONscripter: the battery may run out asleep
 #endif
 
         switch (event.type) {

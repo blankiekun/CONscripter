@@ -1634,7 +1634,7 @@ Code: `src/cons/ONScripter_effect.cpp`, `ONScripter_cons.cpp` (grep `cons_blur` 
 
 ## Web hooks
 
-Code: `ONScripter::webPageHook`, `webStateHook`, `webPersistHook` and the other `EM_ASM` calls in `src/cons/ONScripter_cons.cpp`.
+Code: `ONScripter::webPageHook`, `webStateHook`, `persistHook` and the other `EM_ASM` calls in `src/cons/ONScripter_cons.cpp`.
 The engine calls these on `self` when defined:
 
 | Hook | When | Arguments |

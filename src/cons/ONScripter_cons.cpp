@@ -2831,20 +2831,28 @@ void ONScripter::webStateHook()
 #endif
 }
 
-// The web build: closing or reloading the tab doesn't quit the engine, so
-// what it writes on quit (gloval.sav, kidoku.dat, the file and label
-// logs) would be lost: the settings, the read marks, the unlocks. At any
-// wait (auto mode reads on with no click wait), at most every 2 seconds,
-// the global variables are written when they changed, and the read marks
-// and the logs (when they grew) every 30 seconds (or with the globals),
-// then the save directory is synced to IndexedDB.
-void ONScripter::webPersistHook()
+// Closing a tab, Android killing an app in the background, a Kobo whose
+// battery runs out asleep and RetroArch closed from the Vita's LiveArea
+// don't quit the engine, so what it writes on quit (gloval.sav, kidoku.dat,
+// the file and label logs, envdata) would be lost: the settings, the read
+// marks, the unlocks. At any wait (auto mode reads on with no click wait),
+// at most every 2 seconds, the global variables are written when they
+// changed, and the read marks and the logs (when they grew) every 30
+// seconds (or with the globals); the web build then syncs the save
+// directory to IndexedDB. force (persistNow, a Kobo going to sleep):
+// everything at once, envdata too.
+void ONScripter::persistHook( bool force )
 {
-#if defined(WEB)
     Uint32 now = SDL_GetTicks();
-    if (web_persist_time && now - web_persist_time < 2000) return;
+    force = force || persist_due;
+    persist_due = false;
+    if (!force && web_persist_time && now - web_persist_time < 2000) return;
     web_persist_time = now;
     bool changed = false;
+    if (force){
+        saveEnvData();
+        changed = true;
+    }
     if (globalon_flag){
         file_io_buf_ptr = 0;
         writeVariables( script_h.global_variable_border, script_h.variable_range, false );
@@ -2876,11 +2884,24 @@ void ONScripter::webPersistHook()
             changed = true;
         }
     }
+#if defined(WEB)
     if (changed) EM_ASM(
         if(window.flush_save) window.flush_save();
         else FS.syncfs(false, (err)=>{console.log(err);});
     );
 #endif
+}
+
+// persistHook's everything now: the page hidden (_consPersist), the app
+// going to the background or ending (persistWatch). At once when the
+// engine is in a wait, whose state is whole; else (mid-command, as a
+// load fetching its pictures, file_io_buf in use) at its next wait.
+// shortcut: on Android persistWatch runs on SDL's Java thread, beside a
+// main thread that is in a wait; a lock would close that small gap.
+void ONScripter::persistNow()
+{
+    if (persist_waiting) persistHook( true );
+    else persist_due = true;
 }
 
 // At each click wait and new page, before consText: where the text is

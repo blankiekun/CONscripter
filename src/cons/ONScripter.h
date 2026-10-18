@@ -1158,15 +1158,20 @@ void traceUnknownCommand( const char *cmd );
     int text_speed_override;         // ms per character, -1 for the game's own
     int web_mode_sent;               // auto and skip as last sent to consMode
     int web_window_sent[5];          // the text window as last sent to consWindow
-    std::vector<unsigned char> web_globals_written; // gloval.sav as webPersistHook last wrote it
+    std::vector<unsigned char> web_globals_written; // gloval.sav as persistHook last wrote it
     std::string text_language;       // `language`: the text's language, sent to consLanguage
     std::string web_language_sent;   // as last sent to consLanguage
-    Uint32 web_persist_time, web_kidoku_time; // when webPersistHook last looked, last wrote kidoku.dat
-    int web_logs_written[2];         // the label and file logs' counts as webPersistHook last wrote them
+    Uint32 web_persist_time, web_kidoku_time; // when persistHook last looked, last wrote kidoku.dat
+    int web_logs_written[2];         // the label and file logs' counts as persistHook last wrote them
+    bool persist_waiting;            // inside waitEvent's wait: persistNow may write at once
+    bool persist_due;                // persistNow came outside a wait: the next wait writes everything
     bool webEvent( int code, int value );
     void webStateHook();
     SDL_Rect textWindowRect();
-    void webPersistHook();
+    void persistHook( bool force = false );
+public:
+    void persistNow();
+private:
     void webPageHook();
     void soundCommand( int channel, const char *name, bool play );
 

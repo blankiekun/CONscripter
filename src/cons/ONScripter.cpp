@@ -137,6 +137,16 @@ void ONScripter::setDebugLevel(int debug) {
     debug_level = debug;
 }
 
+// CONscripter: Android may kill an app in the background without a quit,
+// and the queue isn't read before the pause: a watch sees the events as
+// they come (SDL's README-android).
+static int persistWatch( void *data, SDL_Event *event )
+{
+    if (event->type == SDL_APP_WILLENTERBACKGROUND || event->type == SDL_APP_TERMINATING)
+        ((ONScripter*)data)->persistNow();
+    return 1;
+}
+
 void ONScripter::initSDL()
 {
     /* ---------------------------------------- */
@@ -147,6 +157,7 @@ void ONScripter::initSDL()
         utils::printError("Couldn't initialize SDL: %s\n", SDL_GetError());
         startupFailed();
     }
+    SDL_AddEventWatch( persistWatch, this );
 
     if( SDL_Init(SDL_INIT_AUDIO) < 0)
     {
@@ -422,6 +433,7 @@ ONScripter::ONScripter()
     web_mode_sent = -1;
     memset( web_window_sent, -1, sizeof(web_window_sent) );
     web_persist_time = web_kidoku_time = 0;
+    persist_waiting = persist_due = false;
     web_logs_written[0] = web_logs_written[1] = 0;
     checkpoint_every = checkpoint_count = checkpoint_pages = 0;
     checkpoint_slot = 900;
