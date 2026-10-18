@@ -1760,8 +1760,9 @@ No command involved:
   game folder; the digits are its 256-byte decryption table). Names match
   without regard to case (ASCII and full-width Latin) or `/` and `\`.
   Loose files come first, then these archives, then `arc.nsa`.
-  Compressed NPAs (zlib) aren't read yet. Web: each entry's bytes go
-  through `consPreload` as an `.nsa` entry's do.
+  Compressed NPAs (zlib, 装甲悪鬼村正) are inflated by the engine's own
+  decoder. Web: each entry's bytes go through `consPreload` as an `.nsa`
+  entry's do.
 - **Fallback font**: a character the font lacks (a box otherwise) is
   measured and drawn from `fallback.ttf` in the font's folder (the game's
   for `default.ttf`), at the same size, on the font's baseline. No

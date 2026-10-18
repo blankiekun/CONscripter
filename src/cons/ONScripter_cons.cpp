@@ -4327,10 +4327,153 @@ const unsigned char *ONScripter::filterScreen(SDL_Rect &rect, int &pitch)
 // the game folder); the digits are its 256-byte decryption table. Loose files
 // come first, then these archives, then arc.nsa.
 namespace {
-struct OriginalEntry { FILE *fp; long long offset; size_t stored, size, encrypted; unsigned char k; const unsigned char *table; };
+struct OriginalEntry { FILE *fp; long long offset; size_t stored, size, encrypted; unsigned char k; bool zlib; const unsigned char *table; };
 struct OriginalArchive { FILE *fp; unsigned char table[256]; };
 std::vector<OriginalArchive*> original_archives;
 std::unordered_map<std::string, OriginalEntry> original_files;
+
+// A zlib stream (RFC 1950/1951) inflated into out, for compressed NPA entries:
+// canonical Huffman decoding a bit at a time, as zlib's puff.c, so no
+// library is needed on any platform.
+// shortcut: about 50 MB/s, a few ms per picture; a table decoder when weak devices need it
+struct Inflater {
+    struct Huff { short count[16], symbol[320]; };
+    const unsigned char *in; size_t in_len, in_pos;
+    unsigned char *out; size_t out_len, out_pos;
+    unsigned int bitbuf; int bitcnt; bool bad;
+
+    int bits( int n ){
+        unsigned int v = bitbuf;
+        while (bitcnt < n){
+            if (in_pos >= in_len){ bad = true; return 0; }
+            v |= (unsigned int)in[in_pos++] << bitcnt;
+            bitcnt += 8;
+        }
+        bitbuf = n < 32 ? v >> n : 0;
+        bitcnt -= n;
+        return (int)(v & ((1u << n) - 1));
+    }
+    int decode( const Huff &h ){
+        int code = 0, first = 0, index = 0;
+        for (int len=1 ; len<16 ; len++){
+            code |= bits( 1 );
+            if (bad) return -1;
+            int count = h.count[len];
+            if (code - count < first) return h.symbol[index + code - first];
+            index += count;
+            first = (first + count) << 1;
+            code <<= 1;
+        }
+        bad = true;
+        return -1;
+    }
+    // false when the lengths over-subscribe the code
+    static bool build( Huff &h, const short *length, int n ){
+        short offs[16];
+        for (int len=0 ; len<16 ; len++) h.count[len] = 0;
+        for (int i=0 ; i<n ; i++) h.count[length[i]]++;
+        int left = 1;
+        for (int len=1 ; len<16 ; len++){
+            left = (left << 1) - h.count[len];
+            if (left < 0) return false;
+        }
+        offs[1] = 0;
+        for (int len=1 ; len<15 ; len++) offs[len+1] = offs[len] + h.count[len];
+        for (int i=0 ; i<n ; i++) if (length[i]) h.symbol[offs[length[i]]++] = (short)i;
+        return true;
+    }
+    bool codes( const Huff &lens, const Huff &dists ){
+        static const short lbase[29] = {3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258};
+        static const short lext[29] = {0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0};
+        static const short dbase[30] = {1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577};
+        static const short dext[30] = {0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13};
+        for (;;){
+            int sym = decode( lens );
+            if (sym < 0) return false;
+            if (sym < 256){
+                if (out_pos >= out_len) return false;
+                out[out_pos++] = (unsigned char)sym;
+            }
+            else if (sym == 256) return true;
+            else{
+                sym -= 257;
+                if (sym >= 29) return false;
+                size_t len = lbase[sym] + bits( lext[sym] );
+                int d = decode( dists );
+                if (d < 0 || d >= 30) return false;
+                size_t dist = dbase[d] + bits( dext[d] );
+                if (bad || dist > out_pos || out_len - out_pos < len) return false;
+                for ( ; len ; len--, out_pos++) out[out_pos] = out[out_pos - dist];
+            }
+        }
+    }
+    bool stored(){
+        bitbuf = 0;
+        bitcnt = 0; // the rest of the byte
+        if (in_len - in_pos < 4) return false;
+        size_t len = in[in_pos] | in[in_pos+1] << 8;
+        if ((in[in_pos+2] | in[in_pos+3] << 8) != (~len & 0xffff)) return false;
+        in_pos += 4;
+        if (in_len - in_pos < len || out_len - out_pos < len) return false;
+        memcpy( out + out_pos, in + in_pos, len );
+        in_pos += len;
+        out_pos += len;
+        return true;
+    }
+    bool fixed(){
+        static Huff lens, dists;
+        static bool made = false;
+        if (!made){
+            short l[288];
+            for (int i=0 ; i<288 ; i++) l[i] = i < 144 ? 8 : i < 256 ? 9 : i < 280 ? 7 : 8;
+            build( lens, l, 288 );
+            for (int i=0 ; i<30 ; i++) l[i] = 5;
+            build( dists, l, 30 );
+            made = true;
+        }
+        return codes( lens, dists );
+    }
+    bool dynamic(){
+        static const short order[19] = {16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15};
+        short l[320];
+        Huff lens, dists;
+        int nlen = bits( 5 ) + 257, ndist = bits( 5 ) + 1, ncode = bits( 4 ) + 4;
+        if (bad || nlen > 286 || ndist > 30) return false;
+        for (int i=0 ; i<19 ; i++) l[order[i]] = i < ncode ? (short)bits( 3 ) : 0;
+        if (bad || !build( lens, l, 19 )) return false;
+        for (int i=0 ; i<nlen+ndist ; ){
+            int sym = decode( lens );
+            if (sym < 0) return false;
+            if (sym < 16){ l[i++] = (short)sym; continue; }
+            short v = 0;
+            int n;
+            if (sym == 16){
+                if (i == 0) return false;
+                v = l[i-1];
+                n = 3 + bits( 2 );
+            }
+            else n = sym == 17 ? 3 + bits( 3 ) : 11 + bits( 7 );
+            if (bad || i + n > nlen + ndist) return false;
+            while (n--) l[i++] = v;
+        }
+        if (l[256] == 0 || !build( lens, l, nlen ) || !build( dists, l + nlen, ndist )) return false;
+        return codes( lens, dists );
+    }
+};
+
+// The bytes inflated from the zlib stream in[in_len] into out[out_len].
+size_t inflateZlib( const unsigned char *in, size_t in_len, unsigned char *out, size_t out_len )
+{
+    if (in_len < 2 || (in[0] & 0x0f) != 8 || (in[0] << 8 | in[1]) % 31) return 0;
+    Inflater z = { in, in_len, 2, out, out_len, 0, 0, 0, false };
+    for (int last=0 ; !last ; ){
+        last = z.bits( 1 );
+        int type = z.bits( 2 );
+        bool ok = !z.bad && (type == 0 ? z.stored() : type == 1 ? z.fixed() : type == 2 ? z.dynamic() : false);
+        if (!ok) return 0;
+    }
+    return z.out_pos;
+}
 
 // The lookup form of a name: '/' separators, lower case (ASCII and full-width
 // Latin: the scripts write ｂ where the archive has Ｂ).
@@ -4370,11 +4513,6 @@ bool readNpa( OriginalArchive *a, const std::string &folder, const char *path )
     unsigned char h[0x29];
     webPreload( a->fp, 0, sizeof(h) );
     if (fread( h, 1, sizeof(h), a->fp ) != sizeof(h) || memcmp( h, "NPA", 3 )) return false;
-    if (h[15]){
-        // shortcut: zlib-compressed archives (scripts, system.npa) are refused; add inflate when a game needs one at run time
-        utils::printError( "cons_archives: %s is compressed, not read\n", path );
-        return false;
-    }
     unsigned int key12 = le32( h+7 ) * le32( h+11 ), total = le32( h+17 ), index_len = le32( h+37 );
     std::vector<unsigned char> index( index_len );
     webPreload( a->fp, sizeof(h), index_len );
@@ -4393,13 +4531,14 @@ bool readNpa( OriginalArchive *a, const std::string &folder, const char *path )
         }
         const unsigned char *e = &index[p + 4 + n];
         p += 4 + n + 17;
-        if (e[0] != 2 || le32( e+9 ) != le32( e+13 )) continue; // a folder (stored = size: not compressed)
+        if (e[0] != 2) continue; // a folder
         OriginalEntry f;
         f.fp = a->fp;
         f.offset = 0x29LL + index_len + le32( e+5 );
         f.stored = le32( e+9 );
         f.size = le32( e+13 );
         f.encrypted = encrypted ? 0x1000 + n : 0;
+        f.zlib = h[15] != 0;
         f.k = (unsigned char)(((0x87654321u - sum) * n + key12) * (unsigned int)f.size);
         f.table = a->table;
         original_files[originalKey( (folder + "/" + sjisToUTF8( raw.c_str() )).c_str() )] = f;
@@ -4447,9 +4586,16 @@ size_t consOriginalFile( const char *archive_path, const char *file_name, unsign
     if (it == original_files.end()) return 0;
     const OriginalEntry &f = it->second;
     if (!buffer) return f.size;
+    std::vector<unsigned char> packed( f.zlib ? f.stored : 0 );
+    unsigned char *p = f.zlib ? packed.data() : buffer;
+    if (!f.zlib && f.stored != f.size) return 0;
     webPreload( f.fp, (size_t)f.offset, f.stored );
-    if (originalSeek( f.fp, f.offset ) || fread( buffer, 1, f.stored, f.fp ) != f.stored) return 0;
+    if (originalSeek( f.fp, f.offset ) || fread( p, 1, f.stored, f.fp ) != f.stored) return 0;
     for (size_t i=0 ; i<f.stored && i<f.encrypted ; i++)
-        buffer[i] = (unsigned char)(f.table[buffer[i]] - f.k - i);
+        p[i] = (unsigned char)(f.table[p[i]] - f.k - i);
+    if (f.zlib && inflateZlib( p, f.stored, buffer, f.size ) != f.size){
+        utils::printError( "cons_archives: %s doesn't inflate\n", file_name );
+        return 0;
+    }
     return f.size;
 }
