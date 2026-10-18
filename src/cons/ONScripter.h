@@ -69,6 +69,7 @@ bool consClockWait( SDL_Event *event );
 #define SDL_AddTimer( ms, callback, param ) consAddTimer( ms, callback, param )
 #define SDL_RemoveTimer( id ) consRemoveTimer( id )
 #define SDL_Delay( ms ) consDelay( ms )
+int consSaveVersion();           // the CONscripter save block's version (ONScripter_cons.cpp)
 
 #define DEFAULT_VIDEO_SURFACE_FLAG (SDL_SWSURFACE)
 
@@ -1242,6 +1243,7 @@ private:
     std::map<std::string, std::string> roundtrip_before; // the state at the page
     void roundtripState( std::map<std::string, std::string> &state );
     void roundtripPage();
+    void traceSaveLeftOut( int version ); // a loaded save's CONscripter block not read (0: it has none)
     std::string roundtripExcerpt( const std::string &s, size_t from );
     void roundtripLoad();
     void roundtripClear();

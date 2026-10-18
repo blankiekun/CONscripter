@@ -49,6 +49,7 @@
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
 #define CONS_SAVE_VERSION 30 // only this version's block is read; the "Version n" comments below
                             // name the parts in the order they are written (version 26's first)
+int consSaveVersion() { return CONS_SAVE_VERSION; }
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
 
@@ -3886,10 +3887,14 @@ void ONScripter::loadSaveFileCons()
     lua_handler.loadState( NULL ); // a save without Lua data has no script globals
 #endif
     clearHandleSprites(); // a save without the block: no handle pictures, named locals at their defaults
-    if (readInt() != CONS_SAVE_MAGIC) return;
+    if (readInt() != CONS_SAVE_MAGIC){
+        if (trace_fp) traceSaveLeftOut( 0 );
+        return;
+    }
     int version = readInt();
     if (version != CONS_SAVE_VERSION){ // older layouts aren't read
         utils::printError("save: CONscripter data version %d, this build reads %d; left out\n", version, CONS_SAVE_VERSION);
+        if (trace_fp) traceSaveLeftOut( version );
         return;
     }
     readNamesSection();

@@ -131,5 +131,11 @@ class Sound(unittest.TestCase):
         self.assertIn('delay asks for 85130 ms (1.4 minutes), at gamespeed 10 %', out)
 
 
+    def test_save_data_left_out_while_reloading(self):
+        out = check([{'t': 'roundtrip', 'pg': 1, 'slot': 999, 'at': '*a:2'},
+                     {'t': 'warn', 'pg': 1, 'what': 'save data left out', 'version': 29, 'reads': 30, 'at': '*a:2'}])
+        self.assertIn('without its CONscripter data (version 29, this build reads 30)', out)
+
+
 if __name__ == '__main__':
     unittest.main()

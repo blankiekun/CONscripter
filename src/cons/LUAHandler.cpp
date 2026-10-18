@@ -1218,6 +1218,7 @@ const char *cons_prelude =
 "      if ks and xs then out[#out+1] = '[' .. ks .. ']=' .. xs end\n"
 "    end\n"
 "    path[v] = nil\n"
+"    table.sort(out) -- the same data, the same chunk: --roundtrip-every compares them\n"
 "    return '{' .. table.concat(out, ',') .. '}'\n"
 "  end\n"
 "end\n"
