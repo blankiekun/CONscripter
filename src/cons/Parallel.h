@@ -70,6 +70,7 @@ namespace parallel {
     void createThread();
   public:
     ~ThreadPool();
+    void stop();
     Thread* newThread(void(*func)(void *body), void* threadData);
     void sync();
   };

@@ -47,16 +47,24 @@ namespace parallel {
         SDL_DestroySemaphore(td->sem);
         return 0;
       }, "Parallel", &thread->threadData);
-      SDL_DetachThread(thread->thread);
       ++threadCreated;
     }
 
     ThreadPool::~ThreadPool() {
+      stop();
+    }
+
+    // Joins the workers: a detached worker still waking up during exit() calls
+    // into SDL after it is unloaded (sdl2-compat), a crash. Call it before
+    // SDL_Quit(): after it SDL3's SDL_WaitThread returns without joining.
+    void ThreadPool::stop() {
       sync();
       for (int i = 0; i < threadCreated; ++i) {
         SDL_AtomicSet(&threads[i].threadData.status, Thread::Status::EXIT);
         SDL_SemPost(threads[i].threadData.sem);
       }
+      for (int i = 0; i < threadCreated; ++i) SDL_WaitThread(threads[i].thread, NULL);
+      threadCreated = 0;
     }
 
     ThreadPool::Thread* ThreadPool::newThread(void(*func)(void *body), void* threadData) {
