@@ -33,6 +33,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <algorithm>
 
 static unsigned int fnvLine( const char *p )
 {
@@ -70,6 +71,13 @@ bool ScriptHandler::textTableExists( const char *lang )
     return fp != NULL;
 }
 
+// memmem, which mingw lacks
+static const char *findBytes( const char *p, const char *end, const char *key, size_t n )
+{
+    const char *r = std::search( p, end, key, key + n );
+    return r == end ? NULL : r;
+}
+
 static bool isIdChar( char c )
 {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
@@ -92,7 +100,7 @@ static int refLine( const char *p, const char *end )
 static std::string firstLanguage( const char *buf, int len )
 {
     const char *key = "language \"";
-    for (const char *p = buf ; (p = (const char*)memmem( p, buf + len - p, key, 10 )) != NULL ; p += 10){
+    for (const char *p = buf ; (p = findBytes( p, buf + len, key, 10 )) != NULL ; p += 10){
         const char *b = p;
         while (b > buf && (b[-1] == ' ' || b[-1] == '\t')) b--;
         if (b != buf && b[-1] != 0x0a && b[-1] != ':') continue;
@@ -154,7 +162,7 @@ void ScriptHandler::expandTextTable( const char *lang )
         const char *s = p;
         while (s < e && (*s == ' ' || *s == '\t')) s++;
         bool command = s < e && ((*s >= 'a' && *s <= 'z') || (*s >= 'A' && *s <= 'Z') || *s == '_');
-        if (id_len > 0 || (command && memmem( s, e - s, "\"^", 2 ))){
+        if (id_len > 0 || (command && findBytes( s, e, "\"^", 2 ))){
             int at = out.size();
             if (id_len > 0){
                 const char *id = (const char*)memchr( p, '^', e - p ) + 1;
