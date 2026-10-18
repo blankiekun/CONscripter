@@ -620,12 +620,13 @@ the second value over `time` ms, then stay. Follow with `print`. Saved
 (restarted on load), cleared by `reset`; while one runs every update redraws
 the whole screen. All go through `ONScripter::screenEffectCommand`.
 
-- `screenshake slot,time,interval,mode,speed_x,speed_y,x0,y0,x1,y1[,end[,curve]]` —
+- `screenshake slot,time,interval,mode,speed_x,speed_y,x0,y0,x1,y1[,end[,curve[,delay]]]` —
   move by up to `x`,`y` px. Mode 0: sine per axis advancing speed/65536 turn
   per ms; mode 1: a fixed 7-point path (next point when speed_x × ms reaches
   65536); mode 2: to and fro, the full size each step, + first (speeds
   unused). `end` > 0 stops it after `end` ms. `curve` (an `spmotion` curve,
-  0 straight) eases the size from x0,y0 to x1,y1.
+  0 straight) eases the size from x0,y0 to x1,y1. `delay` > 0 holds it
+  still for that many ms first; `time` and `end` count from then.
   `screenshake 1,500,16,0,1300,1700,10,10,10,10,500`.
 - `screenripple slot,"map",time,interval,opacity0,opacity1,amp0,amp1,angle,angle_step,phase_step[,blend[,phase]]`
   — each pixel taken from amp × sin(2π(grey/256 + phase/1000)) px away in
