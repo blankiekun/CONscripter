@@ -36,6 +36,8 @@ function click(choice) { // the middle of the choice's first character, from con
 
 (async () => {
   await until(() => seen('consText', 'Page one.'), 60000); // the wasm load and start
+  let kidoku = 0; // kidoku.dat in the save folder: the second start read the first one's
+  try { kidoku = g_cons_module.FS.stat(g_cons_index.savedir + '/kidoku.dat').size; } catch (e) {}
   phase = 'off';
   g_cons_module.consNoTextOverlay = 1;
   enter(); await wait(2000); // page two, no hooks
@@ -52,5 +54,5 @@ function click(choice) { // the middle of the choice's first character, from con
   click(log.find(r => r.phase === 'choice' && r.hook === 'consChoice' && r.text.includes('Left')));
   await until(() => seen('consText', 'Page three.'), 5000);
   await wait(500);
-  fetch('/result', { method: 'POST', body: JSON.stringify({ log, errors }) });
+  fetch('/result', { method: 'POST', body: JSON.stringify({ log, errors, kidoku }) });
 })().catch(e => fetch('/result', { method: 'POST', body: JSON.stringify({ log, errors: errors.concat('smoke.js: ' + e) }) }));
