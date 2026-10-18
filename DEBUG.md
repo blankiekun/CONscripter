@@ -400,7 +400,8 @@ clears what it compares (as a load from the title screen would find it;
 the settings made once in `*define` stay), loads the save, and when the
 same page shows again compares the state
 with the first time: the text, the background, the sprites, the music and
-looping sounds, the filters, the variables, ... Any difference is written
+looping sounds, the filters, the `spmotion` keys, the variables and the Lua
+state, ... Any difference is written
 as a `save/load mismatch` warning, which points at something the save file
 leaves out or the game's `loadgosub` gets wrong:
 
@@ -528,13 +529,14 @@ Text and file names are converted to UTF-8 from the script's encoding.
 ### `meta`: the first record
 
 ```json
-{"t":"meta","schema":2,"engine":"CONscripter 0.18.0","time":"2026-10-14T11:20:43","w":800,"h":600,"utf8":false,"dir":"./",
+{"t":"meta","schema":2,"engine":"CONscripter 0.18.0","save_version":30,"time":"2026-10-14T11:20:43","w":800,"h":600,"utf8":false,"dir":"./",
  "ignore":"22-48,lsp2:12-23","start":{"goto":"s9_l36","vars":"vars.txt"},"auto":{"pages":0,"choice":"first","seed":3},
  "stop":{"until":"s9_l40","max_pages":500}}
 ```
 
 `schema` changes when a record's meaning changes (2 added the records and
-fields marked "schema 2" below). `w`,`h` are the screen
+fields marked "schema 2" below). `save_version` is the version of the
+CONscripter block this build writes in saves and reads (only its own). `w`,`h` are the screen
 size, `utf8` whether the script is UTF-8 (`--enc:utf8`), `dir` the game
 folder (`--root`), `ignore` the `--trace-ignore` list (or `null`), `start`
 how the run started when not from the beginning (`goto` and `vars`, or
@@ -830,7 +832,8 @@ Schema 2 adds these, with their own fields:
 |---|---|---|
 | `long wait` | `cmd`, `ms` | a command asks to wait longer than `--trace-long-wait` (10000 ms): an effect (`print 10,270000`), `wait`, `delay`, `waittimer` (the time left), a fade, a `quake`, or a `btnwait` with a long `btntime`. `ms` is what the script asked for, even when auto-play shortened it, at `speed` (the `gamespeed` percent, when not 100: `delay 8513` at 10 is 85130) |
 | `large image` | `file`, `w`, `h`, `mb` | a picture, as kept after scaling to the screen, takes more memory than `--trace-max-image` (64 MB); once per file. `file` is the tag for a picture without a file (a colour), `null` if none. Every build, the web one too, decodes and draws pictures in software, so a picture's width and height aren't limited (a 24000x600 animation strip works in a browser), only the memory it takes |
-| `save/load mismatch` | `diff` | `--roundtrip-every` found the state changed by saving and loading; `at` is the page compared, `pg` the page after the round trip. `diff` has up to 40 strings `"field: before -> after"` (`none` when absent; a long value is cut to 100 bytes around where the two differ, with `...`): `at`, `text`, `tag`, `bg`, `bgm`, `loopbgm` (` (stopped)` after the names when it no longer plays, or its intro plays with the loop gone), `se <ch>` (looping sounds, with ` vol n` when quieter than 100), `window`, `windowtrans`, `monocro`, `nega`, `flash`, `filter <slot>`, `fx <slot>`, `sprites_hidden`, `sprites2_hidden`, `pushscreen`, `sp <kind> <n>` (the image, then `x,y wxh alpha a cell c filters f`, and `over z` for `spz`, `motion loop` or `motion once` while `spmotion` runs), `%n`, `$n`; `["can't save or load"]` if that failed |
+| `save/load mismatch` | `diff` | `--roundtrip-every` found the state changed by saving and loading; `at` is the page compared, `pg` the page after the round trip. `diff` has up to 40 strings `"field: before -> after"` (`none` when absent; a long value is cut to 100 bytes around where the two differ, with `...`): `at`, `text`, `tag`, `bg`, `bgm`, `loopbgm` (` (stopped)` after the names when it no longer plays, or its intro plays with the loop gone), `se <ch>` (looping sounds, with ` vol n` when quieter than 100), `window`, `windowtrans`, `monocro`, `nega`, `flash`, `filter <slot>`, `fx <slot>`, `sprites_hidden`, `sprites2_hidden`, `pushscreen`, `sp <kind> <n>` (the image, then `x,y wxh alpha a cell c filters f`, and `over z` for `spz`, `motion <mode> <id>` while `spmotion` runs: its mode and the id of its keys, as in its `motion` record), `%n`, `$n`, `lua` (the Lua globals and processes a save keeps, as the save's chunk with keys sorted; a process that changes a global every frame shows here, which `--save-ignore '^lua$'` leaves out); `["can't save or load"]` if that failed |
+| `save data left out` | `version`, `reads` | a save was loaded whose CONscripter block wasn't read: written by a build with another save `version` (this build `reads` only its own), or `version` 0, without the block. Sprite filters, motions, trails, the Lua state and the rest come back at their defaults; stderr says it too |
 | `save place lost` | `place`, `label`, `line` | a save loaded from another build of `0.txt` whose line (by its hash) isn't in its label any more (COMMANDS.md, `savepoint`): `place` is `the save's place` or `a gosub's return place`, `label` and `line` (0 is the `*label` line) where it was, `at` where it resumes |
 | `replay diverged` | `expected` | `--replay` reached a choice at `at`, where the recorded run's was at `expected` |
 | `replay ended` | | `--replay` ran out of recorded choices |

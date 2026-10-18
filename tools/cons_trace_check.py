@@ -494,6 +494,10 @@ class Checker:
                 r.get('from'), r.get('option'), ', '.join(str(o) for o in r.get('options') or [])))
         elif what == 'choices ended':
             self.add('replay', None, at, 'the --choices list ran out here; --replay or --auto-choice picks from here on')
+        elif what == 'save data left out':
+            self.add('error', what, at, 'a save was loaded without its CONscripter data (version %s, this build reads %s): '
+                     'motions, filters, trails, the Lua state and the rest came back at their defaults' % (
+                         r.get('version'), r.get('reads')))
         elif self.reloading:
             pass  # the load of a --roundtrip-every repeats the scene's warnings
         else:

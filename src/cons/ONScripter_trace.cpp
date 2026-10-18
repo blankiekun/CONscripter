@@ -329,8 +329,8 @@ void ONScripter::traceMeta()
     char date[32];
     strftime( date, sizeof(date), "%Y-%m-%dT%H:%M:%S", localtime( &now ) );
     snprintf( buf, sizeof(buf),
-              "{\"t\":\"meta\",\"schema\":2,\"engine\":\"CONscripter %s\",\"time\":\"%s\",\"w\":%d,\"h\":%d,\"utf8\":%s,\"dir\":",
-              CONSCRIPTER_VERSION, date, screen_width, screen_height,
+              "{\"t\":\"meta\",\"schema\":2,\"engine\":\"CONscripter %s\",\"save_version\":%d,\"time\":\"%s\",\"w\":%d,\"h\":%d,\"utf8\":%s,\"dir\":",
+              CONSCRIPTER_VERSION, consSaveVersion(), date, screen_width, screen_height,
               coding2utf16 && coding2utf16->force_utf8 ? "true" : "false" ); // none yet while the options are read
     std::string r = buf;
     traceString( r, archive_path );
@@ -2665,19 +2665,39 @@ void ONScripter::roundtripState( std::map<std::string, std::string> &state )
                   ai.trans < 0 ? 255 : ai.trans, ai.current_cell, ai.num_of_filters );
         v += buf;
         if (ai.z_over >= 0) v += " over " + std::to_string( ai.z_over );
-        if (ai.motion_keys > 0) v += ai.motion_loop ? " motion loop" : " motion once"; // it moves with the time
+        if (ai.motion_keys > 0){ // it moves with the time: its keys and mode, not where it has got to
+            snprintf( buf, sizeof(buf), " motion %s %08x", motionMode( ai ), traceMotionId( ai ) );
+            v += buf;
+        }
     }
     for (int i=0 ; i<script_h.variable_range ; i++){
         ScriptHandler::VariableData &vd = script_h.getVariableData( i );
         if (vd.num) state["%" + std::to_string( i )] = std::to_string( vd.num );
         if (vd.str && vd.str[0]) traceString( state["$" + std::to_string( i )], vd.str );
     }
+#ifdef USE_LUA
+    std::string lua = lua_handler.saveState(); // the globals and processes a save keeps, keys sorted
+    if (!lua.empty() && lua != "return {},{}") state["lua"] = lua;
+#endif
     std::vector<NamedEntry> named;
     namedEntries( named );
     for (size_t i=0 ; i<named.size() ; i++){
         if (named[i].str) traceString( state[named[i].key], named[i].str );
         else              state[named[i].key] = std::to_string( named[i].num );
     }
+}
+
+// A save whose CONscripter block was left out: its sprites' filters,
+// motions, trails, the Lua state and the rest come back at their defaults.
+void ONScripter::traceSaveLeftOut( int version )
+{
+    char buf[128];
+    snprintf( buf, sizeof(buf), "{\"t\":\"warn\",\"pg\":%d,\"what\":\"save data left out\",\"version\":%d,\"reads\":%d,\"at\":",
+              trace_page, version, consSaveVersion() );
+    std::string r = buf;
+    traceAt( r, script_h.getCurrent( true ) );
+    r += '}';
+    traceWrite( r );
 }
 
 // Saves and loads, as savegame and loadgame would (the save holds the
