@@ -23,6 +23,7 @@ for ARCH in arm64 x86_64; do
         fetch_sdl2_image ; build_sdl2_image
         fetch_sdl2_ttf ; build_sdl2_ttf
         fetch_sdl2_mixer ; build_sdl2_mixer
+        fetch_webp ; build_webp
     fi
     cmake -B $BUILD_PATH -S $CMAKELISTS_PATH \
         -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=$BUILD_TYPE \
