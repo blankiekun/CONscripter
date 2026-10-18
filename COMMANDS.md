@@ -765,7 +765,7 @@ the sprite; -n: n times, then as 2; 3: once, then the sprite is removed (as
 `csp`; `lsp` on it ends that and keeps it; saves and `pushscreen` leave it
 out); 4: `spmotion num,4,k,keys...`, once, then repeats from key k on (a
 lead-in, then a loop: the last key should match key k). Under `--auto-play` (not `--real-time`) every motion but loop 1 ends at
-once. `spmotion num` stops. Up to 64 keys.
+once. `spmotion num` stops (back at its place); `spmotion num,2` stops where it is now (its offset/zoom/angle/alpha applied, as loop 2's last key). Up to 64 keys.
 Stays through `lsp`, removed by `csp`, saved (restarted). Another
 `spmotion`, `lsp`, `msp`, `amsp` first finishes a loop 2/-n motion at its
 last key.
@@ -783,6 +783,14 @@ every motion that ends; looping ones are left out); click 1: a click ends
 the wait. What is left (a click, skipping) jumps to the motion's end, and the
 screen is drawn. `spmotion 10,2,...:spmotionwait 10`.
 Impl `ONScripter::spmotionwaitCommand`.
+
+### spmotionclock [cons]
+`spmotionclock num,src` — the next `spmotion` with keys on sprite num starts
+as far in as sprite src's motion has run now (from its start if src has
+none): a motion handed to another sprite goes on with its clock, whether src
+is stopped after this or not. `csp num` drops it; not saved.
+`spmotionclock 11,10:spmotion 10:csp 10:lsp 11,"a.png",0,0:spmotion 11,1,...`.
+Impl `ONScripter::spmotionclockCommand`.
 
 ### effectcurve [cons]
 `effectcurve curve` — ease the next effect (`print` or an effect command

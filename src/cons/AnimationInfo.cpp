@@ -72,6 +72,7 @@ AnimationInfo::AnimationInfo()
     motion_keep = false;
     motion_passes = 0;
     motion_start = motion_next = 0;
+    motion_clock = -1;
     stopMotion();
     trail_passes = trail_alpha = trail_lag = trail_keys = trail_time = 0;
     trail_over = false;
@@ -217,6 +218,7 @@ void AnimationInfo::remove()
     zoom_x = zoom_y = 100;
     zoom_rot = 0;
     stopMotion();
+    motion_clock = -1;
     trail_passes = trail_alpha = trail_lag = trail_keys = trail_time = 0;
     trail_over = false;
     trail_rect.x = trail_rect.y = trail_rect.w = trail_rect.h = 0;
