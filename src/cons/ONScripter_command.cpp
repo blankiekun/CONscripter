@@ -929,7 +929,7 @@ int ONScripter::selectCommand()
         setCurrentLabel( "customsel" );
         return RET_CONTINUE;
     }
-    // CONscripter: selectkeep, auto mode and skip go on after the choice
+    // CONscripter: selectkeep(auto/skip), auto mode and skip go on after the choice
     bool kept_auto = automode_flag, kept_skip = (skip_mode & SKIP_NORMAL) != 0;
     automode_flag = false;
     sentence_font.xy[0] = xy[0];
@@ -948,10 +948,8 @@ int ONScripter::selectCommand()
     }
     while(current_button_state.button <= 0 || current_button_state.button > options ||
           disabled.count( current_button_state.button ) || skip_mode & SKIP_NORMAL);
-    if (select_keep){
-        automode_flag = kept_auto;
-        if (kept_skip) skip_mode |= SKIP_NORMAL;
-    }
+    if (select_keep_auto) automode_flag = kept_auto;
+    if (select_keep_skip && kept_skip) skip_mode |= SKIP_NORMAL;
     if (trace_fp) traceSelect( current_button_state.button );
     if (auto_play_flag) autoPlayChosen( current_button_state.button );
         
@@ -3544,15 +3542,21 @@ int ONScripter::btnwaitCommand()
         waitEventSub(0); // for checking keyup event
         current_button_state.button = 0;
         if (bexec_flag) current_button_state.button = -1;
-        if (skip_mode & SKIP_NORMAL || 
+        if (skip_button > 0 && skip_mode & SKIP_NORMAL){ // CONscripter: clickskipstop 0
+            current_button_state.button = skip_button;
+            sprintf(current_button_state.str, "S%d", skip_button);
+        }
+        else if (skip_mode & SKIP_NORMAL || 
             (skip_mode & SKIP_TO_EOP && (textgosub_clickstr_state & 0x03) == CLICK_WAIT))
             sprintf(current_button_state.str, "SKIP");
         else
             sprintf(current_button_state.str, "CTRL");
+        skip_button = 0;
     }
     else{
         shortcut_mouse_line = 0;
         skip_mode &= ~SKIP_NORMAL;
+        skip_button = 0;
         // CONscripter: a button wait (a choice, a menu) ends auto mode as it ends skip
         if (!textbtn_flag && !bexec_flag) automode_flag = false;
         webStateHook();
