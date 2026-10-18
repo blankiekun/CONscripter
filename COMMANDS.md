@@ -1673,6 +1673,20 @@ wait (at once at a click wait):
 - `_consSetTextSpeed(ms)` — ms per character, 0 instant, -1 the game's.
 - `_consResendText()` — the text hooks again for what is on the screen.
 
+`_consPersist()` acts at once (or, mid-command, at the next wait): it writes
+`gloval.sav`, `kidoku.dat`, the file and label logs and `envdata`, then syncs
+the save folder to IndexedDB (`window.flush_save` when the page has one). The
+engine otherwise writes them at its waits (`gloval.sav` when it changed, at most
+every 2 s; the rest every 30 s), on every platform, and all of them when an app
+goes to the background or a Kobo goes to sleep. A page calls it when it is
+hidden, since phones discard background tabs without an unload event:
+
+```js
+const persist = () => { if (Module._consPersist) Module._consPersist(); };
+document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
+window.addEventListener('pagehide', persist);
+```
+
 ## Save files
 
 [cons] saves end with a `CONS` block (tag, version, then state) after the

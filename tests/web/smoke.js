@@ -54,5 +54,9 @@ function click(choice) { // the middle of the choice's first character, from con
   click(log.find(r => r.phase === 'choice' && r.hook === 'consChoice' && r.text.includes('Left')));
   await until(() => seen('consText', 'Page three.'), 5000);
   await wait(500);
+  const FS = g_cons_module.FS, envdata = () => String(FS.readdir('/cons').slice(2).some(d => FS.readdir(`/cons/${d}`).includes('envdata')));
+  log.push({ phase: 'persist', hook: 'envdata', text: envdata() }); // written only on quit before
+  g_cons_module._consPersist();
+  log.push({ phase: 'persist', hook: 'envdata', text: envdata() });
   fetch('/result', { method: 'POST', body: JSON.stringify({ log, errors, kidoku }) });
 })().catch(e => fetch('/result', { method: 'POST', body: JSON.stringify({ log, errors: errors.concat('smoke.js: ' + e) }) }));

@@ -2745,6 +2745,9 @@ EMSCRIPTEN_KEEPALIVE void consSetRuby( int on ){ pushWebEvent( ONScripter::WEB_S
 EMSCRIPTEN_KEEPALIVE void consSetTextSpeed( int ms ){ pushWebEvent( ONScripter::WEB_SET_TEXT_SPEED, ms ); }
 // the text hooks again for what is on the screen (after consNoTextOverlay is cleared)
 EMSCRIPTEN_KEEPALIVE void consResendText(){ pushWebEvent( ONScripter::WEB_RESEND_TEXT, 0 ); }
+// gloval.sav, kidoku.dat, the logs and envdata written and synced now (the page hidden)
+extern ONScripter ons;
+EMSCRIPTEN_KEEPALIVE void consPersist(){ ons.persistNow(); }
 }
 #endif
 

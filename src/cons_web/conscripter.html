@@ -252,6 +252,11 @@
                 });
             }
 
+            // the page hidden (a phone may discard it without unload): gloval.sav, kidoku.dat and the rest now
+            function cons_persist() { if (g_cons_module._consPersist) g_cons_module._consPersist(); }
+            document.addEventListener('visibilitychange', ()=>{ if (document.hidden) cons_persist(); });
+            window.addEventListener('pagehide', cons_persist);
+
             // fetch file from the remote server, and write them to local fs
             async function fetch_file(_FS, path, filemap) {
                 var fnode = filemap[path];

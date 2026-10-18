@@ -180,7 +180,7 @@ bool ScriptHandler::commitReplacement( FILE *fp, const std::string &path, bool w
 {
     std::string tmp = path + ".tmp";
     bool ok = written && fflush( fp ) == 0 && !ferror( fp );
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(WEB) // the web's fsync is an IndexedDB sync that sleeps (ASYNCIFY); each writer syncs after
     if (ok) fsync( fileno( fp ) );
 #endif
     if (fclose( fp ) != 0) ok = false;
