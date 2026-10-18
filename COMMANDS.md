@@ -1704,6 +1704,11 @@ No command involved:
   name, or a save's string, that isn't valid UTF-8 is read as Shift-JIS
   (written while the game's script was Shift-JIS). `itoa2` and `%var` in text give half-width
   digits (as ONScripter-jh). Characters past U+FFFF aren't drawn.
+- **Fallback font**: a character the font lacks (a box otherwise) is
+  measured and drawn from `fallback.ttf` in the font's folder (the game's
+  for `default.ttf`), at the same size, on the font's baseline. No
+  file, or a font with every glyph: drawn as before. The converter writes
+  one (IPA Gothic) when `--font` lacks Japanese.
 - **`screen`'s `arg`** from a Shift-JIS script reaches the table in UTF-8
   (it was shown garbled).
 - **Web**: `ons_args` fetched in lazily loaded games; `gloval.sav` written

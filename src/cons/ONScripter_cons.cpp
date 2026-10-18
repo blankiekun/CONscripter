@@ -4666,7 +4666,7 @@ int ONScripter::hankakuExtra( FontInfo *glyph_info, const char *c )
     }
     else if ((*c & 0xe0) == 0xa0 || (*c & 0xe0) == 0xc0) unicode = unicode - 0xa0 + 0xff60; // half-width kana, as drawGlyph
     int a, adv;
-    if (TTF_GlyphMetrics((TTF_Font*)glyph_info->ttf_font[0], unicode, &a, &a, &a, &a, &adv) != 0) return 0;
+    if (TTF_GlyphMetrics((TTF_Font*)FontInfo::glyphFont(glyph_info->ttf_font[0], unicode), unicode, &a, &a, &a, &a, &adv) != 0) return 0;
     return adv * screen_ratio2 / screen_ratio1 - glyph_info->font_size_xy[0] / 2;
 }
 
