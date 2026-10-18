@@ -36,3 +36,17 @@ function build_sdl2_image() { build_autotools SDL2_image $SDL2_IMAGE_SRC --enabl
     --disable-webp --disable-tif --disable-jxl --disable-avif; }
 function build_sdl2_ttf() { build_autotools SDL2_ttf $SDL2_TTF_SRC --disable-harfbuzz; }
 function build_sdl2_mixer() { build_autotools SDL2_mixer $SDL2_MIXER_SRC; }
+
+# SDL2_image is built without WebP (and ImageIO has none): the engine decodes it with libwebp (USE_WEBP)
+function build_webp()
+{
+    echo "## WEBP_SRC=$WEBP_SRC"
+    rm -rf $WEBP_SRC/build_darwin_$ARCH
+    cmake -S $WEBP_SRC -B $WEBP_SRC/build_darwin_$ARCH \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$PORTBUILD_PATH -DCMAKE_OSX_ARCHITECTURES=$ARCH \
+        -DBUILD_SHARED_LIBS=OFF -DWEBP_BUILD_ANIM_UTILS=OFF -DWEBP_BUILD_CWEBP=OFF -DWEBP_BUILD_DWEBP=OFF \
+        -DWEBP_BUILD_GIF2WEBP=OFF -DWEBP_BUILD_IMG2WEBP=OFF -DWEBP_BUILD_VWEBP=OFF \
+        -DWEBP_BUILD_WEBPINFO=OFF -DWEBP_BUILD_WEBPMUX=OFF -DWEBP_BUILD_EXTRAS=OFF \
+        -DWEBP_BUILD_LIBWEBPMUX=OFF
+    make -C $WEBP_SRC/build_darwin_$ARCH install -j$CORE_NUM
+}

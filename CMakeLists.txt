@@ -122,6 +122,7 @@ function(config_darwin TARGET_NAME)
         target_link_options(${TARGET_NAME} PRIVATE "-flto")
     endif()
 
+    config_simd(${TARGET_NAME})
     include(FindPkgConfig)
     if(STATIC_PORT_ROOT) # script/cross_darwin.sh: static ports, PKG_CONFIG_LIBDIR points at them
         pkg_check_modules(SDL2_PORTS REQUIRED SDL2_ttf SDL2_image SDL2_mixer)
@@ -131,9 +132,11 @@ function(config_darwin TARGET_NAME)
         )
         target_link_libraries(${TARGET_NAME} PRIVATE
             ${STATIC_PORT_ROOT}/lib/liblua.a
+            ${STATIC_PORT_ROOT}/lib/libwebpdecoder.a
             bz2 # macOS's own
             ${SDL2_PORTS_STATIC_LDFLAGS}
         )
+        target_compile_definitions(${TARGET_NAME} PRIVATE USE_WEBP)
         return()
     endif()
     pkg_check_modules(SDL2 REQUIRED sdl2)
@@ -157,7 +160,6 @@ function(config_darwin TARGET_NAME)
             ${SDL2_IMAGE_LINK_LIBRARIES}
             ${SDL2_MIXER_LINK_LIBRARIES}
     )
-    config_simd(${TARGET_NAME})
 endfunction()
 
 function(config_windows_msys2 TARGET_NAME)
