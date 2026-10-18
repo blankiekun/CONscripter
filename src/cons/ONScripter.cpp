@@ -840,6 +840,7 @@ void ONScripter::reset()
     new_line_skip_flag = false;
     text_on_flag = true;
     draw_cursor_flag = false;
+    define_window = false; // CONscripter
 
     setStr(&getret_str, NULL);
     getret_int = 0;
