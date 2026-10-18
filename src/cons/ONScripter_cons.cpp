@@ -50,7 +50,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 31 // the "Version n" comments below name the parts in the order they are
+#define CONS_SAVE_VERSION 32 // the "Version n" comments below name the parts in the order they are
                             // written (version 26's first). A new part goes at the end; loading
                             // reads the parts an older save has and leaves the rest at their defaults
 #define CONS_SAVE_OLDEST  18 // the oldest block loading reads: version 18 reshaped earlier parts
@@ -1704,6 +1704,21 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         writeInt( ai.screen_mask_xy[0], output_flag );
         writeInt( ai.screen_mask_xy[1], output_flag );
     }
+
+    // Version 32: the sprites spfadeto fades (their masks above): the
+    // count, then per sprite its number, from, to, softness, form, curve,
+    // ms, frames and how far in it is (ms; the whole time once done).
+    num = 0;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (sprite_info[i].fade_on && sprite_info[i].screen_mask >= 0) num++;
+    writeInt( num, output_flag );
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        AnimationInfo &ai = sprite_info[i];
+        if (!ai.fade_on || ai.screen_mask < 0) continue;
+        int e = ai.fade_frame < 0 ? ai.fade_ms : (int)SDL_GetTicks() - ai.fade_start;
+        int v[9] = {i, ai.fade_from, ai.fade_to, ai.fade_soft, ai.fade_form, ai.fade_curve, ai.fade_ms, ai.fade_frames, e < ai.fade_ms ? e : ai.fade_ms};
+        for (int k=0 ; k<9 ; k++) writeInt( v[k], output_flag );
+    }
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -1799,6 +1814,8 @@ void ONScripter::loadSaveFileCons()
         sprite_info[i].trail_over = false;
         sprite_info[i].trail_rect.w = sprite_info[i].trail_rect.h = 0;
         sprite_info[i].screen_mask = -1; // older saves have none
+        sprite_info[i].fade_on = false; // spfadeto: older saves have none
+        sprite_info[i].fade_frame = -1;
     }
     dirty_rect.fill( screen_width, screen_height );
     setPlaytime( 0 ); // older saves have none
@@ -2229,6 +2246,21 @@ void ONScripter::loadSaveFileCons()
             sprite_info[no].screen_mask_xy[1] = y;
         }
         delete[] name;
+    }
+
+    if (version < 32) return;
+    num = readInt();
+    for (int n=0 ; n<num ; n++){
+        int v[9];
+        for (int k=0 ; k<9 ; k++) v[k] = readInt();
+        if (v[0] < 0 || v[0] >= MAX_SPRITE_NUM || sprite_info[v[0]].screen_mask < 0 || v[7] < 1) continue;
+        AnimationInfo &ai = sprite_info[v[0]];
+        ai.fade_on = true;
+        ai.fade_from = v[1]; ai.fade_to = v[2]; ai.fade_soft = v[3]; ai.fade_form = v[4];
+        ai.fade_curve = v[5]; ai.fade_ms = v[6]; ai.fade_frames = v[7];
+        ai.fade_start = (int)SDL_GetTicks() - v[8]; // (going on from there)
+        fadeToFrame( ai, 0 );
+        stepSpriteFade( ai, SDL_GetTicks() );
     }
 }
 

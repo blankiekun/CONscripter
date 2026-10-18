@@ -793,6 +793,8 @@ int ONScripter::spmaskCommand()
     }
     AnimationInfo &ai = sprite_info[no];
     if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+    ai.fade_on = false; // (ends spfadeto's)
+    ai.fade_frame = -1;
     ai.screen_mask = -1; // (frees its slot for the one loaded now)
     ai.screen_mask = name.empty() ? -1 : screenMaskSlot( name.c_str() );
     ai.screen_mask_xy[0] = x;
@@ -829,6 +831,128 @@ int ONScripter::screenMaskSlot( const char *name )
     return free_slot;
 }
 
+/* spfadeto num,"mask",ms,from,to,softness[,form[,curve]]
+ *   Fades lsp sprite num through the mask's grey levels, from level from
+ *   to level to (0-1000, 1000 whole), over ms while the script goes on:
+ *   the mask (its green), stretched over the screen and fixed there, is
+ *   read through a table that shows the sprite where the grey is at most
+ *   the level × 0.255 and fades it out over the levels above it, losing
+ *   255 × 255 ÷ (softness × level) a grey (softness 0: a hard edge).
+ *   The table is made at 60 frames a second as Muramasa.exe makes it
+ *   (transition_start 0044fe00, each frame 00457bf0), so a fade that
+ *   falls keeps what the start's ramp left above from. form 1: Full
+ *   Metal Daemon Muramasa's (Mware's psUpdateTransitionRule): grey u
+ *   (0-1) shows sat(k(n − u) + u·n), k = 2000 ÷ softness, n the level
+ *   ÷ 1000. curve as spmotion's. Ended at 1000 the sprite is drawn whole
+ *   (as "spmask num"); at another level it stays masked. Drawn by spmask's
+ *   path: spmask and csp end it; it stays through lsp and is saved
+ *   (going on after a load). Nitroplus's DrawTransition:
+ *   lsp 20,"a.png",0,0:spfadeto 20,"wipe.png",800,0,1000,100:print 1 */
+int ONScripter::spfadetoCommand()
+{
+    int no = script_h.readInt();
+    std::string name = script_h.readStr();
+    int v[6] = {0, 0, 0, 0, 0, 0};
+    for (int k=0 ; k<6 && (script_h.getEndStatus() & ScriptHandler::END_COMMA) ; k++) v[k] = script_h.readInt();
+    if (no < 0 || no >= MAX_SPRITE_NUM){
+        utils::printError("spfadeto: sprite %d out of range\n", no);
+        return RET_CONTINUE;
+    }
+    AnimationInfo &ai = sprite_info[no];
+    if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+    ai.fade_on = false;
+    ai.fade_frame = -1;
+    ai.screen_mask = -1; // (frees its slot for the one loaded now)
+    ai.screen_mask = screenMaskSlot( name.c_str() );
+    ai.screen_mask_xy[0] = ai.screen_mask_xy[1] = 0;
+    if (ai.screen_mask < 0) return RET_CONTINUE; // (the exe draws no transition without its mask)
+    ai.fade_on = true;
+    ai.fade_from = v[1] < 0 ? 0 : v[1] > 1000 ? 1000 : v[1];
+    ai.fade_to = v[2] < 0 ? 0 : v[2] > 1000 ? 1000 : v[2];
+    ai.fade_soft = v[3] < 0 ? 0 : v[3];
+    ai.fade_form = v[4];
+    ai.fade_curve = v[5];
+    ai.fade_frames = v[0] * 60 / 1000 > 1 ? v[0] * 60 / 1000 : 1;
+    ai.fade_ms = v[0] > 0 ? speedTime( v[0] ) : 0; // gamespeed
+    ai.fade_start = SDL_GetTicks();
+    fadeToFrame( ai, 0 );
+    if ((auto_play_flag && !auto_play_real) || still_screen) ai.fade_start -= ai.fade_ms;
+    stepSpriteFade( ai, SDL_GetTicks() );
+    if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+
+    return RET_CONTINUE;
+}
+
+// spfadeto's table made up to frame k of its fade (0: the start's).
+void ONScripter::fadeToFrame( AnimationInfo &ai, int k )
+{
+    unsigned char *t = ai.fade_table;
+    int c = curveAt( ai.fade_curve, (int)((long long)k * 1024 / ai.fade_frames) );
+    if (ai.fade_form == 1){
+        double now = (ai.fade_from + (ai.fade_to - ai.fade_from) * c / 1024.0) / 1000.0;
+        for (int g=0 ; g<256 ; g++){
+            double u = g / 255.0;
+            double x = ai.fade_soft > 0 ? 2000.0 / ai.fade_soft * (now - u) + u * now : (u <= now ? 1 : 0);
+            t[g] = x <= 0 ? 0 : x >= 1 ? 255 : (int)(x * 255 + 0.5);
+        }
+        ai.fade_frame = k;
+        return;
+    }
+    // Muramasa.exe: levels a, b = from, to × 0.255; per = 255 ÷ softness.
+    int a = (int)(ai.fade_from * 0.255), b = (int)(ai.fade_to * 0.255);
+    double per = ai.fade_soft > 0 ? 255.0 / ai.fade_soft : 1e9;
+    // 255 from i on, less by step a grey, until below 0; returns where it stopped.
+    auto ramp = [t]( int i, double step ){
+        for (double v=255 ; i<=255 ; i++, v-=step){
+            t[i] = (unsigned char)v;
+            if (v - step < 0){ i++; break; }
+        }
+        return i;
+    };
+    for (int f=ai.fade_frame < 0 || k == 0 ? 0 : ai.fade_frame + 1 ; f<=k ; f++){
+        if (f == 0){
+            for (int i=0 ; i<256 ; i++)
+                t[i] = a < b ? (i < a ? 255 : 0) : (b < a && a < i ? 0 : 255);
+            if (a != 0) ramp( a, per * 255 / a );
+            continue;
+        }
+        int d = (int)((long long)abs( a - b ) * curveAt( ai.fade_curve, (int)((long long)f * 1024 / ai.fade_frames) ) / 1024);
+        int i = a, p;
+        if (a < b){
+            for ( ; i < d + a + 1 && i <= 255 ; i++) t[i] = 255;
+            p = d + a + 1;
+        }
+        else {
+            for ( ; i > a - d - 1 && i >= 0 ; i--) t[i] = 0;
+            p = a - d - 1 == 0 ? 1 : a - d - 1;
+        }
+        if (i < 0) continue;
+        i = ramp( i, 255.0 / p * per );
+        for ( ; i <= 255 && t[i] != 0 ; i++) t[i] = 0;
+    }
+    ai.fade_frame = k;
+}
+
+// Steps spfadeto's table to the time; at its end drawn whole (level 1000)
+// or none (0). Says whether the table changed.
+bool ONScripter::stepSpriteFade( AnimationInfo &ai, int current_time )
+{
+    if (!ai.fade_on || ai.fade_frame < 0) return false;
+    int e = current_time - ai.fade_start;
+    int k = ai.fade_ms <= 0 || e >= ai.fade_ms ? ai.fade_frames : (int)((long long)e * ai.fade_frames / ai.fade_ms);
+    if (k <= ai.fade_frame && k < ai.fade_frames) return false;
+    fadeToFrame( ai, k );
+    if (k >= ai.fade_frames){
+        ai.fade_frame = -1;
+        if (ai.fade_to >= 1000){ // (the exe drops the table, 00457c58)
+            ai.fade_on = false;
+            ai.screen_mask = -1;
+        }
+        else if (ai.fade_to * 255 / 1000 == 0 && ai.fade_form != 1) memset( ai.fade_table, 0, 256 );
+    }
+    return true;
+}
+
 // spmask's draw: before the sprite is drawn (apply false) the pixels of
 // clip are saved; after it (apply true) each goes back from what was
 // drawn towards what was there by the mask at that screen pixel.
@@ -849,7 +973,11 @@ void ONScripter::screenMaskBlend( SDL_Surface *surface, AnimationInfo *anim, con
             if (!apply){ saved[at] = *p; continue; }
             int mx = x * screen_ratio2 / screen_ratio1 - anim->screen_mask_xy[0];
             int k = 0; // 0-255: how much of the drawn pixel stays
-            if (mrow && mx >= 0 && mx < m->w){
+            if (anim->fade_on){ // spfadeto: stretched over the screen, its green through the table, clear black
+                Uint32 q = ((Uint32*)((Uint8*)m->pixels + (y * m->h / screen_height) * m->pitch))[x * m->w / screen_width];
+                k = (q >> 24) ? anim->fade_table[(q >> 8) & 0xff] : anim->fade_table[0];
+            }
+            else if (mrow && mx >= 0 && mx < m->w){
                 Uint32 q = mrow[mx];
                 k = (q >> 24) * ((((q >> 16) & 0xff) + ((q >> 8) & 0xff) + (q & 0xff)) / 3) / 255;
             }
@@ -1242,6 +1370,8 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
                 changed.add( drawnRect( ai ) );
             }
         }
+        if (stepSpriteFade( ai, current_time ) && ai.visible && ai.image_surface) // spfadeto
+            changed.add( drawnRect( ai ) );
         if ((ai.motion_keys == 0 && ai.trail_keys == 0) || ai.motion_next > current_time) continue;
         // After a long stop (a menu, a load) go on from now.
         if (current_time - ai.motion_next > 1000){
@@ -1336,6 +1466,10 @@ int ONScripter::nextSpriteMotionTime()
             int next = ai.wave_start + (ai.wave_tick + 1) * (step > 0 ? step : 1);
             int end = ai.wave_start + ai.wave_ms;
             if (end > (int)SDL_GetTicks() && next > end) next = end;
+            if (min == 0 || min > next) min = next;
+        }
+        if (ai.fade_on && ai.fade_frame >= 0){ // spfadeto: its next frame
+            int next = ai.fade_start + (int)(((long long)(ai.fade_frame + 1) * ai.fade_ms + ai.fade_frames - 1) / ai.fade_frames); // (rounded up: k reached then)
             if (min == 0 || min > next) min = next;
         }
         if (ai.motion_keys == 0 && ai.trail_keys == 0) continue;

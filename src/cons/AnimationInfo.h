@@ -224,6 +224,15 @@ public:
        by remove(). */
     int screen_mask, screen_mask_xy[2];
 
+    /* CONscripter: spfadeto: screen_mask's mask (stretched over the screen)
+       read through fade_table, grey (its green) to how much of the sprite
+       shows, when fade_on; the table moves from fade_from to fade_to
+       (0-1000) over fade_frames 60 fps frames in fade_ms from fade_start,
+       fade_frame the last one made (-1: done). Reset by remove(). */
+    bool fade_on;
+    int fade_from, fade_to, fade_soft, fade_form, fade_curve, fade_ms, fade_frames, fade_frame, fade_start;
+    unsigned char fade_table[256];
+
     int font_size_xy[2]; // used by prnum and lsp string
     int font_pitch[2]; // used by lsp string
     int next_time;

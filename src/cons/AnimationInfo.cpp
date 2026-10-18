@@ -82,6 +82,8 @@ AnimationInfo::AnimationInfo()
     clip_rect[0] = clip_rect[1] = clip_rect[2] = clip_rect[3] = clip_rect[4] = clip_rect[5] = 0;
     screen_mask = -1;
     screen_mask_xy[0] = screen_mask_xy[1] = 0;
+    fade_on = false;
+    fade_frame = -1;
 
     if (!is_inv_alpha_lut_initialized){
         inv_alpha_lut[0] = 255;
@@ -229,6 +231,8 @@ void AnimationInfo::remove()
     clip_rect[0] = clip_rect[1] = clip_rect[2] = clip_rect[3] = clip_rect[4] = clip_rect[5] = 0;
     screen_mask = -1;
     screen_mask_xy[0] = screen_mask_xy[1] = 0;
+    fade_on = false;
+    fade_frame = -1;
 }
 
 void AnimationInfo::stopMotion()
