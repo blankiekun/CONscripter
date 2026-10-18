@@ -26,6 +26,7 @@
 #include "ONScripter.h"
 #include "Utils.h"
 #include "coding2utf16.h"
+#include "Parallel.h"
 #if defined(KOBO)
 #include "kobo.h"
 #endif
@@ -1779,6 +1780,9 @@ void ONScripter::quit()
     SDL_FreeSurface(effect_tmp_surface);
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
+#ifdef USE_PARALLEL
+    parallel::threadPool.stop();
+#endif
     SDL_Quit();
 }
 
