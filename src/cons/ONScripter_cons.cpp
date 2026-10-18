@@ -3533,7 +3533,7 @@ void ONScripter::playMovieHoldWeb( const char *path )
         SDL_ConvertSurfaceFormat( ai->image_surface, SDL_PIXELFORMAT_ABGR8888, 0 ) : NULL; // RGBA in memory
     int ms = rgba && ai->is_animatable && ai->duration_list ? ai->duration_list[0] : 0;
     EM_ASM({
-        playVideoHold(g_cons_module.UTF8ToString($0), $1 ? HEAPU8.slice($1, $1 + $3 * $4) : null, $2, $4, $3 >> 2,
+        playVideoHold(g_cons_module.UTF8ToString($0), $1 ? HEAPU8.slice($1 >>> 0, ($1 >>> 0) + $3 * $4) : null, $2, $4, $3 >> 2,
                       $5, $6, $7, $8, $9, $10);
     }, path, rgba ? rgba->pixels : NULL, rgba ? rgba->w : 0, rgba ? rgba->pitch : 0, rgba ? rgba->h : 0,
        rgba ? ai->num_of_cells : 1, ms, rgba ? ai->pos.x : 0, rgba ? ai->pos.y : 0, screen_width, screen_height);
@@ -3681,7 +3681,7 @@ bool movieFrame(SpriteMovie *s, int)
     bool got = EM_ASM_INT({
         var d = consMovieFrame($0, $2, $3);
         if (!d) return 0;
-        HEAPU8.set(d, $1);
+        HEAPU8.set(d, $1 >>> 0);
         return 1;
     }, s->id, s->frame.data(), s->w, s->h);
     if (!got && EM_ASM_INT(return consMovieEnded($0);, s->id)) s->ended = true;

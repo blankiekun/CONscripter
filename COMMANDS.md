@@ -1649,6 +1649,11 @@ The engine calls these on `self` when defined:
 | `consMode(auto, skip)` | auto/skip start or stop | 0/1 each |
 | `consWindow(x, y, w, h, shown)` | text window moves, resizes, shows, hides | rectangle, 1/0 |
 | `consLanguage(code)` | at the first wait after `language` changed it | the code as given (`'ja'`, `'en'`) |
+| `consPreload(fd, offset, length)` | before each read from a game file or archive entry (`webPreload` in `onscripter_main.cpp`) | the file's FS stream fd, byte offset, length (`0xffffffff`: the whole file); return true once those bytes can be read; while it returns false the engine sleeps 1 ms and asks again, so the page loads them asynchronously meanwhile |
+
+A page that reads game files on demand (the site's player) must answer the
+file's `stream_ops.read` synchronously for any range `consPreload` returned true for.
+Without the hook the engine reads straight through the FS.
 
 `--no-text-overlay` (on the command line or in `ons_args`), or `consNoTextOverlay: 1`
 on the module object the page passes to `cons()`, stops `consText`, `consChoice`,

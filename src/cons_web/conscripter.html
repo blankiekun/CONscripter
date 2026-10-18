@@ -2,14 +2,15 @@
 <html>
     <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
         <meta cons_js="conscripter.js">
         <meta cons_index="cons_index.json">
         <title>CONscripter v0.31.0</title>
     </head>
     <body style="margin: 0 auto; background-color:black;">
-        <canvas id="canvas" oncontextmenu="event.preventDefault()" style="margin: 0 auto; display: block;"></canvas> 
-        <video id="video" onended="videoEnded()" style="margin: 0 auto; display: none;"></video>        
+        <canvas id="canvas" oncontextmenu="event.preventDefault()" style="margin: 0 auto; display: block; touch-action: none;"></canvas> 
+        <video id="video" onended="videoEnded()" style="margin: 0 auto; display: none; touch-action: none;"></video>        
         <script type="text/javascript"> // browser universe function
             function scale_full(docobj, ratio=0) {
                 var w = window.innerWidth;
@@ -237,11 +238,17 @@
         
         <script type="text/javascript"> // cons C interface of val or function
             
-            // flush the savedir to IDFBFS for persistence
-            function flush_save() { 
+            // flush the savedir to IDFBFS for persistence, one syncfs at a time:
+            // a flush asked for while one runs is done once it finishes
+            var g_flush_busy = false, g_flush_again = false;
+            function flush_save() {
+                if(g_flush_busy) { g_flush_again = true; return; }
+                g_flush_busy = true;
                 g_cons_module.FS.syncfs(false, (err)=>{
                     if(err) console.log(err);
                     else console.log("## cons_fs: flush_save, sync finished");
+                    g_flush_busy = false;
+                    if(g_flush_again) { g_flush_again = false; flush_save(); }
                 });
             }
 
@@ -253,15 +260,17 @@
                         res(0);
                     }
                     else{
-                        if(fnode.loaded) res(1);
+                        if(fnode.loaded) { res(1); return; }
                         fetch(fnode.url).then( (resp)=>{
+                            if(!resp.ok) throw new Error(resp.status + " " + resp.statusText);
                             return resp.arrayBuffer();
                         }).then((data)=>{
                             _FS.writeFile(path, new Uint8Array(data));
                             fnode.loaded = true;
                             res(1);
                         }).catch((err)=>{
-                            console.log("## fetch_file ${path}", err);
+                            console.log(`## fetch_file ${path}`, err);
+                            fnode.loaded = true; // settled: fopen_ons stops waiting and finds no file
                             res(-1);
                         })
                     }
@@ -289,7 +298,7 @@
                 
                 // lazyindex is deprecated as the sync sound problem
                 if(g_cons_index.lazyindex && g_cons_index.lazyindex!=""){
-                    mount_onsgame2(g_cons_module, g_cons_index.gamedir, 
+                    mount_game2(g_cons_module, g_cons_index.gamedir, 
                         g_cons_index.lazyindex, urlbase);
                 }
                 else{
@@ -350,6 +359,9 @@
                     body.requestFullscreen({ navigationUI: "show" })
                     .then(()=>{ // can not use canvas.requestFullscreen
                         console.log("## after requestFullscreen");
+                        // landscape on phones; only in fullscreen on Android, iOS has no lock
+                        if(screen.orientation && screen.orientation.lock)
+                            screen.orientation.lock('landscape').catch(()=>{});
                     });
                 }
                 else {
