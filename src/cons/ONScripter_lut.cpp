@@ -236,6 +236,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"maxkaisoupage",	&ONScripter::maxkaisoupageCommand},
 
     {"language",		&ONScripter::languageCommand},
+    {"assetlayer",		&ONScripter::assetlayerCommand},
     {"luasub",			&ONScripter::luasubCommand},
     {"luacall",			&ONScripter::luacallCommand},
     {"lsph2sub",		&ONScripter::lsp2Command},

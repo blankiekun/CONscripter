@@ -590,6 +590,7 @@ handles the wait.
 | `wait` | The milliseconds the script asked to wait since the last page: text drawn a character at a time, `wait`, `delay`, effects. Auto-play skips them, so this is what a player would wait |
 | `presents` | The frames put on the screen since the last page (omitted when none); the `end` record has the run's total. Under the virtual clock they repeat run to run |
 | `px` | A checksum of the screen as shown (FNV-1a of its pixels), for `--diff` |
+| `read` | With `kidokuskip`: whether the page's last text line was read before (kidoku.dat) |
 | `window` | Whether the text window is shown |
 | `windowtrans` | The text window picture's opacity (`windowtrans`), when not 255 |
 | `monocro` | The colour of `monocro`, as `"#rrggbb"`, while it is on |

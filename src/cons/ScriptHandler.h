@@ -31,6 +31,7 @@
 #include <string.h>
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include "BaseReader.h"
 #include "coding2utf16.h"
 
@@ -246,6 +247,24 @@ public:
     LabelInfo getLabelInfo( int index ){ return label_info[index]; };
     void writeKidokuCons( FILE *fp );
     void readKidokuCons( FILE *fp );
+    // CONscripter (ONScripter_strtab.cpp): text tables. A line `^id` of
+    // 0.txt, and a string "^id" in a command, take the text of id in
+    // text.<language>.txt; lineHash is then the 0.txt line's, so saves and
+    // read marks keep their places in any language.
+    bool hasTextRefs(){ return text_refs; }
+    const std::string &getTextTable(){ return text_table; }
+    bool textTableExists( const char *lang );
+    unsigned int lineHash( const char *line );
+    unsigned int textHash( const char *line ); // of the line as it is
+    bool isTableLine( const char *line ){ return inScript( line ) && table_line_hash.count( (int)(line - script_buffer) ) > 0; }
+    // Reads 0.txt again with the table of lang; each pointer into the old
+    // script is moved to the same place in the new one.
+    void reloadScript( const char *lang, std::vector<char**> &pointers );
+    void scriptPointers( std::vector<char**> &pointers );
+    // ONScripter_savepoint.cpp: a script place that survives a rebuild
+    struct Place{ int label, line, offset, waits; unsigned int hash; };
+    bool placeOf( char *address, Place &place );
+    char *addressOf( const Place &place );
 
     ArrayVariable *getRootArrayVariable();
     void loadArrayVariable( FILE *fp );
@@ -407,6 +426,11 @@ private:
     LabelInfo *label_info;
     int num_of_labels;
     std::unordered_map<std::string, int> label_index; // CONscripter: lowercased name -> index
+    // CONscripter: text tables (ONScripter_strtab.cpp)
+    bool text_refs = false;
+    std::string text_table;
+    std::unordered_map<int, unsigned int> table_line_hash; // offset of a line a table filled -> its 0.txt line's hash
+    void expandTextTable( const char *lang );
 
     bool skip_enabled;
     bool kidokuskip_flag;

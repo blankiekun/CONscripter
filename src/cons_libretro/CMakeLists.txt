@@ -31,6 +31,7 @@ set(SOURCES
   ../cons/ONScripter_audio.cpp
   ../cons/ONScripter_trace.cpp
   ../cons/ONScripter_savepoint.cpp
+  ../cons/ONScripter_strtab.cpp
   ../cons/ONScripter_names.cpp
   ../cons/ONScripter_warp.cpp
   ../cons/ONScripter_screen.cpp

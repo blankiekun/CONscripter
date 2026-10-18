@@ -268,6 +268,7 @@ int ScriptParser::openScript()
         script_h.cBR = new DirectReader( archive_path, key_table );
         script_h.cBR->open();
     }
+    script_h.cBR = new LayerReader( script_h.cBR ); // CONscripter: asset layers
     
     if ( script_h.openScript( archive_path ) ) return -1;
 

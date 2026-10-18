@@ -535,7 +535,7 @@ int ScriptParser::nsaCommand()
     }
     
     delete script_h.cBR;
-    script_h.cBR = new NsaReader( nsa_offset, archive_path, BaseReader::ARCHIVE_TYPE_NSA|BaseReader::ARCHIVE_TYPE_NS2, key_table );
+    script_h.cBR = new LayerReader( new NsaReader( nsa_offset, archive_path, BaseReader::ARCHIVE_TYPE_NSA|BaseReader::ARCHIVE_TYPE_NS2, key_table ) ); // CONscripter: asset layers
     if ( script_h.cBR->open( nsa_path ) ){
         utils::printError(" *** failed to open nsa or ns2 archive, ignored.  ***\n");
     }

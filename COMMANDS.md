@@ -437,7 +437,38 @@ Impl `ONScripter::windowtransCommand`.
 `language "code"` — the language of the text shown from now on (ISO 639-1:
 `"ja"`, `"en"`); the web page is told at the next wait when it changed
 (`consLanguage`, "Web hooks"). Not saved: a script that switches language sets
-it again after a load. Impl `ONScripter::languageCommand`.
+it again after a load. With text tables (below) and a `text.<code>.txt`
+for the code, the script goes on in that table's text: 0.txt is read again
+with it and the game goes on where it is (the gosub stack, a textgosub's
+place in a text line, the read marks are carried over); the page on the
+screen and the backlog keep the text they had. The language is also an
+asset layer (`assetlayer`). Impl `ONScripter::languageCommand`,
+`switchTextTable` (`ONScripter_strtab.cpp`).
+
+### Text tables [cons]
+A line of 0.txt that is `^ID` alone (ID: letters, digits, `_`) is the
+line of that ID in the text table, and so is a string `"^ID"` in a command
+line (`select "^1a2b",*a,…`). The tables are `text.<code>.txt` beside 0.txt,
+one per language, UTF-8 like the script: each line is the ID, a tab, and
+the line as it would stand in 0.txt (tags and all); lines starting with `;`
+and empty lines are skipped. 0.txt is filled in as it is read, from the
+table of its first `language` command, then `language` switches table.
+An ID the table lacks gives an empty line (one error line names the count).
+Saves and `kidoku.dat` keep a filled line by the hash of its `^ID` line,
+the same in every language, and also find it by the hash of its text (a
+save or read mark from a build without tables). Impl
+`ScriptHandler::expandTextTable` (`ONScripter_strtab.cpp`).
+
+### assetlayer [cons]
+`assetlayer "name",on` — with 1, a file the script names (picture, sound,
+movie) is read from `layer\name\<its path>` when that file is there (in an
+archive or loose), else from its path; 0 turns the layer off. Layers turned
+on last come first, then the text language's (`language "en"` reads
+`layer\en\…` first). A game's pictures setting (censored or uncensored)
+and its English pictures live side by side this way; pictures already on
+the screen stay until set again. Not saved: the game sets it again at
+startup. Impl `ONScripter::assetlayerCommand`, `LayerReader`
+(`ONScripter_strtab.cpp`).
 
 ### windowfade [cons]
 `windowfade alpha,ms[,from[,delay]]` — draw the window (picture or colour),
