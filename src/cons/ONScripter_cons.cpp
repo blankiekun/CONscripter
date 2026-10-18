@@ -26,6 +26,7 @@
 #include "DirectReader.h"
 #include <unordered_map>
 #include <algorithm>
+#include <ctype.h>
 #include <climits>
 #include <errno.h>
 #include <math.h>
@@ -4337,10 +4338,11 @@ const unsigned char *ONScripter::filterScreen(SDL_Rect &rect, int &pitch)
 // the game folder); the digits are its 256-byte decryption table. Loose files
 // come first, then these archives, then arc.nsa.
 namespace {
-struct OriginalEntry { FILE *fp; long long offset; size_t stored, size, encrypted; unsigned char k; bool zlib; const unsigned char *table; };
+struct OriginalEntry { FILE *fp; long long offset; size_t stored, size, encrypted; unsigned char k; bool zlib; const unsigned char *table; const std::vector<unsigned char> *xor_key; };
 struct OriginalArchive { FILE *fp; unsigned char table[256]; };
 std::vector<OriginalArchive*> original_archives;
 std::unordered_map<std::string, OriginalEntry> original_files;
+std::unordered_map<std::string, std::vector<unsigned char> > original_xor_keys; // by file, as cons_archives.txt names it
 
 // A zlib stream (RFC 1950/1951) inflated into out, for compressed NPA entries:
 // canonical Huffman decoding a bit at a time, as zlib's puff.c, so no
@@ -4549,6 +4551,7 @@ bool readNpa( OriginalArchive *a, const std::string &folder, const char *path )
         f.size = le32( e+13 );
         f.encrypted = encrypted ? 0x1000 + n : 0;
         f.zlib = h[15] != 0;
+        f.xor_key = NULL;
         f.k = (unsigned char)(((0x87654321u - sum) * n + key12) * (unsigned int)f.size);
         f.table = a->table;
         original_files[originalKey( (folder + "/" + sjisToUTF8( raw.c_str() )).c_str() )] = f;
@@ -4562,7 +4565,49 @@ void loadOriginalArchives( const char *archive_path )
     FILE *fp = fopen( (dir + "cons_archives.txt").c_str(), "r" );
     if (!fp) return;
     char line[1024], kind[16], folder[256], file[256], hex[600];
+    std::unordered_map<std::string, FILE*> range_files; // NULL: can't be opened
     while (fgets( line, sizeof(line), fp )){
+        if (!strncmp( line, "xor\t", 4 )){
+            // xor<TAB>file<TAB>hex key: the file's bytes are XORed with the key, cycled by absolute offset
+            char *f = line + 4, *t = strchr( f, '\t' );
+            if (!t) continue;
+            std::vector<unsigned char> &key = original_xor_keys[std::string( f, t )];
+            key.clear();
+            for (char *h = t + 1 ; isxdigit( (unsigned char)h[0] ) && isxdigit( (unsigned char)h[1] ) ; h += 2){
+                unsigned int b;
+                sscanf( h, "%2x", &b );
+                key.push_back( (unsigned char)b );
+            }
+            continue;
+        }
+        if (!strncmp( line, "range\t", 6 )){
+            // range<TAB>name<TAB>file<TAB>offset<TAB>length: the bytes as they lie in the file
+            std::vector<std::string> w;
+            for (char *p = line + 6, *t ; ; p = t + 1){
+                t = p + strcspn( p, "\t\r\n" );
+                w.push_back( std::string( p, t ) );
+                if (*t != '\t') break;
+            }
+            if (w.size() != 4) continue;
+            std::unordered_map<std::string, FILE*>::iterator f = range_files.find( w[1] );
+            if (f == range_files.end()){
+                f = range_files.insert( std::make_pair( w[1], fopen( (dir + w[1]).c_str(), "rb" ) ) ).first;
+                if (!f->second) utils::printError( "cons_archives: can't open %s\n", (dir + w[1]).c_str() );
+            }
+            if (!f->second) continue;
+            OriginalEntry e;
+            e.fp = f->second;
+            e.offset = strtoll( w[2].c_str(), NULL, 10 );
+            e.stored = e.size = (size_t)strtoull( w[3].c_str(), NULL, 10 );
+            e.encrypted = 0;
+            e.k = 0;
+            e.zlib = false;
+            e.table = NULL;
+            std::unordered_map<std::string, std::vector<unsigned char> >::const_iterator x = original_xor_keys.find( w[1] );
+            e.xor_key = x != original_xor_keys.end() && !x->second.empty() ? &x->second : NULL;
+            original_files[originalKey( w[0].c_str() )] = e;
+            continue;
+        }
         if (sscanf( line, "%15s %255s %255s %599s", kind, folder, file, hex ) != 4 || strcmp( kind, "npa" ) || strlen( hex ) != 512) continue;
         OriginalArchive *a = new OriginalArchive();
         for (int i=0 ; i<256 ; i++){
@@ -4603,6 +4648,11 @@ size_t consOriginalFile( const char *archive_path, const char *file_name, unsign
     if (originalSeek( f.fp, f.offset ) || fread( p, 1, f.stored, f.fp ) != f.stored) return 0;
     for (size_t i=0 ; i<f.stored && i<f.encrypted ; i++)
         p[i] = (unsigned char)(f.table[p[i]] - f.k - i);
+    if (f.xor_key){
+        const std::vector<unsigned char> &key = *f.xor_key;
+        for (size_t i=0, k=(size_t)(f.offset % key.size()) ; i<f.stored ; i++, k = k+1 == key.size() ? 0 : k+1)
+            p[i] ^= key[k];
+    }
     if (f.zlib && inflateZlib( p, f.stored, buffer, f.size ) != f.size){
         utils::printError( "cons_archives: %s doesn't inflate\n", file_name );
         return 0;
