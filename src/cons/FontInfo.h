@@ -69,6 +69,9 @@ public:
     FontInfo();
     void reset();
     void *openFont( char *font_file, int ratio1, int ratio2 );
+    // CONscripter: font (a ttf_font[] entry), or the fallback.ttf font opened
+    // with it when font lacks the glyph and the fallback has it
+    static void *glyphFont( void *font, unsigned short unicode );
     void setTateyokoMode( int tateyoko_mode );
     int getTateyokoMode();
     int getRemainingLine();

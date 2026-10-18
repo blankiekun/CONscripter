@@ -163,6 +163,9 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
     // box-drawing line joins up in "――", the bar doesn't in some fonts.
     if (unicode == 0x2015 && coding2utf16->force_utf8) unicode = 0x2500;
     if (unicode == 0x2500 && !TTF_GlyphIsProvided((TTF_Font*)info->ttf_font[0], unicode)) unicode = 0x2015;
+    // CONscripter: a character the font lacks comes from fallback.ttf
+    TTF_Font *font0 = (TTF_Font*)FontInfo::glyphFont(info->ttf_font[0], unicode);
+    TTF_Font *font1 = (TTF_Font*)FontInfo::glyphFont(info->ttf_font[1], unicode);
 
     int minx, maxx, miny, maxy, advanced;
 #if 0
@@ -170,12 +173,12 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
         (info->is_bold?TTF_STYLE_BOLD:TTF_STYLE_NORMAL) )
         TTF_SetFontStyle( (TTF_Font*)info->ttf_font[0], (info->is_bold?TTF_STYLE_BOLD:TTF_STYLE_NORMAL));
 #endif    
-    TTF_GlyphMetrics( (TTF_Font*)info->ttf_font[0], unicode,
+    TTF_GlyphMetrics( font0, unicode,
                       &minx, &maxx, &miny, &maxy, &advanced );
     //utils::printInfo("min %d %d %d %d %d %d\n", minx, maxx, miny, maxy, advanced,TTF_FontAscent((TTF_Font*)info->ttf_font[0])  );
 
     static SDL_Color fcol={0xff, 0xff, 0xff}, bcol={0, 0, 0};
-    SDL_Surface *tmp_surface = TTF_RenderGlyph_Shaded((TTF_Font*)info->ttf_font[0], unicode, fcol, bcol);
+    SDL_Surface *tmp_surface = TTF_RenderGlyph_Shaded(font0, unicode, fcol, bcol);
     
     SDL_Color scolor = {0, 0, 0};
     SDL_Surface *tmp_surface_s = tmp_surface;
@@ -192,7 +195,7 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
             scolor.b = info->outline & 0xff;
         }
 
-        tmp_surface_s = TTF_RenderGlyph_Shaded((TTF_Font*)info->ttf_font[1], unicode, fcol, bcol);
+        tmp_surface_s = TTF_RenderGlyph_Shaded(font1, unicode, fcol, bcol);
         if (tmp_surface && tmp_surface_s){
             if ((tmp_surface_s->w-tmp_surface->w) & 1) shiftHalfPixelX(tmp_surface_s);
             if ((tmp_surface_s->h-tmp_surface->h) & 1) shiftHalfPixelY(tmp_surface_s);
@@ -206,6 +209,8 @@ void ONScripter::drawGlyph( SDL_Surface *dst_surface, FontInfo *info, SDL_Color 
     dst_rect.y = xy[1];
 
     dst_rect.y -= (TTF_FontHeight((TTF_Font*)info->ttf_font[0]) - info->font_size_xy[1]*screen_ratio1/screen_ratio2)/2;
+    // a fallback glyph sits on the main font's baseline
+    dst_rect.y += TTF_FontAscent((TTF_Font*)info->ttf_font[0]) - TTF_FontAscent(font0);
 
     if ( rotate_flag && IS_TWO_BYTE(text[0]) && tmp_surface ){
         // CONscripter: a full-width mark turned for vertical text (《 「 ―

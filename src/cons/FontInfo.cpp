@@ -46,6 +46,7 @@ static struct FontContainer{
     int size;
     bool italic;
     TTF_Font *font[2];
+    TTF_Font *fallback[2]; // CONscripter: fallback.ttf at the same size, for glyphs font[] lacks
 #if defined(PSP)
     SDL_RWops *rw_ops;
     int power_resume_number;
@@ -57,6 +58,7 @@ static struct FontContainer{
         italic = false;
         next = NULL;
         font[0] = font[1] = NULL;
+        fallback[0] = fallback[1] = NULL;
 #if defined(PSP)
         rw_ops = NULL;
         power_resume_number = 0;
@@ -94,6 +96,40 @@ void FontInfo::reset()
     outline = -1;
     is_transparent = true;
     is_newline_accepted = false;
+}
+
+// CONscripter: "fallback.ttf" next to the main font, NULL when there is none
+static TTF_Font *openFallback( const char *font_file, int size, bool italic, bool outline )
+{
+    const char *slash = strrchr(font_file, '/');
+    const char *bslash = strrchr(font_file, '\\');
+    if (bslash > slash) slash = bslash;
+    int dir_len = slash ? slash - font_file + 1 : 0;
+    char *path = new char[dir_len + 13];
+    sprintf(path, "%.*sfallback.ttf", dir_len, font_file);
+    SDL_RWops *rwops = NULL;
+#if defined(ANDROID) || defined(WEB)
+    FILE *fp = fopen(path, "rb");
+    if (fp) rwops = SDL_RWFromFP(fp, SDL_TRUE);
+#else
+    rwops = SDL_RWFromFile(path, "rb");
+#endif
+    delete[] path;
+    if (rwops == NULL) return NULL;
+    TTF_Font *font = TTF_OpenFontRW(rwops, SDL_TRUE, size);
+    if (font && outline) TTF_SetFontOutline(font, 1);
+    if (font && italic) TTF_SetFontStyle(font, TTF_STYLE_ITALIC);
+    return font;
+}
+
+void *FontInfo::glyphFont( void *font, unsigned short unicode )
+{
+    if (font == NULL || TTF_GlyphIsProvided((TTF_Font*)font, unicode)) return font;
+    for (FontContainer *fc = root_font_container.next ; fc ; fc = fc->next)
+        for (int i=0 ; i<2 ; i++)
+            if (fc->font[i] == font)
+                return fc->fallback[i] && TTF_GlyphIsProvided(fc->fallback[i], unicode) ? fc->fallback[i] : font;
+    return font;
 }
 
 void *FontInfo::openFont( char *font_file, int ratio1, int ratio2 )
@@ -153,6 +189,8 @@ void *FontInfo::openFont( char *font_file, int ratio1, int ratio2 )
             TTF_SetFontStyle(fc->next->font[0], TTF_STYLE_ITALIC);
             if (fc->next->font[1]) TTF_SetFontStyle(fc->next->font[1], TTF_STYLE_ITALIC);
         }
+        for (int i=0 ; i<2 ; i++)
+            fc->next->fallback[i] = openFallback(font_file, font_size * ratio1 / ratio2, is_italic, i == 1);
 
 #endif
     }
