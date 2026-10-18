@@ -256,6 +256,7 @@ public:
     int spzoomCommand();
     int spzCommand();
     int spclipCommand();
+    int spmaskCommand();
     int sptrailCommand();
     int seldisableCommand();
     int spnewCommand(); // ONScripter_names.cpp
@@ -662,6 +663,10 @@ private:
     SDL_Rect trailCopies(AnimationInfo &ai, SDL_Surface *surface, SDL_Rect *clip);
     void drawWithTrail(SDL_Surface *surface, AnimationInfo &ai, SDL_Rect &clip);
     void featherBands(SDL_Surface *surface, const SDL_Rect &r, int f, int colour, const SDL_Rect &clip, std::vector<Uint32> &saved, bool apply);
+    // spmask: the masks loaded (name, ARGB8888 surface), by AnimationInfo::screen_mask
+    std::vector<std::pair<std::string, SDL_Surface*> > screen_masks;
+    int screenMaskSlot( const char *name );
+    void screenMaskBlend( SDL_Surface *surface, AnimationInfo *anim, const SDL_Rect &clip, std::vector<Uint32> &saved, bool apply );
     void endKeptMotion(AnimationInfo &ai);
     void applyMotion(AnimationInfo &ai, const int *v);
     int curveAt(int curve, int p);

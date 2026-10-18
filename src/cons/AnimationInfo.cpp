@@ -80,6 +80,8 @@ AnimationInfo::AnimationInfo()
     wave_ms = wave_start = wave_period = wave_amp0 = wave_amp1 = wave_curve = wave_tick = wave_amp = 0;
     z_over = -1;
     clip_rect[0] = clip_rect[1] = clip_rect[2] = clip_rect[3] = clip_rect[4] = clip_rect[5] = 0;
+    screen_mask = -1;
+    screen_mask_xy[0] = screen_mask_xy[1] = 0;
 
     if (!is_inv_alpha_lut_initialized){
         inv_alpha_lut[0] = 255;
@@ -225,6 +227,8 @@ void AnimationInfo::remove()
     wave_ms = wave_start = wave_period = wave_amp0 = wave_amp1 = wave_curve = wave_tick = wave_amp = 0;
     z_over = -1;
     clip_rect[0] = clip_rect[1] = clip_rect[2] = clip_rect[3] = clip_rect[4] = clip_rect[5] = 0;
+    screen_mask = -1;
+    screen_mask_xy[0] = screen_mask_xy[1] = 0;
 }
 
 void AnimationInfo::stopMotion()
