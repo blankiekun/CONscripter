@@ -42,6 +42,7 @@ Other options add to what the trace holds:
 | Option | Adds |
 |---|---|
 | `--trace-vars 300-899,$10-20` | a `var` record for each change of these variables: numbers alone are `%` variables, `$` before the strings; numbers and ranges, comma-separated (0 to the script's `numalias` range, 4096 by default); a `defvar` or `defstr` name (`%score`, `$who`) watches that one, recorded under its name |
+| `--trace-layers` | a `layers` record on each `print` or effect: what the new screen is drawn from, front to back (below) |
 | `--audio-stats` | an `audio` record for every 100 ms of sound mixed, for each dwave channel playing and for the whole mix (off by default: nothing is counted) |
 | `--trace-perf` | a `perf` record after each page: the frames it put on the screen and the wall-clock ms they cost; `--dump-frames file` writes a line per frame (below) |
 | `--trace-long-wait ms` | a `long wait` warning for each wait, effect or fade the script asks to last longer than this (default 10000) |
@@ -817,6 +818,22 @@ present ms and the page (`pg`):
 
 Written the first time the script runs a command or shows a page in a
 label, so the labels a run reached can be compared with the script's.
+
+### `layers`: the drawing order of a print or effect (`--trace-layers`)
+
+```json
+{"t":"layers","pg":1,"ms":1,"at":"*start:15","order":["lsp 20","text","lsp2 3","lsp 5","lsp 30","lsp 10","bg"]}
+```
+
+Written as a `print`, a `bg` or another command with an effect starts
+(not for effect 0), before its `ev`: what the screen it shows is drawn
+from, frontmost first, as the drawing went (a full redraw of the
+effect's picture): `lsp n`, `lsp2 n`, `ld n` (0 left, 1 centre, 2 right),
+`text` (the page's text), `window` (the text window's picture), `cursor`, `dialog`, `button n`,
+`bar n`, `prnum n`, `other`, and `bg` last. Only what is drawn is listed:
+visible sprites, `spz` and `spovertext` in their places, the handles
+over their layers; ignored sprites are left out. Above, `spz 30,10` put
+30 right over 10, and `spovertext 20` put 20 over the text.
 
 ### `var`: a variable changed (`--trace-vars`, schema 2)
 

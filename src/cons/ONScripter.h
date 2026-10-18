@@ -188,6 +188,7 @@ public:
     bool setScreenFilter(const char *names); // CONscripter: --filter; false on an unknown name
     void setTraceLongWait(int ms); // CONscripter: --trace-long-wait
     void setAudioStats();          // CONscripter: --audio-stats
+    void setTraceLayers();                  // CONscripter: --trace-layers
     void setTraceMaxImage(int mb); // CONscripter: --trace-max-image
     void setRoundtrip(int pages, int slot); // CONscripter: --roundtrip-every, --roundtrip-slot
     void setDumpFrames(const char *path); // CONscripter: --dump-frames
@@ -1233,6 +1234,9 @@ private:
     void traceVarsSetup( bool names=false ); // names: the second pass, once the define section ran
     void traceVarChanges( char *at );
     int trace_long_wait;             // --trace-long-wait ms
+    bool trace_layers = false;       // --trace-layers: a "layers" record on each print or effect
+    std::vector<AnimationInfo*> *layer_record = NULL; // while set, what refreshSurface draws, in order (NULL: the text)
+    void traceLayers();
     bool trace_overflow;             // the page's text went past the window's last line
     std::set<std::string> trace_large_seen; // pictures warned of as large (--trace-max-image)
     static void traceLargeImage( AnimationInfo *ai, int w, int h );

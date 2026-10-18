@@ -777,8 +777,10 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
     
         if (refresh_mode & REFRESH_SHADOW_MODE)
             shadowTextDisplay( surface, clip );
-        if (refresh_mode & REFRESH_TEXT_MODE)
+        if (refresh_mode & REFRESH_TEXT_MODE){
+            if (layer_record) layer_record->push_back( NULL ); // CONscripter: --trace-layers
             blendTextLayer( surface, clip );
+        }
         drawOverTextSprites( surface, clip );
     }
 
@@ -819,8 +821,10 @@ void ONScripter::refreshSurface( SDL_Surface *surface, SDL_Rect *clip_src, int r
     if ( !windowback_flag ){
         if (refresh_mode & REFRESH_SHADOW_MODE)
             shadowTextDisplay( surface, clip );
-        if (refresh_mode & REFRESH_TEXT_MODE)
+        if (refresh_mode & REFRESH_TEXT_MODE){
+            if (layer_record) layer_record->push_back( NULL ); // CONscripter: --trace-layers
             blendTextLayer( surface, clip );
+        }
         drawOverTextSprites( surface, clip );
     }
 

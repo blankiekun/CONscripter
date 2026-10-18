@@ -51,6 +51,7 @@ bool ONScripter::setEffect( EffectLink *effect )
     if (trace_fp){ // CONscripter: the trace records what a print or bg showed with
         trace_effect.clear();
         traceEffect( trace_effect, effect );
+        if (trace_layers && effect->effect != 0) traceLayers();
     }
     if ( effect->effect == 0 ) return true;
     
