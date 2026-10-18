@@ -48,8 +48,10 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 31 // only this version's block is read; the "Version n" comments below
-                            // name the parts in the order they are written (version 26's first)
+#define CONS_SAVE_VERSION 31 // the "Version n" comments below name the parts in the order they are
+                            // written (version 26's first). A new part goes at the end; loading
+                            // reads the parts an older save has and leaves the rest at their defaults
+#define CONS_SAVE_OLDEST  18 // the oldest block loading reads: version 18 reshaped earlier parts
 int consSaveVersion() { return CONS_SAVE_VERSION; }
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
@@ -1794,6 +1796,7 @@ void ONScripter::loadSaveFileCons()
         sprite_info[i].trail_passes = sprite_info[i].trail_keys = 0; // older saves have none
         sprite_info[i].trail_over = false;
         sprite_info[i].trail_rect.w = sprite_info[i].trail_rect.h = 0;
+        sprite_info[i].screen_mask = -1; // older saves have none
     }
     dirty_rect.fill( screen_width, screen_height );
     setPlaytime( 0 ); // older saves have none
@@ -1806,12 +1809,12 @@ void ONScripter::loadSaveFileCons()
         return;
     }
     int version = readInt();
-    if (version != CONS_SAVE_VERSION){ // older layouts aren't read
-        utils::printError("save: CONscripter data version %d, this build reads %d; left out\n", version, CONS_SAVE_VERSION);
+    if (version < CONS_SAVE_OLDEST || version > CONS_SAVE_VERSION){
+        utils::printError("save: CONscripter data version %d, this build reads %d to %d; left out\n", version, CONS_SAVE_OLDEST, CONS_SAVE_VERSION);
         if (trace_fp) traceSaveLeftOut( version );
         return;
     }
-    readNamesSection();
+    if (version >= 26) readNamesSection();
 
     int num = readInt();
     for (int n=0 ; n<num ; n++){
@@ -2122,6 +2125,7 @@ void ONScripter::loadSaveFileCons()
         for (int j=0 ; j<n ; j++) curve_table[c].push_back( readInt() );
     }
 
+    if (version < 19) return; // an older save: the later parts keep their defaults
     char *lua = NULL;
     readStr( &lua );
 #ifdef USE_LUA
@@ -2129,6 +2133,7 @@ void ONScripter::loadSaveFileCons()
 #endif
     delete[] lua;
 
+    if (version < 20) return;
     num = readInt();
     for (int n=0 ; n<num ; n++){
         int no = readInt(), passes = readInt(), alpha = readInt(), lag = readInt();
@@ -2139,6 +2144,7 @@ void ONScripter::loadSaveFileCons()
         ai.trail_lag = lag;
     }
 
+    if (version < 21) return;
     num = readInt();
     for (int i=0 ; i<num ; i++){
         int pan = readInt();
@@ -2147,6 +2153,7 @@ void ONScripter::loadSaveFileCons()
         track_pan[i].from = track_pan[i].to = pan;
     }
 
+    if (version < 22) return;
     num = readInt();
     for (int n=-1 ; n<screen_stack_num ; n++){
         int *z = (n < 0) ? screen_filter_z : screen_stack[n].screen_filter_z;
@@ -2156,8 +2163,10 @@ void ONScripter::loadSaveFileCons()
         }
     }
 
+    if (version < 25) return; // the place is the NScripter data's line
     loadSavePoints();
 
+    if (version < 27) return;
     num = readInt();
     int now = SDL_GetTicks();
     for (int n=0 ; n<num ; n++){
@@ -2174,15 +2183,17 @@ void ONScripter::loadSaveFileCons()
         stepSpriteWave( ai, now );
     }
 
+    if (version < 28) return;
     num = readInt();
     for (int n=0 ; n<num ; n++){
         int no = readInt();
         if (no >= 0 && no < MAX_SPRITE_NUM && sprite_info[no].trail_passes > 0) sprite_info[no].trail_over = true;
     }
 
+    if (version < 29) return;
     num = readInt();
     for (int n=0 ; n<num ; n++){
-        int no = readInt(), f = readInt(), colour = readInt();
+        int no = readInt(), f = readInt(), colour = version >= 30 ? readInt() : 0;
         if (no >= 0 && no < MAX_SPRITE_NUM && sprite_info[no].clip_rect[2] > 0){
             sprite_info[no].clip_rect[4] = f;
             sprite_info[no].clip_rect[5] = colour;
@@ -2194,7 +2205,7 @@ void ONScripter::loadSaveFileCons()
     for (int n=0 ; n<depth ; n++){
         num = readInt();
         for (int m=0 ; m<num ; m++){
-            int i = readInt(), f = readInt(), colour = readInt();
+            int i = readInt(), f = readInt(), colour = version >= 30 ? readInt() : 0;
             ScreenState *st = (n < screen_stack_num) ? &screen_stack[n] : NULL;
             if (st && i >= st->first && i <= st->last){
                 st->sprite[i - st->first].clip_rect[4] = f;
@@ -2203,7 +2214,7 @@ void ONScripter::loadSaveFileCons()
         }
     }
 
-    for (int i=0 ; i<MAX_SPRITE_NUM ; i++) sprite_info[i].screen_mask = -1;
+    if (version < 31) return;
     num = readInt();
     for (int n=0 ; n<num ; n++){
         int no = readInt();
@@ -2734,6 +2745,9 @@ EMSCRIPTEN_KEEPALIVE void consSetRuby( int on ){ pushWebEvent( ONScripter::WEB_S
 EMSCRIPTEN_KEEPALIVE void consSetTextSpeed( int ms ){ pushWebEvent( ONScripter::WEB_SET_TEXT_SPEED, ms ); }
 // the text hooks again for what is on the screen (after consNoTextOverlay is cleared)
 EMSCRIPTEN_KEEPALIVE void consResendText(){ pushWebEvent( ONScripter::WEB_RESEND_TEXT, 0 ); }
+// gloval.sav, kidoku.dat, the logs and envdata written and synced now (the page hidden)
+extern ONScripter ons;
+EMSCRIPTEN_KEEPALIVE void consPersist(){ ons.persistNow(); }
 }
 #endif
 
@@ -2820,20 +2834,28 @@ void ONScripter::webStateHook()
 #endif
 }
 
-// The web build: closing or reloading the tab doesn't quit the engine, so
-// what it writes on quit (gloval.sav, kidoku.dat, the file and label
-// logs) would be lost: the settings, the read marks, the unlocks. At any
-// wait (auto mode reads on with no click wait), at most every 2 seconds,
-// the global variables are written when they changed, and the read marks
-// and the logs (when they grew) every 30 seconds (or with the globals),
-// then the save directory is synced to IndexedDB.
-void ONScripter::webPersistHook()
+// Closing a tab, Android killing an app in the background, a Kobo whose
+// battery runs out asleep and RetroArch closed from the Vita's LiveArea
+// don't quit the engine, so what it writes on quit (gloval.sav, kidoku.dat,
+// the file and label logs, envdata) would be lost: the settings, the read
+// marks, the unlocks. At any wait (auto mode reads on with no click wait),
+// at most every 2 seconds, the global variables are written when they
+// changed, and the read marks and the logs (when they grew) every 30
+// seconds (or with the globals); the web build then syncs the save
+// directory to IndexedDB. force (persistNow, a Kobo going to sleep):
+// everything at once, envdata too.
+void ONScripter::persistHook( bool force )
 {
-#if defined(WEB)
     Uint32 now = SDL_GetTicks();
-    if (web_persist_time && now - web_persist_time < 2000) return;
+    force = force || persist_due;
+    persist_due = false;
+    if (!force && web_persist_time && now - web_persist_time < 2000) return;
     web_persist_time = now;
     bool changed = false;
+    if (force){
+        saveEnvData();
+        changed = true;
+    }
     if (globalon_flag){
         file_io_buf_ptr = 0;
         writeVariables( script_h.global_variable_border, script_h.variable_range, false );
@@ -2865,11 +2887,24 @@ void ONScripter::webPersistHook()
             changed = true;
         }
     }
+#if defined(WEB)
     if (changed) EM_ASM(
         if(window.flush_save) window.flush_save();
         else FS.syncfs(false, (err)=>{console.log(err);});
     );
 #endif
+}
+
+// persistHook's everything now: the page hidden (_consPersist), the app
+// going to the background or ending (persistWatch). At once when the
+// engine is in a wait, whose state is whole; else (mid-command, as a
+// load fetching its pictures, file_io_buf in use) at its next wait.
+// shortcut: on Android persistWatch runs on SDL's Java thread, beside a
+// main thread that is in a wait; a lock would close that small gap.
+void ONScripter::persistNow()
+{
+    if (persist_waiting) persistHook( true );
+    else persist_due = true;
 }
 
 // At each click wait and new page, before consText: where the text is

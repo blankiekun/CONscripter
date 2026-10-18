@@ -1634,7 +1634,7 @@ Code: `src/cons/ONScripter_effect.cpp`, `ONScripter_cons.cpp` (grep `cons_blur` 
 
 ## Web hooks
 
-Code: `ONScripter::webPageHook`, `webStateHook`, `webPersistHook` and the other `EM_ASM` calls in `src/cons/ONScripter_cons.cpp`.
+Code: `ONScripter::webPageHook`, `webStateHook`, `persistHook` and the other `EM_ASM` calls in `src/cons/ONScripter_cons.cpp`.
 The engine calls these on `self` when defined:
 
 | Hook | When | Arguments |
@@ -1673,6 +1673,20 @@ wait (at once at a click wait):
 - `_consSetTextSpeed(ms)` — ms per character, 0 instant, -1 the game's.
 - `_consResendText()` — the text hooks again for what is on the screen.
 
+`_consPersist()` acts at once (or, mid-command, at the next wait): it writes
+`gloval.sav`, `kidoku.dat`, the file and label logs and `envdata`, then syncs
+the save folder to IndexedDB (`window.flush_save` when the page has one). The
+engine otherwise writes them at its waits (`gloval.sav` when it changed, at most
+every 2 s; the rest every 30 s), on every platform, and all of them when an app
+goes to the background or a Kobo goes to sleep. A page calls it when it is
+hidden, since phones discard background tabs without an unload event:
+
+```js
+const persist = () => { if (Module._consPersist) Module._consPersist(); };
+document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
+window.addEventListener('pagehide', persist);
+```
+
 ## Save files
 
 [cons] saves end with a `CONS` block (tag, version, then state) after the
@@ -1681,8 +1695,10 @@ marked "saved" above, plus what NScripter data loses: `strsp` sprites (text,
 font, colours, also in the `pushscreen` stack) and looping `dwave` channels
 (restarted on load). Its first part (version 26) holds the named variables
 (`defvar`, `defstr`, `defarr`; by name) and the `spnew` handles with their
-pictures; the NScripter data holds sprites 0-999. Only the current version's
-block is read: an older save loads its NScripter data alone.
+pictures; the NScripter data holds sprites 0-999. Each new part goes at the
+end, so a block from an older build (version 18 or later) loads the parts it
+has and the newer ones start at their defaults; an older block, or one from
+a newer build, is left out and the save loads its NScripter data alone.
 Code: `CONS_SAVE_MAGIC` in `src/cons/ONScripter_cons.cpp`.
 
 ## Engine behaviour [cons]

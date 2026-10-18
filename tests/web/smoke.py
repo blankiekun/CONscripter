@@ -101,10 +101,14 @@ def main():
         shutil.rmtree(site, ignore_errors=True)
 
     first, second = results
-    failed = check(first, missing, enc)
+    failed = check(first, missing, enc, [("no envdata before _consPersist on the first start", persisted(first)[:1] == ["false"])])
     print("second start, same profile:")
     failed += check(second, [], enc, [("kidoku.dat from the first start is there", second.get("kidoku"))])
     sys.exit(1 if failed else 0)
+
+
+def persisted(result):
+    return [r["text"] for r in result["log"] if r["phase"] == "persist"]
 
 
 def check(result, missing, enc, extra=()):
@@ -129,6 +133,7 @@ def check(result, missing, enc, extra=()):
         ("a click on the disabled option goes nowhere", not [r for r in log if r["hook"] == "consText" and "Page gone." in r["text"]]
          and not calls("disabled", "consText")),
         ("the choice is picked: consText with 'Page three.'", calls("picked", "consText", "Page three.")),
+        ("_consPersist writes envdata at once", persisted(result)[-1:] == ["true"]),
         ("no page errors", not result["errors"]),
         ("no missing files", not missing),
         *extra,

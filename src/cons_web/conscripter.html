@@ -230,8 +230,11 @@
                 console.log("## cons_fs: mount_onssave", savedir);
                 em_mkdirs(_FS, savedir);
                 _FS.mount(_IDBFS, {}, savedir);
+                // the engine starts once the saves are read: a flush before then overlaps this syncfs
+                g_cons_module.addRunDependency("onssavefs");
                 _FS.syncfs(true, (err)=>{
                     if(err) console.log(err);
+                    g_cons_module.removeRunDependency("onssavefs");
                 });
             }
         </script>
@@ -251,6 +254,11 @@
                     if(g_flush_again) { g_flush_again = false; flush_save(); }
                 });
             }
+
+            // the page hidden (a phone may discard it without unload): gloval.sav, kidoku.dat and the rest now
+            function cons_persist() { if (g_cons_module._consPersist) g_cons_module._consPersist(); }
+            document.addEventListener('visibilitychange', ()=>{ if (document.hidden) cons_persist(); });
+            window.addEventListener('pagehide', cons_persist);
 
             // fetch file from the remote server, and write them to local fs
             async function fetch_file(_FS, path, filemap) {
