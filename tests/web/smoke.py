@@ -82,7 +82,7 @@ def main():
             done.clear()
             browser = subprocess.Popen(
                 [chrome, "--headless=new", "--no-sandbox", "--no-first-run", f"--user-data-dir={profile}",
-                 "--autoplay-policy=no-user-gesture-required", "--use-gl=swiftshader", "--enable-unsafe-swiftshader",
+                 "--autoplay-policy=no-user-gesture-required", "--mute-audio", "--use-gl=swiftshader", "--enable-unsafe-swiftshader",
                  f"http://127.0.0.1:{server.server_port}/index.html"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             try:
