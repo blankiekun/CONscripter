@@ -418,6 +418,10 @@ target_compile_definitions(conscripter_libretro PRIVATE
 if (HAVE_NEON)
   target_compile_definitions(conscripter_libretro PRIVATE USE_SIMD USE_SIMD_ARM_NEON)
 endif ()
+if (VITASDK OR NINTENDO_SWITCH OR ANDROID)
+  # blend on every core (Parallel.h's SDL thread pool); not 3DS/Wii U until tested there
+  target_compile_definitions(conscripter_libretro PRIVATE USE_PARALLEL)
+endif ()
 
 # Follow naming conventions for libretro cores
 set_target_properties(conscripter_libretro PROPERTIES PREFIX "")

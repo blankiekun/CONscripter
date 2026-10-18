@@ -1,5 +1,17 @@
 cmake_minimum_required(VERSION 3.16.3)
 project(conscripter)
+include(CheckSymbolExists)
+
+# CONscripter: the SIMD drawing paths wherever the compiler targets SSE2 or NEON
+function(config_simd TARGET_NAME)
+    check_symbol_exists(__SSE2__ "stdint.h" HAVE_SSE2)
+    check_symbol_exists(__ARM_NEON "stdint.h" HAVE_NEON)
+    if(HAVE_SSE2)
+        target_compile_definitions(${TARGET_NAME} PRIVATE USE_SIMD USE_SIMD_X86_SSE2)
+    elseif(HAVE_NEON)
+        target_compile_definitions(${TARGET_NAME} PRIVATE USE_SIMD USE_SIMD_ARM_NEON)
+    endif()
+endfunction()
 
 function(config_linux TARGET_NAME)
     add_executable(${TARGET_NAME} ${CONSCRIPTER_CODE})
@@ -87,6 +99,7 @@ function(config_linux TARGET_NAME)
         )
     endif()
 
+    config_simd(${TARGET_NAME})
 endfunction()
 
 function(config_darwin TARGET_NAME)
@@ -144,6 +157,7 @@ function(config_darwin TARGET_NAME)
             ${SDL2_IMAGE_LINK_LIBRARIES}
             ${SDL2_MIXER_LINK_LIBRARIES}
     )
+    config_simd(${TARGET_NAME})
 endfunction()
 
 function(config_windows_msys2 TARGET_NAME)
@@ -453,6 +467,7 @@ function(config_android TARGET_NAME)
         USE_GLES
         USE_FILELOG
         UTF8_FILESYSTEM
+        USE_WEBP
         SDL_JAVA_PACKAGE_PATH=io_github_blankiekun_conscripter
     )
     target_compile_options(${TARGET_NAME} PRIVATE 
@@ -466,10 +481,11 @@ function(config_android TARGET_NAME)
         SDL2_ttf
         SDL2_image
         SDL2_mixer
-        
+        webpdecoder
         GLESv2
         log
     )
+    config_simd(${TARGET_NAME})
 endfunction()
 
 function(config_platform TARGET_NAME)

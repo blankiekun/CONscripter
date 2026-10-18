@@ -228,24 +228,35 @@ SDL_Surface *ONScripter::createSurfaceFromFile(char *filename, bool *has_alpha, 
 // resize 32bit surface to 32bit surface
 int ONScripter::resizeSurface( SDL_Surface *src, SDL_Surface *dst )
 {
+    /* size of tmp_buffer must be larger than 16 bytes */
+    size_t len = (size_t)src->w * (src->h+1) * 4 + 4;
+    if (resize_buffer_size < len){
+        delete[] resize_buffer;
+        resize_buffer = new(std::nothrow) unsigned char[len];
+        if (!resize_buffer){ // CONscripter: fail soft, keep a valid 16-byte buffer
+            resize_buffer = new unsigned char[16];
+            resize_buffer_size = 16;
+            return -1;
+        }
+        resize_buffer_size = len;
+    }
     SDL_LockSurface( dst );
     SDL_LockSurface( src );
     Uint32 *src_buffer = (Uint32 *)src->pixels;
     Uint32 *dst_buffer = (Uint32 *)dst->pixels;
-
-    /* size of tmp_buffer must be larger than 16 bytes */
-    size_t len = src->w * (src->h+1) * 4 + 4;
-    if (resize_buffer_size < len){
-        delete[] resize_buffer;
-        resize_buffer = new unsigned char[len];
-        resize_buffer_size = len;
-    }
     resizeImage( (unsigned char*)dst_buffer, dst->w, dst->h, dst->w * 4,
                  (unsigned char*)src_buffer, src->w, src->h, src->w * 4,
                  4, resize_buffer, src->w * 4, false );
 
     SDL_UnlockSurface( src );
     SDL_UnlockSurface( dst );
+
+    // CONscripter: don't hold a big picture's buffer for the rest of the session
+    if (resize_buffer_size > (4u << 20)){
+        delete[] resize_buffer;
+        resize_buffer = new unsigned char[16];
+        resize_buffer_size = 16;
+    }
 
     return 0;
 }
