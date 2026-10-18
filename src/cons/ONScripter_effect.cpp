@@ -189,7 +189,7 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
         presentPending();
         if ( effect_no == 1 ) effect_counter = 0;
         effect_curve = 0; // effectcurve: this effect's only
-        effect_soft = effect_soft_reverse = 0; // effectsoft: the same
+        effect_soft = effect_soft_reverse = effect_soft_form = 0; // effectsoft: the same
         skip_mode &= ~SKIP_TO_EOL;
 
         event_mode = IDLE_EVENT_MODE;

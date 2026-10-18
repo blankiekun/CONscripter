@@ -808,7 +808,7 @@ once (an effect drawn as `print 1`), until the next text, wait for a click
 Impl `ONScripter::clickskipCommand`, `getclickskipCommand`.
 
 ### effectsoft [cons]
-`effectsoft softness[,reverse]` — the next masked effect (15, 18) sweeps a
+`effectsoft softness[,reverse[,form]]` — the next masked effect (15, 18) sweeps a
 threshold over the mask's grey levels instead of the 256-level ramp: at part
 t of the time (eased by `effectcurve`) the threshold is p = 1 + floor(255 t);
 the new screen shows fully where the mask is at most p and fades out over the
@@ -816,7 +816,11 @@ levels above it, losing 255 × 255 ÷ (softness × p) a level (a band about
 softness × p ÷ 255 levels wide). reverse 1: the threshold falls (p = 254 −
 floor(255 t)) and the new screen shows above it, so the old one leaves the
 mask's bright parts first. Nitroplus's `DrawTransition` (装甲悪鬼村正). Used
-by the effect that follows only; not saved.
+by the effect that follows only; not saved. form 1: Full Metal Daemon
+Muramasa's (Mware's `psUpdateTransitionRule` shader): at part n = t of the
+time (1 − t reversed) mask level u = grey ÷ 255 shows at
+sat(k(n − u) + u·n), k = 2000 ÷ softness, a band about as wide all the way;
+reversed, the new screen shows where it doesn't.
 `effectsoft 100:print 18,1000,"mask.png"`. Impl `ONScripter::effectsoftCommand`.
 
 ### spcurve [cons]

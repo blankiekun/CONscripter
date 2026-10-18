@@ -460,7 +460,7 @@ int ONScripter::effectcurveCommand()
     return RET_CONTINUE;
 }
 
-/* effectsoft softness[,reverse]
+/* effectsoft softness[,reverse[,form]]
  *   The next masked effect (15, 18) sweeps a threshold over the mask's grey
  *   levels instead of the 256-level ramp: at part t of the time (eased by
  *   effectcurve) the threshold is p = 1 + floor(255 t); the new screen shows
@@ -470,12 +470,17 @@ int ONScripter::effectcurveCommand()
  *   the new screen shows where the mask is above it: the old one leaves the
  *   bright parts first. Nitroplus's DrawTransition (Muramasa.exe 0044fe00,
  *   00457bf0). Used once, by the effect that follows; not saved.
+ *   form 1: Full Metal Daemon Muramasa's (Mware's psUpdateTransitionRule):
+ *   at part n = t (1 - t reversed) a mask level u = grey/255 shows at
+ *   sat(k(n - u) + u n), k = 2000 / softness: a band about 255 / k levels
+ *   wide all the way (reversed, the new screen shows where it doesn't).
  *   "effectsoft 100:print 18,1000,"mask.png"". */
 int ONScripter::effectsoftCommand()
 {
     effect_soft = script_h.readInt();
     if (effect_soft < 0) effect_soft = 0;
     effect_soft_reverse = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
+    effect_soft_form = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
 
     return RET_CONTINUE;
 }
@@ -495,7 +500,17 @@ void ONScripter::softMaskBlend( SDL_Surface *mask, int counter, int duration, SD
     int p = effect_soft_reverse ? 254 - n : n + 1;
     double k = 255.0 / (p > 0 ? p : 1) * (255.0 / effect_soft);
     Uint8 lut[256];
-    for (int g = 0; g < 256; g++){
+    for (int g = 0; effect_soft_form == 1 && g < 256; g++){
+        // psUpdateTransitionRule: g_TransitionNow, 2 / g_TransitionRate
+        double now = duration > 0 ? (double)counter / duration : 1.0;
+        if (now > 1.0) now = 1.0;
+        if (effect_soft_reverse) now = 1.0 - now;
+        double u = g / 255.0, k = 2000.0 / effect_soft;
+        double v = k * (now - u) + u * now;
+        int a = v <= 0 ? 0 : v >= 1 ? 255 : (int)(v * 255 + 0.5);
+        lut[g] = effect_soft_reverse ? 255 - a : a;
+    }
+    for (int g = 0; effect_soft_form != 1 && g < 256; g++){
         int a = 255;
         if (g > p){
             double v = 255.0 - (g - p) * k;
