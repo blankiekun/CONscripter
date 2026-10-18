@@ -253,7 +253,8 @@ int ONScripter::spzoomCommand()
  *   out is "spmotion num,3,0,0,0,100,100,0,256,0,ms,0,0,100,100,0,0,0", a
  *   fade in a loop 0 from alpha 0. Under --auto-play (without --real-time),
  *   which doesn't wait, a motion that ends (any loop but 1 and 4) ends at once.
- *   "spmotion num" stops it. Up to 64 keys. The motion stays when
+ *   "spmotion num" stops it (back at its place); "spmotion num,2" stops it
+ *   where it is now, as loop 2 leaves its last key. Up to 64 keys. The motion stays when
  *   lsp changes the image, is removed by csp and is kept in save files
  *   (restarted). Another spmotion, lsp, msp or amsp first ends a loop 2
  *   or -n motion at its last key.
@@ -272,12 +273,24 @@ int ONScripter::spmotionCommand()
     AnimationInfo *ai = &sprite_info[no];
     SDL_Rect before = drawnRect( *ai );
     bool shown = ai->visible; // (loop 3 may remove it at once)
-    endKeptMotion( *ai );
-    traceMotion( *ai, (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? "replaced" : "stopped" );
+    bool has_mode = script_h.getEndStatus() & ScriptHandler::END_COMMA;
+    int mode = has_mode ? script_h.readInt() : 0;
+    bool has_keys = has_mode && (script_h.getEndStatus() & ScriptHandler::END_COMMA);
+    if (mode == 2 && !has_keys && ai->motion_keys > 0){
+        // stopped where it is now: its pose at this time applied to the sprite
+        int last = ai->motion_key[ai->motion_keys-1][0], t = SDL_GetTicks() - ai->motion_start;
+        if (ai->motion_loop && last > 0) t = ai->loopTime( t );
+        else if (ai->motion_passes > 1 && last > 0 && t < last * ai->motion_passes) t %= last;
+        else if (t > last) t = last;
+        int v[7];
+        motionAt( *ai, ai->motion_keys, t, v );
+        applyMotion( *ai, v );
+    }
+    else endKeptMotion( *ai );
+    traceMotion( *ai, has_keys ? "replaced" : "stopped" );
     ai->stopMotion();
     ai->trail_keys = 0;
-    if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
-        int mode = script_h.readInt();
+    if (has_keys){
         ai->motion_loop = mode == 1 || mode == 4;
         ai->motion_keep = mode == 2 || mode < 0;
         ai->motion_leave = mode == 3;
@@ -304,6 +317,8 @@ int ONScripter::spmotionCommand()
         }
         ai->motion_loop_key = loop_key;
         ai->motion_start = ai->motion_next = SDL_GetTicks();
+        if (ai->motion_clock >= 0) ai->motion_start -= ai->motion_clock; // spmotionclock
+        ai->motion_clock = -1;
         traceMotion( *ai, NULL );
         stepSpriteMotion( *ai, ai->motion_start );
         if (((auto_play_flag && !auto_play_real) || still_screen) && !ai->motion_loop && ai->motion_keys > 0){ // still_screen: e-ink shows only the end
@@ -355,6 +370,26 @@ int ONScripter::spmotionwaitCommand()
         if (ai.visible) dirty_rect.add( drawnRect( ai ) );
     }
     flush( refreshMode() );
+
+    return RET_CONTINUE;
+}
+
+/* spmotionclock num,src
+ *   The next spmotion with keys on sprite num starts as far in as sprite
+ *   src's motion has run now (from its start if src has none): a motion
+ *   handed to another sprite goes on with its clock, src stopped after
+ *   this or not. csp on num drops it.
+ *       spmotionclock 11,10:spmotion 10:lsp 11,"a.png",0,0:spmotion 11,1,... */
+int ONScripter::spmotionclockCommand()
+{
+    int no = script_h.readInt();
+    int src = script_h.readInt();
+    if (no < 0 || no >= MAX_SPRITE_NUM || src < 0 || src >= MAX_SPRITE_NUM){
+        utils::printError("spmotionclock: sprite %d or %d out of range\n", no, src);
+        return RET_CONTINUE;
+    }
+    AnimationInfo &s = sprite_info[src];
+    sprite_info[no].motion_clock = s.motion_keys > 0 ? (int)SDL_GetTicks() - s.motion_start : -1;
 
     return RET_CONTINUE;
 }
@@ -1040,6 +1075,19 @@ void ONScripter::endKeptMotion( AnimationInfo &ai )
     if (ai.visible) dirty_rect.add( drawnRect( ai ) );
 }
 
+// Moves the sprite by a motion's values v (as a key's: ms, x, y, zoom x,
+// angle, alpha, zoom y): its place, spzoom and alpha keep them.
+void ONScripter::applyMotion( AnimationInfo &ai, const int *v )
+{
+    ai.orig_pos.x += v[1];
+    ai.orig_pos.y += v[2];
+    ai.scalePosXY( screen_ratio1, screen_ratio2 );
+    ai.zoom_x = ai.zoom_x * v[3] / 100;
+    ai.zoom_y = ai.zoom_y * v[6] / 100;
+    ai.zoom_rot += v[4];
+    if (v[5] < 256) ai.trans = (ai.trans < 0 ? 255 : ai.trans) * v[5] / 256;
+}
+
 // Sets a motion's offset, zoom, angle and alpha for the time; ends a motion
 // that ran once (one that keeps its last key moves the sprite there).
 void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
@@ -1051,16 +1099,7 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
     if (ai.motion_loop && last > 0) t = ai.loopTime( t );
     else if (ai.motion_passes > 1 && last > 0 && t < last * ai.motion_passes) t %= last;
     else if (t >= last){
-        if (ai.motion_keep){
-            int *k = ai.motion_key[ai.motion_keys-1];
-            ai.orig_pos.x += k[1];
-            ai.orig_pos.y += k[2];
-            ai.scalePosXY( screen_ratio1, screen_ratio2 );
-            ai.zoom_x = ai.zoom_x * k[3] / 100;
-            ai.zoom_y = ai.zoom_y * k[6] / 100;
-            ai.zoom_rot += k[4];
-            if (k[5] < 256) ai.trans = (ai.trans < 0 ? 255 : ai.trans) * k[5] / 256;
-        }
+        if (ai.motion_keep) applyMotion( ai, ai.motion_key[ai.motion_keys-1] );
         // jumped to its end before its time: spmotionwait cut short, --auto-play, a kept motion set anew
         traceMotion( ai, current_time > (int)SDL_GetTicks() ? "cut short" : "ran out" );
         // (sptrail: the copies follow it on until they reach the sprite)

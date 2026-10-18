@@ -269,6 +269,7 @@ public:
     int clickskipCommand();
     int getclickskipCommand();
     int spmotionwaitCommand();
+    int spmotionclockCommand();
     int screenflashCommand();
     int screenfilterCommand();
     int screenshakeCommand();
@@ -657,6 +658,7 @@ private:
     void drawWithTrail(SDL_Surface *surface, AnimationInfo &ai, SDL_Rect &clip);
     void featherBands(SDL_Surface *surface, const SDL_Rect &r, int f, int colour, const SDL_Rect &clip, std::vector<Uint32> &saved, bool apply);
     void endKeptMotion(AnimationInfo &ai);
+    void applyMotion(AnimationInfo &ai, const int *v);
     int curveAt(int curve, int p);
     // spcurve's tables, curves CURVE_FIRST and on
     enum { CURVE_FIRST = 10, MAX_CURVES = 64, MAX_CURVE_VALUES = 1025 };
