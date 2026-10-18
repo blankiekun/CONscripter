@@ -362,6 +362,7 @@ size_t DirectReader::getFileLength( const char *file_name )
     size_t len;
     FILE *fp = getFileHandle( file_name, compression_type, &len );
     if ( fp ) fclose( fp );
+    else len = consOriginalFile( archive_path, file_name, NULL ); // CONscripter
     
     return len;
 }
@@ -387,6 +388,9 @@ size_t DirectReader::getFile( const char *file_name, unsigned char *buffer, int 
             buffer += c;
         }
         fclose( fp );
+        if ( location ) *location = ARCHIVE_TYPE_NONE;
+    }
+    else if ( ( total = consOriginalFile( archive_path, file_name, buffer ) ) ){ // CONscripter
         if ( location ) *location = ARCHIVE_TYPE_NONE;
     }
 

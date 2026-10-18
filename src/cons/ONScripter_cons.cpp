@@ -23,6 +23,8 @@
 #include "coding2utf16.h"
 #include "gbk2utf16.h"
 #include "version.h"
+#include "DirectReader.h"
+#include <unordered_map>
 #include <algorithm>
 #include <climits>
 #include <errno.h>
@@ -4283,4 +4285,139 @@ const unsigned char *ONScripter::filterScreen(SDL_Rect &rect, int &pitch)
     }
     pitch = rect.w * sizeof(ONSBuf);
     return (const unsigned char*)filter_buf.data();
+}
+
+// CONscripter: the original game's archives, read in place, so a converted game
+// needs only its script and the player's own files. cons_archives.txt in the
+// game folder names them, one per line:
+//   npa <folder> <file> <512 hex digits>
+// the script's <folder>/x is entry x of the Nitroplus NPA <file> (relative to
+// the game folder); the digits are its 256-byte decryption table. Loose files
+// come first, then these archives, then arc.nsa.
+namespace {
+struct OriginalEntry { FILE *fp; long long offset; size_t stored, size, encrypted; unsigned char k; const unsigned char *table; };
+struct OriginalArchive { FILE *fp; unsigned char table[256]; };
+std::vector<OriginalArchive*> original_archives;
+std::unordered_map<std::string, OriginalEntry> original_files;
+
+// The lookup form of a name: '/' separators, lower case (ASCII and full-width
+// Latin: the scripts write ｂ where the archive has Ｂ).
+// shortcut: other letters (Greek, Cyrillic) keep their case; fold them when a game needs it
+std::string originalKey( const char *name )
+{
+    std::string s( name );
+    for (size_t i=0 ; i<s.size() ; i++){
+        unsigned char c = s[i];
+        if (c == '\\') s[i] = '/';
+        else if (c >= 'A' && c <= 'Z') s[i] = c + 'a' - 'A';
+        else if (c == 0xef && i+2 < s.size() && (unsigned char)s[i+1] == 0xbc && (unsigned char)s[i+2] >= 0xa1 && (unsigned char)s[i+2] <= 0xba){
+            s[i+1] = (char)0xbd; // U+FF21-FF3A to U+FF41-FF5A
+            s[i+2] = (char)((unsigned char)s[i+2] - 0x20);
+            i += 2;
+        }
+    }
+    return s;
+}
+
+int originalSeek( FILE *fp, long long offset )
+{
+#if defined(_WIN32)
+    return _fseeki64( fp, offset, SEEK_SET );
+#else
+    return fseeko( fp, (off_t)offset, SEEK_SET );
+#endif
+}
+
+unsigned int le32( const unsigned char *p ){ return p[0] | p[1] << 8 | p[2] << 16 | (unsigned int)p[3] << 24; }
+unsigned int byteSum( unsigned int v ){ return (v & 0xff) + (v >> 8 & 0xff) + (v >> 16 & 0xff) + (v >> 24); }
+
+// Reads an NPA's index (the layout: conscripter-convert's npa.rs) and adds
+// its files under folder/.
+bool readNpa( OriginalArchive *a, const std::string &folder, const char *path )
+{
+    unsigned char h[0x29];
+    webPreload( a->fp, 0, sizeof(h) );
+    if (fread( h, 1, sizeof(h), a->fp ) != sizeof(h) || memcmp( h, "NPA", 3 )) return false;
+    if (h[15]){
+        // shortcut: zlib-compressed archives (scripts, system.npa) are refused; add inflate when a game needs one at run time
+        utils::printError( "cons_archives: %s is compressed, not read\n", path );
+        return false;
+    }
+    unsigned int key12 = le32( h+7 ) * le32( h+11 ), total = le32( h+17 ), index_len = le32( h+37 );
+    std::vector<unsigned char> index( index_len );
+    webPreload( a->fp, sizeof(h), index_len );
+    if (fread( index.data(), 1, index_len, a->fp ) != index_len) return false;
+    bool encrypted = h[16] != 0;
+    size_t p = 0;
+    for (unsigned int i=0 ; i<total ; i++){
+        if (p + 4 > index_len) return false;
+        unsigned int n = le32( &index[p] );
+        if (p + 4 + n + 17 > index_len) return false;
+        std::string raw( (const char*)&index[p+4], n );
+        unsigned int sum = 0;
+        for (unsigned int x=0 ; x<n ; x++){
+            raw[x] = (char)((unsigned char)raw[x] + 0xfc * x - byteSum( key12 ) - byteSum( i ));
+            sum += (unsigned char)raw[x];
+        }
+        const unsigned char *e = &index[p + 4 + n];
+        p += 4 + n + 17;
+        if (e[0] != 2 || le32( e+9 ) != le32( e+13 )) continue; // a folder (stored = size: not compressed)
+        OriginalEntry f;
+        f.fp = a->fp;
+        f.offset = 0x29LL + index_len + le32( e+5 );
+        f.stored = le32( e+9 );
+        f.size = le32( e+13 );
+        f.encrypted = encrypted ? 0x1000 + n : 0;
+        f.k = (unsigned char)(((0x87654321u - sum) * n + key12) * (unsigned int)f.size);
+        f.table = a->table;
+        original_files[originalKey( (folder + "/" + sjisToUTF8( raw.c_str() )).c_str() )] = f;
+    }
+    return true;
+}
+
+void loadOriginalArchives( const char *archive_path )
+{
+    std::string dir( archive_path ? archive_path : "" );
+    FILE *fp = fopen( (dir + "cons_archives.txt").c_str(), "r" );
+    if (!fp) return;
+    char line[1024], kind[16], folder[256], file[256], hex[600];
+    while (fgets( line, sizeof(line), fp )){
+        if (sscanf( line, "%15s %255s %255s %599s", kind, folder, file, hex ) != 4 || strcmp( kind, "npa" ) || strlen( hex ) != 512) continue;
+        OriginalArchive *a = new OriginalArchive();
+        for (int i=0 ; i<256 ; i++){
+            unsigned int b;
+            sscanf( hex + i*2, "%2x", &b );
+            a->table[i] = (unsigned char)b;
+        }
+        std::string path = dir + file;
+        a->fp = fopen( path.c_str(), "rb" );
+        if (!a->fp || !readNpa( a, originalKey( folder ), path.c_str() )){
+            utils::printError( "cons_archives: can't read %s\n", path.c_str() );
+            if (a->fp) fclose( a->fp );
+            delete a;
+            continue;
+        }
+        original_archives.push_back( a );
+    }
+    fclose( fp );
+}
+}
+
+size_t consOriginalFile( const char *archive_path, const char *file_name, unsigned char *buffer )
+{
+    static bool loaded = false;
+    if (!loaded){
+        loaded = true;
+        loadOriginalArchives( archive_path );
+    }
+    if (original_files.empty()) return 0;
+    std::unordered_map<std::string, OriginalEntry>::const_iterator it = original_files.find( originalKey( file_name ) );
+    if (it == original_files.end()) return 0;
+    const OriginalEntry &f = it->second;
+    if (!buffer) return f.size;
+    webPreload( f.fp, (size_t)f.offset, f.stored );
+    if (originalSeek( f.fp, f.offset ) || fread( buffer, 1, f.stored, f.fp ) != f.stored) return 0;
+    for (size_t i=0 ; i<f.stored && i<f.encrypted ; i++)
+        buffer[i] = (unsigned char)(f.table[buffer[i]] - f.k - i);
+    return f.size;
 }

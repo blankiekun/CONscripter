@@ -10,6 +10,8 @@ lsp 3,":a;solid.png",70,10
 spfilter 3,2
 lsp 4,":a;solid.png",100,10
 spfilter 4,11,0,256,100,50,30
+; a picture read in place from a Nitroplus NPA that cons_archives.txt names
+lsp 5,":a;orig/bg/solid.png",130,10
 print 1
 getscreenshot 320,240
 savescreenshot "lsp.bmp"

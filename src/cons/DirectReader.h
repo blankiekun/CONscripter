@@ -30,6 +30,11 @@
 
 #define MAX_FILE_NAME_LENGTH 256
 
+// CONscripter: a file from the original game's archives that cons_archives.txt
+// (in archive_path) names: its length, and its bytes into buffer unless NULL;
+// 0 when none has it (ONScripter_cons.cpp).
+size_t consOriginalFile( const char *archive_path, const char *file_name, unsigned char *buffer );
+
 class DirectReader : public BaseReader
 {
 public:
