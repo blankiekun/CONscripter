@@ -1104,7 +1104,11 @@ private:
     // again at startup
     bool click_voice_stop = false;   // a click that ends a text wait stops the voice
     bool auto_voice_wait = true;     // auto mode waits for the voice to end (off: cuts it)
-    bool select_keep = false;        // auto mode and skip go on after a select
+    bool select_keep_auto = false;   // auto mode goes on after a select
+    bool select_keep_skip = false;   // skip goes on after a select
+    bool click_auto_stop = true;     // a click or key ends auto mode (and does nothing else)
+    bool click_skip_stop = true;     // a click or key ends skip
+    int skip_button = 0;             // clickskipstop 0: a button clicked during skip, for the next textbtnwait
     int movie_stop = -1;             // a click stops a movie: 0 never, 1 always, -1 the script's flag
     bool movie_skipped = false;      // the last movie was stopped by a click (or auto-play)
     unsigned long long fresh_channels = 0; // dwave channels started since the last wait: a movie's own sounds

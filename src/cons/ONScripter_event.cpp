@@ -564,7 +564,7 @@ bool ONScripter::mousePressEvent( SDL_MouseButtonEvent *event )
     // utils::printInfo("## mousePressEvent\n");
     if ( variable_edit_mode ) return false;
     
-    if ( automode_flag ){
+    if ( automode_flag && click_auto_stop ){ // CONscripter: clickautostop
         automode_flag = false;
         return false;
     }
@@ -577,7 +577,14 @@ bool ONScripter::mousePressEvent( SDL_MouseButtonEvent *event )
     current_button_state.x = event->x;
     current_button_state.y = event->y;
     current_button_state.down_flag = false;
-    skip_mode &= ~SKIP_NORMAL;
+    if (click_skip_stop) skip_mode &= ~SKIP_NORMAL; // CONscripter: clickskipstop
+    else if (skip_mode & SKIP_NORMAL && event->button == SDL_BUTTON_LEFT && event->type == SDL_MOUSEBUTTONUP)
+        for (ButtonLink *bl = root_button_link.next; bl; bl = bl->next) // the skip button, say: textbtnwait gets it
+            if (bl->no > 0 && event->x >= bl->select_rect.x && event->x < bl->select_rect.x + bl->select_rect.w &&
+                event->y >= bl->select_rect.y && event->y < bl->select_rect.y + bl->select_rect.h){
+                skip_button = bl->no;
+                break;
+            }
     if ( event->button == SDL_BUTTON_LEFT )
         consPressCell( event->type == SDL_MOUSEBUTTONDOWN ); // CONscripter
 
@@ -979,7 +986,7 @@ bool ONScripter::keyPressEvent( SDL_KeyboardEvent *event )
 {
     current_button_state.button = 0;
     current_button_state.down_flag = false;
-    if ( automode_flag ){
+    if ( automode_flag && click_auto_stop ){ // CONscripter: clickautostop
         automode_flag = false;
         return false;
     }
@@ -1021,7 +1028,7 @@ bool ONScripter::keyPressEvent( SDL_KeyboardEvent *event )
     if (event->type == SDL_KEYUP &&
         !(event->keysym.sym >= SDLK_LCTRL && event->keysym.sym <= SDLK_RGUI) &&
         !(event->keysym.sym >= SDLK_F1 && event->keysym.sym <= SDLK_F12) &&
-        event->keysym.sym != SDLK_CAPSLOCK)
+        event->keysym.sym != SDLK_CAPSLOCK && click_skip_stop) // CONscripter: clickskipstop
         skip_mode &= ~SKIP_NORMAL;
     
     if ( shift_pressed_status && event->keysym.sym == SDLK_q && current_mode == NORMAL_MODE ){

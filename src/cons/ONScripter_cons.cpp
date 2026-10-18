@@ -1931,7 +1931,16 @@ int ONScripter::chpanCommand()
  *   autovoicewait  1 (default): auto mode waits for the voice to end
  *     before reading on. 0: it reads on after its own time and stops it.
  *   selectkeep  1: auto mode and skip go on after a select's option is
- *     chosen. 0 (default): a select ends them, as in NScripter.
+ *     chosen. 0 (default): a select ends them, as in NScripter. Reads 1
+ *     only when both of the next two are 1.
+ *   selectkeepauto, selectkeepskip  The same for auto mode alone, skip
+ *     alone (selectkeep sets both).
+ *   clickautostop  1 (default): a click or key during auto mode ends it
+ *     and does nothing else. 0: auto mode goes on and the click acts as
+ *     without it (reads on, presses a button).
+ *   clickskipstop  1 (default): a click or key (not a modifier or F key)
+ *     ends skip. 0: skip goes on; the script ends it (skipoff): a
+ *     button clicked during skip is what the next textbtnwait returns.
  *   moviestop  Whether a click stops a movie (mpegplay, movie): 1 always,
  *     0 never, -1 (default) as the script's click flag says.
  *   gamespeed  Script times run at this percent of real speed (100
@@ -1962,7 +1971,11 @@ bool ONScripter::setSetting( const char *key, int v )
     }
     else if (!strcmp( key, "clickvoicestop" )) click_voice_stop = v != 0;
     else if (!strcmp( key, "autovoicewait" )) auto_voice_wait = v != 0;
-    else if (!strcmp( key, "selectkeep" )) select_keep = v != 0;
+    else if (!strcmp( key, "selectkeep" )) select_keep_auto = select_keep_skip = v != 0;
+    else if (!strcmp( key, "selectkeepauto" )) select_keep_auto = v != 0;
+    else if (!strcmp( key, "selectkeepskip" )) select_keep_skip = v != 0;
+    else if (!strcmp( key, "clickautostop" )) click_auto_stop = v != 0;
+    else if (!strcmp( key, "clickskipstop" )) click_skip_stop = v != 0;
     else if (!strcmp( key, "moviestop" )) movie_stop = v < 0 ? -1 : v > 0 ? 1 : 0;
     else if (!strcmp( key, "gamespeed" )) game_speed = v < 10 ? 10 : v > 10000 ? 10000 : v;
     else if (!strcmp( key, "sysevol" )){
@@ -1988,7 +2001,11 @@ bool ONScripter::getSetting( const char *key, int &v )
     else if (!strcmp( key, "mutevoice" )) v = (sound_mute & SOUND_MUTE_VOICE) != 0;
     else if (!strcmp( key, "clickvoicestop" )) v = click_voice_stop;
     else if (!strcmp( key, "autovoicewait" )) v = auto_voice_wait;
-    else if (!strcmp( key, "selectkeep" )) v = select_keep;
+    else if (!strcmp( key, "selectkeep" )) v = select_keep_auto && select_keep_skip;
+    else if (!strcmp( key, "selectkeepauto" )) v = select_keep_auto;
+    else if (!strcmp( key, "selectkeepskip" )) v = select_keep_skip;
+    else if (!strcmp( key, "clickautostop" )) v = click_auto_stop;
+    else if (!strcmp( key, "clickskipstop" )) v = click_skip_stop;
     else if (!strcmp( key, "moviestop" )) v = movie_stop;
     else if (!strcmp( key, "gamespeed" )) v = game_speed;
     else if (!strcmp( key, "sysevol" )) v = syse_volume;

@@ -1195,7 +1195,11 @@ only; the game sets them again at startup). Keys: `mutebgm`, `mutese`,
 `mutevoice` (1 mutes; sounds play on unheard; auto mode doesn't wait for a
 muted voice); `clickvoicestop` (1: a click ending a text wait stops the
 voice); `autovoicewait` (0: auto mode doesn't wait for the voice; default
-1); `selectkeep` (1: auto and skip continue after a `select`); `moviestop`
+1); `selectkeep` (1: auto and skip continue after a `select`;
+`selectkeepauto`/`selectkeepskip` for each alone); `clickautostop` (0: a
+click or key in auto mode doesn't end it and acts as usual; default 1);
+`clickskipstop` (0: a click or key doesn't end skip, and a button clicked
+during skip is the next `textbtnwait`'s result; default 1); `moviestop`
 (1 a click always stops a movie, 0 never, -1 as the script says);
 `gamespeed` (10-10000 %, 100: script times — `wait`, `delay`, timers,
 effects, `spmotion`, `screenshake` — run at that speed; text
