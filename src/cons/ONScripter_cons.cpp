@@ -60,16 +60,44 @@ extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
  * steps); SDL_mixer's channel volume, which the settings and dwavefadein
  * use, stays theirs. It stays with the channel, for the next sounds too,
  * so a script can set it before the sound starts; reset sets 100. */
-static struct { volatile int from, to, ms; volatile Uint32 start; int last; } track_gain[ONS_MIX_CHANNELS];
+static struct { volatile int from, to, ms, curve; volatile Uint32 start; int last; } track_gain[ONS_MIX_CHANNELS];
+/* chvolfade's stop with a curve: the sound fades out along it over ms from
+ * start (on top of track_gain), then SDL_mixer halts it (Mix_ExpireChannel).
+ * A new sound on the channel plays without it. */
+static struct { volatile int ms, curve; volatile Uint32 start; } track_out[ONS_MIX_CHANNELS];
 static bool track_gain_s16 = false, track_stereo = false;
 /* chpan: each dwave channel's pan, -1000 (left) .. 1000 (right), ramped
  * as track_gain; the track effect lowers the other side (stereo only). */
 static struct { volatile int from, to, ms; volatile Uint32 start; int last; } track_pan[ONS_MIX_CHANNELS];
 
-static int scriptVolumeAt( int from, int to, int ms, Uint32 start, Uint32 now )
+// spcurve's tables, for the ramps' curves (the mixer reads them).
+static const std::vector<int> *ramp_curves = NULL;
+
+// How far (0-1024) along curve (spmotion's: 0 straight, 1-3, 4 jump at the
+// end, tables) a ramp is at p (0-1024) of its time; tables: CURVE_FIRST on.
+static int curveShare( const std::vector<int> *tables, int curve, int p )
+{
+    if (p <= 0) return 0;
+    if (p >= 1024) return 1024;
+    switch (curve){
+      case 1: return p * p / 1024;
+      case 2: return 1024 - (1024 - p) * (1024 - p) / 1024;
+      case 3: return (int)((long long)p * p * (3 * 1024 - 2 * p) / (1024 * 1024));
+      case 4: return 0;
+    }
+    enum { FIRST = 10, COUNT = 64 }; // ONScripter's CURVE_FIRST, MAX_CURVES
+    if (!tables || curve < FIRST || curve >= FIRST + COUNT) return p;
+    const std::vector<int> &v = tables[curve - FIRST];
+    if (v.size() < 2) return p;
+    int n = (int)v.size() - 1, i = p * n / 1024, r = p * n % 1024;
+    return v[i] + (int)((long long)(v[i+1] - v[i]) * r / 1024);
+}
+
+static int scriptVolumeAt( int from, int to, int ms, Uint32 start, Uint32 now, int curve=0 )
 {
     Uint32 t = now - start;
     if (ms <= 0 || t >= (Uint32)ms) return to;
+    if (curve) return from + (int)((long long)(to - from) * curveShare( ramp_curves, curve, (int)((long long)t * 1024 / ms) ) / 1024);
     return from + (to - from) * (int)t / ms;
 }
 
@@ -101,8 +129,12 @@ int trackGain( int channel ) // 0-4096; the trace reads it too
 {
     if (channel < 0 || channel >= ONS_MIX_CHANNELS) return 4096;
     if (channelMuted( channel )) return 0;
-    return scriptVolumeAt( track_gain[channel].from, track_gain[channel].to, track_gain[channel].ms,
-                           track_gain[channel].start, SDL_GetTicks() ) * 4096 / 100;
+    Uint32 now = SDL_GetTicks();
+    int gain = scriptVolumeAt( track_gain[channel].from, track_gain[channel].to, track_gain[channel].ms,
+                               track_gain[channel].start, now, track_gain[channel].curve ) * 4096 / 100;
+    if (track_out[channel].ms > 0) // fading out to its stop
+        gain = gain * (100 - scriptVolumeAt( 0, 100, track_out[channel].ms, track_out[channel].start, now, track_out[channel].curve )) / 100;
+    return gain;
 }
 
 /* spfilter num, kind[, blend[, strength[, param...]]]
@@ -527,19 +559,7 @@ bool ONScripter::waitInterrupted()
 // of the time between them, by the next key's curve.
 int ONScripter::curveAt( int curve, int p )
 {
-    if (p <= 0) return 0;
-    if (p >= 1024) return 1024;
-    switch (curve){
-      case 1: return p * p / 1024;
-      case 2: return 1024 - (1024 - p) * (1024 - p) / 1024;
-      case 3: return (int)((long long)p * p * (3 * 1024 - 2 * p) / (1024 * 1024));
-      case 4: return 0;
-    }
-    if (curve < CURVE_FIRST || curve >= CURVE_FIRST + MAX_CURVES) return p;
-    const std::vector<int> &v = curve_table[curve - CURVE_FIRST];
-    if (v.size() < 2) return p;
-    int n = (int)v.size() - 1, i = p * n / 1024, r = p * n % 1024;
-    return v[i] + (int)((long long)(v[i+1] - v[i]) * r / 1024);
+    return curveShare( curve_table, curve, p );
 }
 
 /* spcut num,"mask",x,y
@@ -1663,7 +1683,7 @@ bool ONScripter::clickEndRgosub( bool ended )
     return true;
 }
 
-/* chvolfade ch,vol[,ms[,stop]]
+/* chvolfade ch,vol[,ms[,stop[,curve]]]
  *   Sets the volume of dwave channel ch's sound to vol percent (0-100)
  *   of the sound effect or voice setting, over ms milliseconds (default
  *   0, at once) while the script goes on: a fade from where it is now.
@@ -1677,19 +1697,25 @@ bool ONScripter::clickEndRgosub( bool ended )
  *   stop 1 (dwave channels): the sound fades out over ms and stops, and
  *   the channel's volume stays as it was for its next sounds (vol is
  *   ignored); a looping sound fading out isn't kept in a save; 0 ms stops
- *   it as dwavestop does. "chvolfade 2,0,1500,1" fades the rain out. */
+ *   it as dwavestop does. "chvolfade 2,0,1500,1" fades the rain out.
+ *   curve (an spmotion curve: 1-3, 10-73 from spcurve) is how the volume
+ *   goes there, straight without one: "chvolfade 2,0,1500,1,2" fades out
+ *   slowing down. */
 int ONScripter::chvolfadeCommand()
 {
     int ch = script_h.readInt();
     int vol = script_h.readInt();
     int ms = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
     bool stop = (script_h.getEndStatus() & ScriptHandler::END_COMMA) && script_h.readInt() == 1;
+    int curve = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
+    ramp_curves = curve_table;
     traceChannel( ch );
     if (ch == -1){ // the music
         if (vol < 0) vol = 0; else if (vol > 100) vol = 100;
         bgm_script_from = bgmScriptVolume();
         bgm_script_start = SDL_GetTicks();
         bgm_script_to = vol;
+        bgm_script_curve = curve;
         bgm_script_ms = ms > 0 ? ms : 0;
         traceRamp( 0, -1, vol, bgm_script_ms );
         applyMusicVolume();
@@ -1700,6 +1726,15 @@ int ONScripter::chvolfadeCommand()
     if (stop){
         if (!wave_sample[ch]) return RET_CONTINUE;
         trace_se_loop[ch] = false; // stopping: not for the save
+        // Along a curve: faded by the track effect, then halted.
+        if (curve && ms > 0 && audio_open_flag && !Mix_Paused( ch ) && Mix_Playing( ch )){
+            track_out[ch].ms = 0; // the mixer reads these as they change
+            track_out[ch].curve = curve;
+            track_out[ch].start = SDL_GetTicks();
+            track_out[ch].ms = ms;
+            Mix_ExpireChannel( ch, ms );
+            return RET_CONTINUE;
+        }
         // SDL_mixer won't fade a sound at volume 0 (a fade-in just started):
         // nothing is heard yet, so stop it as dwavestop does
         if (ms <= 0 || !audio_open_flag || Mix_Paused( ch ) || Mix_FadeOutChannel( ch, ms ) == 0){
@@ -1711,12 +1746,13 @@ int ONScripter::chvolfadeCommand()
     }
     if (vol < 0) vol = 0; else if (vol > 100) vol = 100;
     Uint32 now = SDL_GetTicks();
-    int from = scriptVolumeAt( track_gain[ch].from, track_gain[ch].to, track_gain[ch].ms, track_gain[ch].start, now );
+    int from = scriptVolumeAt( track_gain[ch].from, track_gain[ch].to, track_gain[ch].ms, track_gain[ch].start, now, track_gain[ch].curve );
     // The mixer reads these as they change: no ramp until the last one
     track_gain[ch].ms = 0;
     track_gain[ch].from = from;
     track_gain[ch].start = now;
     track_gain[ch].to = vol;
+    track_gain[ch].curve = curve;
     track_gain[ch].ms = ms > 0 ? ms : 0;
     traceRamp( 0, ch, vol, track_gain[ch].ms );
     return RET_CONTINUE;
@@ -1909,7 +1945,9 @@ void ONScripter::resetScriptVolumes()
     for (int i=0 ; i<ONS_MIX_CHANNELS ; i++){
         track_gain[i].ms = 0;
         track_gain[i].from = track_gain[i].to = 100;
+        track_gain[i].curve = 0;
         track_gain[i].last = 4096;
+        track_out[i].ms = 0;
         track_pan[i].ms = 0;
         track_pan[i].from = track_pan[i].to = track_pan[i].last = 0;
     }
@@ -1920,7 +1958,7 @@ void ONScripter::resetScriptVolumes()
 // chvolfade -1's volume now, percent.
 int ONScripter::bgmScriptVolume()
 {
-    return scriptVolumeAt( bgm_script_from, bgm_script_to, bgm_script_ms, bgm_script_start, SDL_GetTicks() );
+    return scriptVolumeAt( bgm_script_from, bgm_script_to, bgm_script_ms, bgm_script_start, SDL_GetTicks(), bgm_script_curve );
 }
 
 // The music's volume, percent: the setting times chvolfade -1's.
@@ -3363,7 +3401,7 @@ extern bool ext_music_play_once_flag; // ONScripter_event.cpp
  * old length) and only its position is ignored. A sound that doesn't loop
  * ends with ONS_FREQ_END_EVENT, which halts the channel. A new sound on the
  * channel plays at its own rate again. */
-static struct { volatile bool on; volatile int from, to, ms; volatile Uint32 start; int last; double pos; bool ended; } track_freq[ONS_MIX_CHANNELS];
+static struct { volatile bool on; volatile int from, to, ms, curve; volatile Uint32 start; int last; double pos; bool ended; } track_freq[ONS_MIX_CHANNELS];
 static int track_chans = 2;
 
 static void freqTrackEffect( int channel, Sint16 *out, int len )
@@ -3375,7 +3413,7 @@ static void freqTrackEffect( int channel, Sint16 *out, int len )
     double lstart = inner ? cut_track[channel].loop_start / frame : 0;
     double lend = inner ? cut_track[channel].loop_end / frame : total;
     int last = track_freq[channel].last;
-    int rate = scriptVolumeAt( track_freq[channel].from, track_freq[channel].to, track_freq[channel].ms, track_freq[channel].start, SDL_GetTicks() );
+    int rate = scriptVolumeAt( track_freq[channel].from, track_freq[channel].to, track_freq[channel].ms, track_freq[channel].start, SDL_GetTicks(), track_freq[channel].curve );
     track_freq[channel].last = rate;
     const Sint16 *src = chunk ? (const Sint16*)chunk->abuf : NULL;
     double pos = track_freq[channel].pos;
@@ -3582,6 +3620,7 @@ void ONScripter::playChannel( int channel, Mix_Chunk *chunk, int loops )
     cut_track[channel].loop_end = next_loop_end <= chunk->alen ? next_loop_end : 0;
     next_loop_start = next_loop_end = 0;
     if (channel < ONS_MIX_CHANNELS){ // the ramps from where they are; the sound's own rate
+        track_out[channel].ms = 0;
         track_gain[channel].last = trackGain( channel );
         track_pan[channel].last = trackPan( channel );
         track_freq[channel].on = false;
@@ -3592,7 +3631,7 @@ void ONScripter::playChannel( int channel, Mix_Chunk *chunk, int loops )
     Mix_RegisterEffect( channel, cutTrackEffect, NULL, NULL ); // reset when a sound ends
 }
 
-/* chfreq ch,rate[,ms]
+/* chfreq ch,rate[,ms[,curve]]
  *   Plays the sound now on dwave channel ch at rate/1000 of its speed,
  *   which raises or lowers its pitch with it (100-4000; 1000 its own),
  *   reached over ms (default 0, at once; gamespeed applies) while the
@@ -3600,12 +3639,16 @@ void ONScripter::playChannel( int channel, Mix_Chunk *chunk, int loops )
  *   one that doesn't ends sooner or later by as much. The next sound on the
  *   channel plays at its own rate; not kept in saves (a load starts looping
  *   sounds at their own rate). With no sound playing it does nothing.
- *       dwave 10,"se\shot.ogg":chfreq 10,1100,1000   (up a tenth in a second) */
+ *       dwave 10,"se\shot.ogg":chfreq 10,1100,1000   (up a tenth in a second)
+ *   curve (an spmotion curve: 1-3, 10-73 from spcurve) is how the rate goes
+ *   there, straight without one. */
 int ONScripter::chfreqCommand()
 {
     int ch = script_h.readInt();
     int rate = script_h.readInt();
     int ms = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
+    int curve = (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
+    ramp_curves = curve_table;
     if (rate < 100) rate = 100; else if (rate > 4000) rate = 4000;
     traceChannel( ch );
     if (ch < 0 || ch >= ONS_MIX_CHANNELS || !audio_open_flag || !wave_sample[ch] || !Mix_Playing( ch ) ||
@@ -3616,7 +3659,7 @@ int ONScripter::chfreqCommand()
     }
     Uint32 now = SDL_GetTicks();
     SDL_LockAudio();
-    int from = track_freq[ch].on ? scriptVolumeAt( track_freq[ch].from, track_freq[ch].to, track_freq[ch].ms, track_freq[ch].start, now ) : 1000;
+    int from = track_freq[ch].on ? scriptVolumeAt( track_freq[ch].from, track_freq[ch].to, track_freq[ch].ms, track_freq[ch].start, now, track_freq[ch].curve ) : 1000;
     if (!track_freq[ch].on){
         track_freq[ch].pos = cut_track[ch].pos / (2 * audio_format.channels);
         track_freq[ch].ended = false;
@@ -3633,6 +3676,7 @@ int ONScripter::chfreqCommand()
     track_freq[ch].from = from;
     track_freq[ch].start = now;
     track_freq[ch].to = rate;
+    track_freq[ch].curve = curve;
     track_freq[ch].ms = ms > 0 ? speedTime( ms ) : 0;
     SDL_UnlockAudio();
     traceRamp( 2, ch, rate, track_freq[ch].ms );
@@ -3642,7 +3686,7 @@ int ONScripter::chfreqCommand()
 int trackFreq( int channel ) // per mille; the trace reads it
 {
     if (channel < 0 || channel >= ONS_MIX_CHANNELS || !track_freq[channel].on) return 1000;
-    return scriptVolumeAt( track_freq[channel].from, track_freq[channel].to, track_freq[channel].ms, track_freq[channel].start, SDL_GetTicks() );
+    return scriptVolumeAt( track_freq[channel].from, track_freq[channel].to, track_freq[channel].ms, track_freq[channel].start, SDL_GetTicks(), track_freq[channel].curve );
 }
 
 // chfreq's sound (not looping) played to its end: stopped as it would have.
