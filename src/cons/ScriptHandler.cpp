@@ -1142,6 +1142,7 @@ int ScriptHandler::readScript( char *path )
     delete[] tmp_script_buf;
 
     script_buffer_length = p_script_buffer - script_buffer;
+    expandTextTable( text_table.empty() ? NULL : text_table.c_str() ); // CONscripter (ONScripter_strtab.cpp)
     
     //## test dump script
     // FILE* _fp = fopen("dump.txt", "wb");

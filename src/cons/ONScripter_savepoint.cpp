@@ -33,16 +33,6 @@ void traceString( std::string &out, const char *text, int len=-1, bool json=true
 // of `:`-joined commands is one line, and so is each line of a text or of a
 // command continued after a comma. Line 0 of a label is its `*label` line.
 
-static unsigned int lineHash( const char *p )
-{
-    unsigned int h = 2166136261u; // FNV-1a 32
-    for ( ; *p != 0x0a ; p++ ){
-        h ^= (unsigned char)*p;
-        h *= 16777619u;
-    }
-    return h;
-}
-
 static char *labelEnd( ScriptHandler &sh, int i )
 {
     return (i+1 < sh.getNumLabels()) ? sh.getLabelInfo( i+1 ).label_header
@@ -64,13 +54,18 @@ static void labelLines( ScriptHandler &sh, int i, LabelLines &ll )
 }
 
 // The line with that hash: the one at `line` if it still has it, else the
-// nearest one that has; -1 if none.
-static int nearestLine( LabelLines &ll, int line, unsigned int hash )
+// nearest one that has; -1 if none. A line a text table filled also answers
+// to the hash of its text, as a build without tables wrote it.
+static int nearestLine( ScriptHandler &sh, LabelLines &ll, int line, unsigned int hash )
 {
     int n = ll.lines.size();
-    if (line >= 0 && line < n && lineHash( ll.lines[line] ) == hash) return line;
+    if (line >= 0 && line < n && (sh.lineHash( ll.lines[line] ) == hash ||
+                                  (sh.isTableLine( ll.lines[line] ) && sh.textHash( ll.lines[line] ) == hash))) return line;
     if (ll.by_hash.empty())
-        for (int k=0 ; k<n ; k++) ll.by_hash[lineHash( ll.lines[k] )].push_back( k );
+        for (int k=0 ; k<n ; k++){
+            ll.by_hash[sh.lineHash( ll.lines[k] )].push_back( k );
+            if (sh.isTableLine( ll.lines[k] )) ll.by_hash[sh.textHash( ll.lines[k] )].push_back( k );
+        }
     std::unordered_map<unsigned int, std::vector<int> >::iterator it = ll.by_hash.find( hash );
     if (it == ll.by_hash.end()) return -1;
     int best = -1;
@@ -126,7 +121,7 @@ void ONScripter::writeSavePoint( char *address, bool output_flag )
     writeStr( label.name, output_flag );
     writeInt( n, output_flag );
     writeInt( address - line, output_flag );
-    writeInt( (int)lineHash( line ), output_flag );
+    writeInt( (int)script_h.lineHash( line ), output_flag );
 }
 
 // Where a place written by writeSavePoint is in this script: its line, found
@@ -152,7 +147,7 @@ char *ONScripter::readSavePoint( bool after, const char *what, int *label, int *
     else{
         LabelLines ll;
         labelLines( script_h, i, ll );
-        k = nearestLine( ll, n, hash );
+        k = nearestLine( script_h, ll, n, hash );
         if (k >= 0){
             int len = 0;
             while (ll.lines[k][len] != 0x0a) len++;
@@ -269,7 +264,7 @@ void ScriptHandler::writeKidokuCons( FILE *fp )
             }
             if (marked){
                 put32( lines, n );
-                put32( lines, lineHash( p ) );
+                put32( lines, this->lineHash( p ) );
                 put32( lines, len );
                 lines += mask;
                 count++;
@@ -325,7 +320,7 @@ void ScriptHandler::readKidokuCons( FILE *fp )
             GET32( len ); if (bad) break;
             size_t bytes = ((size_t)len + 7) / 8;
             if (pos + bytes > d.size()){ bad = true; break; }
-            int k = ll.lines.empty() ? -1 : nearestLine( ll, (int)n, hash );
+            int k = ll.lines.empty() ? -1 : nearestLine( *this, ll, (int)n, hash );
             unsigned int now_len = 0;
             if (k >= 0) while (ll.lines[k][now_len++] != 0x0a) ;
             if (k >= 0 && now_len == len){
@@ -336,6 +331,12 @@ void ScriptHandler::readKidokuCons( FILE *fp )
                         kidoku_buffer[o/8] |= (char)(1 << (o%8));
                     }
             }
+            else if (k >= 0 && isTableLine( ll.lines[k] )){
+                // a table's line in another language: read is read, the whole line
+                int o0 = ll.lines[k] - script_buffer;
+                for (unsigned int b=0 ; b<now_len ; b++)
+                    kidoku_buffer[(o0+b)/8] |= (char)(1 << ((o0+b)%8));
+            }
             else lost++;
             pos += bytes;
         }
@@ -343,4 +344,50 @@ void ScriptHandler::readKidokuCons( FILE *fp )
     #undef GET32
     if (bad) utils::printError( "kidoku.dat: cut short or broken; read up to byte %d\n", (int)pos );
     if (lost) utils::printInfo( "kidoku.dat: %d read lines are no longer in the script\n", lost );
+}
+
+// A place in the script as its label, line, byte in the line and the line's
+// hash; in a line a text table filled, the count of waits (`@`, `\\`) before
+// it instead of the byte, the same in every language's text of the line.
+bool ScriptHandler::placeOf( char *address, Place &pl )
+{
+    int i = getLabelIndex( address );
+    if (i < 0) return false;
+    char *line = label_info[i].label_header;
+    int n = 0;
+    for (char *p = line ; p < address ; p++)
+        if (*p == 0x0a){
+            line = p+1;
+            n++;
+        }
+    pl.label = i;
+    pl.line = n;
+    pl.offset = address - line;
+    pl.hash = lineHash( line );
+    pl.waits = -1;
+    if (isTableLine( line )){
+        pl.waits = 0;
+        for (char *p = line ; p < address ; p++)
+            if (*p == '@' || *p == '\\') pl.waits++;
+    }
+    return true;
+}
+
+// Where a place from placeOf is in this script (its line found by the hash,
+// as a save's); the label's start if the label is gone.
+char *ScriptHandler::addressOf( const Place &pl )
+{
+    if (pl.label < 0 || pl.label >= num_of_labels) return NULL;
+    LabelLines ll;
+    labelLines( *this, pl.label, ll );
+    int k = nearestLine( *this, ll, pl.line, pl.hash );
+    if (k < 0) k = (pl.line < (int)ll.lines.size()) ? pl.line : 0;
+    char *line = ll.lines[k];
+    int len = 0;
+    while (line[len] != 0x0a) len++;
+    if (pl.waits < 0) return line + (pl.offset <= len ? pl.offset : 0);
+    char *p = line;
+    for (int w = pl.waits ; w > 0 && p < line + len ; p++)
+        if (*p == '@' || *p == '\\') w--;
+    return p;
 }

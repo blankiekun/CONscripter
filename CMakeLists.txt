@@ -540,6 +540,7 @@ set(CONSCRIPTER_CODE
     src/cons/ONScripter_audio.cpp
     src/cons/ONScripter_trace.cpp
     src/cons/ONScripter_savepoint.cpp
+    src/cons/ONScripter_strtab.cpp
     src/cons/ONScripter_names.cpp
     src/cons/ONScripter_warp.cpp
     src/cons/ONScripter_screen.cpp

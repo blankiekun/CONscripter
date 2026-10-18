@@ -292,6 +292,10 @@ public:
     int windowtransCommand();
     int windowfadeCommand();
     int languageCommand(); // CONscripter: the text's language, for the web page
+    int assetlayerCommand(); // CONscripter (ONScripter_strtab.cpp): asset layers
+    void switchTextTable( const char *lang ); // CONscripter (ONScripter_strtab.cpp)
+    void setLanguageLayer( const std::string &old_lang, const std::string &lang );
+    void setLayers();
     char *textgosubReturn( char *mark, bool in_1byte ); // CONscripter (ONScripter_text.cpp)
     int conssetCommand(); // CONscripter: player settings
     int consgetCommand();

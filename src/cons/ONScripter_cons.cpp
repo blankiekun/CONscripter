@@ -2838,7 +2838,12 @@ bool ONScripter::webEvent( int code, int value )
  *       language "en" */
 int ONScripter::languageCommand()
 {
+    std::string old = text_language;
     text_language = script_h.readStr();
+    setLanguageLayer( old, text_language ); // ONScripter_strtab.cpp
+    // text tables (ONScripter_strtab.cpp): the script goes on in the new language's text
+    if (script_h.hasTextRefs() && text_language != script_h.getTextTable() && script_h.textTableExists( text_language.c_str() ))
+        switchTextTable( text_language.c_str() );
     return RET_CONTINUE;
 }
 

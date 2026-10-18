@@ -124,4 +124,25 @@ struct BaseReader
     virtual size_t getFile( const char *file_name, unsigned char *buffer, int *location=NULL ) = 0;
 };
 
+// CONscripter (ONScripter_strtab.cpp): asset layers. A file is read from
+// layer\<name>\<path> when an active layer has it, else from <path>; the
+// layers are the text language's (`language`) and those `assetlayer` turns on.
+#include <string>
+#include <vector>
+struct LayerReader : public BaseReader
+{
+    BaseReader *base;
+    static std::vector<std::string> layers; // most important first
+    LayerReader( BaseReader *base ) : base( base ){}
+    ~LayerReader(){ delete base; }
+    int open( const char *name=NULL ){ return base->open( name ); }
+    int close(){ return base->close(); }
+    const char *getArchiveName() const { return base->getArchiveName(); }
+    int  getNumFiles(){ return base->getNumFiles(); }
+    void registerCompressionType( const char *ext, int type ){ base->registerCompressionType( ext, type ); }
+    size_t getFileLength( const char *file_name );
+    size_t getFile( const char *file_name, unsigned char *buffer, int *location=NULL );
+    std::string layered( const char *file_name );
+};
+
 #endif // __BASE_READER_H__

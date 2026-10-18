@@ -1050,6 +1050,7 @@ void ONScripter::tracePage( bool dump )
     if (se) r += ']';
 
     // what is laid over the picture
+    if (script_h.getKidokuState() >= 0) r += script_h.getKidokuState() ? ",\"read\":true" : ",\"read\":false"; // the page's text was read before
     r += (display_mode & DISPLAY_MODE_TEXT) ? ",\"window\":true" : ",\"window\":false";
     if (window_trans != 255){
         snprintf( buf, sizeof(buf), ",\"windowtrans\":%d", window_trans );
