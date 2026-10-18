@@ -649,7 +649,9 @@ int ONScripter::bitandCommand()
  *   copy was taken: src -1 (default) the screen as the sprites and the
  *   background draw it now (without the text window, sprite num left
  *   out), src -2 the screen as last shown (as a print shows it: what a
- *   screen closed with hold left), src n lsp sprite n's picture (its cell now), each from (x, y)
+ *   screen closed with hold left), src -3 the screen under sprite num (the
+ *   background and the sprites drawn before num, which must be below 1000:
+ *   a copy of what lies under a picture, to zoom or blend), src n lsp sprite n's picture (its cell now), each from (x, y)
  *   for w x h (default: all of it; for a sprite, x, y are in its picture).
  *   Then the picture under it can change while the copy covers it, and the
  *   copy can fade or move away by itself (spmotion), a cross-fade the
@@ -679,6 +681,13 @@ int ONScripter::spgrabCommand()
     int ox = 0, oy = 0;
     if (src == -2) // the last frame shown, as it is
         from = SDL_ConvertSurface( accumulation_surface, accumulation_surface->format, 0 );
+    else if (src == -3){ // the screen under sprite num: the background and the sprites drawn before it
+        from = SDL_ConvertSurface( accumulation_surface, accumulation_surface->format, 0 );
+        SDL_Rect all = {0, 0, from->w, from->h};
+        SDL_BlitSurface( bg_info.image_surface, &all, from, &all );
+        if (!all_sprite_hide_flag && no + 1 < NS_SPRITE_NUM)
+            drawSpriteRange( from, all, NS_SPRITE_NUM-1, no+1 );
+    }
     else if (src < 0){
         from = SDL_ConvertSurface( accumulation_surface, accumulation_surface->format, 0 );
         bool visible = ai->visible;

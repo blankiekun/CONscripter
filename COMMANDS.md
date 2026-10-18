@@ -846,7 +846,10 @@ Impl `ONScripter::spcutCommand`.
 `spgrab num[,src[,x,y,w,h]]` — a copy into lsp sprite num, shown where it was
 taken: src -1 (default) the screen as sprites and background draw it now
 (no text window, sprite num left out), -2 the screen as last shown
-(as `print` left it, e.g. a screen closed with `hold`), src n sprite n's picture (its cell
+(as `print` left it, e.g. a screen closed with `hold`), -3 the screen under
+sprite num (the background and the sprites drawn before it, num below 1000:
+what lies under it, to zoom or blend as one picture,
+`spgrab 300,-3:spblend 300,1:spzoom 300,150,150`), src n sprite n's picture (its cell
 now; x, y in that picture); default all of it. The picture under it can
 then change while the copy fades or moves away by itself: a cross-fade the
 script doesn't wait for, `spgrab 20:bg "b.png",1:spmotion 20,3,0,0,0,100,100,0,256,0,800,0,0,100,100,0,0,0`. Not kept
