@@ -84,6 +84,7 @@ Options can also go in an `ons_args` file in the game folder.
 Usage: conscripter [option ...]
   -h, --help            show this help and exit
   -v, --version         show the version information and exit
+      --list-commands   print every command name the engine knows, one per line, and exit
 
  load options:
   -f, --font file       set a TTF font file

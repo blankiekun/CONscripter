@@ -24,6 +24,7 @@
 #include "gbk2utf16.h"
 #include "version.h"
 #include <algorithm>
+#include <set>
 #include <errno.h>
 #include <math.h>
 #include <stdio.h>
@@ -1538,6 +1539,21 @@ void ONScripter::traceWarn( const char *what, const char *file )
     snprintf( buf, sizeof(buf), "{\"t\":\"warn\",\"pg\":%d,\"what\":\"%s\",\"file\":", trace_page, what );
     std::string r = buf;
     traceString( r, file );
+    r += ",\"at\":";
+    traceAt( r, script_h.getCurrent( true ) );
+    r += '}';
+    traceWrite( r );
+}
+
+// A command the engine doesn't know (parseLine skips it); once per name.
+void ONScripter::traceUnknownCommand( const char *cmd )
+{
+    static std::set<std::string> seen;
+    if (!seen.insert( cmd ).second) return;
+    char buf[64];
+    snprintf( buf, sizeof(buf), "{\"t\":\"warn\",\"pg\":%d,\"what\":\"unknown command\",\"cmd\":", trace_page );
+    std::string r = buf;
+    traceString( r, cmd );
     r += ",\"at\":";
     traceAt( r, script_h.getCurrent( true ) );
     r += '}';

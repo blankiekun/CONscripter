@@ -221,6 +221,7 @@ public:
     } func_hash['z'-'a'+1];
 
     void makeFuncLUT();
+    static void listCommands();
 
     int yesnoboxCommand();
     int wavestopCommand();
@@ -1059,6 +1060,7 @@ private:
     void tracePage( bool dump=false );
     void traceSound( int channel, const char *name, bool loop );
     void traceWarn( const char *what, const char *file );
+void traceUnknownCommand( const char *cmd );
     void traceError( const char *message, const char *kind="script" );
     void traceStack( std::string &out );
     void traceEnd();

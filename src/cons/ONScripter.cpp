@@ -1345,6 +1345,7 @@ int ONScripter::parseLine( )
         return dvCommand();
 
     utils::printError(" command [%s] is not supported yet!!\n", cmd);
+    if (trace_fp) traceUnknownCommand( cmd );
 
     script_h.skipToken();
 
