@@ -12,6 +12,8 @@ static SDL_Surface* _surface_ons = NULL;        // updated screen
 static SDL_Surface* _surface_retro = NULL;      // screen with mouse cursor
 static SDL_AudioDevice* _audio = NULL;
 static SDL_VideoDevice* _video = NULL;
+static SDL_atomic_t _updates;                   // framebuffer updates, for frame dupes
+static SDL_bool _can_dupe = SDL_FALSE;
 
 static int
 VideoInit(SDL_VideoDevice* device)
@@ -94,6 +96,7 @@ CreateWindowFramebuffer(SDL_VideoDevice* device,
     *format = surface_format;
     *pixels = _surface_fb->pixels;
     *pitch = _surface_fb->pitch;
+    SDL_AtomicAdd(&_updates, 1);
 
     /* Set screen size to the same as window */
     SDL_DisplayMode mode;
@@ -115,6 +118,7 @@ UpdateWindowFramebuffer(SDL_VideoDevice* device,
     for (int i = 0; i < numrects; i += 1) {
         SDL_BlitSurface(_surface_fb, (SDL_Rect*)&rects[i], _surface_ons, (SDL_Rect*)&rects[i]);
     }
+    SDL_AtomicAdd(&_updates, 1);
     return 0;
 }
 
@@ -196,12 +200,31 @@ AudioBootStrap DUMMYAUDIO_bootstrap = { "libretro",
                                         SDL_FALSE };
 
 void
+SDL_libretro_SetCanDupe(bool can_dupe)
+{
+    _can_dupe = can_dupe ? SDL_TRUE : SDL_FALSE;
+}
+
+void
 SDL_libretro_RefreshVideo(retro_video_refresh_t video_cb)
 {
     if (_surface_retro == NULL)
         return;
 
     SDL_Mouse *mouse = SDL_GetMouse();
+
+    // nothing drawn and the cursor unmoved: the frontend shows the last frame again
+    static int last_updates = -1, last_x, last_y, last_shown;
+    int updates = SDL_AtomicGet(&_updates);
+    if (_can_dupe && updates == last_updates && mouse->cursor_shown == last_shown &&
+        (!mouse->cursor_shown || (mouse->x == last_x && mouse->y == last_y))) {
+        video_cb(NULL, _surface_ons->w, _surface_ons->h, _surface_ons->pitch);
+        return;
+    }
+    last_updates = updates;
+    last_shown = mouse->cursor_shown;
+    last_x = mouse->x;
+    last_y = mouse->y;
 
     if (mouse->cursor_shown) {
         SDL_Rect mouse_rect = { mouse->x, mouse->y, _cursor->w, _cursor->h };

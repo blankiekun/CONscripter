@@ -309,7 +309,9 @@ void ONScripter::setupAnimationInfo( AnimationInfo *anim, FontInfo *info )
 // movie's frames.
 void ONScripter::setAnimImage( AnimationInfo *anim, SDL_Surface *surface, SDL_Surface *surface_m, bool has_alpha, int location )
 {
+    bool had_surface = surface != NULL;
     surface = anim->setupImageAlpha(surface, surface_m, has_alpha);
+    if (had_surface && !surface && trace_fp) traceWarn("image too large", anim->file_name ? anim->file_name : "");
     if (surface && decoded_scaled){
         // CONscripter: the script sees the full picture's size, as setupImageAlpha would give it
         anim->orig_pos.w = anim->trans_mode == AnimationInfo::TRANS_ALPHA && !has_alpha
@@ -331,8 +333,13 @@ void ONScripter::setAnimImage( AnimationInfo *anim, SDL_Surface *surface, SDL_Su
         surface = SDL_CreateRGBSurface( SDL_SWSURFACE, w, h,
                                         fmt->BitsPerPixel, fmt->Rmask, fmt->Gmask, fmt->Bmask, fmt->Amask );
     
-        resizeSurface(src_s, surface);
+        // CONscripter: out of memory leaves the sprite empty instead of crashing
+        if (surface && resizeSurface(src_s, surface) < 0){
+            SDL_FreeSurface(surface);
+            surface = NULL;
+        }
         SDL_FreeSurface(src_s);
+        if (!surface && trace_fp) traceWarn("image too large", anim->file_name ? anim->file_name : "");
     }
 
     anim->setImage( surface, texture_format );

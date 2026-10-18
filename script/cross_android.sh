@@ -26,6 +26,7 @@ if [ -z "$SKIP_PORTS" ]; then
     fetch_sdl2_image ; prepare_port $SDL2_IMAGE_SRC
     fetch_sdl2_ttf ; prepare_port $SDL2_TTF_SRC
     fetch_sdl2_mixer ; prepare_port $SDL2_MIXER_SRC
+    fetch_webp
 fi
 
 # config and build project

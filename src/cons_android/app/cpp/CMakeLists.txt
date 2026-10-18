@@ -11,6 +11,7 @@ set(SDL2MIXER_DIR ${THIRDPARTY_PORT}/SDL2_mixer-2.6.3)
 set(JPEG_DIR ${THIRDPARTY_PORT}/SDL2_image-2.6.3/external/jpeg)
 set(LUA_DIR ${THIRDPARTY_PORT}/lua-5.4.4)
 set(BZ2_DIR ${THIRDPARTY_PORT}/bzip2-1.0.8)
+set(WEBP_DIR ${THIRDPARTY_PORT}/libwebp-1.5.0)
 
 # build sdl2
 set(ANDROID TRUE)
@@ -72,12 +73,19 @@ add_library(bz2 SHARED ${BZ2_CODE})
 target_compile_options(bz2 PRIVATE -D_FILE_OFFSET_BITS=64)
 target_link_options(bz2 PRIVATE "-Wl,-z,max-page-size=16384")
 
+# build libwebp's decoder: SDL2_image 2.6.3 is built without WebP, so the engine decodes it (USE_WEBP)
+foreach(opt ANIM_UTILS CWEBP DWEBP GIF2WEBP IMG2WEBP VWEBP WEBPINFO WEBPMUX EXTRAS LIBWEBPMUX)
+    set(WEBP_BUILD_${opt} OFF CACHE BOOL "" FORCE)
+endforeach()
+add_subdirectory(${WEBP_DIR} ${CONS_DIR}/build_android/thirdparty/webp EXCLUDE_FROM_ALL)
+
 # build conscripter_android
 set(CMAKE_SYSTEM_NAME Android)
 #set(CMAKE_BUILD_TYPE Debug)
 include_directories(
     ${BZ2_DIR}
     ${LUASRC_DIR}
+    ${WEBP_DIR}/src
 )
 add_subdirectory(${CONS_DIR} ${CONS_DIR}/build_android)
 target_link_options(conscripter PRIVATE "-Wl,-z,max-page-size=16384")

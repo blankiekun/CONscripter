@@ -436,8 +436,9 @@ void ONScripter::softMaskBlend( SDL_Surface *mask, int counter, int duration, SD
         ONSBuf *s2 = (ONSBuf *)src2->pixels + src2->w * y;
         ONSBuf *d = (ONSBuf *)dst->pixels + dst->w * y;
         const Uint32 *m = (const Uint32 *)((Uint8 *)mask->pixels + mask->pitch * (y % mask->h));
-        for (int x = rect.x; x < rect.x + rect.w; x++){
-            Uint32 a = lut[m[x % mask->w] & 0xFF];
+        // the mask's column wraps by a counter: no divide per pixel (Vita/3DS CPUs have none)
+        for (int x = rect.x, mx = rect.x % mask->w; x < rect.x + rect.w; x++, mx = mx + 1 == mask->w ? 0 : mx + 1){
+            Uint32 a = lut[m[mx] & 0xFF];
             a += a >> 7; // 255 -> 256: the new screen exactly
             Uint32 c1 = s1[x], c2 = s2[x];
             Uint32 rb = ((((c2 & 0xff00ff) - (c1 & 0xff00ff)) * a >> 8) + (c1 & 0xff00ff)) & 0xff00ff;

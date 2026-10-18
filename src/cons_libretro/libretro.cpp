@@ -163,6 +163,9 @@ retro_init(void)
 {
     enum retro_pixel_format pixfmt = RETRO_PIXEL_FORMAT_XRGB8888;
     environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &pixfmt);
+    bool can_dupe = false;
+    environ_cb(RETRO_ENVIRONMENT_GET_CAN_DUPE, &can_dupe);
+    SDL_libretro_SetCanDupe(can_dupe);
 
     struct retro_variable var = { 0 };
     var.key = "conscripter_script_encoding";

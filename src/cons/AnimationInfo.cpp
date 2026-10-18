@@ -1257,6 +1257,11 @@ SDL_Surface *AnimationInfo::setupImageAlpha( SDL_Surface *surface, SDL_Surface *
         SDL_PixelFormat *fmt = surface->format;
         SDL_Surface *surface2 = SDL_CreateRGBSurface( SDL_SWSURFACE, w3, h,
                                                       fmt->BitsPerPixel, fmt->Rmask, fmt->Gmask, fmt->Bmask, fmt->Amask );
+        if (!surface2){ // CONscripter: out of memory leaves the sprite empty
+            SDL_UnlockSurface( surface );
+            SDL_FreeSurface( surface );
+            return NULL;
+        }
         SDL_LockSurface( surface2 );
         Uint32 *buffer2 = (Uint32 *)surface2->pixels;
 
