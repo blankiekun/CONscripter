@@ -230,8 +230,11 @@
                 console.log("## cons_fs: mount_onssave", savedir);
                 em_mkdirs(_FS, savedir);
                 _FS.mount(_IDBFS, {}, savedir);
+                // the engine starts once the saves are read: a flush before then overlaps this syncfs
+                g_cons_module.addRunDependency("onssavefs");
                 _FS.syncfs(true, (err)=>{
                     if(err) console.log(err);
+                    g_cons_module.removeRunDependency("onssavefs");
                 });
             }
         </script>
