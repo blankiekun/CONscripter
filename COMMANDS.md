@@ -1681,8 +1681,10 @@ marked "saved" above, plus what NScripter data loses: `strsp` sprites (text,
 font, colours, also in the `pushscreen` stack) and looping `dwave` channels
 (restarted on load). Its first part (version 26) holds the named variables
 (`defvar`, `defstr`, `defarr`; by name) and the `spnew` handles with their
-pictures; the NScripter data holds sprites 0-999. Only the current version's
-block is read: an older save loads its NScripter data alone.
+pictures; the NScripter data holds sprites 0-999. Each new part goes at the
+end, so a block from an older build (version 18 or later) loads the parts it
+has and the newer ones start at their defaults; an older block, or one from
+a newer build, is left out and the save loads its NScripter data alone.
 Code: `CONS_SAVE_MAGIC` in `src/cons/ONScripter_cons.cpp`.
 
 ## Engine behaviour [cons]

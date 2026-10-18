@@ -48,8 +48,10 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 31 // only this version's block is read; the "Version n" comments below
-                            // name the parts in the order they are written (version 26's first)
+#define CONS_SAVE_VERSION 31 // the "Version n" comments below name the parts in the order they are
+                            // written (version 26's first). A new part goes at the end; loading
+                            // reads the parts an older save has and leaves the rest at their defaults
+#define CONS_SAVE_OLDEST  18 // the oldest block loading reads: version 18 reshaped earlier parts
 int consSaveVersion() { return CONS_SAVE_VERSION; }
 
 extern SDL_TimerID timer_bgmfade_id; // bgmfadein, bgmfadeout
@@ -1794,6 +1796,7 @@ void ONScripter::loadSaveFileCons()
         sprite_info[i].trail_passes = sprite_info[i].trail_keys = 0; // older saves have none
         sprite_info[i].trail_over = false;
         sprite_info[i].trail_rect.w = sprite_info[i].trail_rect.h = 0;
+        sprite_info[i].screen_mask = -1; // older saves have none
     }
     dirty_rect.fill( screen_width, screen_height );
     setPlaytime( 0 ); // older saves have none
@@ -1806,12 +1809,12 @@ void ONScripter::loadSaveFileCons()
         return;
     }
     int version = readInt();
-    if (version != CONS_SAVE_VERSION){ // older layouts aren't read
-        utils::printError("save: CONscripter data version %d, this build reads %d; left out\n", version, CONS_SAVE_VERSION);
+    if (version < CONS_SAVE_OLDEST || version > CONS_SAVE_VERSION){
+        utils::printError("save: CONscripter data version %d, this build reads %d to %d; left out\n", version, CONS_SAVE_OLDEST, CONS_SAVE_VERSION);
         if (trace_fp) traceSaveLeftOut( version );
         return;
     }
-    readNamesSection();
+    if (version >= 26) readNamesSection();
 
     int num = readInt();
     for (int n=0 ; n<num ; n++){
@@ -2122,6 +2125,7 @@ void ONScripter::loadSaveFileCons()
         for (int j=0 ; j<n ; j++) curve_table[c].push_back( readInt() );
     }
 
+    if (version < 19) return; // an older save: the later parts keep their defaults
     char *lua = NULL;
     readStr( &lua );
 #ifdef USE_LUA
@@ -2129,6 +2133,7 @@ void ONScripter::loadSaveFileCons()
 #endif
     delete[] lua;
 
+    if (version < 20) return;
     num = readInt();
     for (int n=0 ; n<num ; n++){
         int no = readInt(), passes = readInt(), alpha = readInt(), lag = readInt();
@@ -2139,6 +2144,7 @@ void ONScripter::loadSaveFileCons()
         ai.trail_lag = lag;
     }
 
+    if (version < 21) return;
     num = readInt();
     for (int i=0 ; i<num ; i++){
         int pan = readInt();
@@ -2147,6 +2153,7 @@ void ONScripter::loadSaveFileCons()
         track_pan[i].from = track_pan[i].to = pan;
     }
 
+    if (version < 22) return;
     num = readInt();
     for (int n=-1 ; n<screen_stack_num ; n++){
         int *z = (n < 0) ? screen_filter_z : screen_stack[n].screen_filter_z;
@@ -2156,8 +2163,10 @@ void ONScripter::loadSaveFileCons()
         }
     }
 
+    if (version < 25) return; // the place is the NScripter data's line
     loadSavePoints();
 
+    if (version < 27) return;
     num = readInt();
     int now = SDL_GetTicks();
     for (int n=0 ; n<num ; n++){
@@ -2174,15 +2183,17 @@ void ONScripter::loadSaveFileCons()
         stepSpriteWave( ai, now );
     }
 
+    if (version < 28) return;
     num = readInt();
     for (int n=0 ; n<num ; n++){
         int no = readInt();
         if (no >= 0 && no < MAX_SPRITE_NUM && sprite_info[no].trail_passes > 0) sprite_info[no].trail_over = true;
     }
 
+    if (version < 29) return;
     num = readInt();
     for (int n=0 ; n<num ; n++){
-        int no = readInt(), f = readInt(), colour = readInt();
+        int no = readInt(), f = readInt(), colour = version >= 30 ? readInt() : 0;
         if (no >= 0 && no < MAX_SPRITE_NUM && sprite_info[no].clip_rect[2] > 0){
             sprite_info[no].clip_rect[4] = f;
             sprite_info[no].clip_rect[5] = colour;
@@ -2194,7 +2205,7 @@ void ONScripter::loadSaveFileCons()
     for (int n=0 ; n<depth ; n++){
         num = readInt();
         for (int m=0 ; m<num ; m++){
-            int i = readInt(), f = readInt(), colour = readInt();
+            int i = readInt(), f = readInt(), colour = version >= 30 ? readInt() : 0;
             ScreenState *st = (n < screen_stack_num) ? &screen_stack[n] : NULL;
             if (st && i >= st->first && i <= st->last){
                 st->sprite[i - st->first].clip_rect[4] = f;
@@ -2203,7 +2214,7 @@ void ONScripter::loadSaveFileCons()
         }
     }
 
-    for (int i=0 ; i<MAX_SPRITE_NUM ; i++) sprite_info[i].screen_mask = -1;
+    if (version < 31) return;
     num = readInt();
     for (int n=0 ; n<num ; n++){
         int no = readInt();
