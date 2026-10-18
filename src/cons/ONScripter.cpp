@@ -1571,7 +1571,7 @@ ButtonLink *ONScripter::getSelectableSentence( char *buffer, FontInfo *info, boo
     // disabled 1 for a seldisable option, which can't be chosen.
     EM_ASM({
         if (self.consChoice && !Module.consNoTextOverlay)
-            self.consChoice(HEAPU8.slice($0, $0 + $1), $2, $3, $4, $5, $6);
+            self.consChoice(HEAPU8.slice($0 >>> 0, ($0 >>> 0) + $1), $2, $3, $4, $5, $6);
     }, buffer, strlen(buffer), ai->pos.x, ai->pos.y,
        info->font_size_xy[1] * screen_ratio1 / screen_ratio2,
        info->pitch_xy[0] * screen_ratio1 / screen_ratio2, disabled ? 1 : 0);

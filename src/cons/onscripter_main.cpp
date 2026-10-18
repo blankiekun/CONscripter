@@ -332,7 +332,7 @@ FILE *fopen_ons(const char *path, const char *mode)
     }
     
     FILE *fp = fopen(path, mode);
-    if(!fp && use_lazyload==1 && (strcmp(mode, "r") || strcmp(mode, "rb")))
+    if(!fp && use_lazyload==1 && (!strcmp(mode, "r") || !strcmp(mode, "rb")))
     {   
         int ret = 0;
         ret = EM_ASM_INT( // path is combined after --gamedir

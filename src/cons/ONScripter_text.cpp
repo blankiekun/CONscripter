@@ -57,7 +57,7 @@ static void textHook(const char *text, int len, int skipped)
 #if defined(WEB)
     EM_ASM({
         if (self.consText && !Module.consNoTextOverlay)
-            self.consText(HEAPU8.slice($0, $0 + $1), $2, HEAP32.slice($3 >> 2, ($3 >> 2) + $4 * 4));
+            self.consText(HEAPU8.slice($0 >>> 0, ($0 >>> 0) + $1), $2, HEAP32.slice($3 >>> 2, ($3 >>> 2) + $4 * 4));
     }, text, len, skipped, char_boxes, char_box_count);
 #endif
 }
@@ -571,7 +571,7 @@ void ONScripter::sendSpriteTexts()
     }
     EM_ASM({
         if (self.consSprites && !Module.consNoTextOverlay)
-            self.consSprites(HEAPU8.slice($0, $0 + $1), HEAP32.slice($2 >> 2, ($2 >> 2) + $3));
+            self.consSprites(HEAPU8.slice($0 >>> 0, ($0 >>> 0) + $1), HEAP32.slice($2 >>> 2, ($2 >>> 2) + $3));
     }, text.data(), text.size(), boxes.data(), boxes.size());
 #endif
 }
@@ -695,7 +695,7 @@ void ONScripter::restoreTextBuffer(SDL_Surface *surface)
 #if defined(WEB)
     EM_ASM({
         if (self.consBacklog && !Module.consNoTextOverlay)
-            self.consBacklog(HEAPU8.slice($0, $0 + $1), HEAP32.slice($2 >> 2, ($2 >> 2) + $3 * 4),
+            self.consBacklog(HEAPU8.slice($0 >>> 0, ($0 >>> 0) + $1), HEAP32.slice($2 >>> 2, ($2 >>> 2) + $3 * 4),
                                 $4 ? UTF8ToString($4) : null);
     }, current_page->text, current_page->text_count, char_boxes, char_box_count, current_page->voice);
 #endif
