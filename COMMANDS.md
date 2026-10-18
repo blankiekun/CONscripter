@@ -759,7 +759,9 @@ place: offset x,y, zoom zx,zy % (times `spzoom`), angle (degrees CCW, added
 to `spzoom`'s), alpha 0-256, at `t` ms from now; `curve` is how the key is
 reached from the one before: 0 straight, 1 ease in, 2 ease out, 3 ease in
 and out, 4 jump at the key, 10-73 an `spcurve` table. Stepped every ~16 ms
-by the timer (also during waits). loop 0: ends, back at its place; 1:
+by the timer (also during waits); between keys the zoom and angle move in
+1/100 of a percent and of a degree (drawn so, times `spzoom`'s), the offset in
+whole pixels. loop 0: ends, back at its place; 1:
 repeats; 2: once, then the last key's offset/zoom/angle/alpha are applied to
 the sprite; -n: n times, then as 2; 3: once, then the sprite is removed (as
 `csp`; `lsp` on it ends that and keeps it; saves and `pushscreen` leave it

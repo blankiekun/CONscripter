@@ -232,7 +232,7 @@ void AnimationInfo::stopMotion()
     motion_keys = 0;
     motion_leave = false;
     motion_dx = motion_dy = 0;
-    motion_zoom = motion_zoom_y = 100;
+    motion_zoom = motion_zoom_y = 100 * MOTION_FINE;
     motion_rot = 0;
     motion_alpha = 256;
     motion_end = 0;
@@ -1033,20 +1033,20 @@ void AnimationInfo::blendText( SDL_Surface *surface, int dst_x, int dst_y, SDL_C
 	SDL_mutexV(mutex);
 }
 
-void AnimationInfo::calcAffineMatrix()
+void AnimationInfo::calcAffineMatrix(int scale_div, int rot_div)
 {
     // calculate forward matrix
     // |mat[0][0] mat[0][1]|
     // |mat[1][0] mat[1][1]|
     int cos_i = 1024, sin_i = 0;
     if (rot != 0){
-        cos_i = (int)(1024.0 * cos(-M_PI*rot/180));
-        sin_i = (int)(1024.0 * sin(-M_PI*rot/180));
+        cos_i = (int)(1024.0 * cos(-M_PI*rot/(180.0*rot_div)));
+        sin_i = (int)(1024.0 * sin(-M_PI*rot/(180.0*rot_div)));
     }
-    mat[0][0] =  cos_i*scale_x/100;
-    mat[0][1] = -sin_i*scale_y/100;
-    mat[1][0] =  sin_i*scale_x/100;
-    mat[1][1] =  cos_i*scale_y/100;
+    mat[0][0] =  (int)((long long)cos_i*scale_x/scale_div);
+    mat[0][1] = -(int)((long long)sin_i*scale_y/scale_div);
+    mat[1][0] =  (int)((long long)sin_i*scale_x/scale_div);
+    mat[1][1] =  (int)((long long)cos_i*scale_y/scale_div);
 
     // calculate bounding box
     int min_xy[2] = { 0, 0 }, max_xy[2] = { 0, 0 };
@@ -1070,13 +1070,13 @@ void AnimationInfo::calcAffineMatrix()
     bounding_rect.h = max_xy[1]-min_xy[1]+1;
     
     // calculate inverse matrix
-    int denom = scale_x*scale_y;
+    long long denom = (long long)scale_x*scale_y, div2 = (long long)scale_div*scale_div;
     if (denom == 0) return;
 
-    inv_mat[0][0] =  mat[1][1] * 10000 / denom;
-    inv_mat[0][1] = -mat[0][1] * 10000 / denom;
-    inv_mat[1][0] = -mat[1][0] * 10000 / denom;
-    inv_mat[1][1] =  mat[0][0] * 10000 / denom;
+    inv_mat[0][0] =  (int)(mat[1][1] * div2 / denom);
+    inv_mat[0][1] = -(int)(mat[0][1] * div2 / denom);
+    inv_mat[1][0] = -(int)(mat[1][0] * div2 / denom);
+    inv_mat[1][1] =  (int)(mat[0][0] * div2 / denom);
 }
 
 int AnimationInfo::live_surfaces = 0;

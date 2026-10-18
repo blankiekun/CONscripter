@@ -158,7 +158,7 @@ public:
        (motion_loop_key, loop 4) once then from a later key on,
        or, motion_leave (loop 3), once and then the sprite is removed (lsp
        ends that). Stays across lsp; reset by remove(). */
-    enum { MAX_MOTION_KEYS = 64 };
+    enum { MAX_MOTION_KEYS = 64, MOTION_FINE = 100 };
     int motion_keys;           // 0: no motion
     // ms, x, y, zoom x, angle, alpha, zoom y, curve; MAX_MOTION_KEYS of
     // them, made by a sprite's first motion (NULL before: 2 KB each would
@@ -173,8 +173,9 @@ public:
     int motion_start;          // ticks when it started
     int motion_next;           // ticks of the next step
     int motion_dx, motion_dy;  // the offset drawn now
-    int motion_zoom, motion_zoom_y; // percent, 100 = none
-    int motion_rot;            // degrees, counterclockwise as lsp2's
+    // in MOTION_FINE parts of the keys' units, so a slow zoom or turn moves on each frame
+    int motion_zoom, motion_zoom_y; // 1/100 percent, 10000 = none
+    int motion_rot;            // 1/100 degrees, counterclockwise as lsp2's
     int motion_alpha;          // 0-256 of the sprite's alpha
     int motion_clock;          // ms the next spmotion with keys starts in at (spmotionclock), -1: from its start
     int motion_end;            // ticks a motion ended at once by --auto-play would have ended: spmotionwait still passes that time
@@ -266,7 +267,7 @@ public:
                           SDL_Rect &clip, int alpha=255 );
     void blendText( SDL_Surface *surface, int dst_x, int dst_y, 
                     SDL_Color &color, SDL_Rect *clip, bool rotate_flag );
-    void calcAffineMatrix();
+    void calcAffineMatrix(int scale_div=100, int rot_div=1); // CONscripter: finer units (spmotion)
     
     static SDL_Surface *allocSurface( int w, int h, Uint32 texture_format );
     static SDL_Surface *alloc32bitSurface( int w, int h, Uint32 texture_format );
