@@ -27,6 +27,8 @@ set(SOURCES
   ../cons/ONScripter_animation.cpp
   ../cons/ONScripter_command.cpp
   ../cons/ONScripter_cons.cpp
+  ../cons/ONScripter_spriteeffects.cpp
+  ../cons/ONScripter_audio.cpp
   ../cons/ONScripter_trace.cpp
   ../cons/ONScripter_savepoint.cpp
   ../cons/ONScripter_names.cpp

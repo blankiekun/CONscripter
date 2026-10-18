@@ -518,6 +518,8 @@ set(CONSCRIPTER_CODE
     src/cons/ONScripter_animation.cpp
     src/cons/ONScripter_command.cpp
     src/cons/ONScripter_cons.cpp
+    src/cons/ONScripter_spriteeffects.cpp
+    src/cons/ONScripter_audio.cpp
     src/cons/ONScripter_trace.cpp
     src/cons/ONScripter_savepoint.cpp
     src/cons/ONScripter_names.cpp
