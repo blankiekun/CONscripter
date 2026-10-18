@@ -74,7 +74,8 @@ Impl `ScriptParser::defsubCommand`.
 
 ### textgosub (define)
 `textgosub *label` — call `*label` at every `@` and `\` instead of waiting.
-Impl `ScriptParser::textgosubCommand`.
+[cons] At an `@` inside a `` ` `` string the return goes on with the rest of
+the string (it went to the next line). Impl `ScriptParser::textgosubCommand`.
 
 ### rgosub [cons]
 `rgosub *label` — a right click (or Esc, where `rmode` allows the menu) at a

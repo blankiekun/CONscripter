@@ -777,7 +777,10 @@ bool ONScripter::clickWait( char *out_text )
 
     if (script_h.checkClickstr(script_h.getStringBuffer() + string_buffer_offset) != 1) string_buffer_offset++;
     string_buffer_offset++;
-    char *wait_at = rgosub_label ? script_h.getWaitAt( string_buffer_offset, &rgosub_1byte ) : NULL; // CONscripter: rgosub
+    bool mark_1byte = false;
+    char *mark = script_h.getWaitAt( string_buffer_offset, &mark_1byte ); // CONscripter: this wait in the script
+    char *wait_at = rgosub_label ? mark : NULL; // CONscripter: rgosub
+    if (wait_at) rgosub_1byte = mark_1byte;
 
     if ( (skip_mode & (SKIP_NORMAL | SKIP_TO_EOP) || ctrl_pressed_status) && !textgosub_label ){
         clickstr_state = CLICK_NONE;
@@ -816,7 +819,7 @@ bool ONScripter::clickWait( char *out_text )
             textgosub_clickstr_state = CLICK_WAIT;
             if (script_h.getStringBuffer()[string_buffer_offset] == 0x0)
                 textgosub_clickstr_state |= CLICK_EOL;
-            gosubReal( textgosub_label, script_h.getWait(), true );
+            gosubReal( textgosub_label, textgosubReturn( mark, mark_1byte ), true );
 
             event_mode = IDLE_EVENT_MODE;
             waitEvent(0);
@@ -860,11 +863,14 @@ bool ONScripter::clickNewPage( char *out_text, bool consume )
     // without textgosub: its return would go on after the line's next
     // click wait, not here
     const char *gosub_label = consume ? textgosub_label : NULL;
-    char *wait_at = NULL;
+    char *wait_at = NULL, *mark = NULL;
+    bool mark_1byte = false;
     if (consume){
         if (script_h.checkClickstr(script_h.getStringBuffer() + string_buffer_offset) != 1) string_buffer_offset++;
         string_buffer_offset++;
-        wait_at = rgosub_label ? script_h.getWaitAt( string_buffer_offset, &rgosub_1byte ) : NULL; // CONscripter: rgosub
+        mark = script_h.getWaitAt( string_buffer_offset, &mark_1byte ); // CONscripter: this wait in the script
+        wait_at = rgosub_label ? mark : NULL; // CONscripter: rgosub
+        if (wait_at) rgosub_1byte = mark_1byte;
     }
 
     if ( (skip_mode & SKIP_NORMAL || ctrl_pressed_status) && !gosub_label  ){
@@ -883,7 +889,7 @@ bool ONScripter::clickNewPage( char *out_text, bool consume )
             saveon_flag = false;
 
             textgosub_clickstr_state = CLICK_NEWPAGE;
-            gosubReal( textgosub_label, script_h.getWait(), true );
+            gosubReal( textgosub_label, textgosubReturn( mark, mark_1byte ), true );
 
             event_mode = IDLE_EVENT_MODE;
             waitEvent(0);
@@ -1485,3 +1491,13 @@ bool ONScripter::processText()
 }
 
 
+
+// CONscripter: where textgosub's return goes on, after the wait `mark`. In a
+// ` string the rest of the string (getWait would skip it to the next line),
+// read on as that string.
+char *ONScripter::textgosubReturn( char *mark, bool in_1byte )
+{
+    if (!mark || !in_1byte || mark[1] == 0x0a || mark[1] == '`') return script_h.getWait();
+    script_h.backquote_resume = mark + 1;
+    return mark + 1;
+}
