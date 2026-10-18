@@ -874,6 +874,19 @@ removed by `csp`, saved, kept by `pushscreen`.
 `lsp 20,"tape.png",262,-220:spclip 20,260,138,100,300`.
 Impl `ONScripter::spclipCommand`.
 
+### spmask [cons]
+`spmask num[,"mask"[,x,y]]` — draw sprite num times a mask picture fixed on
+the screen, its top left at (x, y) (default 0, 0): at each screen pixel the
+sprite counts for the mask's alpha × its grey (white: all of it, black or
+clear: none; outside the mask: none), wherever the sprite moves, zooms, turns
+or waves under it (`spmotion`, `spzoom`, `spwave`) and whatever its `spblend`.
+Unlike `spcut`, which cuts the picture once where it stands, the mask stays
+put while the sprite moves. `spmask num` draws it whole again. Stays through
+`lsp`, removed by `csp`, saved, not kept by `pushscreen`.
+`lsp 30,":a/24,42,0;rain.png",880,32:spmask 30,"veil.png":spmotion 30,1,0,0,0,100,100,0,256,0,140,0,-10,100,100,0,256,0` (rain jittering under a fixed veil;
+装甲悪鬼村正's partial `DrawTransition`).
+Impl `ONScripter::spmaskCommand`.
+
 ### sptrail [cons]
 `sptrail num,passes,alpha,lag[,over]` — draw `passes` (1-32) copies of sprite num
 under it (over it with `over` 1), each at `alpha` per mille (1-1000) of its alpha; copy i is where

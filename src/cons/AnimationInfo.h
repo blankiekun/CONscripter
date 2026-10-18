@@ -218,6 +218,12 @@ public:
        is under it). Stays across lsp; reset by remove(). */
     int clip_rect[6];
 
+    /* CONscripter: spmask: drawn times a mask picture fixed on the screen,
+       its top left at screen_mask_xy (script coordinates); screen_mask
+       indexes ONScripter::screen_masks, -1 none. Stays across lsp; reset
+       by remove(). */
+    int screen_mask, screen_mask_xy[2];
+
     int font_size_xy[2]; // used by prnum and lsp string
     int font_pitch[2]; // used by lsp string
     int next_time;

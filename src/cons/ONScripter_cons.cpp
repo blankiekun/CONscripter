@@ -47,7 +47,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 30 // only this version's block is read; the "Version n" comments below
+#define CONS_SAVE_VERSION 31 // only this version's block is read; the "Version n" comments below
                             // name the parts in the order they are written (version 26's first)
 int consSaveVersion() { return CONS_SAVE_VERSION; }
 
@@ -889,6 +889,105 @@ int ONScripter::spclipCommand()
     if (ai.visible) dirty_rect.add( drawnRect( ai ) );
 
     return RET_CONTINUE;
+}
+
+/* spmask num[,"mask"[,x,y]]
+ *   Draws lsp sprite num times the mask picture laid on the screen with
+ *   its top left at (x, y) (default 0, 0): at each screen pixel the
+ *   sprite counts for the mask's alpha × its grey (white: all of it,
+ *   black or clear: none; outside the mask: none), whatever the sprite
+ *   does under it (spmotion, spzoom, spwave), and whatever its blend.
+ *   "spmask num" (or "") draws it whole again. It stays when lsp changes
+ *   the image, is removed by csp and is kept in save files (not by
+ *   pushscreen). Nitroplus's partial DrawTransition, read at the screen
+ *   pixel while its picture moves:
+ *   lsp 30,"rain.png",880,32:spmask 30,"veil.png":spmotion 30,1,... */
+int ONScripter::spmaskCommand()
+{
+    int no = script_h.readInt();
+    std::string name;
+    int x = 0, y = 0;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA) name = script_h.readStr();
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA){
+        x = script_h.readInt();
+        y = script_h.readInt();
+    }
+    if (no < 0 || no >= MAX_SPRITE_NUM){
+        utils::printError("spmask: sprite %d out of range\n", no);
+        return RET_CONTINUE;
+    }
+    AnimationInfo &ai = sprite_info[no];
+    if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+    ai.screen_mask = -1; // (frees its slot for the one loaded now)
+    ai.screen_mask = name.empty() ? -1 : screenMaskSlot( name.c_str() );
+    ai.screen_mask_xy[0] = x;
+    ai.screen_mask_xy[1] = y;
+    if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+
+    return RET_CONTINUE;
+}
+
+// spmask's mask name loaded into a slot of screen_masks (one no sprite
+// uses is reused); -1 when it can't be loaded.
+int ONScripter::screenMaskSlot( const char *name )
+{
+    int free_slot = -1;
+    for (size_t k=0 ; k<screen_masks.size() ; k++){
+        if (screen_masks[k].first == name) return (int)k;
+        bool used = false;
+        for (int i=0 ; i<MAX_SPRITE_NUM && !used ; i++) used = sprite_info[i].screen_mask == (int)k;
+        if (!used && free_slot < 0) free_slot = (int)k;
+    }
+    SDL_Surface *loaded = loadImage( (char*)name );
+    SDL_Surface *m = loaded ? SDL_ConvertSurfaceFormat( loaded, SDL_PIXELFORMAT_ARGB8888, 0 ) : NULL;
+    if (loaded) SDL_FreeSurface( loaded );
+    if (!m){
+        utils::printError("spmask: mask %s can't be loaded\n", name);
+        return -1;
+    }
+    if (free_slot < 0){
+        free_slot = (int)screen_masks.size();
+        screen_masks.push_back( std::make_pair( std::string(), (SDL_Surface*)NULL ) );
+    }
+    if (screen_masks[free_slot].second) SDL_FreeSurface( screen_masks[free_slot].second );
+    screen_masks[free_slot] = std::make_pair( std::string( name ), m );
+    return free_slot;
+}
+
+// spmask's draw: before the sprite is drawn (apply false) the pixels of
+// clip are saved; after it (apply true) each goes back from what was
+// drawn towards what was there by the mask at that screen pixel.
+void ONScripter::screenMaskBlend( SDL_Surface *surface, AnimationInfo *anim, const SDL_Rect &clip, std::vector<Uint32> &saved, bool apply )
+{
+    if (surface->format->BytesPerPixel != 4 || anim->screen_mask >= (int)screen_masks.size()) return;
+    SDL_Surface *m = screen_masks[anim->screen_mask].second;
+    SDL_Rect in = clip, all = { 0, 0, surface->w, surface->h };
+    if (!SDL_IntersectRect( &clip, &all, &in )) return;
+    if (!apply) saved.resize( (size_t)in.w * in.h );
+    size_t at = 0;
+    SDL_LockSurface( surface );
+    for (int y=in.y ; y<in.y+in.h ; y++){
+        Uint32 *p = (Uint32*)((Uint8*)surface->pixels + y * surface->pitch) + in.x;
+        int my = y * screen_ratio2 / screen_ratio1 - anim->screen_mask_xy[1];
+        Uint32 *mrow = (my >= 0 && my < m->h) ? (Uint32*)((Uint8*)m->pixels + my * m->pitch) : NULL;
+        for (int x=in.x ; x<in.x+in.w ; x++, p++, at++){
+            if (!apply){ saved[at] = *p; continue; }
+            int mx = x * screen_ratio2 / screen_ratio1 - anim->screen_mask_xy[0];
+            int k = 0; // 0-255: how much of the drawn pixel stays
+            if (mrow && mx >= 0 && mx < m->w){
+                Uint32 q = mrow[mx];
+                k = (q >> 24) * ((((q >> 16) & 0xff) + ((q >> 8) & 0xff) + (q & 0xff)) / 3) / 255;
+            }
+            if (k == 255) continue;
+            Uint32 old = saved[at], now = *p, out = 0;
+            for (int sh=0 ; sh<32 ; sh+=8){
+                int o = (old >> sh) & 0xff, n = (now >> sh) & 0xff;
+                out |= (Uint32)(o + (n - o) * k / 255) << sh;
+            }
+            *p = out;
+        }
+    }
+    SDL_UnlockSurface( surface );
 }
 
 /* CONscripter
@@ -3242,6 +3341,21 @@ void ONScripter::saveSaveFileCons( bool output_flag )
             writeInt( st.sprite[i - st.first].clip_rect[5], output_flag );
         }
     }
+
+    // Version 31: the sprites spmask masks: the count, then per sprite its
+    // number, the mask's name and its x, y.
+    num = 0;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (sprite_info[i].screen_mask >= 0) num++;
+    writeInt( num, output_flag );
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        AnimationInfo &ai = sprite_info[i];
+        if (ai.screen_mask < 0) continue;
+        writeInt( i, output_flag );
+        writeStr( (char*)screen_masks[ai.screen_mask].first.c_str(), output_flag );
+        writeInt( ai.screen_mask_xy[0], output_flag );
+        writeInt( ai.screen_mask_xy[1], output_flag );
+    }
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -4350,6 +4464,21 @@ void ONScripter::loadSaveFileCons()
                 st->sprite[i - st->first].clip_rect[5] = colour;
             }
         }
+    }
+
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++) sprite_info[i].screen_mask = -1;
+    num = readInt();
+    for (int n=0 ; n<num ; n++){
+        int no = readInt();
+        char *name = NULL;
+        readStr( &name );
+        int x = readInt(), y = readInt();
+        if (no >= 0 && no < MAX_SPRITE_NUM && name){
+            sprite_info[no].screen_mask = screenMaskSlot( name );
+            sprite_info[no].screen_mask_xy[0] = x;
+            sprite_info[no].screen_mask_xy[1] = y;
+        }
+        delete[] name;
     }
 }
 

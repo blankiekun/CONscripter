@@ -765,7 +765,7 @@ static const struct { const char *name; int kind; } trace_commands[] = {
     {"lsp",1}, {"lsph",1}, {"lsp2",1}, {"lsph2",1}, {"lsp2add",1}, {"lsph2add",1},
     {"lsp2sub",1}, {"lsph2sub",1}, {"csp",1}, {"csp2",1}, {"vsp",1}, {"vsp2",1},
     {"msp",1}, {"msp2",1}, {"amsp",1}, {"amsp2",1}, {"cell",1}, {"spfilter",1}, {"spzoom",1}, {"spmotion",1}, {"spcurve",1}, {"spgrab",1}, {"spmotionwait",1},
-    {"strsp",1}, {"strsph",1}, {"vstrsp",1}, {"spz",1}, {"spclip",1}, {"sptrail",1}, {"spwave",1}, {"spblend",1}, {"spstr",1}, {"spreload",1}, {"ld",1}, {"cl",1},
+    {"strsp",1}, {"strsph",1}, {"vstrsp",1}, {"spz",1}, {"spclip",1}, {"spmask",1}, {"sptrail",1}, {"spwave",1}, {"spblend",1}, {"spstr",1}, {"spreload",1}, {"ld",1}, {"cl",1},
     {"bg",1}, {"bgcopy",1}, {"bgcpy",1}, {"popscreen",1},
     {"bgm",2}, {"bgmonce",2}, {"mp3",2}, {"mp3loop",2}, {"mp3save",2}, {"play",2},
     {"playonce",2}, {"playstop",2}, {"stop",2}, {"mp3stop",2}, {"bgmstop",2},
