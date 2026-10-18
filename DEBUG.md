@@ -650,6 +650,8 @@ or `shot-at`, `shot-after` and `shot-effect` for a picture those options took (s
 ```
 
 Written after the command runs, so `pg` is the page before it shows.
+`wait` and `delay` write one too (with no other field), as they end:
+without it a timed wait's time would count as the next command's.
 `src` is the command as written in the script (variables not filled
 in); what it did follows, as the fields that changed since the last
 record:
