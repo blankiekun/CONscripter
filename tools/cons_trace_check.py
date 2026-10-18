@@ -271,9 +271,10 @@ class Timing:
                 break
 
     def seen(self, *ms):
-        """Each sample visible: not faded out (a loop starting over unseen) nor off the screen."""
-        return all(m['alpha'] >= 32 and ('w' not in m or (abs(m['x'] - self.w / 2) < (self.w + m['w']) / 2
-                                                         and abs(m['y'] - self.h / 2) < (self.h + m['h']) / 2)) for m in ms)
+        """A step that can be seen: none faded out (a loop starting over unseen), one on the screen."""
+        return all(m['alpha'] >= 32 for m in ms) and any(
+            'w' not in m or (abs(m['x'] - self.w / 2) < (self.w + m['w']) / 2 and abs(m['y'] - self.h / 2) < (self.h + m['h']) / 2)
+            for m in ms)
 
     def findings(self):
         """(rule, at, message, pg), the scenes with the most first."""

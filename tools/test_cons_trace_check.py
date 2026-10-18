@@ -138,7 +138,7 @@ class Sound(unittest.TestCase):
 
 
 def samples(*xs):
-    return [{'t': 'sample', 'pg': 1, 'ms': i * 64, 'f': i * 4, 'n': 10, 'x': x, 'y': 0, 'zoom': [100, 100],
+    return [{'t': 'sample', 'pg': 1, 'ms': i * 64, 'f': i * 4, 'n': 10, 'x': x, 'y': 0, 'w': 100, 'h': 100, 'zoom': [100, 100],
              'angle': 0, 'alpha': 256} for i, x in enumerate(xs)]
 
 
@@ -156,6 +156,10 @@ class TimingChecks(unittest.TestCase):
         out = check([START] + samples(0, 0, -32766, 10, 20))
         self.assertIn('lsp 10 goes 32766 px away (0,0 -> -32766,0) and back within 2 samples', out)
         self.assertIn('*s:5', out)
+
+    def test_unseen_steps(self):
+        out = check([START] + samples(-2000, -2000, -9000, -2000, -2000))  # off the screen all along
+        self.assertNotIn('== jump', out)
 
     def test_late_effect_and_motion(self):
         out = check([START, {'t': 'effect', 'pg': 1, 'type': 10, 'len': 500, 'due': 500, 'ran': 900, 'at': '*s:6'},
