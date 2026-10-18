@@ -917,7 +917,7 @@ private:
 
     // CONscripter: animated effects on the same picture (screenshake,
     // screenripple, screenpulse), by slot, stepped like sprite animations
-    enum { MAX_SCREEN_EFFECT = 8, SCREEN_EFFECT_PARAMS = 11 };
+    enum { MAX_SCREEN_EFFECT = 8, SCREEN_EFFECT_PARAMS = 12 };
     enum { SCREEN_EFFECT_NONE = 0, SCREEN_EFFECT_SHAKE = 1, SCREEN_EFFECT_RIPPLE = 2, SCREEN_EFFECT_PULSE = 3, SCREEN_EFFECT_ZOOM = 4 };
     struct ScreenEffect {
         int kind;

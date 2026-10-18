@@ -263,7 +263,7 @@ void ONScripter::applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip, int z
     AnimationInfo::applyFilterList( surface, clip, f, num );
 }
 
-/* screenshake slot[, time, interval, mode, speed_x, speed_y, x0, y0, x1, y1[, end[, curve]]]
+/* screenshake slot[, time, interval, mode, speed_x, speed_y, x0, y0, x1, y1[, end[, curve[, delay]]]]
  *   Shakes the picture behind the text window (what screenfilter
  *   filters) until the slot is cleared, or with end (> 0) for end ms,
  *   after which the slot clears itself; without waiting: the script and
@@ -275,7 +275,9 @@ void ONScripter::applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip, int z
  *   when speed_x * ms reaches 65536; mode 2 jolts to and fro: each step
  *   moves it by the full size, the other way from the last (speeds
  *   unused). curve (an spmotion curve: 1-3 or an spcurve table; 0 or left
- *   out straight) eases the size from x0,y0 to x1,y1. Where the picture
+ *   out straight) eases the size from x0,y0 to x1,y1. delay (ms, > 0)
+ *   holds it still that long first: time and end count from then (a shake
+ *   timed to a sound). Where the picture
  *   moved away, what was there stays (it is drawn over itself).
  *   "screenshake 1,1000,100,0,800,800,0,0,30,30" shakes harder and
  *   harder for a second; "screenshake 1" stops it.
@@ -734,6 +736,7 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
     if (kind == SCREEN_EFFECT_SHAKE){ // gamespeed: its time and end
         e.param[0] = speedTime( e.param[0] );
         e.param[9] = speedTime( e.param[9] );
+        e.param[11] = speedTime( e.param[11] );
     }
     startScreenEffect( e );
     if (e.kind == SCREEN_EFFECT_SHAKE) traceShake( slot, NULL, e.param[9] );
@@ -773,6 +776,8 @@ void ONScripter::startScreenEffect( ScreenEffect &e )
     e.elapsed = 0;
     e.ran = 0;
     e.next_step = SDL_GetTicks() + p[1];
+    // a shake's delay: no step (so no offset) until it is over
+    if (e.kind == SCREEN_EFFECT_SHAKE && p[11] > 0) e.next_step += p[11];
     e.range_x = e.range_y = 0;
     e.phase_x = e.phase_y = 0;
     e.point = 0;
@@ -799,7 +804,7 @@ void ONScripter::stepScreenEffect( ScreenEffect &e )
     int t = (time > 0) ? (int)((long long)e.elapsed * 256 / time) : 256;
 
     if (e.kind == SCREEN_EFFECT_SHAKE){
-        // param: time, interval, mode, speed x, y, x0, y0, x1, y1, end, curve
+        // param: time, interval, mode, speed x, y, x0, y0, x1, y1, end, curve, delay
         if (p[10] && time > 0) t = curveAt( p[10], t * 4 ) / 4;
         e.range_x = (p[5] << 16) + (int)((((long long)(p[7] - p[5])) << 16) * t >> 8);
         e.range_y = (p[6] << 16) + (int)((((long long)(p[8] - p[6])) << 16) * t >> 8);
