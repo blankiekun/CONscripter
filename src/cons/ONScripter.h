@@ -1518,6 +1518,11 @@ private:
     bool is_kinsoku;
     AnimationInfo text_info;
     AnimationInfo sentence_font_info;
+    // CONscripter: the text window *define set (setwindow there), which game and reset keep
+    bool define_window = false;
+    FontInfo define_font;
+    SDL_Rect define_window_pos;
+    char *define_window_image = NULL;
     char *font_file;
     void *font_cache = NULL;
     int erase_text_window_mode;

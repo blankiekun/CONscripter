@@ -425,6 +425,8 @@ place (the line number in the whole script).
 — text area and window; `setwindow2 "#col"|"image"` — only the window
 picture; `setwindow3` like `setwindow` without a new page.
 [cons] `consset "textshadow"` and `windowtrans` override shadow and opacity.
+In the define section they set the window `game` starts with and `reset`
+goes back to, as in NScripter (ONScripter's `game` put the default back).
 Impl `ONScripter::setwindowCommand`, `setwindow2Command`, `setwindow3Command`.
 
 ### windowtrans [cons]

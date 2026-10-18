@@ -175,6 +175,13 @@ def main():
         # Crossfade black to SOLID at half its time: half of each channel, ±1 for the
         # fade's 0-256 alpha step rounding.
         check("crossfade 50%", px(160, 120), tuple(c // 2 for c in SOLID), tol=1)
+
+        _, _, px = read_bmp(os.path.join(d, "sv", "window.bmp"))
+        # The #808080 window that setwindow set in *define, rows 150..239, darkens SOLID
+        # to about half; above it SOLID is untouched (game used to put back the
+        # default window, the whole screen).
+        check("define setwindow: above the window", px(160, 100), SOLID)
+        check("define setwindow: in the window", px(300, 230), tuple(c * 128 // 255 for c in SOLID), tol=1)
     finally:
         shutil.rmtree(d)
     print("pixel test: " + ("all passed" if not fails else f"{fails} failed"))

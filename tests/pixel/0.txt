@@ -1,6 +1,8 @@
 ;mode320
 ; Pixel test game: tests/pixel/check.py makes the images, runs this and checks the screenshots.
 *define
+; a text window set in *define holds after game: the bottom 90 rows, halving what is under it
+setwindow 8,160,18,3,16,16,0,2,0,0,1,#808080,0,150,319,239
 game
 *start
 ; lsp: opaque, alpha ramp, spfilter grey (kind 2) and grey of weights (kind 11)
@@ -27,4 +29,7 @@ csp2 -1
 print 1
 ; crossfade black to a colour, filmed at its midpoint by --shot-effects 50
 bg "#c86432",10,1000
+`x
+getscreenshot 320,240
+savescreenshot "window.bmp"
 end

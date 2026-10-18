@@ -702,6 +702,7 @@ void ONScripter::setwindowCore()
 
     const char *buf = script_h.readStr();
     dirty_rect.add( textWindowRect() );
+    if (current_mode == DEFINE_MODE) define_window = true; // CONscripter
 
     AnimationInfo *ai = &sentence_font_info;
     if ( buf[0] == '#' ){
@@ -752,6 +753,7 @@ int ONScripter::setwindow3Command()
 int ONScripter::setwindow2Command()
 {
     const char *buf = script_h.readStr();
+    if (current_mode == DEFINE_MODE) define_window = true; // CONscripter
     if ( buf[0] == '#' ){
         sentence_font.is_transparent = true;
         readColor( &sentence_font.window_color, buf );
@@ -1149,6 +1151,18 @@ int ONScripter::resetCommand()
     mp3fadeout_duration = 0; //don't use fadeout during a reset
     resetSub();
     mp3fadeout_duration = fadeout;
+    if (define_window){ // CONscripter: a setwindow in *define holds after game and reset, as in NScripter
+        sentence_font = define_font;
+        AnimationInfo *ai = &sentence_font_info;
+        if (define_window_image){
+            ai->setImageName( define_window_image );
+            parseTaggedString( ai );
+            setupAnimationInfo( ai );
+        }
+        ai->orig_pos = define_window_pos;
+        ai->scalePosXY( screen_ratio1, screen_ratio2 );
+        ai->scalePosWH( screen_ratio1, screen_ratio2 );
+    }
 #ifdef USE_LUA
     lua_handler.resetProcesses(); // CONscripter: cons_process
 #endif
@@ -2784,6 +2798,11 @@ int ONScripter::gameCommand()
     page_list[0].previous = &page_list[max_page_list-1];
     page_list[max_page_list-1].next = &page_list[0];
 
+    if (define_window){ // CONscripter: kept for resetCommand to put back
+        define_font = sentence_font;
+        define_window_pos = sentence_font_info.orig_pos;
+        setStr( &define_window_image, sentence_font.is_transparent ? NULL : sentence_font_info.image_name );
+    }
     resetCommand();
 
     loadCursor( 0, NULL, 0, 0 );
