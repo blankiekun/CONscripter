@@ -63,6 +63,7 @@ SDL_TimerID consAddTimer( Uint32 ms, SDL_TimerCallback callback, void *param );
 SDL_bool consRemoveTimer( SDL_TimerID id );
 void consDelay( Uint32 ms );
 void consIdle( bool idle );      // the main thread waits (true) or works again (false): ms_cpu
+double consFrameWork();          // ms the main thread worked since the last call (wall time, without waits)
 bool consClockWait( SDL_Event *event );
 #define SDL_GetTicks() consTicks()
 #define SDL_AddTimer( ms, callback, param ) consAddTimer( ms, callback, param )
@@ -188,6 +189,8 @@ public:
     void setAudioStats();          // CONscripter: --audio-stats
     void setTraceMaxImage(int mb); // CONscripter: --trace-max-image
     void setRoundtrip(int pages, int slot); // CONscripter: --roundtrip-every, --roundtrip-slot
+    void setDumpFrames(const char *path); // CONscripter: --dump-frames
+    void setTracePerf();                  // CONscripter: --trace-perf
     void setDumpVars(const char *path);
     const char* getArchivePath() { return archive_path; }
     void setWindowWidth(int width);
@@ -1242,6 +1245,11 @@ private:
     std::string roundtripExcerpt( const std::string &s, size_t from );
     void roundtripLoad();
     void roundtripClear();
+    FILE *dump_frames_fp = NULL;     // --dump-frames: a line per present
+    bool trace_perf = false;         // --trace-perf: a "perf" record per page
+    unsigned presents = 0, presents_page = 0; // frames presented: in all, since the last page
+    double perf_work = 0, perf_work_max = 0, perf_block_max = 0; // their ms since the last page
+    void tracePresent( double work_ms, double block_ms );
     int trace_wait_ms = 0;           // the time the waits and effects since the last page asked for
     std::string traceBlocked( ButtonLink *bl );
     void traceLongWait( int ms );

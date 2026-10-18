@@ -1017,6 +1017,10 @@ void ONScripter::tracePage( bool dump )
         r += buf;
     }
     if (!dump) trace_wait_ms = 0;
+    if (presents_page){ // frames presented since the last page
+        snprintf( buf, sizeof(buf), ",\"presents\":%u", presents_page );
+        r += buf;
+    }
 
     bool se = false;
     for (int ch=0 ; audio_open_flag && ch<=MIX_WAVE_CHANNEL ; ch++){
@@ -1138,6 +1142,17 @@ void ONScripter::tracePage( bool dump )
         }
     }
     traceWrite( r );
+    if (!dump && trace_perf && presents_page){
+        char pb[160];
+        snprintf( pb, sizeof(pb), "{\"t\":\"perf\",\"pg\":%d,\"frames\":%u,\"work_ms\":%.1f,\"work_max\":%.1f,\"present_max\":%.1f}",
+                  trace_page, presents_page, perf_work, perf_work_max, perf_block_max );
+        std::string p = pb;
+        traceWrite( p );
+    }
+    if (!dump){
+        presents_page = 0;
+        perf_work = perf_work_max = perf_block_max = 0;
+    }
     if (!dump && roundtrip_every > 0 && auto_play_flag && trace_page % roundtrip_every == 0){
         roundtripState( roundtrip_before );
         roundtrip_due = true;
@@ -1564,7 +1579,7 @@ void ONScripter::traceStack( std::string &out )
 void ONScripter::traceEnd()
 {
     char buf[64];
-    snprintf( buf, sizeof(buf), "{\"t\":\"end\",\"pg\":%d,\"reason\":", trace_page );
+    snprintf( buf, sizeof(buf), "{\"t\":\"end\",\"pg\":%d,\"presents\":%u,\"reason\":", trace_page, presents );
     std::string r = buf;
     traceString( r, trace_end_reason ? trace_end_reason : "exit" ); // "exit": none of the others (-h)
     r += '}';
@@ -1609,8 +1624,22 @@ SDL_bool consRemoveTimer( SDL_TimerID id )
     return SDL_FALSE;
 }
 
+static Uint64 work_from = 0, work_sum = 0; // work_from 0: waiting
+
+double consFrameWork()
+{
+    Uint64 now = SDL_GetPerformanceCounter();
+    if (work_from) work_sum += now - work_from, work_from = now;
+    double ms = work_sum * 1000.0 / SDL_GetPerformanceFrequency();
+    work_sum = 0;
+    return ms;
+}
+
 void consIdle( bool idle )
 {
+    Uint64 now_pc = SDL_GetPerformanceCounter();
+    if (idle && work_from) work_sum += now_pc - work_from;
+    work_from = idle ? 0 : now_pc;
     if (!busy_on) return;
     Uint32 now = (SDL_GetTicks)();
     if (!idle) busy_from = now;
@@ -2586,6 +2615,31 @@ void ONScripter::traceLargeImage( AnimationInfo *ai, int w, int h )
  * loadgosub runs; when the same page is shown again, its state is compared
  * with the one before, and a difference is a "save/load mismatch" warn.
  * The page shown again isn't recorded, so the run goes on as without it. */
+void ONScripter::setDumpFrames( const char *path )
+{
+    dump_frames_fp = ::fopen( path, "w" );
+    if (!dump_frames_fp){ utils::printError( "can't write %s\n", path ); return; }
+    setvbuf( dump_frames_fp, NULL, _IOLBF, 0 ); // whole lines however the run ends
+    fprintf( dump_frames_fp, "# n\tms\twork_ms\tpresent_ms\tpg\n" );
+}
+
+void ONScripter::setTracePerf()
+{
+    trace_perf = true;
+}
+
+// Each present: the counts for the trace, its line in --dump-frames.
+void ONScripter::tracePresent( double work_ms, double block_ms )
+{
+    presents++;
+    presents_page++;
+    perf_work += work_ms;
+    if (work_ms > perf_work_max) perf_work_max = work_ms;
+    if (block_ms > perf_block_max) perf_block_max = block_ms;
+    if (dump_frames_fp)
+        fprintf( dump_frames_fp, "%u\t%u\t%.2f\t%.2f\t%d\n", presents, SDL_GetTicks(), work_ms, block_ms, trace_page );
+}
+
 void ONScripter::setRoundtrip( int pages, int slot )
 {
     if (pages >= 0) roundtrip_every = pages;
