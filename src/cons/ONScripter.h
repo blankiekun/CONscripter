@@ -292,6 +292,7 @@ public:
     int windowtransCommand();
     int windowfadeCommand();
     int languageCommand(); // CONscripter: the text's language, for the web page
+    char *textgosubReturn( char *mark, bool in_1byte ); // CONscripter (ONScripter_text.cpp)
     int conssetCommand(); // CONscripter: player settings
     int consgetCommand();
     bool setSetting(const char *key, int v);
