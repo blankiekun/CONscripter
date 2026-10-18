@@ -1792,6 +1792,12 @@ No command involved:
   `<folder>/x` is entry `x` of the Nitroplus NPA `<file>` (relative to the
   game folder; the digits are its 256-byte decryption table). Names match
   without regard to case (ASCII and full-width Latin) or `/` and `\`.
+  A line `range<TAB><name><TAB><file><TAB><offset><TAB><length>`
+  (tab-separated, names may hold spaces) makes the script's `<name>` the
+  `<length>` bytes at `<offset>` in `<file>`, as they lie there: a PNG in
+  a GAF4 picture bank, an Ogg in a sound bank (最果てのイマ). A line
+  `xor<TAB><file><TAB><hex key>` before them says `<file>` is XORed with
+  the key, cycled by absolute file offset (GAF4's encryption).
   Loose files come first, then these archives, then `arc.nsa`.
   Compressed NPAs (zlib, 装甲悪鬼村正) are inflated by the engine's own
   decoder. Web: each entry's bytes go through `consPreload` as an `.nsa`

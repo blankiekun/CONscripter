@@ -18,6 +18,10 @@ lsp 5,":a;orig/bg/solid.png",130,10
 lsp 6,":a;z/stored.png",175,10
 lsp 7,":a;z/fixed.png",220,10
 lsp 8,":a;z/dynamic.png",265,10
+; a byte range of another file (a PNG inside a bank, as 最果てのイマ's)
+lsp 9,":a;r/solid.png",10,60
+; the same from a file XORed with a key by absolute offset (GAF4)
+lsp 10,":a;r/xor.png",60,60
 print 1
 getscreenshot 320,240
 savescreenshot "lsp.bmp"

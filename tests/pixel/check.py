@@ -149,6 +149,15 @@ def main():
         with open(os.path.join(d, "cons_archives.txt"), "w") as f:
             f.write("npa orig orig.npa " + bytes(inv).hex() + "\n")
             f.write("npa z origz.npa " + bytes(inv).hex() + "\n")
+            f.write(f"range\tR/Solid.png\tbank/pack.bin\t1000\t{len(big)}\n")
+            f.write("xor\tbank/xor.bin\t13579bdf\n")
+            f.write(f"range\tr/xor.png\tbank/xor.bin\t1001\t{len(big)}\n")
+        os.mkdir(os.path.join(d, "bank"))
+        with open(os.path.join(d, "bank", "pack.bin"), "wb") as f:
+            f.write(b"x" * 1000 + big + b"y" * 1000)
+        with open(os.path.join(d, "bank", "xor.bin"), "wb") as f:
+            key = bytes.fromhex("13579bdf")
+            f.write(bytes(c ^ key[i % 4] for i, c in enumerate(b"x" * 1001 + big)))
         env = dict(os.environ, SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
         r = subprocess.run(["timeout", "-k", "5", "30", binary, "-r", ".", "--save-dir", "sv",
                             "--trace", "t.jsonl", "--auto-play", "0", "--shot-effects", "50",
@@ -175,6 +184,8 @@ def main():
         # orig/bg/solid.png: BG\Solid.PNG in orig.npa, decrypted (case and separator folded).
         check("npa picture box", bbox(px, 126, 0, 172, 60), (130, 10, 169, 49))
         check("npa picture pixels", sorted({px(x, y) for y in range(10, 50) for x in range(130, 170)}), [SOLID])
+        check("range picture box", bbox(px, 0, 55, 55, 110), (10, 60, 49, 99))
+        check("xor range picture box", bbox(px, 55, 55, 110, 110), (60, 60, 99, 99))
         for kind, x in (("stored", 175), ("fixed", 220), ("dynamic", 265)):
             check(f"npa zlib {kind} box", bbox(px, x - 2, 0, x + 44, 60), (x, 10, x + 39, 49))
 
