@@ -193,6 +193,7 @@ public:
     void setRoundtrip(int pages, int slot); // CONscripter: --roundtrip-every, --roundtrip-slot
     void setDumpFrames(const char *path); // CONscripter: --dump-frames
     void setTracePerf();                  // CONscripter: --trace-perf
+    void setTraceMotionSamples(int frames); // CONscripter: --trace-motion-samples
     void setDumpVars(const char *path);
     const char* getArchivePath() { return archive_path; }
     void setWindowWidth(int width);
@@ -1273,6 +1274,11 @@ private:
     unsigned presents = 0, presents_page = 0; // frames presented: in all, since the last page
     double perf_work = 0, perf_work_max = 0, perf_block_max = 0; // their ms since the last page
     void tracePresent( double work_ms, double block_ms );
+    int trace_motion_samples = 4;    // --trace-motion-samples: a "sample" record every this many frames of a motion or effect (0: none)
+    Uint32 trace_effect_start = 0;   // when the effect running began
+    bool trace_effect_on = false;    // an effect is running
+    void traceSamples();
+    void traceEffectEnd( EffectLink *effect );
     int trace_wait_ms = 0;           // the time the waits and effects since the last page asked for
     std::string traceBlocked( ButtonLink *bl );
     void traceLongWait( int ms );

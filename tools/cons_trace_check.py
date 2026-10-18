@@ -35,7 +35,12 @@ by kind, each finding at the script line ("*label:line") to look at:
                or (--cg) any filter or effect over a background matching REGEX,
                or a screenshake with no end shaking for many pages (--shake)
   loop         a looping sound left playing for many pages
-  duration     a wait or effect the script asks to last very long
+  jump         (--trace-motion-samples) a sprite an spmotion moves that steps
+               over 64 px, 25 % of zoom or 45 degrees between two samples, or
+               goes away and comes back within 3 samples
+  duration     a wait or effect the script asks to last very long; an effect
+               or motion that ran longer or shorter than asked for (by more
+               than two frames and 10 %)
   slow         where the time went: the slowest stretches between records
   save         a state that changed after a save and load (--roundtrip-every)
   replay       a --replay run that went another way, or ran out of choices;
@@ -77,7 +82,7 @@ FILTER_KINDS = {1: 'colour', 2: 'greyscale', 3: 'negative', 4: 'brightness', 5: 
                 6: 'blur', 7: 'hue/saturation', 8: 'lightness invert'}
 
 RULES = ['error', 'missing', 'text', 'sound', 'voice', 'linger', 'float', 'offscreen',
-         'invisible', 'crowd', 'overlay', 'loop', 'duration', 'slow', 'save', 'replay',
+         'invisible', 'crowd', 'overlay', 'loop', 'jump', 'duration', 'slow', 'save', 'replay',
          'memory', 'movie', 'button', 'coverage', 'unused']
 
 # Options a config file may set, with their defaults.
@@ -197,6 +202,87 @@ def snippet(text, pos=0, width=30):
     s = text[max(0, pos - 10):pos + width].replace('\n', ' / ')
     return '\u00ab%s\u00bb' % s
 
+JUMP_PX, JUMP_ZOOM, JUMP_ANGLE = 64, 25, 45  # a step between samples
+
+
+class Timing:
+    """The jump and duration findings of one trace, ranked by scene: feed() each record, then findings()."""
+
+    def __init__(self):
+        self.w, self.h = 800, 600  # the screen (meta)
+        self.hist = {}    # sprite n -> its samples since its motion started
+        self.at = {}      # sprite n -> the spmotion that moves it
+        self.found = OrderedDict()  # (rule, label, what) -> [count, at, message, pg]
+
+    def note(self, rule, what, at, message, pg):
+        f = self.found.setdefault((rule, label_of(at) if at else '?', what), [0, at, message, pg])
+        f[0] += 1
+
+    def feed(self, r):
+        t = r.get('t')
+        if t == 'meta':
+            self.w, self.h = r.get('w') or self.w, r.get('h') or self.h
+        elif t == 'motion' and 'n' in r:
+            self.hist[r['n']] = []
+            if not r.get('ended'):
+                self.at[r['n']] = r.get('at')
+            elif r.get('ended') == 'ran out' and 'len' in r:
+                self.late('motion of lsp %d' % r['n'], self.at.get(r['n']), r['len'], r.get('ran', 0), r.get('pg', 0))
+        elif t == 'effect':
+            self.late('effect %s (%d ms as written)' % (r.get('type'), r.get('len', 0)), r.get('at'),
+                      r.get('due', r.get('len', 0)), r.get('ran', 0), r.get('pg', 0))
+        elif t == 'sample' and 'n' in r:
+            h = self.hist.setdefault(r['n'], [])
+            h.append(r)
+            del h[:-4]
+            self.jump(r['n'], h)
+
+    def late(self, what, at, due, ran, pg):
+        if abs(ran - due) > 33 + due / 10:  # (a motion is stepped every 16 ms: its end is seen up to a step late, and drawn a frame on)
+            self.note('duration', what, at, '%s ran %d ms, asked for %d' % (what, ran, due), pg)
+
+    def jump(self, n, h):
+        b, at = h[-1], self.at.get(n)
+        metrics = (('px', JUMP_PX, lambda p, q: max(abs(p['x'] - q['x']), abs(p['y'] - q['y']))),
+                   ('zoom', JUMP_ZOOM, lambda p, q: max(abs(p['zoom'][i] - q['zoom'][i]) for i in (0, 1))),
+                   ('angle', JUMP_ANGLE, lambda p, q: abs(p['angle'] - q['angle'])))
+        if len(h) >= 3:
+            # the step before the last: a jump when over the threshold and 3 times as fast as the steps
+            # beside it (a fast motion goes as fast all along; frames come at uneven times)
+            p, q = h[-3], h[-2]
+            speed = lambda step, m, o: step(m, o) / max(o['ms'] - m['ms'], 1)
+            for what, most, step in metrics if self.seen(p, q) else ():
+                d = step(p, q)
+                beside = max([speed(step, q, b)] + ([speed(step, h[-4], p)] if len(h) > 3 else []))
+                if d > most and speed(step, p, q) > 3 * beside:
+                    self.note('jump', (n, what), at, 'lsp %d %s between samples (%s at %d ms)' % (n, {
+                        'px': 'steps %d px' % d, 'zoom': 'zoom steps %.0f %%' % d, 'angle': 'turns %.0f degrees' % d}[what],
+                        {'px': '%d,%d -> %d,%d' % (p['x'], p['y'], q['x'], q['y']),
+                         'zoom': '%.0f -> %.0f' % (p['zoom'][0], q['zoom'][0]),
+                         'angle': '%.0f -> %.0f' % (p['angle'], q['angle'])}[what], q['ms']), q['pg'])
+        dist = lambda p, q: max(abs(p['x'] - q['x']), abs(p['y'] - q['y']))
+        for i in range(len(h) - 3, -1, -1):  # away and back (to within a quarter of the way) within 3 samples
+            o = h[i]
+            far = max(h[i + 1:-1], key=lambda m: dist(m, o))
+            if dist(far, o) > JUMP_PX and dist(b, o) * 4 < dist(far, o) and self.seen(o, far, b):
+                self.note('jump', (n, 'back'), at, 'lsp %d goes %d px away (%d,%d -> %d,%d) and back within %d samples (at %d ms)' % (
+                    n, dist(far, o), o['x'], o['y'], far['x'], far['y'], len(h) - 1 - i, far['ms']), b['pg'])
+                h[:-1] = []  # one finding per trip
+                break
+
+    def seen(self, *ms):
+        """Each sample visible: not faded out (a loop starting over unseen) nor off the screen."""
+        return all(m['alpha'] >= 32 and ('w' not in m or (abs(m['x'] - self.w / 2) < (self.w + m['w']) / 2
+                                                         and abs(m['y'] - self.h / 2) < (self.h + m['h']) / 2)) for m in ms)
+
+    def findings(self):
+        """(rule, at, message, pg), the scenes with the most first."""
+        scene = defaultdict(int)
+        for (rule, lbl, _), f in self.found.items():
+            scene[(rule, lbl)] += f[0]
+        out = sorted(self.found.items(), key=lambda kv: (-scene[kv[0][:2]], kv[0][1], -kv[1][0]))
+        return [(rule, at, m + (' (%d times)' % n if n > 1 else ''), pg) for (rule, _, _), (n, at, m, pg) in out]
+
 
 def width_of(line):
     return sum(0.5 if ord(c) < 0x100 or 0xff61 <= ord(c) <= 0xff9f else 1 for c in line)
@@ -284,9 +370,11 @@ class Checker:
 
     def run(self, path):
         self.start_trace()
+        timing = Timing()
         for r in records(path):
             t = r.get('t')
             self.counts[t] += 1
+            timing.feed(r)
             if t == 'page':
                 self.pg = r['pg']
                 self.reloading = False
@@ -352,6 +440,9 @@ class Checker:
             self.add('error', None, self.prev.get('at') if self.prev else None,
                      'auto-play stopped: %s' % self.end['reason'])
         self.memory()
+        for rule, at, m, pg in timing.findings():
+            self.pg = pg
+            self.add(rule, (at, m), at, m)
         end = self.end.get('reason', 'ended') if self.end else 'crashed' if self.crash else 'no end record'
         self.runs.append((path, self.counts['page'], self.counts['ev'], self.counts['choice'], end))
         for k, v in self.counts.items():
@@ -1074,6 +1165,18 @@ def diff(old, new, limit):
         print('%s has %d pages, %s %d' % (old, len(a), new, len(b)))
     if not groups:
         print('no differences in the pages both runs reached')
+    timing = []
+    for path in (old, new):
+        t = Timing()
+        for r in records(path):
+            t.feed(r)
+        timing.append({(rule, at, finding_key(m)): (rule, at, m) for rule, at, m, pg in t.findings()})
+    for name, mine, other in (('gone', timing[0], timing[1]), ('new', timing[1], timing[0])):
+        left = [v for k, v in mine.items() if k not in other]
+        if left:
+            print('%d %s jump/duration findings%s' % (len(left), name, ' (--max)' if len(left) > limit else ''))
+            for rule, at, m in left[:limit]:
+                print('  %s %-24s %s' % (rule, at, m))
 
 
 def find_config(args):
