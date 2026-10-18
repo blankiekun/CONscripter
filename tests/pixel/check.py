@@ -22,9 +22,10 @@ def write_png(path, w, h, pixel, level=-1):
                 + chunk(b"IDAT", zlib.compress(raw, level)) + chunk(b"IEND", b""))
 
 
-def write_npa(path, files, inv):
-    """An encrypted, uncompressed Nitroplus NPA of files {name: data}; inv is the
-    decryption table cons_archives.txt gives (conscripter-convert's npa.rs)."""
+def write_npa(path, files, inv, pack=None):
+    """An encrypted Nitroplus NPA of files {name: data}; inv is the decryption
+    table cons_archives.txt gives (conscripter-convert's npa.rs). pack(name, data)
+    gives each entry's zlib stream for a compressed archive."""
     table = [0] * 256
     for i, b in enumerate(inv):
         table[b] = i
@@ -35,11 +36,14 @@ def write_npa(path, files, inv):
     for i, (name, body) in enumerate(files.items()):
         raw = name.encode()
         stored = bytes((c - (0xFC * x - bsum(key12) - bsum(i))) & 255 for x, c in enumerate(raw))
-        k = ((0x87654321 - sum(raw)) * len(raw) + key12) * len(body) & 255
+        size = len(body)
+        k = ((0x87654321 - sum(raw)) * len(raw) + key12) * size & 255
+        if pack:
+            body = pack(name, body)
         body = bytes(table[(c + k + x) & 255] if x < 0x1000 + len(raw) else c for x, c in enumerate(body))
-        index += struct.pack("<I", len(raw)) + stored + struct.pack("<BIIII", 2, i, len(data), len(body), len(body))
+        index += struct.pack("<I", len(raw)) + stored + struct.pack("<BIIII", 2, i, len(data), len(body), size)
         data += body
-    head = b"NPA" + struct.pack("<IIIBBIIIIII", 1, key1, key2, 0, 1, len(files), 0, len(files), 0, 0, len(index))
+    head = b"NPA" + struct.pack("<IIIBBIIIIII", 1, key1, key2, 1 if pack else 0, 1, len(files), 0, len(files), 0, 0, len(index))
     with open(path, "wb") as f:
         f.write(head + index + data)
 
@@ -128,10 +132,23 @@ def main():
         # 40x40 stored (level 0): more than the 4 KB the NPA encrypts.
         write_png(os.path.join(d, "big.png"), 40, 40, lambda x, y: SOLID + (255,), level=0)
         inv = [(i * 7 + 3) & 255 for i in range(256)]
-        write_npa(os.path.join(d, "orig.npa"), {"BG\\Solid.PNG": open(os.path.join(d, "big.png"), "rb").read()}, inv)
+        big = open(os.path.join(d, "big.png"), "rb").read()
+        write_npa(os.path.join(d, "orig.npa"), {"BG\\Solid.PNG": big}, inv)
+        # Compressed: each kind of deflate block (stored, fixed and dynamic Huffman).
+        def pack(name, data):
+            level, strategy = {"stored.png": (0, zlib.Z_DEFAULT_STRATEGY), "fixed.png": (9, zlib.Z_FIXED)}.get(name, (9, zlib.Z_DEFAULT_STRATEGY))
+            z = zlib.compressobj(level, zlib.DEFLATED, 15, 9, strategy)
+            return z.compress(data) + z.flush()
+        # Pixel noise (never black), so zlib chooses a dynamic Huffman block.
+        write_png(os.path.join(d, "noise.png"), 40, 40, lambda x, y: ((x * 37 + y * 11) % 192 + 64, (x * y) % 192 + 64, 128, 255), level=0)
+        noise = open(os.path.join(d, "noise.png"), "rb").read()
+        os.remove(os.path.join(d, "noise.png"))
+        assert (pack("dynamic.png", noise)[2] >> 1) & 3 == 2, "not a dynamic block"
+        write_npa(os.path.join(d, "origz.npa"), {"stored.png": big, "fixed.png": big, "dynamic.png": noise}, inv, pack)
         os.remove(os.path.join(d, "big.png"))
         with open(os.path.join(d, "cons_archives.txt"), "w") as f:
             f.write("npa orig orig.npa " + bytes(inv).hex() + "\n")
+            f.write("npa z origz.npa " + bytes(inv).hex() + "\n")
         env = dict(os.environ, SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
         r = subprocess.run(["timeout", "-k", "5", "30", binary, "-r", ".", "--save-dir", "sv",
                             "--trace", "t.jsonl", "--auto-play", "0", "--shot-effects", "50",
@@ -156,8 +173,10 @@ def main():
         g11 = sum(c * p >> 8 for c, p in zip(SOLID, (100, 50, 30)))
         check("spfilter 11 weights", px(107, 17), (g11,) * 3)
         # orig/bg/solid.png: BG\Solid.PNG in orig.npa, decrypted (case and separator folded).
-        check("npa picture box", bbox(px, 126, 0, 180, 60), (130, 10, 169, 49))
+        check("npa picture box", bbox(px, 126, 0, 172, 60), (130, 10, 169, 49))
         check("npa picture pixels", sorted({px(x, y) for y in range(10, 50) for x in range(130, 170)}), [SOLID])
+        for kind, x in (("stored", 175), ("fixed", 220), ("dynamic", 265)):
+            check(f"npa zlib {kind} box", bbox(px, x - 2, 0, x + 44, 60), (x, 10, x + 39, 49))
 
         _, _, px = read_bmp(os.path.join(d, "sv", "lsp2.bmp"))
         # lsp2 places the picture's centre at (cx, cy): 8x6 at (40,40) covers 36..43, 37..42.
