@@ -286,10 +286,14 @@ void ScriptHandler::writeKidokuCons( FILE *fp )
 
 void ScriptHandler::readKidokuCons( FILE *fp )
 {
+    // Read straight into the vector: the web build's stack is 64 KB, too small for a buffer.
     std::vector<unsigned char> d;
-    unsigned char buf[65536];
-    size_t got;
-    while ((got = fread( buf, 1, sizeof(buf), fp )) > 0) d.insert( d.end(), buf, buf+got );
+    for (size_t got = 1 ; got > 0 ; ){
+        size_t n = d.size();
+        d.resize( n + 65536 );
+        got = fread( &d[n], 1, 65536, fp );
+        d.resize( n + got );
+    }
 
     if (d.size() < sizeof(KIDOKU_MAGIC) || memcmp( &d[0], KIDOKU_MAGIC, sizeof(KIDOKU_MAGIC) )){
         if (d.size() == (size_t)script_buffer_length/8) // the stock format, from this same script
