@@ -2,6 +2,8 @@
 ; Web smoke test game: tests/web/smoke.py serves it with a web build, in
 ; Shift-JIS, or in UTF-8 with --enc:utf8.
 *define
+globalon
+kidokuskip
 game
 *start
 strsp 1,"SPRITE",10,200,10,1,16,16,0,0,0,0

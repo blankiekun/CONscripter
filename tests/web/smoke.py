@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Web smoke test: plays tests/web/0.txt in a web build under headless Chromium
 and checks the page hooks (consText, consChoice, consSprites, consNoTextOverlay,
-_consResendText) and that the page logs no errors.
+_consResendText) and that the page logs no errors. Then starts the page again in
+the same browser profile, over the first run's saves (kidoku.dat in IndexedDB):
+a second start must play the same.
 
 usage: python3 -I tests/web/smoke.py <web build dir> [engine args...]
 The build dir holds conscripter.html/.js/.wasm (cross_web.sh's build_web, or a
@@ -48,6 +50,7 @@ def main():
               open(os.path.join(site, "cons_index.json"), "w"))
 
     result, missing, done = {}, [], threading.Event()
+    results = []
 
     class Handler(http.server.SimpleHTTPRequestHandler):
         extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, ".wasm": "application/wasm"}
@@ -72,21 +75,39 @@ def main():
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     profile = tempfile.mkdtemp(prefix="cons-web-smoke-profile-")
-    browser = subprocess.Popen(
-        [chrome, "--headless=new", "--no-sandbox", "--no-first-run", f"--user-data-dir={profile}",
-         "--autoplay-policy=no-user-gesture-required", "--use-gl=swiftshader", "--enable-unsafe-swiftshader",
-         f"http://127.0.0.1:{server.server_port}/index.html"],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
-        if not done.wait(120):
-            sys.exit("FAIL: no result from the page in 120 s")
+        for run in ("first", "second"):  # a crash only on the second start (kidoku.dat read, #438) passed one start
+            result.clear()
+            done.clear()
+            browser = subprocess.Popen(
+                [chrome, "--headless=new", "--no-sandbox", "--no-first-run", f"--user-data-dir={profile}",
+                 "--autoplay-policy=no-user-gesture-required", "--use-gl=swiftshader", "--enable-unsafe-swiftshader",
+                 f"http://127.0.0.1:{server.server_port}/index.html"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                if not done.wait(120):
+                    sys.exit(f"FAIL: no result from the page in 120 s ({run} start)")
+            finally:
+                browser.terminate()  # a clean exit, so IndexedDB is on disk for the second start
+                try:
+                    browser.wait(10)
+                except subprocess.TimeoutExpired:
+                    browser.kill()
+                    browser.wait()
+            results.append(dict(result))
     finally:
-        browser.kill()
-        browser.wait()
         server.shutdown()
         shutil.rmtree(profile, ignore_errors=True)
         shutil.rmtree(site, ignore_errors=True)
 
+    first, second = results
+    failed = check(first, missing, enc)
+    print("second start, same profile:")
+    failed += check(second, [], enc, [("kidoku.dat from the first start is there", second.get("kidoku"))])
+    sys.exit(1 if failed else 0)
+
+
+def check(result, missing, enc, extra=()):
     log = result["log"]
 
     def calls(phase, hook, text=None):
@@ -110,6 +131,7 @@ def main():
         ("the choice is picked: consText with 'Page three.'", calls("picked", "consText", "Page three.")),
         ("no page errors", not result["errors"]),
         ("no missing files", not missing),
+        *extra,
     ]
     failed = 0
     for name, ok in checks:
@@ -119,7 +141,7 @@ def main():
         print("      " + e[:300])
     if failed:
         print("hook calls:", json.dumps([(r["phase"], r["hook"], r["text"][:40]) for r in log]))
-    sys.exit(1 if failed else 0)
+    return failed
 
 
 if __name__ == "__main__":
