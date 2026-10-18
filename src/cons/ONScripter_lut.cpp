@@ -468,6 +468,12 @@ static ONScripter::FuncLUT func_lut[] = {
     {"", NULL}
 };
 
+// --list-commands: every command name in the table, one per line.
+void ONScripter::listCommands()
+{
+    for (int i=0 ; func_lut[i].method ; i++) printf( "%s\n", func_lut[i].command );
+}
+
 void ONScripter::makeFuncLUT()
 {
     for (int i='z'-'a' ; i>=0 ; i--)

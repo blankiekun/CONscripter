@@ -61,7 +61,8 @@ void optionHelp()
 {
     printf( "Usage: conscripter [option ...]\n" );
     printf( "  -h, --help\t\tshow this help and exit\n");
-    printf( "  -v, --version\t\tshow the version information and exit\n\n");
+    printf( "  -v, --version\t\tshow the version information and exit\n");
+    printf( "      --list-commands\tprint every command name the engine knows, one per line, and exit\n\n");
     
     printf( " load options: \n");
     printf( "  -f, --font file\tset a TTF font file\n");
@@ -429,6 +430,10 @@ void parseOption(int argc, char *argv[]) {
             }
             else if ( !strcmp( argv[0]+1, "v" ) || !strcmp( argv[0]+1, "-version" ) ){
                 optionVersion();
+            }
+            else if ( !strcmp( argv[0]+1, "-list-commands" ) ){
+                ONScripter::listCommands();
+                exit(0);
             }
 
             // load options

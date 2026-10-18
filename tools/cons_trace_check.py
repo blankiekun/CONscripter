@@ -465,6 +465,8 @@ class Checker:
         elif what == 'retired transition':
             self.add('error', r.get('file'), at, '%s is retired and plays as a cross-fade: a build from before its '
                      'cons_warp.dll maps, convert the game again' % r.get('file'))
+        elif what == 'unknown command':
+            self.add('error', (what, r.get('cmd')), at, 'command %s is unknown to the engine: it is skipped' % r.get('cmd'))
         elif what == 'auto-play stuck':
             self.add('error', None, at, 'auto-play stuck here (going round in circles?)')
         elif what == 'long wait':
