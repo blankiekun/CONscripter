@@ -137,6 +137,7 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
     int effect_no = effect->effect;
     if ((effect_cut_flag && (skip_mode & SKIP_NORMAL || ctrl_pressed_status)) || effect_off || still_screen || click_skipping) // CONscripter: effectoff, clickskip
         effect_no = 1;
+    if (effect_counter == 0 && effect_no != 1){ trace_effect_start = effect_start_time; trace_effect_on = true; } // CONscripter: the trace's effect record
     
     // CONscripter: sprites moving or fading by themselves (spmotion) and
     // movies as pictures go on during an effect, which shows them as they
@@ -183,6 +184,7 @@ bool ONScripter::doEffect( EffectLink *effect, bool clear_dirty_region )
         return true;
     }
     else{
+        if (effect_no != 1) traceEffectEnd( effect );
         SDL_BlitSurface( effect_dst_surface, &dirty_rect.bounding_box, accumulation_surface, &dirty_rect.bounding_box );
 
         if ( effect_no != 0 ) flush(REFRESH_NONE_MODE, NULL, clear_dirty_region);

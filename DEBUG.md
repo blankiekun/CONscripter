@@ -45,6 +45,7 @@ Other options add to what the trace holds:
 | `--trace-layers` | a `layers` record on each `print` or effect: what the new screen is drawn from, front to back (below) |
 | `--audio-stats` | an `audio` record for every 100 ms of sound mixed, for each dwave channel playing and for the whole mix (off by default: nothing is counted) |
 | `--trace-perf` | a `perf` record after each page: the frames it put on the screen and the wall-clock ms they cost; `--dump-frames file` writes a line per frame (below) |
+| `--trace-motion-samples n` | how often a `sample` record is written while an `spmotion` moves a sprite or an effect runs: every n frames (default 4; 0: none) (below) |
 | `--trace-long-wait ms` | a `long wait` warning for each wait, effect or fade the script asks to last longer than this (default 10000) |
 | `--trace-max-image mb` | a `large image` warning for each picture that alone takes more memory than this, in MB (default 64, a 4096x4096 picture) |
 
@@ -526,7 +527,7 @@ writes the `dump` records without the pictures.
 
 Every record has `"t"`, its type. `"pg"` is the number of text pages
 recorded so far, so a warning or error can be placed between two pages.
-Pages, `ev` and `motion` records also have `"ms"`, the milliseconds since the
+Pages, `ev`, `motion`, `sample` and `effect` records also have `"ms"`, the milliseconds since the
 engine started, which shows where time goes (a long effect, a slow
 load).
 
@@ -725,7 +726,7 @@ loop -n, its `keys` as `spmotion` wrote them (`[ms,x,y,zoom_x,zoom_y,angle,alpha
 ms at game speed), `in`, the ms it starts in at (`spmotionclock`; none
 from its start), the `end` it is due at (`ms`; none for a loop) and
 `at`, the `spmotion`. It ends with `ended` and `ran`, the ms since it
-started:
+started, beside `len`, the ms its keys ask for (none for a loop):
 
 | `ended` | Why |
 |---|---|
@@ -745,6 +746,35 @@ new `screenshake` in the slot), `ran` how long it shook (for a shake,
 with the time `--auto-play` skipped). A load or reset ending a shake
 records nothing. Sprites left out with `--trace-ignore` have no motion
 records.
+
+### `sample`: a moving sprite or a running effect, every few frames
+
+```json
+{"t":"sample","pg":3,"ms":256,"f":20,"n":10,"x":-32616,"y":150,"w":100,"h":100,"zoom":[100.00,100.00],"angle":0.00,"alpha":256}
+{"t":"sample","pg":3,"ms":256,"f":20,"effect":true,"done":257,"due":500}
+```
+
+Every `--trace-motion-samples` frames (4 by default; `f` counts the
+frames presented), one record for each `lsp` sprite an `spmotion` moves,
+as drawn then: `x`,`y` the centre of its box, `w`,`h` its size,
+`zoom` (x, y, percent) and `angle` (degrees) the motion's, `alpha` the
+motion's 0-256. While an effect runs, one more with `done`, its ms so
+far, of `due`. Nothing is written while nothing moves, so a trace grows
+only by its motions. A check reads jumps from them: a sprite that steps
+much further between two samples than between the ones beside it, or goes
+away and comes back (`cons_trace_check.py`'s `jump`).
+
+### `effect`: an effect that ended
+
+```json
+{"t":"effect","pg":3,"ms":499,"type":10,"len":500,"due":500,"ran":499,"at":"*start:8"}
+```
+
+Written as the effect of a `print` or another command with an effect
+ends: its `type`, `len` the ms the script wrote, `due` the ms it was to
+take (after `gamespeed`, skipping, `--auto-play` without `--real-time`:
+1), `ran` the ms it took. An effect drawn at once (skipping with
+`effectcut`, `effectoff`) writes none.
 
 ### `sound`: a fade, pan or rate that got there, a sound that ended
 

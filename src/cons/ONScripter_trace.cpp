@@ -505,7 +505,10 @@ void ONScripter::traceMotion( AnimationInfo &ai, const char *ended )
               trace_page, now, i, id );
     std::string r = buf;
     if (ended){
-        snprintf( buf, sizeof(buf), ",\"ended\":\"%s\",\"ran\":%d}", ended, (int)(now - ai.motion_start) );
+        // len: the time its keys ask for, beside the time it ran
+        if (ai.motion_loop) snprintf( buf, sizeof(buf), ",\"ended\":\"%s\",\"ran\":%d}", ended, (int)(now - ai.motion_start) );
+        else snprintf( buf, sizeof(buf), ",\"ended\":\"%s\",\"ran\":%d,\"len\":%d}", ended, (int)(now - ai.motion_start),
+                       ai.motion_key[ai.motion_keys-1][0] * (ai.motion_passes > 1 ? ai.motion_passes : 1) );
         r += buf;
         trace_sprite[i].running = 0;
         traceWrite( r );
@@ -2714,6 +2717,55 @@ void ONScripter::tracePresent( double work_ms, double block_ms )
     if (block_ms > perf_block_max) perf_block_max = block_ms;
     if (dump_frames_fp)
         fprintf( dump_frames_fp, "%u\t%u\t%.2f\t%.2f\t%d\n", presents, SDL_GetTicks(), work_ms, block_ms, trace_page );
+    traceSamples();
+}
+
+void ONScripter::setTraceMotionSamples( int frames )
+{
+    trace_motion_samples = frames;
+}
+
+// --trace-motion-samples: every n-th frame, a "sample" record for each lsp
+// sprite an spmotion moves (its place, zoom, angle and alpha as drawn now)
+// and for an effect running (its progress), so a check sees jumps.
+void ONScripter::traceSamples()
+{
+    if (!trace_fp || !trace_sprite || trace_motion_samples <= 0 || presents % trace_motion_samples) return;
+    char buf[200];
+    Uint32 now = SDL_GetTicks();
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        AnimationInfo &ai = sprite_info[i];
+        if (ai.motion_keys == 0 || trace_ignore[i] || !ai.visible) continue;
+        SDL_Rect r = zoomedRect( ai );
+        snprintf( buf, sizeof(buf), "{\"t\":\"sample\",\"pg\":%d,\"ms\":%u,\"f\":%u,\"n\":%d,\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"zoom\":[%.2f,%.2f],\"angle\":%.2f,\"alpha\":%d}",
+                  trace_page, now, presents, i, r.x + r.w / 2 + ai.motion_dx, r.y + r.h / 2 + ai.motion_dy, r.w, r.h,
+                  ai.motion_zoom / 100.0, ai.motion_zoom_y / 100.0, ai.motion_rot / 100.0, ai.motion_alpha );
+        std::string rec = buf;
+        traceWrite( rec );
+    }
+    if (trace_effect_on){
+        snprintf( buf, sizeof(buf), "{\"t\":\"sample\",\"pg\":%d,\"ms\":%u,\"f\":%u,\"effect\":true,\"done\":%d,\"due\":%d}",
+                  trace_page, now, presents, effect_counter, effect_duration );
+        std::string rec = buf;
+        traceWrite( rec );
+    }
+}
+
+// An effect that ended: the time it was asked for (len, as written; due,
+// after gamespeed, skipping or --auto-play) beside the time it ran.
+void ONScripter::traceEffectEnd( EffectLink *effect )
+{
+    if (!trace_effect_on) return;
+    trace_effect_on = false;
+    if (!trace_fp) return;
+    Uint32 now = SDL_GetTicks();
+    char buf[200];
+    snprintf( buf, sizeof(buf), "{\"t\":\"effect\",\"pg\":%d,\"ms\":%u,\"type\":%d,\"len\":%d,\"due\":%d,\"ran\":%d,\"at\":",
+              trace_page, now, effect->effect, effect->duration, effect_duration, (int)(now - trace_effect_start) );
+    std::string r = buf;
+    traceAt( r, trace_cmd_start );
+    r += '}';
+    traceWrite( r );
 }
 
 void ONScripter::setRoundtrip( int pages, int slot )

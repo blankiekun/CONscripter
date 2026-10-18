@@ -1,4 +1,4 @@
-"""--diff, motions, stale archives, missing pictures and sound rules: python3 -I tools/test_cons_trace_check.py"""
+"""--diff, motions, jumps and durations, stale archives, missing pictures and sound rules: python3 -I tools/test_cons_trace_check.py"""
 import contextlib
 import io
 import json
@@ -135,6 +135,42 @@ class Sound(unittest.TestCase):
         out = check([{'t': 'roundtrip', 'pg': 1, 'slot': 999, 'at': '*a:2'},
                      {'t': 'warn', 'pg': 1, 'what': 'save data left out', 'version': 29, 'reads': 30, 'at': '*a:2'}])
         self.assertIn('without its CONscripter data (version 29, this build reads 30)', out)
+
+
+def samples(*xs):
+    return [{'t': 'sample', 'pg': 1, 'ms': i * 64, 'f': i * 4, 'n': 10, 'x': x, 'y': 0, 'w': 100, 'h': 100, 'zoom': [100, 100],
+             'angle': 0, 'alpha': 256} for i, x in enumerate(xs)]
+
+
+START = {'t': 'motion', 'pg': 1, 'n': 10, 'kind': 'lsp', 'id': '1', 'mode': 'once', 'at': '*s:5'}
+
+
+class TimingChecks(unittest.TestCase):
+    def test_smooth_motion_is_quiet(self):
+        out = check([START] + samples(0, 40, 80, 120) +
+                    [{'t': 'effect', 'pg': 1, 'type': 10, 'len': 500, 'due': 500, 'ran': 510, 'at': '*s:6'}])
+        self.assertNotIn('== jump', out)
+        self.assertNotIn('== duration', out)
+
+    def test_off_screen_and_back(self):
+        out = check([START] + samples(0, 0, -32766, 10, 20))
+        self.assertIn('lsp 10 goes 32766 px away (0,0 -> -32766,0) and back within 2 samples', out)
+        self.assertIn('*s:5', out)
+
+    def test_unseen_steps(self):
+        out = check([START] + samples(-2000, -2000, -9000, -2000, -2000))  # off the screen all along
+        self.assertNotIn('== jump', out)
+
+    def test_late_effect_and_motion(self):
+        out = check([START, {'t': 'effect', 'pg': 1, 'type': 10, 'len': 500, 'due': 500, 'ran': 900, 'at': '*s:6'},
+                     {'t': 'motion', 'pg': 1, 'n': 10, 'kind': 'lsp', 'id': '1', 'ended': 'ran out', 'ran': 1300, 'len': 1000}])
+        self.assertIn('effect 10 (500 ms as written) ran 900 ms, asked for 500', out)
+        self.assertIn('motion of lsp 10 ran 1300 ms, asked for 1000', out)
+
+    def test_diff_lists_new_findings(self):
+        out = run_diff([START] + samples(0, 40, 80, 120, 160), [START] + samples(0, 40, 440, 480, 520))
+        self.assertIn('new jump/duration findings', out)
+        self.assertIn('lsp 10 steps 400 px between samples (40,0 -> 440,0', out)
 
 
 if __name__ == '__main__':
