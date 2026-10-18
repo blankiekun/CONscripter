@@ -71,6 +71,7 @@ void optionHelp()
     printf( "      --trace file\twrite a debug trace, one JSON line per text page (or CONS_TRACE=file)\n");
     printf( "      --trace-ignore 22-48,lsp2:12-23\tleave these sprites out of the trace (or CONS_TRACE_IGNORE)\n");
     printf( "      --trace-vars 300-899,$10-20\twith --trace, a record for each change of these variables\n");
+    printf( "      --trace-layers\twith --trace, a \"layers\" record on each print or effect: what is drawn, front to back\n");
     printf( "      --trace-long-wait ms\twith --trace, warn of a wait, effect or fade asked to last longer (10000)\n");
     printf( "      --audio-stats\twith --trace, an \"audio\" record every 100 ms of sound, per channel and for the mix\n");
     printf( "      --trace-max-image mb\twith --trace, warn of a single picture taking more memory than this (64)\n");
@@ -539,6 +540,9 @@ void parseOption(int argc, char *argv[]) {
             }
             else if ( !strcmp( argv[0]+1, "-audio-stats" ) ){
                 ons.setAudioStats();
+            }
+            else if ( !strcmp( argv[0]+1, "-trace-layers" ) ){
+                ons.setTraceLayers();
             }
             else if ( !strcmp( argv[0]+1, "-trace-long-wait" ) ){
                 if (!nextArg(argc, argv)) break;

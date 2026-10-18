@@ -2525,6 +2525,65 @@ void ONScripter::traceVarChanges( char *at )
     }
 }
 
+void ONScripter::setTraceLayers()
+{
+    trace_layers = true;
+}
+
+// --trace-layers: what the screen a print or effect shows is drawn from,
+// front to back, as the drawing itself goes through it (a full redraw of
+// the effect's picture, which the effect then draws again).
+void ONScripter::traceLayers()
+{
+    std::vector<AnimationInfo*> drawn;
+    layer_record = &drawn;
+    refreshSurface( effect_dst_surface, NULL, refreshMode() );
+    layer_record = NULL;
+
+    char buf[64];
+    snprintf( buf, sizeof(buf), "{\"t\":\"layers\",\"pg\":%d,\"ms\":%u,\"at\":", trace_page, SDL_GetTicks() );
+    std::string r = buf;
+    traceAt( r, script_h.getCurrent( true ) );
+    r += ",\"order\":[";
+    std::set<AnimationInfo*> seen; // a trail's copies: the sprite once, where it is frontmost
+    bool first = true;
+    for (size_t k=drawn.size() ; k-- > 0 ;){
+        AnimationInfo *a = drawn[k];
+        if (!seen.insert( a ).second) continue;
+        int i = -1; // its trace index, for the ignore list
+        if      (!a) snprintf( buf, sizeof(buf), "text" );
+        else if (a >= sprite_info && a < sprite_info + MAX_SPRITE_NUM)
+            snprintf( buf, sizeof(buf), "lsp %d", i = (int)(a - sprite_info) );
+        else if (a >= sprite2_info && a < sprite2_info + MAX_SPRITE2_NUM){
+            i = MAX_SPRITE_NUM + (int)(a - sprite2_info);
+            snprintf( buf, sizeof(buf), "lsp2 %d", (int)(a - sprite2_info) );
+        }
+        else if (a >= tachi_info && a < tachi_info + 3){
+            i = MAX_SPRITE_NUM + MAX_SPRITE2_NUM + (int)(a - tachi_info);
+            snprintf( buf, sizeof(buf), "ld %d", (int)(a - tachi_info) );
+        }
+        else if (a == &cursor_info[0] || a == &cursor_info[1]) snprintf( buf, sizeof(buf), "cursor" );
+        else if (a == &dialog_info) snprintf( buf, sizeof(buf), "dialog" );
+        else if (a == &sentence_font_info) snprintf( buf, sizeof(buf), "window" );
+        else{
+            snprintf( buf, sizeof(buf), "other" );
+            for (int p=0 ; p<MAX_PARAM_NUM ; p++){
+                if (a == bar_info[p])   snprintf( buf, sizeof(buf), "bar %d", p );
+                if (a == prnum_info[p]) snprintf( buf, sizeof(buf), "prnum %d", p );
+            }
+            for (ButtonLink *bl = root_button_link.next ; bl ; bl = bl->next)
+                if (a == bl->anim[0] || a == bl->anim[1]) snprintf( buf, sizeof(buf), "button %d", bl->no );
+        }
+        if (i >= 0 && i < TRACE_SPRITES && trace_ignore[i]) continue;
+        if (!first) r += ',';
+        first = false;
+        r += '"';
+        r += buf;
+        r += '"';
+    }
+    r += first ? "\"bg\"]}" : ",\"bg\"]}";
+    traceWrite( r );
+}
 
 void ONScripter::setTraceLongWait( int ms )
 {

@@ -506,6 +506,7 @@ void ONScripter::parseTaggedString( AnimationInfo *anim )
 
 void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *anim, SDL_Rect &clip )
 {
+    if (layer_record) layer_record->push_back( anim ); // CONscripter: --trace-layers
     if (anim->filter_changed && anim->image_name) setupAnimationInfo( anim ); // spfilter's, put off
 #ifdef USE_BUILTIN_LAYER_EFFECTS
   if (anim->trans_mode == AnimationInfo::TRANS_LAYER) {
