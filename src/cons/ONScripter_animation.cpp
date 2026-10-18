@@ -547,7 +547,7 @@ void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
         factor = factor * window_fade / 256; // windowfade: part of the window
     if (factor != 256) anim->trans = (trans < 0 ? 255 : trans) * factor / 256;
     auto draw = [&]( SDL_Rect &at, SDL_Rect &c ){
-        if (!anim->affine_flag && (anim->zoom_x != 100 || anim->zoom_y != 100 || anim->motion_zoom != 100 || anim->motion_zoom_y != 100 || anim->motion_rot != 0 || anim->zoom_rot != 0))
+        if (!anim->affine_flag && (anim->zoom_x != 100 || anim->zoom_y != 100 || anim->motion_zoom != 100 * AnimationInfo::MOTION_FINE || anim->motion_zoom_y != 100 * AnimationInfo::MOTION_FINE || anim->motion_rot != 0 || anim->zoom_rot != 0))
             drawZoomedSurface( dst_surface, anim, at, c );
         else if (!anim->affine_flag)
             anim->blendOnSurface( dst_surface, at.x, at.y, c, anim->trans );
@@ -556,7 +556,7 @@ void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
     };
     if (anim->wave_on() && anim->wave_amp != 0){
         // CONscripter: spwave: the rows in bands of one shift, each drawn moved
-        int dh = anim->pos.h * abs(anim->zoom_y) / 100 * abs(anim->motion_zoom_y) / 100;
+        int dh = anim->pos.h * abs(anim->zoom_y) / 100 * abs(anim->motion_zoom_y) / (100 * AnimationInfo::MOTION_FINE);
         int top = poly_rect.y + anim->pos.h / 2 - dh / 2;
         int y0 = clip_in.y > top ? clip_in.y : top;
         int y1 = clip_in.y + clip_in.h < top + dh ? clip_in.y + clip_in.h : top + dh;

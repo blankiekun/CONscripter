@@ -1148,7 +1148,7 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
         return;
     }
     int v[7];
-    motionAt( ai, ai.motion_keys, t, v );
+    motionAt( ai, ai.motion_keys, t, v, AnimationInfo::MOTION_FINE );
     ai.motion_dx = v[1] * screen_ratio1 / screen_ratio2;
     ai.motion_dy = v[2] * screen_ratio1 / screen_ratio2;
     ai.motion_zoom = v[3];
@@ -1160,20 +1160,21 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
 // Steps the sprites' fades and motions; draws what changed
 // (draw false: only says whether something did, for an effect running).
 // The values (0, x, y, zoom x, angle, alpha, zoom y) of the first `keys`
-// motion keys at t ms from the start, each key reached along its curve.
-void ONScripter::motionAt( const AnimationInfo &ai, int keys, int t, int v[7] )
+// motion keys at t ms from the start, each key reached along its curve;
+// the zooms and the angle in `fine` parts of the keys' units.
+void ONScripter::motionAt( const AnimationInfo &ai, int keys, int t, int v[7], int fine )
 {
     int i = 0;
     while (i + 1 < keys && ai.motion_key[i+1][0] <= t) i++;
     const int *a = ai.motion_key[i];
     v[0] = 0;
-    for (int j=1 ; j<7 ; j++) v[j] = a[j];
+    for (int j=1 ; j<7 ; j++) v[j] = a[j] * (j == 3 || j == 4 || j == 6 ? fine : 1);
     if (i + 1 < keys && t > a[0]){
         const int *b = ai.motion_key[i+1];
         int span = b[0] - a[0];
         if (span > 0){
             int p = curveAt( b[7], (int)((long long)(t - a[0]) * 1024 / span) );
-            for (int j=1 ; j<7 ; j++) v[j] += (int)((long long)(b[j] - a[j]) * p / 1024);
+            for (int j=1 ; j<7 ; j++) v[j] += (int)((long long)(b[j] - a[j]) * (j == 3 || j == 4 || j == 6 ? fine : 1) * p / 1024);
         }
     }
 }
@@ -1195,11 +1196,11 @@ bool ONScripter::trailCopyAt( const AnimationInfo &ai, int i, int v[7] )
     else if (t >= last){
         // past the end: where the sprite is now
         v[1] = v[2] = v[4] = 0;
-        v[3] = v[6] = 100;
+        v[3] = v[6] = 100 * AnimationInfo::MOTION_FINE;
         v[5] = 256;
         return true;
     }
-    motionAt( ai, keys, t, v );
+    motionAt( ai, keys, t, v, AnimationInfo::MOTION_FINE );
     if (ai.motion_keys == 0 && ai.motion_keep){
         // the ended motion's last key is now the sprite's own place, zoom,
         // angle and alpha (stepSpriteMotion): relative to it
@@ -1207,7 +1208,7 @@ bool ONScripter::trailCopyAt( const AnimationInfo &ai, int i, int v[7] )
         v[2] -= k[2];
         if (k[3] > 0) v[3] = v[3] * 100 / k[3];
         if (k[6] > 0) v[6] = v[6] * 100 / k[6];
-        v[4] -= k[4];
+        v[4] -= k[4] * AnimationInfo::MOTION_FINE;
         if (k[5] > 0 && k[5] < 256) v[5] = v[5] * 256 / k[5];
         if (v[5] > 256) v[5] = 256; // (can't be drawn more opaque than the sprite)
     }
@@ -1389,10 +1390,11 @@ int ONScripter::nextSpriteMotionTime()
 SDL_Rect ONScripter::zoomedRect( const AnimationInfo &ai )
 {
     SDL_Rect r = ai.pos;
-    if (ai.zoom_x == 100 && ai.zoom_y == 100 && ai.motion_zoom == 100 && ai.motion_zoom_y == 100 && ai.motion_rot == 0 && ai.zoom_rot == 0) return r;
-    int w = ai.pos.w * abs(ai.zoom_x) / 100 * abs(ai.motion_zoom) / 100;
-    int h = ai.pos.h * abs(ai.zoom_y) / 100 * abs(ai.motion_zoom_y) / 100;
-    if ((ai.zoom_rot + ai.motion_rot) % 360 != 0) w = h = (int)ceil( sqrt( (double)w * w + (double)h * h ) );
+    const int F = AnimationInfo::MOTION_FINE;
+    if (ai.zoom_x == 100 && ai.zoom_y == 100 && ai.motion_zoom == 100 * F && ai.motion_zoom_y == 100 * F && ai.motion_rot == 0 && ai.zoom_rot == 0) return r;
+    int w = (int)((long long)ai.pos.w * abs(ai.zoom_x) * abs(ai.motion_zoom) / (10000 * F));
+    int h = (int)((long long)ai.pos.h * abs(ai.zoom_y) * abs(ai.motion_zoom_y) / (10000 * F));
+    if ((ai.zoom_rot * F + ai.motion_rot) % (360 * F) != 0) w = h = (int)ceil( sqrt( (double)w * w + (double)h * h ) );
     r.x = ai.pos.x + ai.pos.w/2 - w/2 - 1;
     r.y = ai.pos.y + ai.pos.h/2 - h/2 - 1;
     r.w = w + 2;
@@ -1414,10 +1416,12 @@ void ONScripter::drawZoomedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
     anim->affine_pos.y = 0;
     anim->affine_pos.w = pos.w;
     anim->affine_pos.h = pos.h;
+    // in 1/100 percent and degrees: a slow zoom or turn moves on each frame, not in whole steps
+    const int F = AnimationInfo::MOTION_FINE;
     anim->scale_x = anim->zoom_x * anim->motion_zoom / 100;
     anim->scale_y = anim->zoom_y * anim->motion_zoom_y / 100;
-    anim->rot = anim->zoom_rot + anim->motion_rot;
-    anim->calcAffineMatrix();
+    anim->rot = anim->zoom_rot * F + anim->motion_rot;
+    anim->calcAffineMatrix( 100 * F, F );
     anim->blendOnSurface2( dst_surface, anim->pos.x, anim->pos.y, clip, anim->trans );
 
     anim->pos = pos;

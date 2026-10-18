@@ -562,7 +562,7 @@ SDL_Rect ONScripter::traceBox( AnimationInfo &ai, const char *kind )
 {
     if (kind[3] == '2') return ai.bounding_rect;
     int mz = ai.motion_zoom, mzy = ai.motion_zoom_y, mr = ai.motion_rot;
-    ai.motion_zoom = ai.motion_zoom_y = 100;
+    ai.motion_zoom = ai.motion_zoom_y = 100 * AnimationInfo::MOTION_FINE;
     ai.motion_rot = 0;
     SDL_Rect r = zoomedRect( ai );
     ai.motion_zoom = mz; ai.motion_zoom_y = mzy; ai.motion_rot = mr;
@@ -677,7 +677,7 @@ void ONScripter::traceSprite( std::string &out, int i )
         snprintf( buf, sizeof(buf), ",\"motion\":\"%s\",\"mid\":\"%08x\",\"mnow\":[%d,%d,%d,%d,%d,%d,%d]",
                   motionMode( ai ), ts.motion, ai.trail_time - ai.motion_start,
                   ai.motion_dx * screen_ratio2 / screen_ratio1, ai.motion_dy * screen_ratio2 / screen_ratio1,
-                  ai.motion_zoom, ai.motion_zoom_y, ai.motion_rot, ai.motion_alpha );
+                  ai.motion_zoom / AnimationInfo::MOTION_FINE, ai.motion_zoom_y / AnimationInfo::MOTION_FINE, ai.motion_rot / AnimationInfo::MOTION_FINE, ai.motion_alpha );
         out += buf;
     }
     if (ai.clip_rect[2] > 0){

@@ -657,7 +657,7 @@ private:
     SDL_Rect drawnRect(const AnimationInfo &ai);
     bool spriteZoomOrMotion( const SDL_Rect &clip );
     void stepSpriteMotion(AnimationInfo &ai, int current_time);
-    void motionAt(const AnimationInfo &ai, int keys, int t, int v[7]);
+    void motionAt(const AnimationInfo &ai, int keys, int t, int v[7], int fine=1);
     bool trailCopyAt(const AnimationInfo &ai, int i, int v[7]);
     SDL_Rect trailCopies(AnimationInfo &ai, SDL_Surface *surface, SDL_Rect *clip);
     void drawWithTrail(SDL_Surface *surface, AnimationInfo &ai, SDL_Rect &clip);
