@@ -1128,12 +1128,14 @@ load. Impl `ONScripter::dwaveCommand`, `dwavestopCommand`, `setChunkLoop`.
 `chvolfade ch,0,ms,1`. Impl `ONScripter::dwavefadeinCommand`.
 
 ### chvol / chvolfade [cons]
-`chvol ch,vol` — the setting; [cons] `chvolfade ch,vol[,ms[,stop]]` — the
+`chvol ch,vol` — the setting; [cons] `chvolfade ch,vol[,ms[,stop[,curve]]]` — the
 script's own % on top, ramped, stays with the channel, saved, `reset` → 100.
 ch -1 is the music (`bgmfadein`/`bgmfadeout` fade to and from it; `chvolfade
 -1,20,500` ducks). stop 1: the dwave channel's sound fades out over ms and
 stops (its volume stays for the next sounds; a looping one fading out isn't
-saved). `chvolfade 3,30:dwaveloop 3,"se\rain.ogg"`; `chvolfade 3,0,1500,1`.
+saved). curve (an `spmotion` curve: 1-3, 10-73 from `spcurve`; 0 straight)
+is how the volume goes there, a stop's fade-out too. `chvolfade 3,30:dwaveloop 3,"se\rain.ogg"`; `chvolfade 3,0,1500,1`;
+`chvolfade 3,0,1500,1,2` (fading out slower and slower).
 Impl `ONScripter::chvolCommand`, `chvolfadeCommand`.
 
 ### chpan [cons]
@@ -1144,9 +1146,9 @@ only; not the music. `chpan 2,-1000:dwave 2,"se\shot.ogg"`; `chpan 2,1000,1500`.
 Impl `ONScripter::chpanCommand`.
 
 ### chfreq [cons]
-`chfreq ch,rate[,ms]` — the sound playing on dwave channel ch at rate/1000 of
+`chfreq ch,rate[,ms[,curve]]` — the sound playing on dwave channel ch at rate/1000 of
 its speed and pitch (100-4000), ramped from its rate now over ms (gamespeed
-applies). A looping sound stays at it; one that doesn't ends sooner or later.
+applies), along curve (as `chvolfade`'s; straight without one). A looping sound stays at it; one that doesn't ends sooner or later.
 The next sound on the channel plays at its own rate; not saved. No sound: no
 effect. `dwave 10,"se\shot.ogg":chfreq 10,1100,1000`. Impl
 `ONScripter::chfreqCommand`.
