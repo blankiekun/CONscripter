@@ -890,6 +890,25 @@ put while the sprite moves. `spmask num` draws it whole again. Stays through
 装甲悪鬼村正's partial `DrawTransition`).
 Impl `ONScripter::spmaskCommand`.
 
+### spfadeto [cons]
+`spfadeto num,"mask",ms,from,to,softness[,form[,curve]]` — fade sprite num
+through the mask's grey levels from level `from` to level `to` (0-1000,
+1000 whole) over `ms` while the script goes on: the mask (its green; clear
+pixels black), stretched over the screen and fixed there, shows the sprite
+where the grey is at most level × 0.255, fading it out over the greys above
+it, losing 255 × 255 ÷ (softness × level) a grey (softness 0: a hard
+edge). The table is made at 60 frames a second, frame by frame, as
+装甲悪鬼村正's exe makes it (a fall keeps what the start's ramp left above
+`from`). form 1: Full Metal Daemon Muramasa's: grey u (0-1) shows
+sat(k(n − u) + u·n), k = 2000 ÷ softness, n the level ÷ 1000. `curve` as
+`spmotion`'s. Ended at 1000 the sprite is drawn whole; at another level it
+stays masked (0: hidden). Multiplies the sprite's own alpha; drawn by
+`spmask`'s path, so `spmask` and `csp` end it. Stays through `lsp`, saved
+(going on after a load), not kept by `pushscreen`; under `--auto-play` it
+ends at once. Nitroplus's `DrawTransition`.
+`lsp 20,"a.png",0,0:spfadeto 20,"wipe.png",800,0,1000,100:print 1:wait 800`.
+Impl `ONScripter::spfadetoCommand`.
+
 ### sptrail [cons]
 `sptrail num,passes,alpha,lag[,over]` — draw `passes` (1-32) copies of sprite num
 under it (over it with `over` 1), each at `alpha` per mille (1-1000) of its alpha; copy i is where
