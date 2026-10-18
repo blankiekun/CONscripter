@@ -706,7 +706,8 @@ sprite in front covers all of it; a click still reaches it).
 A sprite's motion (`n`, `kind`, its `id` as the sprite records' `mid`)
 starts with its `mode` (as the sprite records' `motion`), `passes` for
 loop -n, its `keys` as `spmotion` wrote them (`[ms,x,y,zoom_x,zoom_y,angle,alpha,curve]`,
-ms at game speed), the `end` it is due at (`ms`; none for a loop) and
+ms at game speed), `in`, the ms it starts in at (`spmotionclock`; none
+from its start), the `end` it is due at (`ms`; none for a loop) and
 `at`, the `spmotion`. It ends with `ended` and `ran`, the ms since it
 started:
 
@@ -714,7 +715,7 @@ started:
 |---|---|
 | `ran out` | its time is over (loop 3: the sprite is gone too) |
 | `cut short` | it jumped to its end before its time: `spmotionwait` after a click or with skipping, `--auto-play` without `--real-time` (which ends a motion at once, `ran` 0), or a loop 2 motion when `spmotion`, `lsp`, `msp` or `amsp` sets the sprite anew |
-| `stopped` | `spmotion n` |
+| `stopped` | `spmotion n` (or `spmotion n,2`, where it is) |
 | `replaced` | another `spmotion` on the sprite |
 | `lsp` | `lsp` on a loop 3 motion's sprite keeps the sprite and ends the motion |
 | `removed` | anything else, seen at the next record: `csp`, a load, a reset (no `ran`) |

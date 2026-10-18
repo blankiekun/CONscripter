@@ -523,6 +523,10 @@ void ONScripter::traceMotion( AnimationInfo &ai, const char *ended )
         r += buf;
     }
     r += ']';
+    if (ai.motion_clock >= 0){ // spmotionclock
+        snprintf( buf, sizeof(buf), ",\"in\":%d", ai.motion_clock );
+        r += buf;
+    }
     if (!ai.motion_loop){
         int last = ai.motion_key[ai.motion_keys-1][0];
         snprintf( buf, sizeof(buf), ",\"end\":%d", ai.motion_start + last * (ai.motion_passes > 1 ? ai.motion_passes : 1) );
