@@ -108,7 +108,9 @@ Impl `ONScripter::texecCommand`.
 `*label`; `trap off` cancels. Impl `ONScripter::trapCommand`.
 
 ### end
-`end` — quit. Impl `ONScripter::endCommand`.
+`end` — quit. [cons] The web build can't close its page: `end` (and the
+menu's end) saves the globals as quitting does, then starts over at `*start`
+as `reset` does; a `--trace` run still exits. Impl `ONScripter::endCommand`.
 
 ### reset
 `reset` — back to the start of the script, variables cleared. [cons]: also

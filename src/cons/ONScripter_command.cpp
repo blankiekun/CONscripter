@@ -47,6 +47,9 @@ extern "C" void smpegCallback();
 #if defined(KOBO)
 #include "kobo.h"
 #endif
+#if defined(WEB)
+#include <emscripten.h>
+#endif
 extern Coding2UTF16 *coding2utf16;
 
 int ONScripter::yesnoboxCommand()
@@ -2993,6 +2996,19 @@ int ONScripter::erasetextwindowCommand()
 
 int ONScripter::endCommand()
 {
+#if defined(WEB)
+    // CONscripter: a page can't close itself (exit left a black canvas), so the script's
+    // end, or the menu's, starts the game over at *start as reset does; the global
+    // variables and kidoku are saved first, as quitting would. A trace run still exits.
+    if (!trace_fp && !trace_end_reason){
+        saveAll();
+        EM_ASM(
+            if(window.flush_save) window.flush_save();
+            else FS.syncfs(false, (err)=>{console.log(err);});
+        );
+        return resetCommand();
+    }
+#endif
     int code = quitReason(); // CONscripter: the end record's reason, and 128+n for signal n
     if (trace_fp) traceEnd(); // CONscripter: the web build's exit() runs no atexit handlers
     quit();

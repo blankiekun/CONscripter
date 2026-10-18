@@ -281,6 +281,13 @@ bool ONScripter::executeSystemReset()
 void ONScripter::executeSystemEnd()
 {
     if ( executeSystemYesNo( SYSTEM_END ) ){
+#if defined(WEB)
+        if (!trace_fp){ // CONscripter: endCommand starts the game over, as executeSystemReset
+            endCommand();
+            leaveSystemCall( false );
+            return;
+        }
+#endif
         trace_end_reason = "player quit"; // CONscripter
         endCommand();
     }

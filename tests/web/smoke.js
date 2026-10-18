@@ -58,5 +58,7 @@ function click(choice) { // the middle of the choice's first character, from con
   log.push({ phase: 'persist', hook: 'envdata', text: envdata() }); // written only on quit before
   g_cons_module._consPersist();
   log.push({ phase: 'persist', hook: 'envdata', text: envdata() });
+  phase = 'end'; // end: a page can't close, so the game starts over (after persist: end saves envdata)
+  enter(); await until(() => seen('consText', 'Page one.'), 5000);
   fetch('/result', { method: 'POST', body: JSON.stringify({ log, errors, kidoku }) });
 })().catch(e => fetch('/result', { method: 'POST', body: JSON.stringify({ log, errors: errors.concat('smoke.js: ' + e) }) }));
