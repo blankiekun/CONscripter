@@ -1151,6 +1151,7 @@ private:
     std::string text_language;       // `language`: the text's language, sent to consLanguage
     std::string web_language_sent;   // as last sent to consLanguage
     Uint32 web_persist_time, web_kidoku_time; // when webPersistHook last looked, last wrote kidoku.dat
+    int web_logs_written[2];         // the label and file logs' counts as webPersistHook last wrote them
     bool webEvent( int code, int value );
     void webStateHook();
     SDL_Rect textWindowRect();

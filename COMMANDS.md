@@ -273,7 +273,11 @@ Impl `ScriptParser::nsaCommand`, `arcCommand`, `nsadirCommand`.
 
 ### filelog / labellog (define)
 `filelog`, `labellog` — record files seen / labels read (`fchk`, `lchk`).
-Impl `ScriptParser::filelogCommand`, `labellogCommand`.
+`filelog` logs every image loaded (a sprite, a background, …), by its
+file name (case and `/` vs `\` ignored), in `NScrflog.dat`; `labellog`
+every label read, in `NScrllog.dat`. Both are written on quit, and in the
+web build every 30 seconds when they grew (with the read marks). Impl
+`ScriptParser::filelogCommand`, `labellogCommand`.
 
 ### kidokuskip / kidokumode
 `kidokuskip` — skip mode stops at unread text; `kidokumode 1` — skip only

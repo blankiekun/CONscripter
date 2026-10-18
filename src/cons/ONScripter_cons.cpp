@@ -4955,11 +4955,12 @@ void ONScripter::webStateHook()
 }
 
 // The web build: closing or reloading the tab doesn't quit the engine, so
-// what it writes on quit (gloval.sav, kidoku.dat) would be lost: the
-// settings, the read marks, the unlocks. At any wait (auto mode reads on
-// with no click wait), at most every 2 seconds, the global variables are written when they changed, and the
-// read marks every 30 seconds (or with the globals), then the save
-// directory is synced to IndexedDB.
+// what it writes on quit (gloval.sav, kidoku.dat, the file and label
+// logs) would be lost: the settings, the read marks, the unlocks. At any
+// wait (auto mode reads on with no click wait), at most every 2 seconds,
+// the global variables are written when they changed, and the read marks
+// and the logs (when they grew) every 30 seconds (or with the globals),
+// then the save directory is synced to IndexedDB.
 void ONScripter::webPersistHook()
 {
 #if defined(WEB)
@@ -4982,10 +4983,21 @@ void ONScripter::webPersistHook()
             }
         }
     }
-    if (kidokuskip_flag && (changed || now - web_kidoku_time >= 30000)){
-        script_h.saveKidokuData();
+    if (changed || now - web_kidoku_time >= 30000){
         web_kidoku_time = now;
-        changed = true;
+        if (kidokuskip_flag){
+            script_h.saveKidokuData();
+            changed = true;
+        }
+        // filelog/labellog (NScrflog.dat, NScrllog.dat): the pictures seen
+        // and labels read that `fchk`/`lchk` test, a CG gallery's unlocks
+        for (int k=0 ; k<2 ; k++){
+            ScriptHandler::LogInfo &info = script_h.log_info[k];
+            if (!(k == ScriptHandler::FILE_LOG ? filelog_flag : labellog_flag) || info.num_logs == web_logs_written[k]) continue;
+            writeLog( info );
+            web_logs_written[k] = info.num_logs;
+            changed = true;
+        }
     }
     if (changed) EM_ASM(
         if(window.flush_save) window.flush_save();
