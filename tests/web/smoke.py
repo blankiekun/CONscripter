@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Web smoke test: plays tests/web/0.txt in a web build under headless Chromium
 and checks the page hooks (consText, consChoice, consSprites, consNoTextOverlay,
-_consResendText) and that the page logs no errors. Then starts the page again in
+_consResendText), that `end` starts the game over
+and that the page logs no errors. Then starts the page again in
 the same browser profile, over the first run's saves (kidoku.dat in IndexedDB):
 a second start must play the same.
 
@@ -134,6 +135,7 @@ def check(result, missing, enc, extra=()):
          and not calls("disabled", "consText")),
         ("the choice is picked: consText with 'Page three.'", calls("picked", "consText", "Page three.")),
         ("_consPersist writes envdata at once", persisted(result)[-1:] == ["true"]),
+        ("end starts the game over: consText with 'Page one.' again", calls("end", "consText", "Page one.")),
         ("no page errors", not result["errors"]),
         ("no missing files", not missing),
         *extra,
