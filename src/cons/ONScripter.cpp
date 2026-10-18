@@ -1021,6 +1021,8 @@ void ONScripter::presentPending()
 void ONScripter::presentScreen()
 {
     present_pending = false;
+    double work_ms = consFrameWork(); // CONscripter: --trace-perf, --dump-frames
+    Uint64 block_from = SDL_GetPerformanceCounter();
 #if defined(ANDROID) || defined(WEB) // See sdl2 DOCS/README-android.md for more information on this
     SDL_RenderClear(renderer);
 #endif
@@ -1053,6 +1055,8 @@ void ONScripter::presentScreen()
     kobo::present(renderer);
 #endif
     present_time = SDL_GetTicks(); // after vsync, which the present waits for
+    consFrameWork(); // the present's own wait isn't the next frame's work
+    tracePresent( work_ms, (SDL_GetPerformanceCounter() - block_from) * 1000.0 / SDL_GetPerformanceFrequency() );
 }
 
 #ifdef USE_SMPEG

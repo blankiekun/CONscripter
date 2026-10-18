@@ -75,6 +75,8 @@ void optionHelp()
     printf( "      --audio-stats\twith --trace, an \"audio\" record every 100 ms of sound, per channel and for the mix\n");
     printf( "      --trace-max-image mb\twith --trace, warn of a single picture taking more memory than this (64)\n");
     printf( "      --roundtrip-every n\twith --trace and --auto-play, save and load every n pages and compare (--roundtrip-slot, 999)\n");
+    printf( "      --trace-perf\twith --trace, a \"perf\" record per page: frames presented, the ms worked for them, the longest present\n");
+    printf( "      --dump-frames file\ta line per frame presented: count, game ms, ms worked for it, ms the present took, page\n");
     printf( "      --auto-play pages\tplay by itself, without waiting, for this many pages (0: to the end)\n");
     printf( "      --no-text-overlay\tweb: the page gets no text, choices or backlog (consText, consChoice, consSprites, consBacklog, consOverlay), so draws no text overlay\n");
     printf( "      --real-time\twith --auto-play, effects, waits and fades take their real time (sprite movement plays out)\n");
@@ -551,6 +553,13 @@ void parseOption(int argc, char *argv[]) {
             else if ( !strcmp( argv[0]+1, "-roundtrip-every" ) ){
                 if (!nextArg(argc, argv)) break;
                 ons.setRoundtrip(atoi(argv[0]), -1);
+            }
+            else if ( !strcmp( argv[0]+1, "-trace-perf" ) ){
+                ons.setTracePerf();
+            }
+            else if ( !strcmp( argv[0]+1, "-dump-frames" ) ){
+                if (!nextArg(argc, argv)) break;
+                ons.setDumpFrames(argv[0]);
             }
             else if ( !strcmp( argv[0]+1, "-roundtrip-slot" ) ){
                 if (!nextArg(argc, argv)) break;

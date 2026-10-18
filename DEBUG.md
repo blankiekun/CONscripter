@@ -43,6 +43,7 @@ Other options add to what the trace holds:
 |---|---|
 | `--trace-vars 300-899,$10-20` | a `var` record for each change of these variables: numbers alone are `%` variables, `$` before the strings; numbers and ranges, comma-separated (0 to the script's `numalias` range, 4096 by default); a `defvar` or `defstr` name (`%score`, `$who`) watches that one, recorded under its name |
 | `--audio-stats` | an `audio` record for every 100 ms of sound mixed, for each dwave channel playing and for the whole mix (off by default: nothing is counted) |
+| `--trace-perf` | a `perf` record after each page: the frames it put on the screen and the wall-clock ms they cost; `--dump-frames file` writes a line per frame (below) |
 | `--trace-long-wait ms` | a `long wait` warning for each wait, effect or fade the script asks to last longer than this (default 10000) |
 | `--trace-max-image mb` | a `large image` warning for each picture that alone takes more memory than this, in MB (default 64, a 4096x4096 picture) |
 
@@ -443,6 +444,15 @@ conscripter.html?trace&trace-ignore=22-48,lsp2:12-23&auto-play=0&auto-choice=ran
 It takes `trace-ignore`, `auto-play`, `auto-choice`, `seed`, `until` and
 `max-pages`.
 
+`tools/web_run.py` does this headless: it serves a web build and a game
+(as loose files) on 127.0.0.1 at a free port, opens it in headless
+Chromium with `?trace` and the options given, and writes the records to a
+file as they come, until the `end` or `crash` record:
+
+```sh
+python3 -I tools/web_run.py build_web out/<game>-web -o web.jsonl --query 'auto-play=200&seed=3'
+```
+
 F8 works as above, without the picture (the web build has nowhere to
 save it). A page of your own can do the same: add `--trace`, `"/trace.jsonl"`
 to the arguments given to `callMain`, and define `self.consTrace`
@@ -574,6 +584,7 @@ handles the wait.
 | `bgmvol` | The music's volume as heard, in percent, when below 100: the player's setting, `consset "mutebgm"`, a fade, `bgmvol`, `chvolfade -1` |
 | `se` | The sound channels still playing (`dwave`, `wave`, voices): channel, file, `loop` for a looping one, `vol`, its volume as heard in percent (the setting, `chvol`, `soundmute`, a channel fade), when below 100, and `freq`, its `chfreq` rate per mille, when not 1000 (omitted when none) |
 | `wait` | The milliseconds the script asked to wait since the last page: text drawn a character at a time, `wait`, `delay`, effects. Auto-play skips them, so this is what a player would wait |
+| `presents` | The frames put on the screen since the last page (omitted when none); the `end` record has the run's total. Under the virtual clock they repeat run to run |
 | `px` | A checksum of the screen as shown (FNV-1a of its pixels), for `--diff` |
 | `window` | Whether the text window is shown |
 | `windowtrans` | The text window picture's opacity (`windowtrans`), when not 255 |
@@ -769,6 +780,32 @@ in real time, so a page hears only the few ms its run took: use
 `--real-time`, or no `--auto-play`, to hear a scene as a player does.
 `"lost":n`: windows dropped (100000 waiting to be written).
 
+### `perf`: the frames of a page (`--trace-perf`)
+
+```json
+{"t":"perf","pg":2,"frames":28,"work_ms":9.3,"work_max":1.3,"present_max":0.2}
+```
+
+Written after each page that put frames on the screen, with
+`--trace-perf`: `frames`, how many (the page's `presents`); `work_ms`,
+the wall-clock milliseconds the engine worked for them (drawing, effects,
+loading, the script: everything but waiting, from the end of one present
+to the start of the next); `work_max`, the most for one frame; and
+`present_max`, the longest a present took (with vsync, it waits for the
+screen). A frame's work over 16 ms drops frames; `work_max` points at the
+page where a sprite effect (`sptrail`, `spfilter`) costs too much. These
+are wall-clock times, so they differ run to run, and the records are
+left out unless asked for.
+
+`--dump-frames frames.tsv` (without `--trace` too) writes a line per
+frame: its count, the game ms (the trace's clock), its work ms, its
+present ms and the page (`pg`):
+
+```
+# n	ms	work_ms	present_ms	pg
+3	16	0.05	0.10	0
+```
+
 ### `label`: the first time a label runs
 
 ```json
@@ -889,11 +926,12 @@ selects the first slot, then takes widget 26.
 ### `end`: the last record
 
 ```json
-{"t":"end","pg":119,"reason":"script end"}
-{"t":"end","pg":300,"reason":"auto-play page limit"}
+{"t":"end","pg":119,"presents":4210,"reason":"script end"}
+{"t":"end","pg":300,"presents":9120,"reason":"auto-play page limit"}
 ```
 
-Written when the engine exits, with `reason` saying why:
+Written when the engine exits, with `presents`, the frames put on the
+screen in the run, and `reason` saying why:
 
 | `reason` | Why |
 |---|---|
