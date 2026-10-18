@@ -1,4 +1,5 @@
 # bash -c "export SKIP_PORTS=1 && ./cross_kobo.sh"
+set -e
 PLATFORM=kobo
 BUILD_PATH=./../build_${PLATFORM}
 CMAKELISTS_PATH=$(pwd)/..
@@ -32,6 +33,8 @@ if [ -z "$SKIP_PORTS" ]; then
     fetch_sdl2_ttf && build_sdl2_ttf
     fetch_sdl2_mixer && build_sdl2_mixer
 fi
+
+bash check_kobo_ports.sh $PORTBUILD_PATH
 
 # config and build project
 if [ -z "$BUILD_TYPE" ]; then BUILD_TYPE=MinSizeRel; fi

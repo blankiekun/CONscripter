@@ -19,6 +19,14 @@ jobs:
         sudo apt-get update
         sudo apt-get -y install --no-install-recommends crossbuild-essential-armhf autoconf automake libtool pkg-config
 
+    # the ports only change with the recipes: on a hit, cross_kobo.sh skips them
+    - name: cache ports
+      id: ports
+      uses: actions/cache@v4
+      with:
+        path: thirdparty/build/arch_kobo
+        key: kobo-ports-${{ hashFiles('script/_fetch.sh', 'script/_linuxa32.sh', 'script/_kobo.sh', 'script/cross_kobo.sh') }}
+
     # no prebuilt ports: SDL2 without X11/GL, FBInk and ffmpeg are the Kobo's own
     - name: build conscripter_kobo
       run: |
@@ -26,6 +34,7 @@ jobs:
           sed -i -E 's/#define CONSCRIPTER_VERSION "(.+?)"/#define CONSCRIPTER_VERSION "${{  github.ref_name }}"/g' src/cons/version.h
         fi
         cd script
+        if [ "${{ steps.ports.outputs.cache-hit }}" = true ]; then export SKIP_PORTS=1; fi
         bash cross_kobo.sh
         test -f ../build_kobo/conscripter
 
