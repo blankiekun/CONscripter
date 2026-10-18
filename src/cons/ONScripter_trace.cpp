@@ -1942,6 +1942,9 @@ bool ONScripter::autoPlayWait( int &count )
         }
         return false;
     }
+    // --real-time: an effect's frames and a delay run their time, unclicked
+    // (a click there would end them, and with clickskip every later one)
+    if (auto_play_real && count >= 0 && !(event_mode & WAIT_BUTTON_MODE)) return false;
 
     // let the events waiting be handled (timers, sounds that ended), as a
     // skipped click wait does
