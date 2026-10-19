@@ -447,7 +447,20 @@ with it and the game goes on where it is (the gosub stack, a textgosub's
 place in a text line, the read marks are carried over); the page on the
 screen and the backlog keep the text they had. The language is also an
 asset layer (`assetlayer`), and picks the label variants jumps take
-(below). Impl `ONScripter::languageCommand`,
+(below). A font beside the font file named for the language
+(`default.en.ttf` beside `default.ttf`: the font file's name with
+`.<code>` before its extension) draws the text while the language is
+on; the font file again for a language without one. The language is
+remembered: `language` writes it to `language.txt` in the save folder,
+and a start reads the script with that language's table first (when it
+has one; else the table of the script's first `language`), so a game
+that starts in the language chosen last reads 0.txt once. The script's
+`language` commands still run as written: when one names another
+language than `language.txt` (a define section that sets the language
+from a setting, say), the script wins and the table is switched (0.txt
+read again), and `language.txt` then holds the script's. The web page
+fetches `default.<code>.ttf` fonts in the background at startup, so a
+switch doesn't wait for one. Test: `tests/language/check.py`. Impl `ONScripter::languageCommand`,
 `switchTextTable` (`ONScripter_strtab.cpp`).
 
 ### Label variants [cons]

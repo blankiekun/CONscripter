@@ -256,6 +256,9 @@ public:
     bool hasTextRefs(){ return text_refs; }
     const std::string &getTextTable(){ return text_table; }
     bool textTableExists( const char *lang );
+    // CONscripter: the language `language` set last, kept in the save folder's language.txt
+    void rememberLanguage( const char *lang );
+    std::string rememberedLanguage();
     unsigned int lineHash( const char *line );
     unsigned int textHash( const char *line ); // of the line as it is
     bool isTableLine( const char *line ){ return inScript( line ) && table_line_hash.count( (int)(line - script_buffer) ) > 0; }

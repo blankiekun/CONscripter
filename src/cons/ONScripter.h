@@ -296,6 +296,8 @@ public:
     int assetlayerCommand(); // CONscripter (ONScripter_strtab.cpp): asset layers
     void switchTextTable( const char *lang ); // CONscripter (ONScripter_strtab.cpp)
     void setLanguageLayer( const std::string &old_lang, const std::string &lang );
+    void setLanguageFont( const std::string &lang ); // CONscripter (ONScripter_strtab.cpp)
+    std::string base_font_file; // the font file before a language's own (setLanguageFont)
     void setLayers();
     char *textgosubReturn( char *mark, bool in_1byte ); // CONscripter (ONScripter_text.cpp)
     int conssetCommand(); // CONscripter: player settings

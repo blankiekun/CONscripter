@@ -26,6 +26,7 @@
 #include "Utils.h"
 #include <stdio.h>
 #include <string.h>
+#include <string>
 
 #if defined(ANDROID)
 #include "SDL.h"
@@ -45,6 +46,7 @@ static struct FontContainer{
     FontContainer *next;
     int size;
     bool italic;
+    std::string file; // CONscripter: a language's own font (fontFile) is kept apart
     TTF_Font *font[2];
     TTF_Font *fallback[2]; // CONscripter: fallback.ttf at the same size, for glyphs font[] lacks
 #if defined(PSP)
@@ -142,13 +144,14 @@ void *FontInfo::openFont( char *font_file, int ratio1, int ratio2 )
 
     FontContainer *fc = &root_font_container;
     while( fc->next ){
-        if ( fc->next->size == font_size && fc->next->italic == is_italic ) break;
+        if ( fc->next->size == font_size && fc->next->italic == is_italic && fc->next->file == font_file ) break;
         fc = fc->next;
     }
     if ( !fc->next ){
         fc->next = new FontContainer();
         fc->next->size = font_size;
         fc->next->italic = is_italic;
+        fc->next->file = font_file;
         SDL_RWops *rwops = NULL;
         bool useFile = (cache_font_file == NULL || strcmp(cache_font_file, font_file) != 0);
         if (useFile) {

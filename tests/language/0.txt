@@ -1,0 +1,14 @@
+;mode320,value500
+; Language test: tests/language/check.py writes the tables and fonts, runs this twice and checks.
+*define
+setwindow 8,8,20,4,16,16,0,2,0,0,1,#000000,0,0,319,239
+; never run: the table read first when nothing is remembered
+goto *chosen
+language "ja"
+*chosen
+game
+*start
+^t1
+language "en"
+^t2
+end
