@@ -315,6 +315,9 @@
                         g_cons_module.FS, g_cons_index.gamedir, 
                         g_cons_index.files, urlbase, lazyload
                     );
+                    // a language's own font (default.<lang>.ttf, COMMANDS.md "language"): fetched now, so a switch doesn't wait for it
+                    for (var key in window.g_cons_filemap)
+                        if (/\/default\.[^\/.]+\.ttf$/.test(key)) fetch_file(g_cons_module.FS, key, window.g_cons_filemap);
                 }
                 mount_save(g_cons_module.FS, g_cons_module.IDBFS, g_cons_index.savedir);
             };

@@ -48,6 +48,10 @@ jobs:
     - name: label variants test
       if: matrix.arch.suffix == 'x64'
       run: python3 -I tests/labels/check.py build_linux64/conscripter
+
+    - name: language test
+      if: matrix.arch.suffix == 'x64'
+      run: python3 -I tests/language/check.py build_linux64/conscripter
     
     - name: prepare release
       if: github.ref_type == 'tag'

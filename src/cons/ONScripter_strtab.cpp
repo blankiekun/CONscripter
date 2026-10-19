@@ -111,6 +111,29 @@ static std::string firstLanguage( const char *buf, int len )
     return "";
 }
 
+// language.txt in the save folder: the language `language` set last, one
+// line, so a start reads the script once with its table.
+std::string ScriptHandler::rememberedLanguage()
+{
+    std::string code;
+    FILE *fp = fopen( "language.txt", "rb", true );
+    if (!fp) return code;
+    char buf[64];
+    if (fgets( buf, sizeof(buf), fp )) code = buf;
+    fclose( fp );
+    while (!code.empty() && (code.back() == '\n' || code.back() == '\r' || code.back() == ' ')) code.pop_back();
+    return code;
+}
+
+void ScriptHandler::rememberLanguage( const char *lang )
+{
+    if (!*lang || rememberedLanguage() == lang) return;
+    FILE *fp = fopen( "language.txt", "wb", true );
+    if (!fp) return;
+    fprintf( fp, "%s\n", lang );
+    fclose( fp );
+}
+
 void ScriptHandler::expandTextTable( const char *lang )
 {
     table_line_hash.clear();
@@ -124,7 +147,9 @@ void ScriptHandler::expandTextTable( const char *lang )
     }
     if (!text_refs) return;
 
-    std::string code = lang ? std::string( lang ) : firstLanguage( script_buffer, script_buffer_length );
+    // the language last chosen (language.txt) when it has a table, else the first `language`'s
+    std::string code = lang ? std::string( lang ) : rememberedLanguage();
+    if (!lang && (code.empty() || !textTableExists( code.c_str() ))) code = firstLanguage( script_buffer, script_buffer_length );
     FILE *fp = code.empty() ? NULL : fopen( tableName( code.c_str() ).c_str(), "rb" );
     if (!fp){
         utils::printError( "text table: the script names its text by ID, but there is no %s\n",
@@ -353,6 +378,30 @@ void ONScripter::setLayers()
     for (int i=0 ; i<MAX_SPRITE2_NUM ; i++) sprite2_info[i].filter_changed = true;
     for (int i=0 ; i<3 ; i++) tachi_info[i].filter_changed = true;
     bg_info.filter_changed = true;
+}
+
+// A language's own font: `<name>.<lang><ext>` beside the font file (default.en.ttf),
+// used while the language is on; the text drawn after the switch is in it.
+void ONScripter::setLanguageFont( const std::string &lang )
+{
+    if (base_font_file.empty()) base_font_file = font_file;
+    std::string want = base_font_file;
+    if (!lang.empty()){
+        size_t dot = base_font_file.rfind( '.' ), sep = base_font_file.find_last_of( "/\\" );
+        std::string own = (dot != std::string::npos && (sep == std::string::npos || dot > sep))
+            ? base_font_file.substr( 0, dot ) + "." + lang + base_font_file.substr( dot )
+            : base_font_file + "." + lang;
+        FILE *fp = ::fopen( own.c_str(), "rb" );
+        if (fp){
+            fclose( fp );
+            want = own;
+        }
+    }
+    if (want == font_file) return;
+    delete[] font_file;
+    font_file = new char[ want.size() + 1 ];
+    strcpy( font_file, want.c_str() );
+    sentence_font.ttf_font[0] = sentence_font.ttf_font[1] = NULL; // opened again at the next character
 }
 
 void ONScripter::setLanguageLayer( const std::string &old_lang, const std::string &lang )
