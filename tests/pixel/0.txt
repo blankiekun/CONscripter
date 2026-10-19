@@ -50,4 +50,33 @@ bg "#c86432",10,1000
 `x
 getscreenshot 320,240
 savescreenshot "window.bmp"
+;spmotionadd: a second motion composed with spmotion's (offsets and angles add, zooms and alphas multiply)
+bg black,1
+lsp 11,":a;solid.png",10,10
+spmotion 11,1,0,50,0,100,100,0,128,0,100000,50,0,100,100,0,128,0
+spmotionadd 11,1,0,0,20,100,100,0,128,0,100000,0,20,100,100,0,128,0
+lsp 12,":a;solid.png",100,40
+spmotion 12,1,0,0,0,200,200,0,256,0,100000,0,0,200,200,0,256,0
+spmotionadd 12,1,0,0,0,150,150,0,256,0,100000,0,0,150,150,0,256,0
+lsp 13,":a;border.png",170,40
+spmotion 13,1,0,0,0,100,100,45,256,0,100000,0,0,100,100,45,256,0
+spmotionadd 13,1,0,0,0,100,100,45,256,0,100000,0,0,100,100,45,256,0
+; loop 2 (ended at once by --auto-play) leaves its last key on the place
+lsp 14,":a;solid.png",200,10
+spmotionadd 14,2,0,0,0,100,100,0,256,0,500,30,0,100,100,0,256,0
+; lsp keeps it, csp drops it, spmotion num stops spmotion's alone
+lsp 15,":a;solid.png",10,100
+spmotionadd 15,1,0,30,0,100,100,0,256,0,100000,30,0,100,100,0,256,0
+lsp 15,":a;solid.png",10,100
+lsp 16,":a;solid.png",100,100
+spmotionadd 16,1,0,30,0,100,100,0,256,0,100000,30,0,100,100,0,256,0
+csp 16
+lsp 16,":a;solid.png",100,100
+lsp 17,":a;solid.png",200,100
+spmotion 17,1,0,30,0,100,100,0,256,0,100000,30,0,100,100,0,256,0
+spmotionadd 17,1,0,0,20,100,100,0,256,0,100000,0,20,100,100,0,256,0
+spmotion 17
+print 1
+getscreenshot 320,240
+savescreenshot "add.bmp"
 end

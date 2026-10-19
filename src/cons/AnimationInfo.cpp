@@ -67,6 +67,7 @@ AnimationInfo::AnimationInfo()
     zoom_x = zoom_y = 100;
     zoom_rot = 0;
     motion_key = NULL;
+    motion_add = NULL;
     motion_loop = false;
     motion_loop_key = 0;
     motion_keep = false;
@@ -98,6 +99,7 @@ AnimationInfo::AnimationInfo()
 AnimationInfo::AnimationInfo(const AnimationInfo &anim)
 {
     motion_key = NULL;
+    motion_add = NULL;
     *this = anim;
 }
 
@@ -105,6 +107,7 @@ AnimationInfo::~AnimationInfo()
 {
     reset();
     delete[] motion_key;
+    delete motion_add;
     if (mutex) SDL_DestroyMutex(mutex);
 }
 
@@ -112,7 +115,9 @@ AnimationInfo& AnimationInfo::operator =(const AnimationInfo &anim)
 {
     if (this != &anim){
         delete[] motion_key;
+        delete motion_add;
         memcpy(this, &anim, sizeof(AnimationInfo));
+        if (motion_add) motion_add = new AnimationInfo(*anim.motion_add);
 
         mutex = SDL_CreateMutex();
 
@@ -222,6 +227,8 @@ void AnimationInfo::remove()
     zoom_x = zoom_y = 100;
     zoom_rot = 0;
     stopMotion();
+    delete motion_add;
+    motion_add = NULL;
     motion_clock = -1;
     trail_passes = trail_alpha = trail_lag = trail_keys = trail_time = 0;
     trail_over = false;

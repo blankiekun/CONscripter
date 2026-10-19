@@ -513,7 +513,7 @@ void ONScripter::saveSaveFile2( bool output_flag )
         writeStr( ai->image_name,   output_flag );
         writeInt( ai->orig_pos.x,   output_flag );
         writeInt( ai->orig_pos.y,   output_flag );
-        writeInt( ai->visible && !(ai->motion_keys > 0 && ai->motion_leave)?1:0,  output_flag ); // CONscripter: leaving (spmotion loop 3)
+        writeInt( ai->visible && !ai->leaving()?1:0,  output_flag ); // CONscripter: leaving (spmotion loop 3)
         writeInt( ai->current_cell, output_flag );
         writeInt( ai->trans, output_flag );
     }

@@ -279,6 +279,7 @@ public:
     int getclickskipCommand();
     int spmotionwaitCommand();
     int spmotionclockCommand();
+    int spmotionaddCommand();
     int screenflashCommand();
     int screenfilterCommand();
     int screenshakeCommand();
@@ -678,6 +679,14 @@ private:
     bool stepSpriteFade( AnimationInfo &ai, int current_time );
     void screenMaskBlend( SDL_Surface *surface, AnimationInfo *anim, const SDL_Rect &clip, std::vector<Uint32> &saved, bool apply );
     void endKeptMotion(AnimationInfo &ai);
+    void endKeptTrack(AnimationInfo &ai, bool add);
+    void readMotionKeys(AnimationInfo &m, int mode, const char *cmd);
+    void advanceMotionAdd(AnimationInfo &ai, int current_time);
+    void composeMotionAdd(AnimationInfo &ai);
+    void stepMotionAdd(AnimationInfo &ai, int current_time);
+    void dropMotionAdd(AnimationInfo &ai);
+    void writeMotion(AnimationInfo &m, bool output_flag);
+    void readMotion(AnimationInfo &m);
     void applyMotion(AnimationInfo &ai, const int *v);
     int curveAt(int curve, int p);
     // spcurve's tables, curves CURVE_FIRST and on
