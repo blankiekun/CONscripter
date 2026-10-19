@@ -201,6 +201,11 @@ def main():
             if box:
                 check(f"lsp2 {name} border", border_ok(px, box, width), [])
 
+        _, _, px = read_bmp(os.path.join(d, "sv", "clock.bmp"))
+        # spmotionclock 11,-50000: 50 s into keys whose offset jumps 0 -> 50 at 1 s.
+        check("spmotionclock -ms: started part-way", bbox(px, 0, 30, 140, 70), (60, 40, 75, 55))
+        check("spmotion without it: from its start", bbox(px, 0, 70, 140, 110), (10, 80, 25, 95))
+
         _, _, px = read_png(os.path.join(d, "shots", "fx000000-1-050.png"))
         # Crossfade black to SOLID at half its time: half of each channel, ±1 for the
         # fade's 0-256 alpha step rounding.

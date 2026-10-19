@@ -831,8 +831,11 @@ Impl `ONScripter::spmotionwaitCommand`.
 `spmotionclock num,src` — the next `spmotion` with keys on sprite num starts
 as far in as sprite src's motion has run now (from its start if src has
 none): a motion handed to another sprite goes on with its clock, whether src
-is stopped after this or not. `csp num` drops it; not saved.
-`spmotionclock 11,10:spmotion 10:csp 10:lsp 11,"a.png",0,0:spmotion 11,1,...`.
+is stopped after this or not. `spmotionclock num,-ms` (src negative): it starts
+ms into its keys (at `gamespeed`, as the keys), for a motion resumed part-way
+with its own curve and end. `csp num` drops it; not saved.
+`spmotionclock 11,10:spmotion 10:csp 10:lsp 11,"a.png",0,0:spmotion 11,1,...`;
+`spmotionclock 10,-1500:spmotion 10,2,...` (1.5 s in).
 Impl `ONScripter::spmotionclockCommand`.
 
 ### effectcurve [cons]

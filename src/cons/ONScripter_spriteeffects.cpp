@@ -262,7 +262,7 @@ int ONScripter::spmotionCommand()
         if (ai->motion_clock >= 0) ai->motion_start -= ai->motion_clock; // spmotionclock
         traceMotion( *ai, NULL );
         ai->motion_clock = -1;
-        stepSpriteMotion( *ai, ai->motion_start );
+        stepSpriteMotion( *ai, ai->motion_next ); // now: spmotionclock may have started it part-way
         if (((auto_play_flag && !auto_play_real) || still_screen) && !ai->motion_loop && ai->motion_keys > 0){ // still_screen: e-ink shows only the end
             int end = ai->motion_start + ai->motion_key[ai->motion_keys-1][0] * (ai->motion_passes > 1 ? ai->motion_passes : 1);
             if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
@@ -320,14 +320,21 @@ int ONScripter::spmotionwaitCommand()
  *   The next spmotion with keys on sprite num starts as far in as sprite
  *   src's motion has run now (from its start if src has none): a motion
  *   handed to another sprite goes on with its clock, src stopped after
- *   this or not. csp on num drops it.
- *       spmotionclock 11,10:spmotion 10:lsp 11,"a.png",0,0:spmotion 11,1,... */
+ *   this or not. src negative (-ms): it starts ms into its keys (at
+ *   gamespeed, as the keys), for a motion resumed part-way. csp on num
+ *   drops it.
+ *       spmotionclock 11,10:spmotion 10:lsp 11,"a.png",0,0:spmotion 11,1,...
+ *       spmotionclock 10,-1500:spmotion 10,2,... */
 int ONScripter::spmotionclockCommand()
 {
     int no = script_h.readInt();
     int src = script_h.readInt();
-    if (no < 0 || no >= MAX_SPRITE_NUM || src < 0 || src >= MAX_SPRITE_NUM){
+    if (no < 0 || no >= MAX_SPRITE_NUM || src >= MAX_SPRITE_NUM){
         utils::printError("spmotionclock: sprite %d or %d out of range\n", no, src);
+        return RET_CONTINUE;
+    }
+    if (src < 0){ // -ms: that far into its keys
+        sprite_info[no].motion_clock = speedTime( -src );
         return RET_CONTINUE;
     }
     AnimationInfo &s = sprite_info[src];

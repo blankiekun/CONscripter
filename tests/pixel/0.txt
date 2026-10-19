@@ -34,6 +34,16 @@ print 1
 getscreenshot 320,240
 savescreenshot "lsp2.bmp"
 csp2 -1
+;spmotionclock num,-ms: a loop that jumps 50 px right at 1 s, started 50 s in, and the same from its start
+lsp 11,":a;solid.png",10,40
+spmotionclock 11,-50000
+spmotion 11,1,0,0,0,100,100,0,256,0,1000,50,0,100,100,0,256,4,100000,50,0,100,100,0,256,0
+lsp 12,":a;solid.png",10,80
+spmotion 12,1,0,0,0,100,100,0,256,0,1000,50,0,100,100,0,256,4,100000,50,0,100,100,0,256,0
+print 1
+getscreenshot 320,240
+savescreenshot "clock.bmp"
+csp -1
 print 1
 ; crossfade black to a colour, filmed at its midpoint by --shot-effects 50
 bg "#c86432",10,1000
