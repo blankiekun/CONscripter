@@ -2190,7 +2190,10 @@ void ONScripter::setStartGoto( const char *label )
 
 /* --until label and --max-pages n: a run, played by hand or by itself,
  * ends when the script first reaches that label, or after n text pages
- * (counted as the trace counts them), with exit code 0. */
+ * (counted as the trace counts them), with exit code 0. What quitting
+ * writes (the global variables, the read marks) is written first: the
+ * persist hook's last write can be up to 2 s old, so a run in the same
+ * --save-dir would miss a global set just before the end. */
 void ONScripter::setUntil( const char *label )
 {
     if (label[0] == '*') label++;
@@ -2213,6 +2216,7 @@ void ONScripter::stopRun( const char *reason )
 {
     utils::printInfo( "stopped: %s\n", reason );
     trace_end_reason = reason;
+    saveAll();
     if (trace_fp) traceEnd();
     exit(0);
 }
