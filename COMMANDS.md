@@ -446,8 +446,26 @@ for the code, the script goes on in that table's text: 0.txt is read again
 with it and the game goes on where it is (the gosub stack, a textgosub's
 place in a text line, the read marks are carried over); the page on the
 screen and the backlog keep the text they had. The language is also an
-asset layer (`assetlayer`). Impl `ONScripter::languageCommand`,
+asset layer (`assetlayer`), and picks the label variants jumps take
+(below). Impl `ONScripter::languageCommand`,
 `switchTextTable` (`ONScripter_strtab.cpp`).
+
+### Label variants [cons]
+A label may carry a language: `*name@en`. A jump to `*name` (`goto`,
+`gosub`, `select`'s targets, `textgosub`, a label in a string variable:
+every jump by name; `return` is not one) goes to
+`*name@<language>` when the script has it, the language being the one the
+last `language` set, else to `*name`; a name with `@` is taken as it is.
+So one script holds per-language routines under one name: the shared code
+calls `gosub *settings`, and `*settings@ja` and `*settings@en` are each
+edition's. The lookup is made at the jump: a `language` changes only the
+jumps after it, and a return address already on the stack stays where it
+was. A label may have only variants (no plain `*name`); a jump to it
+with no variant for the language is an error ("Label not found"). Falling
+off the end of a label goes on into the next label in the file, as
+always, whatever its language. The current label a save keeps is the
+variant's own name. Test: `tests/labels/check.py`. Impl
+`ScriptHandler::findLabel`.
 
 ### Text tables [cons]
 A line of 0.txt that is `^ID` alone (ID: letters, digits, `_`) is the

@@ -1,0 +1,50 @@
+; Label variants test: tests/labels/check.py runs this and reads the labels reached from the trace
+; (the trace names a label the first time it is reached, so each jump goes to a label of its own).
+*define
+game
+*start
+gosub *a
+language "en"
+gosub *b
+language "ja"
+gosub *c
+gosub *d@en
+gosub *swap
+mov $0,"*f"
+gosub $0
+goto *fin
+; no language set: the plain label
+*a
+return
+*a@en
+return
+*b
+return
+*b@en
+return
+; no variant for ja: the plain label
+*c
+return
+*c@en
+return
+*d
+return
+*d@en
+return
+; only a variant
+*swap@ja
+language "en"
+gosub *e
+return
+*e
+return
+*e@en
+return
+*f
+return
+*f@en
+return
+*fin
+end
+*fin@en
+end

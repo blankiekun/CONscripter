@@ -2890,6 +2890,7 @@ int ONScripter::languageCommand()
 {
     std::string old = text_language;
     text_language = script_h.readStr();
+    script_h.setLabelLanguage( text_language.c_str() );
     setLanguageLayer( old, text_language ); // ONScripter_strtab.cpp
     // text tables (ONScripter_strtab.cpp): the script goes on in the new language's text
     if (script_h.hasTextRefs() && text_language != script_h.getTextTable() && script_h.textTableExists( text_language.c_str() ))

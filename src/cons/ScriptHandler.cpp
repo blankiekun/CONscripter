@@ -396,7 +396,7 @@ const char *ScriptHandler::readLabel()
         while((ch >= 'a' && ch <= 'z') || 
               (ch >= 'A' && ch <= 'Z') ||
               (ch >= '0' && ch <= '9') ||
-              ch == '_'){
+              ch == '_' || ch == '@'){ // CONscripter: '@' names a language's variant (findLabel)
             if (ch >= 'A' && ch <= 'Z') ch += 'a' - 'A';
             addStringBuffer( ch );
             ch = *++buf;
@@ -940,7 +940,7 @@ int ScriptHandler::openScript(char *path)
 
 struct ScriptHandler::LabelInfo ScriptHandler::lookupLabel( const char *label )
 {
-    int i = findLabel( label );
+    int i = findLabel( label, true );
 
     findAndAddLog( log_info[LABEL_LOG], label_info[i].name, true );
     return label_info[i];
@@ -1386,8 +1386,14 @@ int ScriptHandler::findLabelIndex( const char *name )
     return it == label_index.end() ? -1 : it->second;
 }
 
-int ScriptHandler::findLabel( const char *label )
+int ScriptHandler::findLabel( const char *label, bool variant )
 {
+    // CONscripter: a jump to `name` goes to `name@<language>` when the
+    // script has it (the language `language` set last), else to `name`
+    if (variant && !label_language.empty() && !strchr( label, '@' )){
+        int v = findLabelIndex( (std::string( label ) + "@" + label_language).c_str() );
+        if (v >= 0) return v;
+    }
     int i = findLabelIndex( label );
     if (i >= 0) return i;
 
@@ -1482,7 +1488,7 @@ void ScriptHandler::parseStr( char **buf )
         while((ch >= 'a' && ch <= 'z') || 
               (ch >= 'A' && ch <= 'Z') ||
               (ch >= '0' && ch <= '9') ||
-              ch == '_'){
+              ch == '_' || ch == '@'){
             if (ch >= 'A' && ch <= 'Z') ch += 'a' - 'A';
             str_string_buffer[c++] = ch;
             ch = *++(*buf);
