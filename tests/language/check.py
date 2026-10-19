@@ -19,9 +19,9 @@ def check(name, got, want):
         failed.append(name)
 
 
-def run(binary, d):
+def run(binary, d, extra=()):
     env = dict(os.environ, SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy")
-    r = subprocess.run(["timeout", "-k", "5", "30", binary, "-r", ".", "--save-dir", "sv", "--trace", "t.jsonl", "--auto-play", "0", "--shot-every", "1", "--shot-dir", "shots"],
+    r = subprocess.run(["timeout", "-k", "5", "30", binary, "-r", ".", "--save-dir", "sv", "--trace", "t.jsonl", "--auto-play", "0", "--shot-every", "1", "--shot-dir", "shots", *extra],
                        cwd=d, env=env, capture_output=True, text=True)
     if r.returncode != 0:
         print(f"FAIL engine exit {r.returncode}\n{r.stderr[-2000:]}")
@@ -57,6 +57,15 @@ def main():
                 os.remove(remembered)
             run(binary, d)
             check("default.en.ttf draws the English text", open(os.path.join(d, "shots", "page000002.png"), "rb").read() != same, True)
+            # --fontcache: the base font read once into memory; the language's font still read from its file
+            drawn = open(os.path.join(d, "shots", "page000002.png"), "rb").read()
+            os.remove(remembered)
+            run(binary, d, ["--fontcache"])
+            check("--fontcache: the same pages", open(os.path.join(d, "shots", "page000002.png"), "rb").read() == drawn, True)
+            os.remove(remembered)
+            os.remove(os.path.join(d, "default.en.ttf"))
+            run(binary, d, ["--fontcache"])
+            check("--fontcache: back to default.ttf without default.en.ttf", open(os.path.join(d, "shots", "page000002.png"), "rb").read() == same, True)
     print("language test: " + ("all passed" if not failed else f"{len(failed)} failed"))
     return 1 if failed else 0
 

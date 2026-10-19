@@ -779,7 +779,9 @@ int ONScripter::init()
         font_cache = malloc(size);
         fontfp->read(fontfp, font_cache, 1, size);
         SDL_RWclose(fontfp);
-        FontInfo::cache_font_file = font_file;
+        // its own copy: a language's font replaces font_file (setLanguageFont)
+        FontInfo::cache_font_file = new char[ strlen(font_file) + 1 ];
+        strcpy( FontInfo::cache_font_file, font_file );
         FontInfo::font_cache = font_cache;
         FontInfo::font_cache_size = size;
     }
