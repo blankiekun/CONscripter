@@ -238,6 +238,8 @@ public:
     int getNumLabels(){ return num_of_labels; };
     // CONscripter: a label's index by name, any case (the first of a duplicated name), -1 if none
     int findLabelIndex( const char *name );
+    // CONscripter: the language whose label variants jumps take (`name@<language>`), set by `language`
+    void setLabelLanguage( const char *language ){ label_language = language; };
     bool inScript( const char *address ){ return script_buffer && address >= script_buffer && address < script_buffer + script_buffer_length; };
     // CONscripter: for the web page's consPosition
     int getScriptLength(){ return script_buffer_length; };
@@ -388,7 +390,8 @@ private:
     void readConfiguration();
     int  labelScript();
 
-    int findLabel( const char* label );
+    int findLabel( const char* label, bool variant = false );
+    std::string label_language;
 
     char *checkComma( char *buf );
     void parseStr( char **buf );
