@@ -1818,6 +1818,7 @@ int ONScripter::lspCommand()
         traceMotion( *ai, "lsp" );
         ai->stopMotion();
     }
+    if (ai->motion_add && ai->motion_add->motion_leave) dropMotionAdd( *ai ); // CONscripter: and spmotionadd's
 
     if (ai->image_surface && ai->visible)
         dirty_rect.add( ai->pos );

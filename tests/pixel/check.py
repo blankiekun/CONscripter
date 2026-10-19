@@ -217,6 +217,21 @@ def main():
         # default window, the whole screen).
         check("define setwindow: above the window", px(160, 100), SOLID)
         check("define setwindow: in the window", px(300, 230), tuple(c * 128 // 255 for c in SOLID), tol=1)
+
+        _, _, px = read_bmp(os.path.join(d, "sv", "add.bmp"))
+        # spmotionadd beside spmotion: x+50 and y+20 add; alphas 128 * 128 / 256 = 64.
+        check("spmotionadd offsets add", bbox(px, 0, 0, 82, 90), (60, 30, 75, 45))
+        check("spmotionadd alphas multiply", px(66, 36), tuple(c * (255 * 64 // 256) // 255 for c in SOLID), tol=2)
+        # zoom 200 % times 150 %: the 16 px picture drawn 48 px about its centre (108, 48).
+        box = bbox(px, 80, 20, 140, 80)
+        check("spmotionadd zooms multiply", box and (box[2] - box[0] + 1, box[3] - box[1] + 1), (48, 48), tol=1)
+        # angle 45 + 45: the 8x6 picture turned 90, 6 wide and 8 tall.
+        box = bbox(px, 150, 20, 195, 80)
+        check("spmotionadd angles add", box and (box[2] - box[0] + 1, box[3] - box[1] + 1), (6, 8))
+        check("spmotionadd loop 2 kept on the place", bbox(px, 196, 0, 300, 30), (230, 10, 245, 25))
+        check("spmotionadd stays through lsp", bbox(px, 0, 95, 90, 140), (40, 100, 55, 115))
+        check("spmotionadd dropped by csp", bbox(px, 95, 95, 190, 140), (100, 100, 115, 115))
+        check("spmotion num leaves spmotionadd's", bbox(px, 195, 95, 300, 145), (200, 120, 215, 135))
     finally:
         shutil.rmtree(d)
     print("pixel test: " + ("all passed" if not fails else f"{fails} failed"))

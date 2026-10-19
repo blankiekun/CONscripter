@@ -51,7 +51,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 32 // the "Version n" comments below name the parts in the order they are
+#define CONS_SAVE_VERSION 33 // the "Version n" comments below name the parts in the order they are
                             // written (version 26's first). A new part goes at the end; loading
                             // reads the parts an older save has and leaves the rest at their defaults
 #define CONS_SAVE_OLDEST  18 // the oldest block loading reads: version 18 reshaped earlier parts
@@ -1156,7 +1156,7 @@ int ONScripter::pushscreenCommand()
         }
         sp.x = ai->orig_pos.x;
         sp.y = ai->orig_pos.y;
-        sp.visible = ai->visible && !(ai->motion_keys > 0 && ai->motion_leave); // leaving: as a save
+        sp.visible = ai->visible && !ai->leaving(); // leaving: as a save
         sp.cell = ai->current_cell;
         sp.trans = ai->trans;
         sp.num_of_filters = ai->num_of_filters;
@@ -1584,12 +1584,7 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         AnimationInfo *ai = &sprite_info[i];
         if (ai->motion_keys == 0 || ai->motion_leave) continue; // leaving: left out with its sprite
         writeInt( i, output_flag );
-        writeInt( ai->motion_loop ? 1 + ai->motion_loop_key : 0, output_flag ); // loop 4: 1 + its loop key
-        writeInt( ai->motion_keep ? 1 : 0, output_flag );
-        writeInt( ai->motion_passes, output_flag );
-        writeInt( ai->motion_keys, output_flag );
-        for (int k=0 ; k<ai->motion_keys ; k++)
-            for (int j=0 ; j<8 ; j++) writeInt( ai->motion_key[k][j], output_flag );
+        writeMotion( *ai, output_flag );
     }
     for (int c=0 ; c<MAX_CURVES ; c++){
         writeInt( (int)curve_table[c].size(), output_flag );
@@ -1725,6 +1720,54 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         int v[9] = {i, ai.fade_from, ai.fade_to, ai.fade_soft, ai.fade_form, ai.fade_curve, ai.fade_ms, ai.fade_frames, e < ai.fade_ms ? e : ai.fade_ms};
         for (int k=0 ; k<9 ; k++) writeInt( v[k], output_flag );
     }
+
+    // Version 33: the sprites' added motions (spmotionadd): the count,
+    // then per sprite its number and the motion as in version 18.
+    num = 0;
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++)
+        if (sprite_info[i].motion_add && !sprite_info[i].motion_add->motion_leave) num++;
+    writeInt( num, output_flag );
+    for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
+        AnimationInfo *m = sprite_info[i].motion_add;
+        if (!m || m->motion_leave) continue; // leaving: left out with its sprite
+        writeInt( i, output_flag );
+        writeMotion( *m, output_flag );
+    }
+}
+
+// A motion in the save (Version 18's and 33's): loop (1 + loop 4's key),
+// keep, passes, key count and keys (8 values each, as stored).
+void ONScripter::writeMotion( AnimationInfo &m, bool output_flag )
+{
+    writeInt( m.motion_loop ? 1 + m.motion_loop_key : 0, output_flag ); // loop 4: 1 + its loop key
+    writeInt( m.motion_keep ? 1 : 0, output_flag );
+    writeInt( m.motion_passes, output_flag );
+    writeInt( m.motion_keys, output_flag );
+    for (int k=0 ; k<m.motion_keys ; k++)
+        for (int j=0 ; j<8 ; j++) writeInt( m.motion_key[k][j], output_flag );
+}
+
+// Reads what writeMotion wrote into m, started now.
+void ONScripter::readMotion( AnimationInfo &m )
+{
+    int loop = readInt();
+    m.motion_loop = loop != 0;
+    m.motion_loop_key = loop > 1 ? loop - 1 : 0;
+    m.motion_keep = readInt() != 0;
+    m.motion_leave = false; // loop 3 isn't saved
+    m.motion_passes = readInt();
+    int keys = readInt();
+    m.motion_keys = 0;
+    for (int k=0 ; k<keys ; k++){
+        int v[8];
+        for (int j=0 ; j<8 ; j++) v[j] = readInt();
+        if (k >= AnimationInfo::MAX_MOTION_KEYS) continue;
+        m.allocMotionKeys();
+        for (int j=0 ; j<8 ; j++) m.motion_key[k][j] = v[j];
+        m.motion_keys++;
+    }
+    if (m.motion_loop_key >= m.motion_keys - 1) m.motion_loop_key = 0;
+    m.motion_start = SDL_GetTicks();
 }
 
 // strsp's text, font (columns and rows, font size, pitch, bold, shadow)
@@ -2123,24 +2166,8 @@ void ONScripter::loadSaveFileCons()
         int no = readInt();
         AnimationInfo dummy;
         AnimationInfo *ai = (no >= 0 && no < MAX_SPRITE_NUM) ? &sprite_info[no] : &dummy;
-        int loop = readInt();
-        ai->motion_loop = loop != 0;
-        ai->motion_loop_key = loop > 1 ? loop - 1 : 0;
-        ai->motion_keep = readInt() != 0;
-        ai->motion_leave = false; // loop 3 isn't saved
-        ai->motion_passes = readInt();
-        int keys = readInt();
-        ai->motion_keys = 0;
-        for (int k=0 ; k<keys ; k++){
-            int v[8];
-            for (int j=0 ; j<8 ; j++) v[j] = readInt();
-            if (k >= AnimationInfo::MAX_MOTION_KEYS) continue;
-            ai->allocMotionKeys();
-            for (int j=0 ; j<8 ; j++) ai->motion_key[k][j] = v[j];
-            ai->motion_keys++;
-        }
-        if (ai->motion_loop_key >= ai->motion_keys - 1) ai->motion_loop_key = 0;
-        ai->motion_start = ai->motion_next = SDL_GetTicks();
+        readMotion( *ai );
+        ai->motion_next = ai->motion_start;
         stepSpriteMotion( *ai, ai->motion_start );
     }
     for (int c=0 ; c<MAX_CURVES ; c++){
@@ -2267,6 +2294,23 @@ void ONScripter::loadSaveFileCons()
         ai.fade_start = (int)SDL_GetTicks() - v[8]; // (going on from there)
         fadeToFrame( ai, 0 );
         stepSpriteFade( ai, SDL_GetTicks() );
+    }
+
+    if (version < 33) return;
+    num = readInt();
+    for (int n=0 ; n<num ; n++){
+        int no = readInt();
+        AnimationInfo *m = new AnimationInfo();
+        readMotion( *m );
+        if (no < 0 || no >= MAX_SPRITE_NUM || m->motion_keys == 0){
+            delete m;
+            continue;
+        }
+        AnimationInfo &ai = sprite_info[no];
+        delete ai.motion_add;
+        ai.motion_add = m;
+        if (ai.motion_keys == 0) ai.motion_next = m->motion_start;
+        stepMotionAdd( ai, m->motion_start );
     }
 }
 

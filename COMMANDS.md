@@ -811,7 +811,7 @@ lead-in, then a loop: the last key should match key k). Under `--auto-play` (not
 once. `spmotion num` stops (back at its place); `spmotion num,2` stops where it is now (its offset/zoom/angle/alpha applied, as loop 2's last key). Up to 64 keys.
 Stays through `lsp`, removed by `csp`, saved (restarted). Another
 `spmotion`, `lsp`, `msp`, `amsp` first finishes a loop 2/-n motion at its
-last key.
+last key. A second motion that runs beside it: `spmotionadd`.
 `spmotion 10,1,0,0,0,100,100,0,256,0,250,0,-12,100,100,0,256,3,500,0,0,100,100,0,256,3` (bob);
 `spmotion 10,1,0,0,0,100,100,0,256,0,1000,0,0,100,100,360,256,0` (spin);
 `spmotion 10,4,1,0,0,0,100,100,0,256,0,500,0,40,100,100,0,256,0,1000,0,30,100,100,0,256,3,1500,0,40,100,100,0,256,3` (drop in, then bob);
@@ -821,7 +821,7 @@ last key.
 Impl `ONScripter::spmotionCommand`.
 
 ### spmotionwait [cons]
-`spmotionwait num[,click]` — wait until sprite num's `spmotion` ends (-1:
+`spmotionwait num[,click]` — wait until sprite num's `spmotion` and `spmotionadd` end (-1:
 every motion that ends; looping ones are left out); click 1: a click ends
 the wait. What is left (a click, skipping) jumps to the motion's end, and the
 screen is drawn. `spmotion 10,2,...:spmotionwait 10`.
@@ -837,6 +837,24 @@ with its own curve and end. `csp num` drops it; not saved.
 `spmotionclock 11,10:spmotion 10:csp 10:lsp 11,"a.png",0,0:spmotion 11,1,...`;
 `spmotionclock 10,-1500:spmotion 10,2,...` (1.5 s in).
 Impl `ONScripter::spmotionclockCommand`.
+
+### spmotionadd [cons]
+`spmotionadd num[,loop,t,x,y,zx,zy,angle,alpha,curve,...]` — a second motion
+on sprite num, beside its `spmotion` and composed with it: the offsets and the
+angles add, the zooms and the alphas multiply (all of which commute, so neither
+motion goes first; zooms in 1/100 %, rounded down). Its keys and loop modes are
+`spmotion`'s, with its own start and end: loop 2/-n leaves its last key on the
+sprite, loop 3 removes the sprite at its end. For a fade or a shake that runs
+on while `spmotion` moves the sprite. `spmotionadd num` stops it (back);
+`spmotionadd num,2` stops it where it is now. Another `spmotionadd`, `lsp`,
+`msp`, `amsp` first finish a loop 2/-n one at its last key; `spmotion` leaves
+it running. Stays through `lsp`, removed by `csp`, saved (restarted);
+`spmotionwait` waits for it too. Not followed by `sptrail`'s copies nor
+started part-way by `spmotionclock`; under `--auto-play` it ends at once as
+`spmotion`'s does.
+`spmotion 10,2,0,0,0,100,100,0,256,0,2000,200,0,100,100,0,256,3:spmotionadd 10,0,0,0,0,100,100,0,0,0,500,0,0,100,100,0,256,0`
+(move for 2 s, fading in over the first 0.5 s).
+Impl `ONScripter::spmotionaddCommand`.
 
 ### effectcurve [cons]
 `effectcurve curve` — ease the next effect (`print` or an effect command

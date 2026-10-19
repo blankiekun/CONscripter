@@ -179,6 +179,14 @@ public:
     int motion_alpha;          // 0-256 of the sprite's alpha
     int motion_clock;          // ms the next spmotion with keys starts in at (spmotionclock), -1: from its start
     int motion_end;            // ticks a motion ended at once by --auto-play would have ended: spmotionwait still passes that time
+    /* spmotionadd: a second motion beside spmotion's, its own keys, loop
+       modes and start in this holder's motion fields, its values now in
+       the holder's motion_dx...motion_alpha; the drawn motion_dx...
+       motion_alpha are spmotion's composed with them. NULL: none. Stays
+       across lsp; dropped by remove(). */
+    AnimationInfo *motion_add;
+    // loop 3 on spmotion or spmotionadd: removed at its end (saves leave it out)
+    bool leaving() const { return (motion_keys > 0 && motion_leave) || (motion_add && motion_add->leaving()); }
 
     /* CONscripter: a trail (sptrail): trail_passes copies drawn under the
        sprite, copy i where its motion had it trail_lag * i ms before, at

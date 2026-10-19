@@ -228,36 +228,13 @@ int ONScripter::spmotionCommand()
         motionAt( *ai, ai->motion_keys, t, v );
         applyMotion( *ai, v );
     }
-    else endKeptMotion( *ai );
+    else endKeptTrack( *ai, false );
     traceMotion( *ai, has_keys ? "replaced" : "stopped" );
     ai->stopMotion();
+    if (!has_keys) composeMotionAdd( *ai ); // spmotionadd's goes on
     ai->trail_keys = 0;
     if (has_keys){
-        ai->motion_loop = mode == 1 || mode == 4;
-        ai->motion_keep = mode == 2 || mode < 0;
-        ai->motion_leave = mode == 3;
-        ai->motion_passes = mode < 0 ? -mode : 0;
-        // loop 4: the key to go back to, then the keys
-        ai->motion_loop_key = 0;
-        int loop_key = mode == 4 && (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
-        while (script_h.getEndStatus() & ScriptHandler::END_COMMA){
-            int v[8];
-            for (int j=0 ; j<8 ; j++) v[j] = script_h.readInt();
-            if (ai->motion_keys == AnimationInfo::MAX_MOTION_KEYS){
-                utils::printError("spmotion: more than %d keys\n", AnimationInfo::MAX_MOTION_KEYS);
-                continue;
-            }
-            ai->allocMotionKeys();
-            int *k = ai->motion_key[ai->motion_keys++];
-            // stored as ms, x, y, zoom x, angle, alpha, zoom y, curve
-            k[0] = speedTime( v[0] ); k[1] = v[1]; k[2] = v[2]; k[3] = v[3]; // gamespeed
-            k[4] = v[5]; k[5] = v[6] < 0 ? 0 : v[6] > 256 ? 256 : v[6]; k[6] = v[4]; k[7] = v[7];
-        }
-        if (loop_key < 0 || (loop_key > 0 && loop_key >= ai->motion_keys - 1)){
-            utils::printError("spmotion: loop key %d out of range\n", loop_key);
-            loop_key = 0;
-        }
-        ai->motion_loop_key = loop_key;
+        readMotionKeys( *ai, mode, "spmotion" );
         ai->motion_start = ai->motion_next = SDL_GetTicks();
         if (ai->motion_clock >= 0) ai->motion_start -= ai->motion_clock; // spmotionclock
         traceMotion( *ai, NULL );
@@ -274,6 +251,104 @@ int ONScripter::spmotionCommand()
     if (ai->visible){
         dirty_rect.add( drawnRect( *ai ) );
     }
+
+    return RET_CONTINUE;
+}
+
+// spmotion's and spmotionadd's loop mode and keys, read into m's motion.
+void ONScripter::readMotionKeys( AnimationInfo &m, int mode, const char *cmd )
+{
+    m.motion_loop = mode == 1 || mode == 4;
+    m.motion_keep = mode == 2 || mode < 0;
+    m.motion_leave = mode == 3;
+    m.motion_passes = mode < 0 ? -mode : 0;
+    // loop 4: the key to go back to, then the keys
+    m.motion_loop_key = 0;
+    int loop_key = mode == 4 && (script_h.getEndStatus() & ScriptHandler::END_COMMA) ? script_h.readInt() : 0;
+    while (script_h.getEndStatus() & ScriptHandler::END_COMMA){
+        int v[8];
+        for (int j=0 ; j<8 ; j++) v[j] = script_h.readInt();
+        if (m.motion_keys == AnimationInfo::MAX_MOTION_KEYS){
+            utils::printError("%s: more than %d keys\n", cmd, AnimationInfo::MAX_MOTION_KEYS);
+            continue;
+        }
+        m.allocMotionKeys();
+        int *k = m.motion_key[m.motion_keys++];
+        // stored as ms, x, y, zoom x, angle, alpha, zoom y, curve
+        k[0] = speedTime( v[0] ); k[1] = v[1]; k[2] = v[2]; k[3] = v[3]; // gamespeed
+        k[4] = v[5]; k[5] = v[6] < 0 ? 0 : v[6] > 256 ? 256 : v[6]; k[6] = v[4]; k[7] = v[7];
+    }
+    if (loop_key < 0 || (loop_key > 0 && loop_key >= m.motion_keys - 1)){
+        utils::printError("%s: loop key %d out of range\n", cmd, loop_key);
+        loop_key = 0;
+    }
+    m.motion_loop_key = loop_key;
+}
+
+// When a motion that ends ends (ticks): its last key, times its passes.
+static int motionEnd( const AnimationInfo &m )
+{
+    return m.motion_start + m.motion_key[m.motion_keys-1][0] * (m.motion_passes > 1 ? m.motion_passes : 1);
+}
+
+/* spmotionadd num[,loop,t1,x1,y1,zx1,zy1,angle1,alpha1,curve1,...]
+ *   A second motion for sprite num, beside its spmotion and composed with
+ *   it: the offsets and the angles add, the zooms and the alphas multiply
+ *   (each of these commutes, so neither goes first). Its keys and loop
+ *   modes are spmotion's, with its own start and end: loop 2/-n leaves its
+ *   last key on the sprite, loop 3 removes the sprite at its end. For a
+ *   fade or a shake that runs on while spmotion moves the sprite.
+ *   "spmotionadd num" stops it (back), "spmotionadd num,2" stops it where it
+ *   is now. Another spmotionadd, lsp, msp or amsp first ends a loop 2/-n
+ *   one at its last key; spmotion leaves it running. Stays through lsp,
+ *   dropped by csp, kept in save files (restarted). spmotionwait waits
+ *   for it too. Not followed by sptrail's copies, nor by spmotionclock.
+ *       spmotion 10,2,0,0,0,100,100,0,256,0,2000,200,0,100,100,0,256,3
+ *       spmotionadd 10,0,0,0,0,100,100,0,0,0,500,0,0,100,100,0,256,0
+ *   moves sprite 10 for 2 s and fades it in over the first 0.5 s. */
+int ONScripter::spmotionaddCommand()
+{
+    leaveTextDisplayMode();
+
+    int no = script_h.readInt();
+    if (no < 0 || no >= MAX_SPRITE_NUM){
+        utils::printError("spmotionadd: sprite %d out of range\n", no);
+        while (script_h.getEndStatus() & ScriptHandler::END_COMMA) script_h.readInt();
+        return RET_CONTINUE;
+    }
+    AnimationInfo *ai = &sprite_info[no];
+    SDL_Rect before = drawnRect( *ai );
+    bool shown = ai->visible;
+    bool has_mode = script_h.getEndStatus() & ScriptHandler::END_COMMA;
+    int mode = has_mode ? script_h.readInt() : 0;
+    bool has_keys = has_mode && (script_h.getEndStatus() & ScriptHandler::END_COMMA);
+    int now = SDL_GetTicks();
+    AnimationInfo *m = ai->motion_add;
+    if (m && mode == 2 && !has_keys && (m->motion_loop || motionEnd( *m ) > now)){
+        // stopped where it is now: its values at this time applied to the sprite
+        int last = m->motion_key[m->motion_keys-1][0], t = now - m->motion_start;
+        if (m->motion_loop && last > 0) t = m->loopTime( t );
+        else if (m->motion_passes > 1 && last > 0) t %= last;
+        int v[7];
+        motionAt( *m, m->motion_keys, t, v );
+        applyMotion( *ai, v );
+    }
+    else endKeptTrack( *ai, true );
+    if (has_keys){
+        m = new AnimationInfo();
+        readMotionKeys( *m, mode, "spmotionadd" );
+        m->motion_start = now;
+        delete ai->motion_add;
+        ai->motion_add = m->motion_keys > 0 ? m : NULL;
+        if (!ai->motion_add) delete m;
+        else if (ai->motion_keys == 0 || ai->motion_next > now) ai->motion_next = now;
+    }
+    else dropMotionAdd( *ai );
+    stepMotionAdd( *ai, now );
+    if (ai->motion_add && ((auto_play_flag && !auto_play_real) || still_screen) && !ai->motion_add->motion_loop)
+        stepMotionAdd( *ai, motionEnd( *ai->motion_add ) ); // as spmotion's (shortcut: spmotionwait doesn't pass its time then; the converters wait for spmotion's)
+    if (shown) dirty_rect.add( before );
+    if (ai->visible) dirty_rect.add( drawnRect( *ai ) );
 
     return RET_CONTINUE;
 }
@@ -296,6 +371,8 @@ int ONScripter::spmotionwaitCommand()
         if (no >= 0 && i != no) continue;
         if (ai.motion_keys == 0 && ai.motion_end - now > left) left = ai.motion_end - now; // ended by --auto-play
         ai.motion_end = 0;
+        if (ai.motion_add && !ai.motion_add->motion_loop && motionEnd( *ai.motion_add ) - now > left)
+            left = motionEnd( *ai.motion_add ) - now; // spmotionadd's
         if (ai.motion_keys == 0 || ai.motion_loop) continue;
         int end = ai.motion_start + ai.motion_key[ai.motion_keys-1][0] * (ai.motion_passes > 1 ? ai.motion_passes : 1);
         if (end - now > left) left = end - now;
@@ -306,9 +383,15 @@ int ONScripter::spmotionwaitCommand()
     }
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
-        if ((no >= 0 && i != no) || ai.motion_keys == 0 || ai.motion_loop) continue;
+        if (no >= 0 && i != no) continue;
+        if (ai.motion_add && !ai.motion_add->motion_loop){
+            if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+            stepMotionAdd( ai, motionEnd( *ai.motion_add ) );
+            if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+        }
+        if (ai.motion_keys == 0 || ai.motion_loop) continue;
         if (ai.visible) dirty_rect.add( drawnRect( ai ) );
-        stepSpriteMotion( ai, ai.motion_start + ai.motion_key[ai.motion_keys-1][0] * (ai.motion_passes > 1 ? ai.motion_passes : 1) );
+        stepSpriteMotion( ai, motionEnd( ai ) );
         if (ai.visible) dirty_rect.add( drawnRect( ai ) );
     }
     flush( refreshMode() );
@@ -1199,10 +1282,83 @@ void ONScripter::drawSpriteRange( SDL_Surface *surface, SDL_Rect &clip, int hi, 
 // before spmotion, lsp, msp or amsp sets the sprite anew.
 void ONScripter::endKeptMotion( AnimationInfo &ai )
 {
-    if (ai.motion_keys == 0 || !ai.motion_keep || ai.motion_loop) return;
+    endKeptTrack( ai, false );
+    endKeptTrack( ai, true );
+}
+
+// The same for one motion: spmotion's, or (add) spmotionadd's.
+void ONScripter::endKeptTrack( AnimationInfo &ai, bool add )
+{
+    AnimationInfo *m = add ? ai.motion_add : &ai;
+    if (!m || m->motion_keys == 0 || !m->motion_keep || m->motion_loop) return;
     if (ai.visible) dirty_rect.add( drawnRect( ai ) );
-    stepSpriteMotion( ai, ai.motion_start + ai.motion_key[ai.motion_keys-1][0] );
+    // (a loop -n ends after its passes: at its last key alone, it went on to the first key)
+    if (add) stepMotionAdd( ai, motionEnd( *m ) );
+    else stepSpriteMotion( ai, motionEnd( *m ) );
     if (ai.visible) dirty_rect.add( drawnRect( ai ) );
+}
+
+// spmotionadd: steps sprite ai's added motion to the time (keeping its
+// values in its holder) or ends it, as stepSpriteMotion does spmotion's.
+void ONScripter::advanceMotionAdd( AnimationInfo &ai, int current_time )
+{
+    AnimationInfo *m = ai.motion_add;
+    if (!m) return;
+    int last = m->motion_key[m->motion_keys-1][0];
+    int t = current_time - m->motion_start;
+    if (m->motion_loop && last > 0) t = m->loopTime( t );
+    else if (m->motion_passes > 1 && last > 0 && t < last * m->motion_passes) t %= last;
+    else if (t >= last){
+        if (m->motion_keep) applyMotion( ai, m->motion_key[m->motion_keys-1] );
+        bool leave = m->motion_leave;
+        delete m;
+        ai.motion_add = NULL;
+        if (leave){ // loop 3: gone, as csp
+            ai.remove();
+            ai.visible = false;
+        }
+        return;
+    }
+    int v[7];
+    motionAt( *m, m->motion_keys, t, v, AnimationInfo::MOTION_FINE );
+    m->motion_dx = v[1] * screen_ratio1 / screen_ratio2;
+    m->motion_dy = v[2] * screen_ratio1 / screen_ratio2;
+    m->motion_zoom = v[3];
+    m->motion_zoom_y = v[6];
+    m->motion_rot = v[4];
+    m->motion_alpha = v[5];
+}
+
+// spmotionadd: its values now composed into the drawn ones, which hold
+// spmotion's: offsets and angles add, zooms and alphas multiply.
+void ONScripter::composeMotionAdd( AnimationInfo &ai )
+{
+    const AnimationInfo *m = ai.motion_add;
+    if (!m) return;
+    const int F = AnimationInfo::MOTION_FINE;
+    ai.motion_dx += m->motion_dx;
+    ai.motion_dy += m->motion_dy;
+    ai.motion_zoom = (int)((long long)ai.motion_zoom * m->motion_zoom / (100 * F));
+    ai.motion_zoom_y = (int)((long long)ai.motion_zoom_y * m->motion_zoom_y / (100 * F));
+    ai.motion_rot += m->motion_rot;
+    ai.motion_alpha = ai.motion_alpha * m->motion_alpha / 256;
+}
+
+// spmotionadd: steps (or ends) its motion to the time and draws the sprite
+// with spmotion's at now.
+void ONScripter::stepMotionAdd( AnimationInfo &ai, int current_time )
+{
+    advanceMotionAdd( ai, current_time );
+    stepSpriteMotion( ai, SDL_GetTicks() );
+}
+
+// spmotionadd: drops its motion (the sprite back to spmotion's alone).
+void ONScripter::dropMotionAdd( AnimationInfo &ai )
+{
+    if (!ai.motion_add) return;
+    delete ai.motion_add;
+    ai.motion_add = NULL;
+    stepMotionAdd( ai, 0 );
 }
 
 // Moves the sprite by a motion's values v (as a key's: ms, x, y, zoom x,
@@ -1223,7 +1379,14 @@ void ONScripter::applyMotion( AnimationInfo &ai, const int *v )
 void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
 {
     ai.trail_time = current_time;
-    if (ai.motion_keys == 0) return;
+    if (ai.motion_keys == 0){
+        // no spmotion: spmotionadd's alone (the drawn values held both)
+        ai.motion_dx = ai.motion_dy = ai.motion_rot = 0;
+        ai.motion_zoom = ai.motion_zoom_y = 100 * AnimationInfo::MOTION_FINE;
+        ai.motion_alpha = 256;
+        composeMotionAdd( ai );
+        return;
+    }
     int last = ai.motion_key[ai.motion_keys-1][0];
     int t = current_time - ai.motion_start;
     if (ai.motion_loop && last > 0) t = ai.loopTime( t );
@@ -1239,6 +1402,7 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
             ai.visible = false;
         }
         ai.stopMotion();
+        composeMotionAdd( ai );
         return;
     }
     int v[7];
@@ -1249,6 +1413,7 @@ void ONScripter::stepSpriteMotion( AnimationInfo &ai, int current_time )
     ai.motion_zoom_y = v[6];
     ai.motion_rot = v[4];
     ai.motion_alpha = v[5];
+    composeMotionAdd( ai );
 }
 
 // Steps the sprites' fades and motions; draws what changed
@@ -1379,9 +1544,10 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
         }
         if (stepSpriteFade( ai, current_time ) && ai.visible && ai.image_surface) // spfadeto
             changed.add( drawnRect( ai ) );
-        if ((ai.motion_keys == 0 && ai.trail_keys == 0) || ai.motion_next > current_time) continue;
+        if ((ai.motion_keys == 0 && ai.trail_keys == 0 && !ai.motion_add) || ai.motion_next > current_time) continue;
         // After a long stop (a menu, a load) go on from now.
         if (current_time - ai.motion_next > 1000){
+            if (ai.motion_add) ai.motion_add->motion_start += current_time - ai.motion_next;
             ai.motion_start += current_time - ai.motion_next;
             ai.motion_next = current_time;
         }
@@ -1389,6 +1555,7 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
         int dx = ai.motion_dx, dy = ai.motion_dy, zoom = ai.motion_zoom, zoom_y = ai.motion_zoom_y, rot = ai.motion_rot, alpha = ai.motion_alpha;
         SDL_Rect r = drawnRect( ai );
         bool shown = ai.visible && ai.image_surface;
+        advanceMotionAdd( ai, current_time ); // (composed by stepSpriteMotion)
         stepSpriteMotion( ai, current_time );
         if (ai.trail_passes > 0){
             // sptrail: the copies, until they reach the sprite
@@ -1406,7 +1573,7 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
             if (shown) changed.add( r ); // loop 3 removed it
             continue;
         }
-        if (dx == ai.motion_dx && dy == ai.motion_dy && zoom == ai.motion_zoom && zoom_y == ai.motion_zoom_y && rot == ai.motion_rot && alpha == ai.motion_alpha && ai.motion_keys > 0) continue;
+        if (dx == ai.motion_dx && dy == ai.motion_dy && zoom == ai.motion_zoom && zoom_y == ai.motion_zoom_y && rot == ai.motion_rot && alpha == ai.motion_alpha && (ai.motion_keys > 0 || ai.motion_add)) continue;
         SDL_Rect r2 = drawnRect( ai );
         int x1 = (r.x < r2.x) ? r.x : r2.x, y1 = (r.y < r2.y) ? r.y : r2.y;
         int x2 = (r.x + r.w > r2.x + r2.w) ? r.x + r.w : r2.x + r2.w;
@@ -1454,7 +1621,7 @@ bool ONScripter::spriteZoomOrMotion( const SDL_Rect &clip )
         AnimationInfo &ai = sprite_info[i];
         if (!ai.visible || !ai.image_surface) continue;
         if (ai.wave_on()) return true;
-        if (ai.motion_keys == 0 && ai.trail_keys == 0 && ai.zoom_x == 100 && ai.zoom_y == 100 && ai.zoom_rot == 0) continue;
+        if (ai.motion_keys == 0 && ai.trail_keys == 0 && !ai.motion_add && ai.zoom_x == 100 && ai.zoom_y == 100 && ai.zoom_rot == 0) continue;
         SDL_Rect d = drawnRect( ai ), &p = ai.pos;
         if (d.x >= p.x && d.y >= p.y && d.x + d.w <= p.x + p.w && d.y + d.h <= p.y + p.h) continue; // drawn inside its place
         if (SDL_HasIntersection( &clip, &ai.pos )) return true;
@@ -1479,7 +1646,7 @@ int ONScripter::nextSpriteMotionTime()
             int next = ai.fade_start + (int)(((long long)(ai.fade_frame + 1) * ai.fade_ms + ai.fade_frames - 1) / ai.fade_frames); // (rounded up: k reached then)
             if (min == 0 || min > next) min = next;
         }
-        if (ai.motion_keys == 0 && ai.trail_keys == 0) continue;
+        if (ai.motion_keys == 0 && ai.trail_keys == 0 && !ai.motion_add) continue;
         if (min == 0 || min > ai.motion_next) min = ai.motion_next;
     }
     return min;
