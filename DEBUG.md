@@ -93,7 +93,9 @@ same choice taken at each turn). It then writes a `warn` with `what`
 (written with or without `*`), and `--max-pages n` after n text pages,
 counted as the trace counts them. Both work without `--auto-play` too,
 while playing by hand. The end `reason` is `until label` or `page
-limit`, and the exit code 0. A label the script doesn't have is a
+limit`, and the exit code 0. What quitting writes (the global
+variables, the read marks) is written first, so the next run in the
+same `--save-dir` goes on from them (a route that unlocks another). A label the script doesn't have is a
 startup failure.
 
 ```sh
