@@ -205,6 +205,15 @@ void ScriptHandler::expandTextTable( const char *lang )
     script_buffer[out.size()] = 0;
     script_buffer_length = out.size();
     current_script = next_script = script_buffer;
+    // labels a table line holds count too (a line per language: the code
+    // two editions differ in); as labelScript finds them
+    num_of_labels = 0;
+    for (const char *p = script_buffer, *end = script_buffer + script_buffer_length ; p < end ; ){
+        while (p < end && (*p == ' ' || *p == '\t')) p++;
+        if (p < end && *p == '*') num_of_labels++;
+        const char *e = (const char*)memchr( p, 0x0a, end - p );
+        p = e ? e + 1 : end;
+    }
     for (size_t i=0 ; i<filled.size() ; i++) table_line_hash[filled[i].first] = filled[i].second;
     text_table = code;
 }
