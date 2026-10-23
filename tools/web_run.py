@@ -8,7 +8,8 @@ The build dir holds conscripter.html/.js/.wasm (cross_web.sh's build_web).
 The game dir is the game as loose files (DEBUG.md, "In the web build"); its
 cons_index.json is used when it has one, else one is made with every file
 fetched when the engine opens it (lazyload), or, when the game dir holds
-game.zip, {"zip": "game.zip"} (README, "Web"). The server answers HTTP Range
+game.zip, {"zip": "game.zip"} (README, "Web"); a made one's engine args
+are the game's ons_args. The server answers HTTP Range
 requests (--no-range: whole files only, as a plain server). The page is opened as
 conscripter.html?trace&<query>, served on 127.0.0.1 at a free port, and each
 trace record is written to the output as it comes (default trace.jsonl), so a
@@ -121,12 +122,14 @@ def main():
     open(os.path.join(site, "conscripter.html"), "w", encoding="utf-8", newline="").write(
         html.replace("</body>", HOOK + "</body>", 1))
     index = os.path.join(game, "cons_index.json")
+    ons_args = os.path.join(game, "ons_args")  # the game's engine args, one per line
+    engine_args = open(ons_args, encoding="utf-8").read().split() if os.path.exists(ons_args) else []
     if os.path.exists(index):
         shutil.copy(index, site)
     elif os.path.exists(os.path.join(game, "game.zip")):
         title = os.path.basename(game.rstrip("/"))
         json.dump({"title": title, "gamedir": "/cons/" + title, "savedir": "/cons_save/" + title,
-                   "args": [], "zip": "game.zip", "files": []}, open(os.path.join(site, "cons_index.json"), "w"))
+                   "args": engine_args, "zip": "game.zip", "files": []}, open(os.path.join(site, "cons_index.json"), "w"))
     else:
         files = []
         for root, _dirs, names in os.walk(game, followlinks=True):
@@ -136,7 +139,7 @@ def main():
                     files.append({"path": rel})
         title = os.path.basename(game.rstrip("/"))
         json.dump({"title": title, "gamedir": "/cons/" + title, "savedir": "/cons_save/" + title,
-                   "args": [], "lazyload": True, "files": files}, open(os.path.join(site, "cons_index.json"), "w"))
+                   "args": engine_args, "lazyload": True, "files": files}, open(os.path.join(site, "cons_index.json"), "w"))
 
     out = open(args.out, "w", encoding="utf-8")
     done = threading.Event()
