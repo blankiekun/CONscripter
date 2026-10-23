@@ -181,6 +181,7 @@
                     var path = files[i].path;
                     var url = files[i].url;
                     var file_lazyload = files[i].lazyload;
+                    var range = files[i].range; // em_mkdirs below changes the global i
                     var j = path.lastIndexOf("/");
                     var filename =path.substring(j+1);
                     var filedir = path.substring(0, j);
@@ -195,7 +196,7 @@
                     // console.log(path, url, file_lazyload);
                     em_mkdirs(_FS, basedir);
                     if(file_lazyload==undefined) file_lazyload = lazyload;
-                    if(file_lazyload && (files[i].range || /\.(nsa|ns2|sar|npa)$/i.test(filename))){
+                    if(file_lazyload && (range || /\.(nsa|ns2|sar|npa)$/i.test(filename))){
                         g_cons_archives.push([basedir, filename, url]); // read by range (mount_archive)
                     }
                     else if(file_lazyload){ // pay attension to the case sensitive!
@@ -397,21 +398,23 @@
                 return range_ready(src, offset, end);
             });
 
-            // an archive listed with lazyload: a node read by range, else (no Range) the
-            // whole file when opened, as lazyload does
-            async function mount_archive(_FS, dir, name, url, filemap) {
+            // an archive listed with lazyload: a node read by range, else (no Range) from
+            // the whole file
+            async function mount_archive(_FS, dir, name, url) {
                 var r = await range_get(url, 0, CONS_BLOCK).catch((err) => {
                     console.log(`## cons_range: ${url}`, err); return null;
                 });
                 if (!r) return;
-                if (r.resp) {
-                    r.resp.body.cancel();
-                    console.log(`## cons_range: ${url} has no Range support: fetched whole when opened`);
-                    filemap[(dir + name).toLowerCase()] = {url: url, loaded: false};
-                    return;
+                var src;
+                if (r.resp) { // the engine opens every archive at its start: the whole file now
+                    console.log(`## cons_range: ${url} has no Range support: fetched whole`);
+                    var data = new Uint8Array(await r.resp.arrayBuffer());
+                    src = range_source(url, 0, data.length, data);
                 }
-                var src = range_source(url, 0, r.total);
-                range_put(src, 0, r.data);
+                else {
+                    src = range_source(url, 0, r.total);
+                    range_put(src, 0, r.data);
+                }
                 range_node(_FS, dir, name, src);
             }
 
@@ -611,7 +614,7 @@
                 (async () => {
                     var filemap = window.g_cons_filemap = window.g_cons_filemap || {};
                     for (var [dir, name, url] of g_cons_archives)
-                        await mount_archive(g_cons_module.FS, dir, name, url, filemap);
+                        await mount_archive(g_cons_module.FS, dir, name, url);
                     if (g_cons_index.zip)
                         await mount_zip(g_cons_module.FS, g_cons_index.gamedir.replace(/\/$/, ""),
                             new URL(g_cons_index.zip, urlbase).href, filemap);
