@@ -36,7 +36,8 @@ jobs:
         gh release download "$VERSION" -R ${{ github.repository }} -p "conscripter_${VERSION}_web.7z"
         7z x "conscripter_${VERSION}_web.7z"
 
-    # SITE_TOKEN: a fine-grained token with Contents read and write on the site repo
+    # SITE_TOKEN: a fine-grained token with Contents and Pull requests read and write on the
+    # site repo (its main is protected: the update goes in as a PR)
     - uses: actions/checkout@v4
       with:
         repository: ${{ env.SITE_REPO }}
@@ -60,5 +61,9 @@ jobs:
         fi
         git config user.name 'github-actions[bot]'
         git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+        git checkout -b "engine-$VERSION"
         git commit -am "CONscripter: engine $VERSION"
-        git push
+        git push -f origin "engine-$VERSION"
+        GH_TOKEN="${{ secrets.SITE_TOKEN }}" gh pr create -R "$SITE_REPO" --base main --head "engine-$VERSION" \
+          --title "CONscripter: engine $VERSION" \
+          --body "Engine $VERSION on the site, from the ${{ github.repository }} release (update_site workflow)."
