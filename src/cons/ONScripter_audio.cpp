@@ -1186,7 +1186,7 @@ static OpusChunk *opus_chunk[ONS_MIX_CHANNELS+ONS_MIX_EXTRA_CHANNELS]; // fillin
 
 static void opusFill(OpusChunk *z, Uint32 upto)
 {
-    Uint8 in[16384];
+    Uint8 in[4096]; // CONscripter: frames stay small (CONS_MAX_FRAME); the loop reads on
     if (upto > z->chunk->alen) upto = z->chunk->alen;
     upto -= upto % z->frame;
     while (z->filled < upto) {

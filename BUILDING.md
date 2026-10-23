@@ -7,6 +7,11 @@ builds every platform on each tag (`.github/workflows/`). Every build produces
 `conscripter` (`conscripter.exe`, `conscripter.js` + `conscripter.wasm`,
 `libconscripter.so` on Android).
 
+No function may keep more than 16 KB on the stack (`CONS_MAX_FRAME` in
+`CMakeLists.txt`): gcc and clang builds stop with "stack frame size ...
+exceeds limit" (`-Werror=frame-larger-than`). Put big buffers on the heap
+(`std::vector`): the web build's whole stack is 1 MB.
+
 ## Windows (MSYS2)
 
 Install the dependency in msys2,
@@ -74,6 +79,16 @@ cd script
 chmod +x *.sh
 sh -c "BUILD_TYPE=Debug EMCSDK_HOME=/path/to/emsdk ./cross_web.sh"
 ```
+
+The stack can't grow in a web build: `-sSTACK_SIZE=1MB` (emscripten's
+default is 64 KB; a 64 KB buffer on it overwrote the globals below and the
+game trapped at start-up with "index out of bounds", twice), and
+`-sSTACK_OVERFLOW_CHECK=2` checks each stack pointer move, so an overflow
+aborts with "stack overflow" (costs 1 % of the .wasm). `-sASYNCIFY_STACK_SIZE=65536`
+is room for the locals of the call chain each sleep unwinds (default 4 KB;
+too small traps "unreachable"). The link gets `-Wframe-larger-than` and
+`-Wl,--fatal-warnings`, as under LTO wasm-ld reports the big frames, and has
+no `-s` (strip), which would drop the names the stack check needs.
 
 ## Linux, cross-compiled (arm, aarch64)
 

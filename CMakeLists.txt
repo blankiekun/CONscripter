@@ -420,11 +420,20 @@ function(config_web TARGET_NAME)
 
     if(CMAKE_BUILD_TYPE MATCHES "MinSizeRel")
         target_compile_options(${TARGET_NAME} PRIVATE "-flto")
-        target_link_options(${TARGET_NAME} PRIVATE "-s" "-flto")
+        # CONscripter: no -s (strip): it drops the names STACK_OVERFLOW_CHECK=2's pass looks up
+        target_link_options(${TARGET_NAME} PRIVATE "-flto")
     endif()
 
     # pass flags for emcc
     set(EMCC_FLAGS "-o ${TARGET_NAME}.js -sASYNCIFY -sALLOW_MEMORY_GROWTH=1 -sMAXIMUM_MEMORY=4GB") # this two is very important! 
+    # CONscripter: the C stack can't grow (emscripten's default is 64 KB, and an
+    # overflow silently overwrote the globals below it: two start-up crashes);
+    # every stack pointer move is checked, so an overflow aborts with "stack
+    # overflow". ASYNCIFY_STACK_SIZE holds the wasm locals of the call chain
+    # unwound at each sleep (default 4 KB; too small traps "unreachable").
+    set(EMCC_FLAGS "${EMCC_FLAGS} -sSTACK_SIZE=1MB -sSTACK_OVERFLOW_CHECK=2 -sASYNCIFY_STACK_SIZE=65536")
+    # frames over CONS_MAX_FRAME (cons_frame_guard) come from wasm-ld under LTO: make them errors
+    set(EMCC_FLAGS "${EMCC_FLAGS} -Wframe-larger-than=${CONS_MAX_FRAME} -Wl,--fatal-warnings")
     set(EMCC_FLAGS "${EMCC_FLAGS} -sMODULARIZE -sINVOKE_RUN=0 -sEXPORT_NAME=cons") # web players call cons(module)
     set(EMCC_FLAGS "${EMCC_FLAGS} -sEXPORTED_RUNTIME_METHODS=callMain,UTF8ToString,FS,PATH,IDBFS") # make as module
     set(EMCC_FLAGS "${EMCC_FLAGS} -sUSE_SDL=2 -sUSE_SDL_TTF=2 -sUSE_BZIP2=1")
@@ -522,6 +531,18 @@ function(config_platform TARGET_NAME)
     endif()
 endfunction()
 
+# CONscripter: no function may keep more than CONS_MAX_FRAME bytes on the stack
+# (big buffers go on the heap): the web build's stack is 1 MB in all and two
+# 64 KB buffers on it crashed it at start-up. An error for gcc and clang builds.
+set(CONS_MAX_FRAME 16384)
+function(cons_frame_guard TARGET_NAME)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(${TARGET_NAME} PRIVATE -Werror=frame-larger-than=${CONS_MAX_FRAME})
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT MSVC)
+        target_compile_options(${TARGET_NAME} PRIVATE -Wframe-larger-than=${CONS_MAX_FRAME} -Werror=frame-larger-than)
+    endif()
+endfunction()
+
 set(CMAKE_CXX_STANDARD 11)
 set(CONSCRIPTER_CODE
     src/cons/AnimationInfo.cpp
@@ -574,5 +595,6 @@ set(CONSCRIPTER_DEFINES
     ENABLE_1BYTE_CHAR
 )
 config_platform(${PROJECT_NAME})
+cons_frame_guard(${PROJECT_NAME})
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/cons_opus.cmake) # CONscripter: Opus sounds
 cons_opus(${PROJECT_NAME})
