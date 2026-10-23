@@ -1,0 +1,2 @@
+; text table of tests/web/0.txt: ID, a tab, the line
+p1	`Page one.\

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Web smoke test: plays tests/web/0.txt in a web build under headless Chromium
+"""Web smoke test: plays tests/web/0.txt (and its text table text.ja.txt) in a web build under headless Chromium
 and checks the page hooks (consText, consChoice, consSprites, consNoTextOverlay,
 _consResendText), that `end` starts the game over
 and that the page logs no errors. Then starts the page again in
@@ -40,6 +40,10 @@ def main():
     enc = "utf-8" if utf8 else "cp932"
     script = open(os.path.join(HERE, "0.txt"), encoding="utf-8").read()
     open(os.path.join(site, "0.txt"), "wb").write(script.encode(enc))
+    # padded to 60 KB with comment lines: a read buffer on the stack (64 KB on the web)
+    # then writes over what lies below it, which a few bytes need not hit
+    table = open(os.path.join(HERE, "text.ja.txt"), encoding="utf-8").read() + (";" * 99 + "\n") * 600
+    open(os.path.join(site, "text.ja.txt"), "wb").write(table.encode(enc))
     shutil.copy(font, os.path.join(site, "default.ttf"))
     # the shipped page, with smoke.js run before anything else
     html = open(os.path.join(build, "conscripter.html"), encoding="utf-8", newline="").read()
@@ -47,7 +51,7 @@ def main():
     html = html.replace("<head>", '<head><script src="smoke.js"></script>', 1)
     open(os.path.join(site, "index.html"), "w", encoding="utf-8", newline="").write(html)
     json.dump({"title": "smoke", "gamedir": "/cons/smoke", "savedir": "/cons_save/smoke", "args": engine_args,
-               "lazyload": False, "files": [{"path": "0.txt"}, {"path": "default.ttf"}]},
+               "lazyload": False, "files": [{"path": "0.txt"}, {"path": "text.ja.txt"}, {"path": "default.ttf"}]},
               open(os.path.join(site, "cons_index.json"), "w"))
 
     result, missing, done = {}, [], threading.Event()

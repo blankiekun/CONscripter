@@ -108,7 +108,7 @@ def main():
     url = f"http://127.0.0.1:{server.server_port}/conscripter.html?trace&{args.query}"
     browser = subprocess.Popen(
         [chrome, "--headless=new", "--no-sandbox", "--no-first-run", f"--user-data-dir={profile}",
-         "--autoplay-policy=no-user-gesture-required", "--use-gl=swiftshader", "--enable-unsafe-swiftshader", url],
+         "--autoplay-policy=no-user-gesture-required", "--mute-audio", "--use-gl=swiftshader", "--enable-unsafe-swiftshader", url],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         finished = done.wait(args.timeout)
