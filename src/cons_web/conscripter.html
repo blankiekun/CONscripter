@@ -166,6 +166,7 @@
             }
 
             // mount --gamedir other by preload or lazyload
+            var g_cons_archives = []; // [dir, name, url] of the archives read by range
             function mount_game(_FS, gamedir, files, urlbase="", lazyload=false) {
                 console.log("## cons_fs: mount_onsgame", gamedir);
                 var filemap = {}
@@ -194,7 +195,10 @@
                     // console.log(path, url, file_lazyload);
                     em_mkdirs(_FS, basedir);
                     if(file_lazyload==undefined) file_lazyload = lazyload;
-                    if(file_lazyload){ // pay attension to the case sensitive!
+                    if(file_lazyload && (files[i].range || /\.(nsa|ns2|sar|npa)$/i.test(filename))){
+                        g_cons_archives.push([basedir, filename, url]); // read by range (mount_archive)
+                    }
+                    else if(file_lazyload){ // pay attension to the case sensitive!
                         var key = basedir + filename;
                         filemap[key.toLowerCase()] = {url: url, loaded:false};
                     }
@@ -239,6 +243,279 @@
             }
         </script>
         
+        <script type="text/javascript"> // cons range: game files read on demand by HTTP Range
+            // An archive (.nsa .ns2 .sar .npa) listed with lazyload, and a zip of the game
+            // ("zip" in cons_index.json), are read by byte range (README, "Web"): only the
+            // index (an archive's header, a zip's central directory) and the entries the
+            // engine opens are fetched. Archives are FS nodes read from a block cache that
+            // consPreload fills asynchronously (the engine sleeps meanwhile); a zip's other
+            // files are fetched (and inflated) whole when opened, as lazyload does.
+            // A server without Range: the whole file, as before.
+            const CONS_BLOCK = 1 << 16; // bytes per cached archive block
+            const CONS_CACHE_MAX = 64 << 20; // archive blocks kept, at most (more only for one bigger read)
+            const CONS_ZIP_FILES_MAX = 256 << 20; // zip files kept in the FS, at most (the open one more)
+            var g_range_cache = new Map(); // "source id:block" -> Uint8Array, least recently used first
+            var g_range_bytes = 0;
+            var g_range_pending = new Map(); // request key -> {done, error}
+            var g_range_sources = 0;
+            var g_range_stats = {requests: 0, bytes: 0, sync: 0}; // fetched by Range; reads that missed the cache
+            var g_zip_files = []; // filemap nodes of zip files in the FS, oldest first
+            var g_zip_bytes = 0;
+
+            function cons_fail(msg) { // shown on the page: the game can't start
+                console.error("## cons_range: " + msg);
+                var p = document.querySelector("#cons_webinfo p");
+                if (p) p.innerText = msg;
+                document.getElementById("cons_webinfo").style.display = "block";
+            }
+
+            // bytes [start, end) of url by a Range request: {data, total}, or null when
+            // the server answered with the whole file (no Range support)
+            async function range_get(url, start, end) {
+                var range = start < 0 ? `bytes=${start}` : `bytes=${start}-${end - 1}`;
+                var resp = await fetch(url, {headers: {Range: range}});
+                if (!resp.ok) throw new Error(`${url}: ${resp.status} ${resp.statusText}`);
+                if (resp.status != 206) return {resp: resp};
+                var data = new Uint8Array(await resp.arrayBuffer());
+                var m = /\/(\d+)\s*$/.exec(resp.headers.get("Content-Range") || "");
+                g_range_stats.requests++;
+                g_range_stats.bytes += data.length;
+                return {data: data, total: m ? Number(m[1]) : -1};
+            }
+
+            // a read source: bytes [base, base+size) of url, or of buf when the server has no Range
+            function range_source(url, base, size, buf) {
+                return {id: g_range_sources++, url: url, base: base, size: size, buf: buf};
+            }
+            function range_put(src, block, data) {
+                var key = src.id + ":" + block;
+                var old = g_range_cache.get(key);
+                if (old) { g_range_bytes -= old.length; g_range_cache.delete(key); }
+                g_range_cache.set(key, data);
+                g_range_bytes += data.length;
+            }
+            function range_evict(keep) { // oldest blocks first, never those of the read in hand
+                for (var [key, data] of g_range_cache) {
+                    if (g_range_bytes <= CONS_CACHE_MAX) break;
+                    if (keep.has(key)) continue;
+                    g_range_cache.delete(key);
+                    g_range_bytes -= data.length;
+                }
+            }
+            // true when bytes [start, end) of src are cached; else starts fetching them
+            // (one request for the missing blocks) and returns false until they are
+            function range_ready(src, start, end) {
+                if (src.buf || end <= start) return true;
+                var b0 = Math.floor(start / CONS_BLOCK), b1 = Math.ceil(end / CONS_BLOCK);
+                var keep = new Set(), first = -1, last = -1;
+                for (var b = b0; b < b1; b++) {
+                    var key = src.id + ":" + b;
+                    keep.add(key);
+                    var data = g_range_cache.get(key);
+                    if (data) { g_range_cache.delete(key); g_range_cache.set(key, data); } // recently used
+                    else { if (first < 0) first = b; last = b; }
+                }
+                if (first < 0) return true;
+                var rkey = src.id + ":" + first + "-" + last, req = g_range_pending.get(rkey);
+                if (req) {
+                    if (!req.done) return false;
+                    g_range_pending.delete(rkey);
+                    if (req.error) return true; // the read then tries once more, synchronously, and fails
+                    range_evict(keep);
+                    return range_ready(src, start, end);
+                }
+                req = {done: false, error: null};
+                g_range_pending.set(rkey, req);
+                var lo = first * CONS_BLOCK, hi = Math.min(src.size, (last + 1) * CONS_BLOCK);
+                range_get(src.url, src.base + lo, src.base + hi).then((r) => {
+                    if (!r.data || r.data.length != hi - lo) throw new Error(`${src.url}: no Range answer`);
+                    for (var b = first; b <= last; b++)
+                        range_put(src, b, r.data.slice((b - first) * CONS_BLOCK, (b - first + 1) * CONS_BLOCK)); // own buffers: each block can go
+                }).catch((err) => {
+                    console.error("## cons_range: fetch", err);
+                    req.error = err;
+                }).finally(() => { req.done = true; });
+                return false;
+            }
+            // a read that missed the cache (no consPreload before it): one block, synchronously
+            function range_sync(src, block) {
+                g_range_stats.sync++;
+                var lo = block * CONS_BLOCK, hi = Math.min(src.size, lo + CONS_BLOCK);
+                console.warn(`## cons_range: synchronous read of ${src.url} at ${src.base + lo}`);
+                var xhr = new XMLHttpRequest();
+                xhr.open("GET", src.url, false);
+                xhr.overrideMimeType("text/plain; charset=x-user-defined");
+                xhr.setRequestHeader("Range", `bytes=${src.base + lo}-${src.base + hi - 1}`);
+                xhr.send(null);
+                if (xhr.status != 206 || xhr.responseText.length != hi - lo)
+                    throw new g_cons_module.FS.ErrnoError(29); // EIO
+                var text = xhr.responseText, data = new Uint8Array(hi - lo);
+                for (var i = 0; i < data.length; i++) data[i] = text.charCodeAt(i) & 0xff;
+                g_range_stats.requests++;
+                g_range_stats.bytes += data.length;
+                range_put(src, block, data);
+                return data;
+            }
+            function range_read(src, buffer, offset, length, position) {
+                if (position >= src.size) return 0;
+                length = Math.min(length, src.size - position);
+                if (src.buf) {
+                    buffer.set(src.buf.subarray(src.base + position, src.base + position + length), offset);
+                    return length;
+                }
+                var done = 0;
+                while (done < length) {
+                    var p = position + done, b = Math.floor(p / CONS_BLOCK);
+                    var data = g_range_cache.get(src.id + ":" + b);
+                    if (!data) {
+                        if (done) break; // a short read: the rest comes with the next one
+                        data = range_sync(src, b);
+                    }
+                    var o = p - b * CONS_BLOCK, n = Math.min(data.length - o, length - done);
+                    buffer.set(data.subarray(o, o + n), offset + done);
+                    done += n;
+                }
+                return done;
+            }
+            // the file dir/name, read from src
+            function range_node(_FS, dir, name, src) {
+                em_mkdirs(_FS, dir);
+                var node = _FS.createFile(dir, name, {}, true, false);
+                node.cons_src = src;
+                Object.defineProperty(node, "usedBytes", {get: () => src.size});
+                var read = (stream, buffer, offset, length, position) =>
+                    range_read(src, buffer, offset, length, position);
+                node.stream_ops = Object.assign({}, node.stream_ops, {read: read});
+                return node;
+            }
+            // the engine asks before each read of a game file (COMMANDS.md, "Web hooks")
+            self.consPreload = self.consPreload || ((fd, offset, length) => {
+                var stream = g_cons_module.FS.getStream(fd);
+                var src = stream && stream.node.cons_src;
+                if (!src) return true;
+                var end = length == 0xffffffff ? src.size : Math.min(src.size, offset + length);
+                return range_ready(src, offset, end);
+            });
+
+            // an archive listed with lazyload: a node read by range, else (no Range) the
+            // whole file when opened, as lazyload does
+            async function mount_archive(_FS, dir, name, url, filemap) {
+                var r = await range_get(url, 0, CONS_BLOCK).catch((err) => {
+                    console.log(`## cons_range: ${url}`, err); return null;
+                });
+                if (!r) return;
+                if (r.resp) {
+                    r.resp.body.cancel();
+                    console.log(`## cons_range: ${url} has no Range support: fetched whole when opened`);
+                    filemap[(dir + name).toLowerCase()] = {url: url, loaded: false};
+                    return;
+                }
+                var src = range_source(url, 0, r.total);
+                range_put(src, 0, r.data);
+                range_node(_FS, dir, name, src);
+            }
+
+            // a zip of the game: each file is fetched when opened (fetch_file); an archive in
+            // it must be stored, and is then read by range like mount_archive's
+            async function mount_zip(_FS, gamedir, url, filemap) {
+                var u16 = (d, o) => d[o] | d[o + 1] << 8;
+                var u32 = (d, o) => (d[o] | d[o + 1] << 8 | d[o + 2] << 16 | d[o + 3] << 24) >>> 0;
+                var u64 = (d, o) => u32(d, o) + u32(d, o + 4) * 0x100000000;
+                var z = {url: url, buf: null, size: 0};
+                var tail = await range_get(url, -(65536 + 22));
+                var tail_at;
+                if (tail.resp) { // no Range: the whole zip, kept
+                    console.log(`## cons_range: ${url} has no Range support: fetched whole`);
+                    z.buf = new Uint8Array(await tail.resp.arrayBuffer());
+                    z.size = z.buf.length;
+                    tail = z.buf; tail_at = 0;
+                }
+                else { z.size = tail.total; tail = tail.data; tail_at = z.size - tail.length; }
+                z.read = async (start, end) => {
+                    if (z.buf) return z.buf.subarray(start, end);
+                    if (start >= tail_at) return tail.subarray(start - tail_at, end - tail_at);
+                    return (await range_get(url, start, end)).data;
+                };
+                var e = tail.length - 22;
+                while (e >= 0 && u32(tail, e) != 0x06054b50) e--;
+                if (e < 0) throw new Error(`${url}: not a zip`);
+                var count = u16(tail, e + 10), cd_size = u32(tail, e + 12), cd_at = u32(tail, e + 16);
+                if (e >= 20 && u32(tail, e - 20) == 0x07064b50) { // zip64
+                    var z64 = await z.read(u64(tail, e - 12), u64(tail, e - 12) + 56);
+                    count = u64(z64, 32); cd_size = u64(z64, 40); cd_at = u64(z64, 48);
+                }
+                var cd = await z.read(cd_at, cd_at + cd_size), names = new TextDecoder();
+                var entries = [];
+                for (var p = 0, i = 0; i < count && u32(cd, p) == 0x02014b50; i++) {
+                    var n = u16(cd, p + 28), x = u16(cd, p + 30), c = u16(cd, p + 32);
+                    var ent = {method: u16(cd, p + 10), csize: u32(cd, p + 20), size: u32(cd, p + 24),
+                        at: u32(cd, p + 42), name: names.decode(cd.subarray(p + 46, p + 46 + n)), zip: z};
+                    for (var q = p + 46 + n; q + 4 <= p + 46 + n + x; q += 4 + u16(cd, q + 2)) {
+                        if (u16(cd, q) != 1) continue; // zip64 sizes and offset, those that didn't fit
+                        var r = q + 4;
+                        if (ent.size == 0xffffffff) { ent.size = u64(cd, r); r += 8; }
+                        if (ent.csize == 0xffffffff) { ent.csize = u64(cd, r); r += 8; }
+                        if (ent.at == 0xffffffff) ent.at = u64(cd, r);
+                    }
+                    ent.extra = x;
+                    entries.push(ent);
+                    p += 46 + n + x + c;
+                }
+                // a zip of the game's folder: the folder's files are the game's
+                var top = entries.length && entries[0].name.split("/")[0] + "/";
+                if (!entries.every((ent) => ent.name.startsWith(top))) top = "";
+                var archives = [];
+                for (var ent of entries) {
+                    var path = ent.name.substring(top.length);
+                    if (path == "" ) continue;
+                    var j = path.lastIndexOf("/"), dir = gamedir + "/" + path.substring(0, j + 1);
+                    if (path.endsWith("/")) { em_mkdirs(_FS, dir); continue; }
+                    em_mkdirs(_FS, dir);
+                    var name = path.substring(j + 1);
+                    if (/\.(nsa|ns2|sar|npa)$/i.test(name)) archives.push([dir, name, ent]);
+                    else filemap[(dir + name).toLowerCase()] = {entry: ent, loaded: false};
+                }
+                for (var [dir, name, ent] of archives) {
+                    if (ent.method != 0)
+                        throw new Error(`${name} in ${url} is compressed: an archive in a zip must be ` +
+                            `stored, make the zip with zip -0 (or zip -n .nsa:.ns2:.sar)`);
+                    var h = await z.read(ent.at, ent.at + 30);
+                    var base = ent.at + 30 + u16(h, 26) + u16(h, 28);
+                    var src = range_source(url, base, ent.size, z.buf);
+                    if (!z.buf) range_put(src, 0, await z.read(base, base + Math.min(ent.size, CONS_BLOCK)));
+                    range_node(_FS, dir, name, src);
+                }
+                console.log(`## cons_range: ${url}: ${entries.length} entries, ${archives.length} archives`);
+            }
+
+            // a zip file's bytes, inflated when deflated
+            async function zip_file(ent) {
+                var z = ent.zip, u16 = (d, o) => d[o] | d[o + 1] << 8;
+                var guess = 30 + ent.name.length * 3 + ent.extra + 256; // the local header's extra may differ
+                var head = await z.read(ent.at, Math.min(z.size, ent.at + guess + ent.csize));
+                var start = 30 + u16(head, 26) + u16(head, 28);
+                var data = head.length >= start + ent.csize ? head.subarray(start, start + ent.csize)
+                    : await z.read(ent.at + start, ent.at + start + ent.csize);
+                if (ent.method == 0) return data;
+                if (ent.method != 8) throw new Error(`${ent.name}: zip method ${ent.method}`);
+                var stream = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+                return new Uint8Array(await new Response(stream).arrayBuffer());
+            }
+            // a zip file written to the FS; the oldest go once they pass CONS_ZIP_FILES_MAX
+            // (an open one stays readable; opened again, it is fetched again)
+            function zip_keep(_FS, path, fnode, size) {
+                fnode.size = size;
+                g_zip_files.push([path, fnode]);
+                g_zip_bytes += size;
+                while (g_zip_bytes > CONS_ZIP_FILES_MAX && g_zip_files.length > 1) {
+                    var [old, onode] = g_zip_files.shift();
+                    g_zip_bytes -= onode.size;
+                    onode.loaded = false;
+                    try { _FS.unlink(old); } catch (e) {}
+                }
+            }
+        </script>
+        
         <script type="text/javascript"> // cons C interface of val or function
             
             // flush the savedir to IDFBFS for persistence, one syncfs at a time:
@@ -269,6 +546,19 @@
                     }
                     else{
                         if(fnode.loaded) { res(1); return; }
+                        if(fnode.entry) { // a file in the game's zip
+                            zip_file(fnode.entry).then((data)=>{
+                                _FS.writeFile(path, data);
+                                zip_keep(_FS, path, fnode, data.length);
+                                fnode.loaded = true;
+                                res(1);
+                            }).catch((err)=>{
+                                console.log(`## fetch_file ${path}`, err);
+                                fnode.loaded = true;
+                                res(-1);
+                            });
+                            return;
+                        }
                         fetch(fnode.url).then( (resp)=>{
                             if(!resp.ok) throw new Error(resp.status + " " + resp.statusText);
                             return resp.arrayBuffer();
@@ -315,10 +605,21 @@
                         g_cons_module.FS, g_cons_index.gamedir, 
                         g_cons_index.files, urlbase, lazyload
                     );
-                    // a language's own font (default.<lang>.ttf, COMMANDS.md "language"): fetched now, so a switch doesn't wait for it
-                    for (var key in window.g_cons_filemap)
-                        if (/\/default\.[^\/.]+\.ttf$/.test(key)) fetch_file(g_cons_module.FS, key, window.g_cons_filemap);
                 }
+                // the archives read by range, the game's zip: their indexes before the engine starts
+                g_cons_module.addRunDependency("cons_range");
+                (async () => {
+                    var filemap = window.g_cons_filemap = window.g_cons_filemap || {};
+                    for (var [dir, name, url] of g_cons_archives)
+                        await mount_archive(g_cons_module.FS, dir, name, url, filemap);
+                    if (g_cons_index.zip)
+                        await mount_zip(g_cons_module.FS, g_cons_index.gamedir.replace(/\/$/, ""),
+                            new URL(g_cons_index.zip, urlbase).href, filemap);
+                    // a language's own font (default.<lang>.ttf, COMMANDS.md "language"): fetched now, so a switch doesn't wait for it
+                    for (var key in filemap)
+                        if (/\/default\.[^\/.]+\.ttf$/.test(key)) fetch_file(g_cons_module.FS, key, filemap);
+                    g_cons_module.removeRunDependency("cons_range");
+                })().catch((err) => cons_fail(err.message || String(err)));
                 mount_save(g_cons_module.FS, g_cons_module.IDBFS, g_cons_index.savedir);
             };
             g_cons_module.onRuntimeInitialized = () => {
