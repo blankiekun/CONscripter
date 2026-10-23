@@ -43,7 +43,7 @@ CONscripter plays without engine patches.
 
 | Platform | Builds | Notes | Install |
 |---|---|---|---|
-| Web | Emscripten (WebAssembly) | Saves in IndexedDB, zip export/import of saves, lazy loading of game files, touch and a web menu on phones, WebP images, video in a `<video>` element | [steps](PLATFORMS.md#web) |
+| Web | Emscripten (WebAssembly) | Saves in IndexedDB, zip export/import of saves, lazy loading of game files, archives and a game zip read by HTTP Range (only the parts opened are fetched), touch and a web menu on phones, WebP images, video in a `<video>` element | [steps](PLATFORMS.md#web) |
 | Windows | x86, x64 (MinGW, static); x86, x64, ARM64 (MSVC + vcpkg) | Video through the system player | [steps](#quick-start) |
 | Linux | x86, x64, arm, aarch64 | Static or dynamic link; video in the window through the player's ffmpeg | [steps](PLATFORMS.md#linux-and-macos) |
 | macOS | universal (Apple silicon and Intel), macOS 10.13+ (11.0+ on Apple silicon), static: no Homebrew needed | Video in the window through the player's ffmpeg; unsigned | [steps](PLATFORMS.md#linux-and-macos) |

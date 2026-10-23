@@ -66,6 +66,37 @@ The page loads the game listed in `cons_index.json` (set by
 python conscripter_index.py -i /path/to/game --urlbase https://example.com/game1/ --lazyload
 ```
 
+A game can be served in three layouts; the first two need `"lazyload"`:
+
+- **Loose files**: each file listed in `files`, fetched whole when the engine
+  first opens it.
+- **Archives** (`.nsa`, `.ns2`, `.sar`, `.npa`) listed in `files`: read by
+  HTTP Range. The page reads each archive's index before the game starts, then
+  only the bytes of the entries the engine opens, in 64 KB blocks kept in a
+  64 MB cache (least recently used dropped first). `.nsa` archives are read
+  only after the script's `nsa` command.
+- **A zip of the game**: `"zip": "game.zip"` (a URL, relative to the index)
+  and `"files": []`. The page reads the zip's central directory by Range (zip64
+  too); a file inside one top folder is taken as at the game's root. A file is
+  fetched (and inflated) whole when the engine opens it; up to 256 MB of them
+  stay in memory (the one open may go over). An archive inside the zip is read
+  by Range like a loose one, so it must be **stored**: `zip -0`, or
+  `zip -n .nsa:.ns2:.sar`; a deflated one stops the page with that message.
+
+``` json
+{"title": "game1", "gamedir": "/cons/game1", "savedir": "/cons_save/game1",
+ "args": [], "zip": "game.zip", "files": []}
+```
+
+Range needs a server that answers `Range: bytes=a-b` with `206` (most static
+servers and CDNs do). Without it, the page fetches each archive or the zip
+whole, once, and keeps it in memory: it works, but a 2 GB archive costs 2 GB of
+download before the title and more memory than many browsers allow.
+Measured on 装甲悪鬼村正 (3.2 GB of files; localhost, headless Chromium), bytes
+fetched until the title screen: loose 66-70 MB, archives 66 MB, zip 40 MB,
+archives in a zip 34 MB; archives without Range 3.25 GB, and the tab needs
+over 4 GB of memory.
+
 The JavaScript interface uses CONscripter's own names (pages written for
 ONScripter-Yuri need them renamed): the module factory is `cons(module)`, the
 globals are `g_cons_module`, `g_cons_index` and `g_cons_filemap`, the
