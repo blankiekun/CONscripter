@@ -157,8 +157,8 @@ void ScriptHandler::expandTextTable( const char *lang )
         return;
     }
     std::string data;
-    char chunk[65536];
-    for (size_t n ; (n = ::fread( chunk, 1, sizeof(chunk), fp )) > 0 ; ) data.append( chunk, n );
+    std::vector<char> chunk( 65536 ); // on the heap: the web build's whole stack is 64 KB
+    for (size_t n ; (n = ::fread( chunk.data(), 1, chunk.size(), fp )) > 0 ; ) data.append( chunk.data(), n );
     fclose( fp );
 
     std::unordered_map<std::string, std::string> table;
