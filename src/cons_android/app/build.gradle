@@ -27,8 +27,8 @@ android {
                 arguments "-Wno-dev",  "-DANDROID_ARM_NEON=TRUE"
             }
         }
-        versionCode 43
-        versionName '0.32.1'
+        versionCode 44
+        versionName '0.33.0'
     }
     signingConfigs {
         release {
