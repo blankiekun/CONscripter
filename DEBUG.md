@@ -458,6 +458,18 @@ file as they come, until the `end` or `crash` record:
 python3 -I tools/web_run.py build_web out/<game>-web -o web.jsonl --query 'auto-play=200&seed=3'
 ```
 
+The server answers HTTP Range requests (`--no-range`: whole files only,
+as a plain server). The game dir's `cons_index.json` is used when it has
+one; else one is made, listing every file with lazyload, or `{"zip":
+"game.zip"}` when the dir holds `game.zip` (the layouts: PLATFORMS.md,
+"Web"), with the game's `ons_args` as engine args. At the end it prints the
+seconds to the first `page` record and the bytes sent per file.
+`--until-label conv_title` stops at the first `label` record of that name
+and prints its seconds and the bytes sent by then (records reach the server
+every 0.5 s): time and download to the title screen, without auto-play
+running the game. `tests/web/range.py build_web` checks every layout on a
+small made game, with and without Range.
+
 F8 works as above, without the picture (the web build has nowhere to
 save it). A page of your own can do the same: add `--trace`, `"/trace.jsonl"`
 to the arguments given to `callMain`, and define `self.consTrace`
