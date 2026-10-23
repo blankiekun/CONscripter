@@ -71,6 +71,8 @@ void SarReader::readArchive( ArchiveInfo *ai, int archive_type, unsigned int off
     unsigned int i;
     
     /* Read header */
+    // CONscripter: on the web, the page fetches the index (only) before it is read
+    webPreload( ai->file_handle, 0, offset + 6 );
     for (i=0; i<offset; i++)
         readChar( ai->file_handle ); // for commands "ns2" and "ns3"
 
@@ -84,6 +86,7 @@ void SarReader::readArchive( ArchiveInfo *ai, int archive_type, unsigned int off
         // - not sure if NS2 uses key_table or not, using default funcs for now
         ai->base_offset = swapLong( readLong( ai->file_handle ) );
         ai->base_offset += offset;
+        webPreload( ai->file_handle, 0, ai->base_offset ); // CONscripter
 
         // need to parse the whole header to see how many files there are
         ai->num_of_files = 0;
@@ -130,6 +133,7 @@ void SarReader::readArchive( ArchiveInfo *ai, int archive_type, unsigned int off
     
         ai->base_offset = readLong( ai->file_handle );
         ai->base_offset += offset;
+        webPreload( ai->file_handle, 0, ai->base_offset ); // CONscripter
     
         for ( i=0 ; i<ai->num_of_files ; i++ ){
             unsigned char ch;
