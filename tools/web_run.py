@@ -2,7 +2,7 @@
 """Runs a game in the web build under headless Chromium and saves its trace.
 
 usage: python3 -I tools/web_run.py <web build dir> <game dir> [-o trace.jsonl]
-           [--timeout s] [--query 'auto-play=0&seed=3'] [--no-range]
+           [--timeout s] [--query 'auto-play=0&seed=3'] [--no-range] [--until-label name]
 
 The build dir holds conscripter.html/.js/.wasm (cross_web.sh's build_web).
 The game dir is the game as loose files (DEBUG.md, "In the web build"); its
@@ -14,7 +14,9 @@ requests (--no-range: whole files only, as a plain server). The page is opened a
 conscripter.html?trace&<query>, served on 127.0.0.1 at a free port, and each
 trace record is written to the output as it comes (default trace.jsonl), so a
 run that hangs or crashes still leaves its records. It stops at the "end" or
-"crash" record, or after --timeout seconds (exit 1). The page's errors go to
+"crash" record, at the first "label" record named --until-label (its seconds and the bytes
+sent by then are printed; records reach the server every 0.5 s), or after
+--timeout seconds (exit 1). The page's errors go to
 stderr. At the end it prints the seconds to the first page record and the bytes
 sent, per file. The browser is $CHROME, else the first of chromium, chromium-browser,
 google-chrome on the PATH. Needs only the Python standard library.
@@ -103,6 +105,7 @@ def main():
     ap.add_argument("--timeout", type=float, default=600)
     ap.add_argument("--query", default="auto-play=0", help="more URL options (DEBUG.md); default auto-play=0")
     ap.add_argument("--no-range", action="store_true", help="answer Range requests with the whole file")
+    ap.add_argument("--until-label", help="stop at the first label record of this name")
     args = ap.parse_args()
     chrome = os.environ.get("CHROME") or next(
         filter(None, map(shutil.which, ["chromium", "chromium-browser", "google-chrome"])), None)
@@ -146,6 +149,7 @@ def main():
     count = [0]
     sent = collections.Counter()
     first_page = []
+    until = []  # (seconds, bytes sent) at the --until-label record
 
     class Handler(RangeHandler):
         directory, no_range = site, args.no_range
@@ -160,6 +164,10 @@ def main():
                     if not first_page and line.startswith('{"t":"page"'):
                         first_page.append(time.monotonic() - started)
                     if line.startswith(('{"t":"end"', '{"t":"crash"')):
+                        done.set()
+                    if (args.until_label and not until and line.startswith('{"t":"label"')
+                            and json.loads(line).get("name") == args.until_label):
+                        until.append((time.monotonic() - started, sum(sent.values())))
                         done.set()
             else:
                 print("page:", body[:300], file=sys.stderr)
@@ -186,6 +194,8 @@ def main():
         shutil.rmtree(profile, ignore_errors=True)
         shutil.rmtree(site, ignore_errors=True)
     print("first page record: " + (f"{first_page[0]:.1f} s" if first_page else "none"))
+    if args.until_label:
+        print(f"label {args.until_label}: " + (f"{until[0][0]:.1f} s, {until[0][1]} bytes sent" if until else "not reached"))
     engine = {"/conscripter.html", "/conscripter.js", "/conscripter.wasm", "/cons_index.json"}
     print(f"bytes sent: {sum(sent.values())}, game files {sum(n for p, n in sent.items() if p not in engine)}")
     for path, n in sent.most_common(10):
