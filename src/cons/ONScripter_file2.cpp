@@ -437,6 +437,7 @@ int ONScripter::loadSaveFile2( int file_version )
     loadScriptPosition(); // CONscripter: kept within the script; loadSavePoints moves it
 
     loadSaveFileCons();
+    clearCurrentPage(); // CONscripter: again, in the tateyoko mode the CONS block restored (text start, page size)
 
     display_mode = shelter_display_mode = DISPLAY_MODE_TEXT;
     clickstr_state = CLICK_NONE;

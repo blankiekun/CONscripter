@@ -51,7 +51,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 34 // the "Version n" comments below name the parts in the order they are
+#define CONS_SAVE_VERSION 35 // the "Version n" comments below name the parts in the order they are
                             // written (version 26's first). A new part goes at the end; loading
                             // reads the parts an older save has and leaves the rest at their defaults
 #define CONS_SAVE_OLDEST  18 // the oldest block loading reads: version 18 reshaped earlier parts
@@ -2102,6 +2102,10 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         for (int j=0 ; j<SCREEN_EFFECT_PARAMS ; j++)
             writeInt( s.e.param[j], output_flag );
     }
+
+    // Version 35: tateyoko (0 horizontal, 1 vertical text); the NScripter
+    // data has none, so a vertical window's text came back horizontal.
+    writeInt( sentence_font.getTateyokoMode(), output_flag );
 }
 
 // A motion in the save (Version 18's and 33's): loop (1 + loop 4's key),
@@ -2242,6 +2246,7 @@ void ONScripter::loadSaveFileCons()
     lua_handler.loadState( NULL ); // a save without Lua data has no script globals
 #endif
     clearHandleSprites(); // a save without the block: no handle pictures, named locals at their defaults
+    sentence_font.tateyoko_mode = FontInfo::YOKO_MODE; // older saves have none (not setTateyokoMode: its clear() would move the text)
     if (readInt() != CONS_SAVE_MAGIC){
         if (trace_fp) traceSaveLeftOut( 0 );
         return;
@@ -2702,6 +2707,9 @@ void ONScripter::loadSaveFileCons()
         sprite_shakes.push_back( s );
         updateSpriteShake( s.no, dirty_rect );
     }
+
+    if (version < 35) return;
+    sentence_font.tateyoko_mode = readInt() == FontInfo::TATE_MODE ? FontInfo::TATE_MODE : FontInfo::YOKO_MODE;
 }
 
 /* --save-dir path: makes the folder, and the folders it is in, if they

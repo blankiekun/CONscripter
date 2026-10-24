@@ -1,0 +1,12 @@
+; Vertical text across a load: tests/tateload/check.py plays this with a checkpoint at each page, loads the one at page 2 and compares the screens.
+*define
+game
+*start
+tateyoko 1
+setwindow 500,20,4,12,24,24,4,6,10,1,1,#606060,480,10,620,460
+`one first line\
+`two first line
+`two second line@
+`two third line\
+`three\
+end
