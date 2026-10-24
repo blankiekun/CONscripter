@@ -620,6 +620,7 @@ public:
     AnimationInfo *getSpriteInfo(int no){ return &sprite_info[no]; };
     AnimationInfo *getSprite2Info(int no){ return &sprite2_info[no]; };
     Uint32 getTextureFormat() { return texture_format; };
+    int getGameSpeed() { return game_speed; }; // CONscripter: consset "gamespeed"
 private:
     int  parseLine();
     void deleteButtonLink();

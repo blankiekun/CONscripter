@@ -278,6 +278,10 @@ int ScriptParser::setlayerCommand()
     } else if ((bslash && !strncmp(bslash + 1, "hana.dll", 8)) ||
         !strncmp(dll, "hana.dll", 8)) {
         handler = new FuruLayer(screen_width, screen_height, true, script_h.cBR);
+    } else if ((bslash && !strncmp(bslash + 1, "particle", 8)) ||
+        !strncmp(dll, "particle", 8)) {
+        // CONscripter: the generic particle layer (layer_particle.cpp)
+        handler = new ParticleLayer(screen_width, screen_height, script_h.cBR);
     } else {
         utils::printError("setlayer: layer effect '%s' is not implemented.", dll);
         return RET_CONTINUE;

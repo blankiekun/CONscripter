@@ -55,6 +55,7 @@ set(SOURCES
   ../cons/renderer/gles_renderer.cpp
   ../cons/builtin_dll/layer_oldmovie.cpp
   ../cons/builtin_dll/layer_snow.cpp
+  ../cons/builtin_dll/layer_particle.cpp
   ../cons/builtin_dll/ONScripter_effect_cascade.cpp
   ../cons/builtin_dll/ONScripter_effect_trig.cpp
 )
