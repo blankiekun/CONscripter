@@ -24,6 +24,7 @@
 #include "../builtin_layer.h"
 #include "../ONScripter.h"
 #include "../Utils.h"
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <string>
@@ -49,11 +50,72 @@ ParticleLayer::ParticleLayer(int w, int h, BaseReader *br)
   time = 0;
   last_ticks = 0;
   acc_ms = 0;
+  tex_surf = NULL;
+  tex_dirty = false;
 }
 
 ParticleLayer::~ParticleLayer()
 {
   clearSheets();
+  if (tex_surf) SDL_FreeSurface(tex_surf);
+}
+
+// Draws cell (sx0, 0, sw, sh) of src centred at (cx, cy) on dst inside clip,
+// zoomed zx, zy (negative flips) and turned deg counterclockwise (as lsp2),
+// nearest texel, at alpha 0-255; copy: the texel (alpha scaled) replaces
+// what is under it, else it is blended over it. 32-bit surfaces, alpha in
+// the format's Amask.
+static void affineBlit(SDL_Surface *src, int sx0, int sw, int sh, SDL_Surface *dst, const SDL_Rect &clip,
+                       float cx, float cy, float zx, float zy, float deg, int alpha, bool copy)
+{
+  if (!src || !dst || zx == 0 || zy == 0 || alpha <= 0 || sw <= 0 || sh <= 0) return;
+  const float r = deg * (float)M_PI / 180, c = cosf(r), s = sinf(r);
+  // forward: X = cx + zx*u*c + zy*v*s, Y = cy - zx*u*s + zy*v*c (u, v from the cell's centre)
+  float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
+  for (int k = 0; k < 4; k++) {
+    const float u = (k & 1 ? sw : -sw) * 0.5f * zx, v = (k & 2 ? sh : -sh) * 0.5f * zy;
+    const float X = cx + u * c + v * s, Y = cy - u * s + v * c;
+    if (X < x0) x0 = X;
+    if (X > x1) x1 = X;
+    if (Y < y0) y0 = Y;
+    if (Y > y1) y1 = Y;
+  }
+  int bx0 = (int)floorf(x0), by0 = (int)floorf(y0), bx1 = (int)ceilf(x1), by1 = (int)ceilf(y1);
+  if (bx0 < clip.x) bx0 = clip.x;
+  if (by0 < clip.y) by0 = clip.y;
+  if (bx1 > clip.x + clip.w) bx1 = clip.x + clip.w;
+  if (by1 > clip.y + clip.h) by1 = clip.y + clip.h;
+  if (bx0 < 0) bx0 = 0;
+  if (by0 < 0) by0 = 0;
+  if (bx1 > dst->w) bx1 = dst->w;
+  if (by1 > dst->h) by1 = dst->h;
+  if (bx0 >= bx1 || by0 >= by1) return;
+  if (sx0 + sw > src->w) sw = src->w - sx0;
+  if (sh > src->h) sh = src->h;
+  const Uint32 sa = src->format->Amask, sas = src->format->Ashift, da = dst->format->Amask, das = dst->format->Ashift;
+  const float du = c / zx, dv = s / zy; // per pixel along X
+  SDL_LockSurface(src);
+  SDL_LockSurface(dst);
+  for (int Y = by0; Y < by1; Y++) {
+    const float dy = Y + 0.5f - cy, dx = bx0 + 0.5f - cx;
+    float u = (c * dx - s * dy) / zx + sw * 0.5f, v = (s * dx + c * dy) / zy + sh * 0.5f;
+    Uint32 *d = (Uint32 *)((Uint8 *)dst->pixels + Y * dst->pitch) + bx0;
+    for (int X = bx0; X < bx1; X++, d++, u += du, v += dv) {
+      if (u < 0 || v < 0) continue;
+      const int iu = (int)u, iv = (int)v;
+      if (iu >= sw || iv >= sh) continue;
+      const Uint32 p = ((const Uint32 *)((const Uint8 *)src->pixels + iv * src->pitch))[sx0 + iu];
+      const Uint32 a = ((p & sa) >> sas) * alpha / 255;
+      if (a == 0) continue;
+      if (copy) { *d = (p & ~sa) | (a << das & da); continue; }
+      const Uint32 m2 = a + (a >> 7), m1 = 256 - m2;
+      const Uint32 rb = (((*d & 0xff00ff) * m1 + (p & 0xff00ff) * m2 + 0x800080) >> 8) & 0xff00ff;
+      const Uint32 g = (((*d & 0x00ff00) * m1 + (p & 0x00ff00) * m2 + 0x008000) >> 8) & 0x00ff00;
+      *d = rb | g | da;
+    }
+  }
+  SDL_UnlockSurface(dst);
+  SDL_UnlockSurface(src);
 }
 
 void ParticleLayer::clearSheets()
@@ -184,7 +246,15 @@ char *ParticleLayer::message(const char *message, int &ret_int)
         for (const std::string &s : split(v, ':')) prm.vy.push_back(strtof(s.c_str(), NULL));
       }
       else if (k == "x") { readFloats(v, f, 2); prm.x0 = f[0]; prm.xw = f[1]; }
-      else if (k == "y") { readFloats(v, f, 2); prm.y0 = f[0]; prm.yh = f[1]; }
+      else if (k == "y") { readFloats(v, f, 3); prm.y0 = f[0]; prm.yh = f[1]; prm.yh2 = f[2]; }
+      else if (k == "dx") { readFloats(v, prm.dx, 2); prm.path = true; }
+      else if (k == "ey") prm.ey = strtof(v.c_str(), NULL);
+      else if (k == "swing") prm.swing = strtof(v.c_str(), NULL);
+      else if (k == "cscale") {
+        for (const std::string &s : split(v, ':')) prm.cscale.push_back(strtof(s.c_str(), NULL));
+      }
+      else if (k == "spin") readFloats(v, prm.spin, 4);
+      else if (k == "tex") { readFloats(v, prm.tex, 4); prm.has_tex = prm.tex[0] >= 1 && prm.tex[1] >= 1; }
       else if (k == "side") readFloats(v, prm.side, 5);
       else if (k == "walk") prm.walk_y = (v == "y");
       else if (k == "wv") readFloats(v, prm.wv, 2);
@@ -214,6 +284,9 @@ char *ParticleLayer::message(const char *message, int &ret_int)
     if (prm.flip[0] < 1) prm.flip[0] = 1;
     if (img.empty()) clearSheets();
     else loadSheets(img.c_str());
+    if (tex_surf) SDL_FreeSurface(tex_surf);
+    tex_surf = prm.has_tex ? AnimationInfo::alloc32bitSurface((int)prm.tex[0], (int)prm.tex[1], ons.getTextureFormat()) : NULL;
+    tex_dirty = true;
 
     const int ntint = prm.tints.empty() ? 1 : (int)prm.tints.size();
     pts.assign(prm.n, Pt());
@@ -221,6 +294,8 @@ char *ParticleLayer::message(const char *message, int &ret_int)
       const float ca = U() * prm.cls[0];
       p.c = ca + (U() > prm.cls[2] ? prm.cls[1] : 0);
       p.x = p.y = 0;
+      p.px = p.py = p.pdx = p.pt = 0;
+      p.ax = p.ay = p.az = 0;
       p.wv = 0;
       p.wa = U() * prm.wa[2];
       const float d = prm.drift[0] * p.c + prm.drift[1] + prm.drift[2] * U();
@@ -280,15 +355,73 @@ void ParticleLayer::spawn(Pt &p)
   } else {
     p.x = prm.x0 + U() * prm.xw;
     p.y = prm.y0 + U() * prm.yh;
+    if (prm.yh2 != 0) p.y += U() * prm.yh2;
+  }
+  if (prm.path) {
+    p.px = p.x;
+    p.py = p.y;
+    p.pdx = prm.dx[0] + U() * (prm.dx[1] - prm.dx[0]);
+    p.pt = 0;
   }
   p.alpha = 255;
   p.active = true;
+}
+
+// v's entry for p's class, the list spread over the classes [0,a+b)
+float ParticleLayer::byClass(const std::vector<float> &v, const Pt &p) const
+{
+  if (v.empty()) return 0;
+  const float span = prm.cls[0] + prm.cls[1];
+  int i = span > 0 ? (int)(p.c / span * v.size()) : 0;
+  if (i < 0) i = 0;
+  if (i >= (int)v.size()) i = (int)v.size() - 1;
+  return v[i];
+}
+
+// the point pt along p's path: a line from its start to (start x + dx, ey),
+// or with swing a cubic Bezier whose control points are swing left of both
+// ends at 1/4 of the height and swing right of them at 3/4 (one S sway)
+void ParticleLayer::pathPos(Pt &p)
+{
+  const float len = prm.ey - p.py, u = len > 0 ? p.pt / len : 0;
+  const float xe = p.px + p.pdx;
+  if (prm.swing == 0) {
+    p.x = p.px + p.pdx * u;
+    p.y = p.py + p.pt;
+    return;
+  }
+  const float x1 = (p.px < xe ? p.px : xe) - prm.swing, x2 = (p.px > xe ? p.px : xe) + prm.swing;
+  const float y1 = p.py + len / 4, y2 = p.py + len * 3 / 4;
+  const float a = 1 - u, b0 = a * a * a, b1 = 3 * a * a * u, b2 = 3 * a * u * u, b3 = u * u * u;
+  p.x = b0 * p.px + b1 * x1 + b2 * x2 + b3 * xe;
+  p.y = b0 * p.py + b1 * y1 + b2 * y2 + b3 * prm.ey;
 }
 
 void ParticleLayer::step(Pt &p)
 {
   if (!p.active) {
     if (U() < prm.spawn) spawn(p);
+    return;
+  }
+  if (prm.spin[0] > 0 || prm.spin[1] > 0 || prm.spin[2] > 0) {
+    // particle i turns (i mod m) + 1 units a step about each axis with a modulus m
+    const int i = (int)(&p - pts.data());
+    float *ang[3] = { &p.ax, &p.ay, &p.az };
+    for (int k = 0; k < 3; k++) {
+      const int m = (int)prm.spin[k];
+      if (m > 0) *ang[k] = fmodf(*ang[k] + (i % m + 1) * prm.spin[3], 360);
+    }
+  }
+  if (prm.path) {
+    // along its own path, back to its own start at the end
+    p.pt += byClass(prm.vy, p);
+    const float len = prm.ey - p.py;
+    if (len <= 0) p.pt = 0;
+    else {
+      while (p.pt >= len) p.pt -= len;
+      while (p.pt < 0) p.pt += len;
+    }
+    pathPos(p);
     return;
   }
   p.x += p.fdir * p.drift * prm.drift[3] * p.ramp;
@@ -304,13 +437,7 @@ void ParticleLayer::step(Pt &p)
   if (p.wa < -prm.wa[0]) p.wa = -prm.wa[0];
   if (p.wa > prm.wa[0]) p.wa = prm.wa[0];
 
-  if (!prm.vy.empty()) {
-    const float span = prm.cls[0] + prm.cls[1];
-    int i = span > 0 ? (int)(p.c / span * prm.vy.size()) : 0;
-    if (i < 0) i = 0;
-    if (i >= (int)prm.vy.size()) i = (int)prm.vy.size() - 1;
-    p.y += prm.vy[i];
-  }
+  if (!prm.vy.empty()) p.y += byClass(prm.vy, p);
 
   if (prm.has_end) {
     const float line = prm.end[0] + prm.end[1] * p.c;
@@ -348,6 +475,7 @@ void ParticleLayer::tick()
     if (tw_val[i] <= 0) { tw_val[i] = 0; tw_dir[i] = 1; }
   }
   time++;
+  tex_dirty = true;
 }
 
 void ParticleLayer::update()
@@ -364,25 +492,67 @@ void ParticleLayer::update()
   if (acc_ms >= tick_ms) acc_ms = 0; // after a long stop: drop the backlog
 }
 
+void ParticleLayer::drawParticle(const Pt &p, int i, SDL_Surface *dst, SDL_Rect &clip, float ox, float oy, bool copy)
+{
+  AnimationInfo *a = sheets[p.tint < (int)sheets.size() ? p.tint : 0];
+  int row = (int)p.c, col = p.frame;
+  if (row < 0) row = 0;
+  if (row >= rows) row = rows - 1;
+  if (col < 0) col = 0;
+  if (col >= cols) col = cols - 1;
+  a->current_cell = row * cols + col;
+  float alpha = p.alpha;
+  if (prm.twinkle_n > 0) alpha *= tw_val[i % prm.twinkle_n];
+  int ia = (int)(alpha + 0.5f);
+  if (ia <= 0) return;
+  if (ia > 255) ia = 255;
+  const float cs = prm.cscale.empty() ? 1 : byClass(prm.cscale, p) / 1000;
+  const float x = p.x * prm.scale + ox, y = p.y * prm.scale + oy;
+  if (!copy && cs == 1 && p.ax == 0 && p.ay == 0 && p.az == 0) {
+    a->blendOnSurface(dst, (int)x, (int)y, clip, ia);
+    return;
+  }
+  // ours: a turn about the x or y axis squashes the height or width by its
+  // cosine; the original's 3D perspective is left out
+  const float d2r = (float)M_PI / 180;
+  const float zx = cs * fabsf(cosf(p.ay * d2r)), zy = cs * fabsf(cosf(p.ax * d2r));
+  const int cw = a->pos.w, ch = a->pos.h;
+  affineBlit(a->image_surface, a->current_cell * cw, cw, ch, dst, clip,
+             x + cw * 0.5f, y + ch * 0.5f, zx, zy, p.az, ia, copy);
+}
+
 void ParticleLayer::refresh(SDL_Surface *surface, SDL_Rect &clip)
 {
   if (!running || sheets.empty()) return;
-  for (size_t i = 0; i < pts.size(); i++) {
-    const Pt &p = pts[i];
-    if (!p.active) continue;
-    AnimationInfo *a = sheets[p.tint < (int)sheets.size() ? p.tint : 0];
-    int row = (int)p.c, col = p.frame;
-    if (row < 0) row = 0;
-    if (row >= rows) row = rows - 1;
-    if (col < 0) col = 0;
-    if (col >= cols) col = cols - 1;
-    a->current_cell = row * cols + col;
-    float alpha = p.alpha;
-    if (prm.twinkle_n > 0) alpha *= tw_val[i % prm.twinkle_n];
-    int ia = (int)(alpha + 0.5f);
-    if (ia <= 0) continue;
-    if (ia > 255) ia = 255;
-    a->blendOnSurface(surface, (int)(p.x * prm.scale + prm.ox), (int)(p.y * prm.scale + prm.oy), clip, ia);
+  if (tex_surf) {
+    // tex: the particles go on their own picture (each texel replacing
+    // what is under it), which is drawn as the sprite "*n" is placed:
+    // its offset, spzoom and spmotion zoom and angle about the picture's
+    // centre, and its alpha
+    if (tex_dirty) {
+      SDL_FillRect(tex_surf, NULL, 0);
+      SDL_Rect all = { 0, 0, tex_surf->w, tex_surf->h };
+      for (size_t i = 0; i < pts.size(); i++)
+        if (pts[i].active) drawParticle(pts[i], (int)i, tex_surf, all, prm.ox, prm.oy, true);
+      tex_dirty = false;
+    }
+    float zx = 1, zy = 1, rot = 0, offx = 0, offy = 0;
+    int alpha = 255;
+    if (sprite) {
+      const float F = AnimationInfo::MOTION_FINE;
+      zx = sprite->zoom_x / 100.0f * sprite->motion_zoom / (100 * F);
+      zy = sprite->zoom_y / 100.0f * sprite->motion_zoom_y / (100 * F);
+      rot = sprite->zoom_rot + sprite->motion_rot / F;
+      offx = (float)(sprite->pos.x + sprite->motion_dx);
+      offy = (float)(sprite->pos.y + sprite->motion_dy);
+      alpha = (sprite->trans < 0 ? 255 : sprite->trans) * sprite->motion_alpha / 256;
+    }
+    affineBlit(tex_surf, 0, tex_surf->w, tex_surf->h, surface, clip,
+               offx + prm.tex[2] + prm.tex[0] * 0.5f, offy + prm.tex[3] + prm.tex[1] * 0.5f,
+               zx, zy, rot, alpha, false);
+    return;
   }
+  for (size_t i = 0; i < pts.size(); i++)
+    if (pts[i].active) drawParticle(pts[i], (int)i, surface, clip, prm.ox, prm.oy, false);
 }
 #endif

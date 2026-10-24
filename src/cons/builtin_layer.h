@@ -178,6 +178,8 @@ public:
   void refresh(SDL_Surface* surface, SDL_Rect &clip) final;
   struct Pt {
     float x, y, wv, wa, c, alpha, drift, ramp, fdir;
+    float px, py, pdx, pt;                 // path: start, end x offset, way along
+    float ax, ay, az;                      // spin angles, degrees
     int frame, last, tint;
     bool active;
   };
@@ -187,6 +189,13 @@ public:
     float cls[3] = { 0, 0, 0 };            // class = U*a + (U > q ? b : 0)
     std::vector<float> vy;                 // vertical speed by class
     float x0 = 0, xw = 0, y0 = 0, yh = 0;  // spawn box
+    float yh2 = 0;                         // a second U*yh2 added to the birth y
+    bool path = false;                     // dx: each particle on its own looping path
+    float dx[2] = { 0, 0 }, ey = 0, swing = 0;
+    std::vector<float> cscale;             // per mille drawn size by class
+    float spin[4] = { 0, 0, 0, 1 };        // x, y, z axis moduli, degrees a unit
+    bool has_tex = false;
+    float tex[4] = { 0, 0, 0, 0 };         // texture w, h, its x, y on the layer
     float side[5] = { 0, 0, 0, 0, 0 };     // p, x left, x right, y0, y1
     bool walk_y = false;
     float wv[2] = { 0, 0 }, wa[3] = { 0, 0, 0 };
@@ -209,7 +218,12 @@ private:
   int time;                                // ticks since the start
   Uint32 last_ticks;
   float acc_ms;
+  SDL_Surface *tex_surf;                   // tex: the particles' picture
+  bool tex_dirty;
   void clearSheets();
+  float byClass(const std::vector<float> &v, const Pt &p) const;
+  void pathPos(Pt &p);
+  void drawParticle(const Pt &p, int i, SDL_Surface *dst, SDL_Rect &clip, float ox, float oy, bool copy);
   void loadSheets(const char *file);
   void spawn(Pt &p);
   void step(Pt &p);
