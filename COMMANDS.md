@@ -395,6 +395,30 @@ every live particle as `x:y:class:alpha;` (string). Keys (`a:b` lists;
 - `twinkle=n:step` n alpha waves, ±step a tick between 0 and 1; particle
   i takes wave i mod n.
 - drawn at (x·`scale` + `ox`, y·`scale` + `oy`).
+- `y=y0:h:h2` adds a second U·h2 to the birth y.
+- `dx=lo:hi` each particle on its own path: from its birth point to (that
+  x + lo + U·(hi-lo), `ey=y`), moving vy (by class) a step along y, and at
+  the end back to its own start (no rebirth); walk, drift, end, box are not
+  used. `swing=s`: a cubic Bezier instead, control points s left of both
+  ends at 1/4 of the height and s right of them at 3/4 (one S sway).
+- `cscale=a:b:...` drawn size in ‰ by class (spread as vy), about the cell's
+  centre.
+- `spin=mx:my:mz:k` particle i turns ((i mod m) + 1)·k degrees a step about
+  each axis whose m > 0; z is a real turn, x and y squash the height and
+  width by the cosine (no perspective).
+- `tex=w:h:x:y` the particles go on a w×h picture placed at x,y (each
+  texel replaces what is under it), drawn as the sprite `"*n"` is: its
+  `amsp` offset, `spzoom` and `spmotion` zoom and angle about the picture's
+  centre, and its alpha. Without `tex` the sprite's zoom, angle and alpha
+  are not used.
+
+Rain (straight looping streaks, the layer zoomed 3× and turned) and drops
+(S sway, sizes by class, spinning):
+```
+layermessage 2,"s|img=streak.png,cw=1,ch=196,n=128,cls=12:0:1,vy=9.5:9:8.5:8:7.5:7:6.5:6:5.5:5:4.5:4,x=0:512,y=0:-144:-127,dx=-63:63,ey=288,tex=512:288:384:216"
+lsp 20,"*2",0,0:spzoom 20,300,300,-60
+layermessage 3,"s|img=drop.png,cw=16,ch=16,n=256,cls=4:0:1,cscale=1000:400:800:200,vy=4:3:1:1,x=0:1280,y=0:-360,dx=-127:127,ey=752,swing=40,spin=3:5:7:1"
+```
 
 ```
 setlayer 2,16,"particle"   ; define section
