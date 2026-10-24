@@ -910,6 +910,7 @@ void ONScripter::resetSub()
     text_outline = -1;
     clearScreenFilters();
     clearScreenEffects();
+    clearSpriteShakes( -1 );
     screen_flash_opacity = 0;
     stopWindowFade();
 

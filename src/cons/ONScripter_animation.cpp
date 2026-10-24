@@ -540,8 +540,8 @@ void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
     std::vector<Uint32> mask_saved; // CONscripter: spmask: what was under it
     if (anim->screen_mask >= 0) screenMaskBlend( dst_surface, anim, clip_in, mask_saved, false );
     SDL_Rect poly_rect = anim->pos;
-    poly_rect.x += anim->motion_dx; // CONscripter: spmotion
-    poly_rect.y += anim->motion_dy;
+    poly_rect.x += anim->motion_dx + anim->shake_dx; // CONscripter: spmotion, spshake
+    poly_rect.y += anim->motion_dy + anim->shake_dy;
     if ( !anim->abs_flag ){
         poly_rect.x += sentence_font.x() * screen_ratio1 / screen_ratio2;
         poly_rect.y += sentence_font.y() * screen_ratio1 / screen_ratio2;

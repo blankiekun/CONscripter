@@ -2748,21 +2748,29 @@ void ONScripter::setTraceMotionSamples( int frames )
 }
 
 // --trace-motion-samples: every n-th frame, a "sample" record for each lsp
-// sprite an spmotion moves (its place, zoom, angle and alpha as drawn now)
+// sprite an spmotion moves or an spshake shakes (its place, zoom, angle
+// and alpha as drawn now; "shake": spshake's offset, script px)
 // and for an effect running (its progress), so a check sees jumps.
 void ONScripter::traceSamples()
 {
     if (!trace_fp || !trace_sprite || trace_motion_samples <= 0 || presents % trace_motion_samples) return;
     char buf[200];
     Uint32 now = SDL_GetTicks();
+    std::vector<bool> shaking( MAX_SPRITE_NUM, false );
+    for (size_t k=0 ; k<sprite_shakes.size() ; k++) shaking[sprite_shakes[k].no] = true;
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
-        if (ai.motion_keys == 0 || trace_ignore[i] || !ai.visible) continue;
+        if ((ai.motion_keys == 0 && !shaking[i]) || trace_ignore[i] || !ai.visible) continue;
         SDL_Rect r = zoomedRect( ai );
-        snprintf( buf, sizeof(buf), "{\"t\":\"sample\",\"pg\":%d,\"ms\":%u,\"f\":%u,\"n\":%d,\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"zoom\":[%.2f,%.2f],\"angle\":%.2f,\"alpha\":%d}",
-                  trace_page, now, presents, i, r.x + r.w / 2 + ai.motion_dx, r.y + r.h / 2 + ai.motion_dy, r.w, r.h,
+        snprintf( buf, sizeof(buf), "{\"t\":\"sample\",\"pg\":%d,\"ms\":%u,\"f\":%u,\"n\":%d,\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d,\"zoom\":[%.2f,%.2f],\"angle\":%.2f,\"alpha\":%d",
+                  trace_page, now, presents, i, r.x + r.w / 2 + ai.motion_dx + ai.shake_dx, r.y + r.h / 2 + ai.motion_dy + ai.shake_dy, r.w, r.h,
                   ai.motion_zoom / 100.0, ai.motion_zoom_y / 100.0, ai.motion_rot / 100.0, ai.motion_alpha );
         std::string rec = buf;
+        if (shaking[i]){
+            snprintf( buf, sizeof(buf), ",\"shake\":[%d,%d]", ai.shake_dx * screen_ratio2 / screen_ratio1, ai.shake_dy * screen_ratio2 / screen_ratio1 );
+            rec += buf;
+        }
+        rec += '}';
         traceWrite( rec );
     }
     if (trace_effect_on){
@@ -2946,6 +2954,7 @@ void ONScripter::roundtripClear()
     clearScreenStack();
     clearScreenFilters();
     clearScreenEffects();
+    clearSpriteShakes( -1 );
     screen_flash_opacity = 0;
     stopCommand();
     loopbgmstopCommand();

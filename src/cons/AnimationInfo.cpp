@@ -74,6 +74,7 @@ AnimationInfo::AnimationInfo()
     motion_passes = 0;
     motion_start = motion_next = 0;
     motion_clock = -1;
+    shake_dx = shake_dy = 0;
     stopMotion();
     trail_passes = trail_alpha = trail_lag = trail_keys = trail_time = 0;
     trail_over = false;
