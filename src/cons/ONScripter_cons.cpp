@@ -280,6 +280,15 @@ void ONScripter::applyScreenFilters( SDL_Surface *surface, SDL_Rect &clip, int z
  *   holds it still that long first: time and end count from then (a shake
  *   timed to a sound). Where the picture
  *   moved away, what was there stays (it is drawn over itself).
+ *
+ * screenshake slot, time, interval, 3, "x,y x,y ..."[, loop[, end[, delay]]]
+ *   Mode 3 plays a list of offsets (script pixels, any characters
+ *   between the numbers part them): the first when it starts, the next
+ *   every interval ms (time unused, 0). After the last, with loop 1 it
+ *   starts again from the first; without, the slot clears itself (offset
+ *   0). end and delay as above. gamespeed scales the interval too. A
+ *   converter works out an original's shake update by update and hands
+ *   the engine the result: "screenshake 1,0,33,3,"4,0 -4,0 2,1 0,0"".
  *   "screenshake 1,1000,100,0,800,800,0,0,30,30" shakes harder and
  *   harder for a second; "screenshake 1" stops it.
  *
@@ -712,6 +721,14 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
         for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++){
             if (i >= 9 && !(script_h.getEndStatus() & ScriptHandler::END_COMMA)) break;
             param[i] = script_h.readInt();
+            // screenshake mode 3: the offsets list, then loop, end, delay
+            if (i == 2 && kind == SCREEN_EFFECT_SHAKE && param[2] == 3){
+                setStr( &map_name, script_h.readStr() );
+                const int opt[3] = {3, 9, 11};
+                for (int k=0 ; k<3 && (script_h.getEndStatus() & ScriptHandler::END_COMMA) ; k++)
+                    param[opt[k]] = script_h.readInt();
+                break;
+            }
         }
     }
     if (slot < 0 || slot > MAX_SCREEN_EFFECT || (slot == 0 && set)){
@@ -738,6 +755,7 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
         e.param[0] = speedTime( e.param[0] );
         e.param[9] = speedTime( e.param[9] );
         e.param[11] = speedTime( e.param[11] );
+        if (e.param[2] == 3) e.param[1] = speedTime( e.param[1] ); // a list: its steps too
     }
     startScreenEffect( e );
     if (e.kind == SCREEN_EFFECT_SHAKE) traceShake( slot, NULL, e.param[9] );
@@ -782,6 +800,34 @@ void ONScripter::startScreenEffect( ScreenEffect &e )
     e.range_x = e.range_y = 0;
     e.phase_x = e.phase_y = 0;
     e.point = 0;
+    // shake mode 3: the offsets, "x,y x,y ..." (any other characters part them)
+    delete[] e.list;
+    e.list = NULL;
+    e.list_n = 0;
+    if (e.kind == SCREEN_EFFECT_SHAKE && p[2] == 3 && e.map_name){
+        std::vector<int> v;
+        for (const char *c = e.map_name ; *c ; ){
+            if ((*c >= '0' && *c <= '9') || (*c == '-' && c[1] >= '0' && c[1] <= '9')){
+                char *end;
+                v.push_back( (int)strtol( c, &end, 10 ) );
+                c = end;
+            }
+            else c++;
+        }
+        e.list_n = (int)v.size() / 2;
+        if (e.list_n == 0){
+            utils::printError("screenshake: no offsets in \"%s\"\n", e.map_name);
+            clearScreenEffect( e );
+            return;
+        }
+        e.list = new int[e.list_n * 2];
+        for (int i=0 ; i<e.list_n * 2 ; i++) e.list[i] = v[i];
+        // a delay: no offset until it is over, then the first
+        if (p[11] > 0){
+            e.point = -1;
+            e.next_step -= p[1];
+        }
+    }
     delete[] e.snap;
     e.snap = NULL; // pulse: taken when next drawn
     e.drawn[0] = INT_MIN; // its first step always draws
@@ -804,7 +850,12 @@ void ONScripter::stepScreenEffect( ScreenEffect &e )
     if (e.elapsed > time) e.elapsed = time;
     int t = (time > 0) ? (int)((long long)e.elapsed * 256 / time) : 256;
 
-    if (e.kind == SCREEN_EFFECT_SHAKE){
+    if (e.kind == SCREEN_EFFECT_SHAKE && p[2] == 3){
+        // the next offset of the list; its end: again from the first with loop
+        if (e.point < 0) e.ran = e.elapsed = 0; // the delay's end: the list starts now
+        if (++e.point >= e.list_n && p[3]) e.point = 0;
+    }
+    else if (e.kind == SCREEN_EFFECT_SHAKE){
         // param: time, interval, mode, speed x, y, x0, y0, x1, y1, end, curve, delay
         if (p[10] && time > 0) t = curveAt( p[10], t * 4 ) / 4;
         e.range_x = (p[5] << 16) + (int)((((long long)(p[7] - p[5])) << 16) * t >> 8);
@@ -835,6 +886,9 @@ void ONScripter::clearScreenEffect( ScreenEffect &e )
     delete[] e.snap;
     e.snap = NULL;
     e.snap_w = e.snap_h = 0;
+    delete[] e.list;
+    e.list = NULL;
+    e.list_n = 0;
     e.kind = SCREEN_EFFECT_NONE;
     e.map_name = NULL;
     e.map = NULL;
@@ -893,6 +947,13 @@ void ONScripter::proceedScreenEffects( int current_time )
                 changed = true;
                 break;
             }
+            // a list without loop clears its slot after its last offset
+            if (e.kind == SCREEN_EFFECT_SHAKE && e.param[2] == 3 && e.point >= e.list_n){
+                traceShake( i+1, "list ended", e.ran );
+                clearScreenEffect( e );
+                changed = true;
+                break;
+            }
         }
         // Redraw only when a step changed what it shows (a slow shake keeps
         // its offset for several steps, a finished zoom or pulse holds still).
@@ -920,6 +981,15 @@ static const int shake_path[8][2] = { // 16.16, the original's table
 void ONScripter::shakeOffset( ScreenEffect &e, int &dx, int &dy )
 {
     long long ux, uy; // where on the wave or path, 16.16
+    if (e.param[2] == 3){
+        // the list's offset, script pixels
+        dx = dy = 0;
+        if (e.point >= 0 && e.point < e.list_n){
+            dx = e.list[e.point * 2] * screen_ratio1 / screen_ratio2;
+            dy = e.list[e.point * 2 + 1] * screen_ratio1 / screen_ratio2;
+        }
+        return;
+    }
     if (e.param[2] == 1){
         // jumps from point to point, as the original (filmed)
         ux = shake_path[e.point][0];

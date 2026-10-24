@@ -1980,10 +1980,14 @@ bool ONScripter::autoPlayWait( int &count )
             // the time skipped still counts toward a shake's end
             for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
                 ScreenEffect &e = screen_effect[i];
-                if (e.kind != SCREEN_EFFECT_SHAKE || e.param[9] <= 0) continue;
+                if (e.kind != SCREEN_EFFECT_SHAKE) continue;
+                // a list without loop (mode 3) ends after its offsets
+                int len = (e.param[2] == 3 && !e.param[3]) ? e.list_n * e.param[1] : 0;
+                if (e.param[9] > 0 && (len == 0 || e.param[9] < len)) len = e.param[9];
+                if (len <= 0) continue;
                 e.ran += count - 1;
-                if (e.ran >= e.param[9]){
-                    traceShake( i+1, "ran out", e.ran );
+                if (e.ran >= len){
+                    traceShake( i+1, len == e.param[9] ? "ran out" : "list ended", e.ran );
                     clearScreenEffect( e );
                     dirty_rect.fill( screen_width, screen_height );
                 }
@@ -2704,7 +2708,7 @@ void ONScripter::setDumpFrames( const char *path )
     dump_frames_fp = ::fopen( path, "w" );
     if (!dump_frames_fp){ utils::printError( "can't write %s\n", path ); return; }
     setvbuf( dump_frames_fp, NULL, _IOLBF, 0 ); // whole lines however the run ends
-    fprintf( dump_frames_fp, "# n\tms\twork_ms\tpresent_ms\tpg\n" );
+    fprintf( dump_frames_fp, "# n\tms\twork_ms\tpresent_ms\tpg\tshake\n" );
 }
 
 void ONScripter::setTracePerf()
@@ -2720,8 +2724,21 @@ void ONScripter::tracePresent( double work_ms, double block_ms )
     perf_work += work_ms;
     if (work_ms > perf_work_max) perf_work_max = work_ms;
     if (block_ms > perf_block_max) perf_block_max = block_ms;
-    if (dump_frames_fp)
-        fprintf( dump_frames_fp, "%u\t%u\t%.2f\t%.2f\t%d\n", presents, SDL_GetTicks(), work_ms, block_ms, trace_page );
+    if (dump_frames_fp){
+        // the screen offset the shakes drew (screen pixels, all slots), - none
+        char shake[32] = "-";
+        int sx = 0, sy = 0;
+        bool any = false;
+        for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
+            if (screen_effect[i].kind != SCREEN_EFFECT_SHAKE) continue;
+            int dx, dy;
+            shakeOffset( screen_effect[i], dx, dy );
+            sx += dx; sy += dy;
+            any = true;
+        }
+        if (any) snprintf( shake, sizeof(shake), "%d,%d", sx, sy );
+        fprintf( dump_frames_fp, "%u\t%u\t%.2f\t%.2f\t%d\t%s\n", presents, SDL_GetTicks(), work_ms, block_ms, trace_page, shake );
+    }
     traceSamples();
 }
 

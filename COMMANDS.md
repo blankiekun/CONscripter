@@ -695,6 +695,13 @@ the whole screen. All go through `ONScripter::screenEffectCommand`.
   0 straight) eases the size from x0,y0 to x1,y1. `delay` > 0 holds it
   still for that many ms first; `time` and `end` count from then.
   `screenshake 1,500,16,0,1300,1700,10,10,10,10,500`.
+- `screenshake slot,time,interval,3,"x,y x,y ..."[,loop[,end[,delay]]]` —
+  mode 3 plays a list of offsets (script px): the first at once, the next
+  every `interval` ms (`time` unused, 0). After the last, `loop` 1 starts
+  over; else the slot clears (offset 0). `end`, `delay` as above;
+  `gamespeed` scales the interval too. For an original's shake worked out
+  update by update by the converter.
+  `screenshake 1,0,33,3,"4,0 -4,0 2,1 0,0",1,2000`.
 - `screenripple slot,"map",time,interval,opacity0,opacity1,amp0,amp1,angle,angle_step,phase_step[,blend[,phase]]`
   — each pixel taken from amp × sin(2π(grey/256 + phase/1000)) px away in
   direction `angle` (tenths of a degree, 0 right, 900 down), grey from the

@@ -79,7 +79,7 @@ void optionHelp()
     printf( "      --roundtrip-every n\twith --trace and --auto-play, save and load every n pages and compare (--roundtrip-slot, 999)\n");
     printf( "      --trace-perf\twith --trace, a \"perf\" record per page: frames presented, the ms worked for them, the longest present\n");
     printf( "      --trace-motion-samples n\twith --trace, a \"sample\" record every n frames while a sprite moves or an effect runs (4; 0: none)\n");
-    printf( "      --dump-frames file\ta line per frame presented: count, game ms, ms worked for it, ms the present took, page\n");
+    printf( "      --dump-frames file\ta line per frame presented: count, game ms, ms worked for it, ms the present took, page, shake offset\n");
     printf( "      --auto-play pages\tplay by itself, without waiting, for this many pages (0: to the end)\n");
     printf( "      --no-text-overlay\tweb: the page gets no text, choices or backlog (consText, consChoice, consSprites, consBacklog, consOverlay), so draws no text overlay\n");
     printf( "      --real-time\twith --auto-play, effects, waits and fades take their real time (sprite movement plays out)\n");
