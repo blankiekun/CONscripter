@@ -173,5 +173,39 @@ class TimingChecks(unittest.TestCase):
         self.assertIn('lsp 10 steps 400 px between samples (40,0 -> 440,0', out)
 
 
+class EngineVars(unittest.TestCase):
+    def test_listed_variable_set_to_a_value_that_matters(self):
+        d = tempfile.mkdtemp()
+        conf = os.path.join(d, 'c.json')
+        with open(conf, 'w') as f:
+            json.dump({'engine_vars': [
+                {'var': '%400', 'name': 'F1104', 'when': '!=0', 'note': 'no window background'},
+                {'var': 401, 'name': 'F1105', 'when': '3-32', 'note': 'bubble window'},
+                {'name': 'F022', 'note': 'copied into each save'}]}, f)
+        recs = [{'t': 'var', 'pg': 1, 'at': '*a:1', 'n': '%400', 'v': 0},
+                {'t': 'var', 'pg': 1, 'at': '*a:2', 'n': '%400', 'v': 1},
+                {'t': 'var', 'pg': 2, 'at': '*a:2', 'n': '%400', 'v': 1},
+                {'t': 'var', 'pg': 2, 'at': '*a:3', 'n': '%401', 'v': 2},
+                {'t': 'var', 'pg': 2, 'at': '*a:4', 'n': '%401', 'v': 5},
+                {'t': 'var', 'pg': 2, 'at': '*a:5', 'n': '%402', 'v': 5}]
+        f = os.path.join(d, 't.jsonl')
+        with open(f, 'w') as t:
+            t.write(''.join(json.dumps(r) + '\n' for r in recs + [{'t': 'end', 'pg': 2, 'reason': 'script end'}]))
+        out = io.StringIO()
+        argv, sys.argv = sys.argv, ['x', f, '--skip', 'coverage', '--config', conf]
+        try:
+            with contextlib.redirect_stdout(out):
+                cons_trace_check.main()
+        finally:
+            sys.argv = argv
+        out = out.getvalue()
+        self.assertIn('== engine-var (2)', out)
+        self.assertIn('*a:2                     F1104 (%400) = 1: no window background', out)
+        self.assertIn('F1105 (%401) = 5: bubble window', out)
+        self.assertIn('engine vars: F1104 2 sets at 1 places; F1105 1 sets at 1 places', out)
+        self.assertIn('not in 0.txt (the converter drops their writes): F022', out)
+        self.assertEqual(cons_trace_check.trace_vars_of(conf), '400,401')
+
+
 if __name__ == '__main__':
     unittest.main()

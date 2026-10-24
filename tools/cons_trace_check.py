@@ -3,6 +3,7 @@
 
 usage: cons_trace_check.py TRACE... [--script 0.txt] [--root DIR] [--config FILE] [--baseline OLD.json] [--max N] [--json]
        cons_trace_check.py --diff OLD NEW [--max N]
+       cons_trace_check.py --trace-vars-of CONFIG
 
 Reads the trace (DEBUG.md describes it) and prints what looks wrong, ranked
 by kind, each finding at the script line ("*label:line") to look at:
@@ -52,6 +53,8 @@ by kind, each finding at the script line ("*label:line") to look at:
                the script lets a click stop that moviestop 0 makes unskippable
   button       a btnwait button that can't be seen: off the screen, hidden,
                at alpha 0 or under an opaque sprite
+  engine-var   a variable the config's "engine_vars" lists set to a value
+               the original's engine reads (a setting our conversion ignores)
   coverage     (--script) labels the run never reached
   unused       (--root) image and sound files no trace loaded
 
@@ -63,7 +66,9 @@ already had, so only new ones show.
 Settings for a game can go in a JSON file, cons_trace_check.json beside the
 trace or the script, or --config FILE: any option below by name, "ignore"
 (sprites to leave out, as --trace-ignore), and "known" (findings to leave
-out). Options given on the command line win.
+out). Options given on the command line win. "engine_vars" lists the
+variables the original's engine reads (`--trace-vars-of CONFIG` prints the
+--trace-vars that records them); DEBUG.md, "Checking a trace".
 
 --diff compares two traces of the same route page by page (before and after
 a fix) and prints the pages whose state differs, and pages whose picture
@@ -83,7 +88,7 @@ FILTER_KINDS = {1: 'colour', 2: 'greyscale', 3: 'negative', 4: 'brightness', 5: 
 
 RULES = ['error', 'missing', 'text', 'sound', 'voice', 'linger', 'float', 'offscreen',
          'invisible', 'crowd', 'overlay', 'loop', 'jump', 'duration', 'slow', 'save', 'replay',
-         'memory', 'movie', 'button', 'coverage', 'unused']
+         'memory', 'movie', 'button', 'engine-var', 'coverage', 'unused']
 
 # Options a config file may set, with their defaults.
 DEFAULTS = {
@@ -124,6 +129,45 @@ def records(path):
             except ValueError:
                 # the last line of a trace cut off by a crash
                 yield {'t': 'broken', 'line': n}
+
+
+def value_test(spec):
+    """An "engine_vars" entry's "when": comma-separated N, A-B, !=N, or * (any value)."""
+    tests = []
+    for part in str(spec if spec is not None else '*').replace(' ', '').split(','):
+        if part == '*':
+            tests.append(lambda v: True)
+        elif part.startswith('!='):
+            tests.append(lambda v, n=int(part[2:]): v != n)
+        elif re.match(r'^-?\d+-\d+$', part):
+            a, b = re.match(r'^(-?\d+)-(\d+)$', part).groups()
+            tests.append(lambda v, a=int(a), b=int(b): isinstance(v, int) and a <= v <= b)
+        else:
+            tests.append(lambda v, n=part: str(v) == n)
+    return lambda v: any(t(v) for t in tests)
+
+
+def engine_vars(items, where):
+    """The config's "engine_vars": {var, name, when, note}; an entry without "var"
+    (its write isn't in 0.txt) is only listed."""
+    out = []
+    for item in items:
+        if not isinstance(item, dict) or 'name' not in item and 'var' not in item:
+            raise ValueError('%s: an "engine_vars" entry needs "var" or "name": %s' % (where, item))
+        var = item.get('var')
+        if var is not None:
+            var = str(var)
+            var = var if var[:1] in '%$' else '%' + var
+        out.append(dict(item, var=var, name=item.get('name') or var, test=value_test(item.get('when'))))
+    return out
+
+
+def trace_vars_of(config):
+    """The --trace-vars spec recording a config's "engine_vars" ('' when none)."""
+    with open(config, encoding='utf-8') as f:
+        conf = json.load(f)
+    vs = [e['var'] for e in engine_vars(conf.get('engine_vars') or [], config) if e['var']]
+    return ','.join(v[1:] if v[0] == '%' and v[1:].isdigit() else v for v in dict.fromkeys(vs))
 
 
 def label_of(at):
@@ -297,6 +341,12 @@ class Checker:
         self.suppressed = defaultdict(int)  # rule -> findings left out by "known"
         self.skip = set((args.skip or '').replace(' ', '').split(',')) - {''}
         self.known = [k for k in getattr(args, 'known', []) or []]
+        self.engine_vars = defaultdict(list)  # "%N" -> its "engine_vars" entries
+        for e in getattr(args, 'engine_vars', []) or []:
+            if e['var']:
+                self.engine_vars[e['var']].append(e)
+        self.var_sets = OrderedDict()      # name -> [sets, {places}]
+        self.var_seen = False              # a var record of a listed variable came
         self.ignore = parse_ignore(args.ignore)
         self.pg = 0                        # the page being read
         self.seen = set()                  # keys already reported
@@ -359,6 +409,18 @@ class Checker:
                 return
         self.findings[rule].append((at or '?', message, self.pg))
 
+    def var(self, r):
+        """engine-var: a listed variable set to a value the original's engine reads."""
+        for e in self.engine_vars.get(r.get('n'), ()):
+            self.var_seen = True
+            if not e['test'](r.get('v')):
+                continue
+            n = self.var_sets.setdefault(e['name'], [0, set()])
+            n[0] += 1
+            n[1].add(r.get('at'))
+            self.add('engine-var', (e['name'], e.get('note'), r.get('at')), r.get('at'), '%s (%s) = %s: %s' % (
+                e['name'], e['var'], r.get('v'), e.get('note') or 'the original reads it'))
+
     def tall(self, s):
         return s.get('h', 0) >= self.h * self.args.tall
 
@@ -415,6 +477,8 @@ class Checker:
                 self.options(r)
             elif t == 'roundtrip':
                 self.reloading = True
+            elif t == 'var':
+                self.var(r)
             elif t == 'error':
                 stack = ' <- '.join(r.get('stack') or [])
                 self.add('error', None, r.get('at'), '%s error: %s%s' % (
@@ -990,6 +1054,7 @@ class Checker:
                        'runs': [{'trace': r[0], 'pages': r[1], 'end': r[4]} for r in self.runs],
                        'suppressed': dict(self.suppressed), 'in_baseline': self.in_baseline,
                        'script_wait_ms': self.wait_ms,
+                       'engine_vars': {k: {'sets': v[0], 'places': len(v[1])} for k, v in self.var_sets.items()},
                        'findings': {r: [{'at': at, 'page': pg, 'message': m} for at, m, pg in self.findings[r]]
                                     for r in RULES if self.findings[r]}},
                       sys.stdout, ensure_ascii=False, indent=1)
@@ -1008,6 +1073,16 @@ class Checker:
             n = sum(self.suppressed.values())
             print('config %s%s' % (self.args.config, ': %d known findings left out (%s)' % (n, ', '.join(
                 '%s %d' % kv for kv in sorted(self.suppressed.items()))) if n else ''))
+        listed = getattr(self.args, 'engine_vars', None) or []
+        if listed:
+            print('engine vars: %s' % '; '.join('%s %d sets at %d places' % (k, v[0], len(v[1]))
+                                                 for k, v in self.var_sets.items()) or 'none set')
+            if not self.var_seen and any(e['var'] for e in listed):
+                print('engine vars: the trace has no var record of them: run with --trace-vars %s'
+                      % ','.join(v[1:] if v[0] == '%' else v for v in dict.fromkeys(e['var'] for e in listed if e['var'])))
+            gone = [e['name'] for e in listed if not e['var']]
+            if gone:
+                print('engine vars not in 0.txt (the converter drops their writes): %s' % ', '.join(gone))
         if mem:
             print('image memory: %d to %d MB (the most at page %d, %s), %d MB at the end%s' % (
                 mem['min_mb'], mem['max_mb'], mem['max_page'], mem['max_at'], mem['end_mb'],
@@ -1204,9 +1279,16 @@ def apply_config(ap, args):
         except (OSError, ValueError) as e:
             ap.error('can\'t read the config %s: %s' % (args.config, e))
     known = []
+    args.engine_vars = []
     for k, v in conf.items():
         key = k.replace('-', '_')
         if key.startswith('_') or key == 'comment':
+            continue
+        if key == 'engine_vars':
+            try:
+                args.engine_vars = engine_vars(v, args.config)
+            except ValueError as e:
+                ap.error(str(e))
             continue
         if key == 'known':
             for item in v:
@@ -1267,7 +1349,11 @@ def main():
     ap.add_argument('--slow-ms', type=int, help='least total ms for a stretch to be shown (default 1000)')
     ap.add_argument('--mem-jump', type=int, help='MB image memory may grow from one page to the next (default 64)')
     ap.add_argument('--mem-leak', type=int, help='MB of steady growth reported as a leak (default 128)')
+    ap.add_argument('--trace-vars-of', metavar='CONFIG', help='print the --trace-vars spec that records CONFIG\'s "engine_vars" and stop')
     args = ap.parse_args()
+    if args.trace_vars_of:
+        print(trace_vars_of(args.trace_vars_of))
+        return
     if args.diff:
         diff(args.diff[0], args.diff[1], args.max or DEFAULTS['max'])
         return

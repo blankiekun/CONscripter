@@ -1064,6 +1064,7 @@ image memory: 12 to 340 MB (the most at page 4120, *s9_l36:62672), 54 MB at the 
 | `replay` | Where a `--replay` run went another way, or ran out of choices; a `--choose` or `--choices` answer that wasn't offered; where the `--choices` list ran out |
 | `memory` | Image memory (the pages' `mem`) that jumps by `--mem-jump` MB (64) from one page to the next, or grows steadily by `--mem-leak` MB (128) or more over the run (a leak); a single picture taking more than `--trace-max-image` (the `large image` warnings). The report's head gives the least and most, and where it grew |
 | `button` | A `btnwait` button that can't be seen (its `blocked`) |
+| `engine-var` | A variable the config's `engine_vars` lists set to a value that matters (its `var` records, so the run needs `--trace-vars` for it): a game variable the original's engine reads, which our conversion ignores, so each place shows where the difference bites. Once per place and value note; the report's head counts the sets and places per variable, lists the entries without a `var` (their writes aren't in `0.txt`), and says when the trace has no `var` record of them |
 | `coverage` | With `--script`, the labels the run never reached (`--coverage-skip REGEX` leaves some out) |
 | `unused` | With `--root`, the image and sound files in the game folder no trace loaded. Loose files only: files in `.nsa` or `.sar` archives aren't listed |
 
@@ -1138,6 +1139,7 @@ command line. Any option goes in by its name (`coverage_skip` or
 | `ignore` | Sprites to leave out of every check, written as for `--trace-ignore`: the game's own interface, when the trace was made without it |
 | `known` | Findings to leave out: each `{"rule": ..., "match": REGEX}` (a regex on the message), `{"rule", "file"}` (a file named in it) or `{"rule", "sprite": "lsp:61"}`, with an optional `"at"` regex on the place. `"rule": "*"` matches every rule |
 | `skip` | Rules to leave out, a list |
+| `engine_vars` | Variables for the `engine-var` rule: each `{"var": 237, "name": "F1104", "when": "!=0", "note": "the original drops the window's plate"}`; `var` is the `0.txt` variable (`237` or `"%237"`, `"$5"`, a `defvar` name `"%score"`), `when` the values that matter (comma-separated `N`, `A-B`, `!=N`, or `*`, the default), `note` what the original does then. Several entries may share a `var`. `--trace-vars-of FILE` prints the `--trace-vars` list that records them, for the run tools |
 | `script` | The script, relative to the config file |
 | `_comment` | Anything; keys starting with `_` are left out |
 
