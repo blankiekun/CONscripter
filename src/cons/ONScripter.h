@@ -941,7 +941,9 @@ private:
         int ran;                         // ms since it started (shake: its end)
         int range_x, range_y;            // shake: amplitude, 16.16 pixels
         unsigned int phase_x, phase_y;   // shake: wave phases (or path progress)
-        int point;                       // shake: point on the path (mode 1)
+        int point;                       // shake: point on the path (mode 1), in the list (mode 3)
+        int *list;                       // shake mode 3: the offsets, x then y (from map_name)
+        int list_n;                      // their count (pairs)
         int opacity, amp, angle, phase;  // ripple: 0-256, 16.16 pixels, 0.1 degrees, 0-999
         ONSBuf *snap;                    // pulse: the tinted picture when it started
         int snap_w, snap_h;

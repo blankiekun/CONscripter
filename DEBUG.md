@@ -850,11 +850,13 @@ left out unless asked for.
 
 `--dump-frames frames.tsv` (without `--trace` too) writes a line per
 frame: its count, the game ms (the trace's clock), its work ms, its
-present ms and the page (`pg`):
+present ms, the page (`pg`) and the offset the screen shakes drew
+(`shake`: x,y in screen pixels, every `screenshake` slot added; `-` none
+runs):
 
 ```
-# n	ms	work_ms	present_ms	pg
-3	16	0.05	0.10	0
+# n	ms	work_ms	present_ms	pg	shake
+3	16	0.05	0.10	0	-
 ```
 
 ### `label`: the first time a label runs
