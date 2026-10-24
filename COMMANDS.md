@@ -600,7 +600,8 @@ hide the window during effects. Impl `ONScripter::textonCommand` etc.
 ### tateyoko
 `tateyoko 0|1` — horizontal / vertical text. [cons] turned marks
 (《》「」『』（）【】〈〉―～…) are centred in their cell, and ← → ↑ ↓ are turned
-too. Impl `ONScripter::tateyokoCommand`.
+too. [cons] saved (`CONS` block version 35): a load from a vertical
+window lays its text out vertically again. Impl `ONScripter::tateyokoCommand`.
 
 ### rubyon / rubyoff
 `rubyon [w,h[,"font"]]` — draw ruby `(base/reading)`; `rubyoff`.

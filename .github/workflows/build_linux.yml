@@ -56,6 +56,10 @@ jobs:
     - name: voice wait test
       if: matrix.arch.suffix == 'x64'
       run: python3 -I tests/voicewait/check.py build_linux64/conscripter
+
+    - name: vertical text load test
+      if: matrix.arch.suffix == 'x64'
+      run: python3 -I tests/tateload/check.py build_linux64/conscripter
     
     - name: prepare release
       if: github.ref_type == 'tag'
