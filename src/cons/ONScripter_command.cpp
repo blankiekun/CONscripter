@@ -953,8 +953,8 @@ int ONScripter::selectCommand()
     }
     while(current_button_state.button <= 0 || current_button_state.button > options ||
           disabled.count( current_button_state.button ) || skip_mode & SKIP_NORMAL);
-    if (select_keep_auto) automode_flag = kept_auto;
-    if (select_keep_skip && kept_skip) skip_mode |= SKIP_NORMAL;
+    if (select_keep_auto) automode_flag = kept_auto && !(mode_lock & MODE_LOCK_AUTO);
+    if (select_keep_skip && kept_skip && !(mode_lock & MODE_LOCK_SKIP)) skip_mode |= SKIP_NORMAL;
     if (trace_fp) traceSelect( current_button_state.button );
     if (auto_play_flag) autoPlayChosen( current_button_state.button );
         

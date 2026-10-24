@@ -252,12 +252,16 @@ void ONScripter::executeSystemMenu()
 
 void ONScripter::executeSystemSkip()
 {
-    skip_mode |= SKIP_NORMAL;
+    if (!(mode_lock & MODE_LOCK_SKIP)) skip_mode |= SKIP_NORMAL; // CONscripter: modelock
     leaveSystemCall();
 }
 
 void ONScripter::executeSystemAutomode()
 {
+    if (mode_lock & MODE_LOCK_AUTO){ // CONscripter: modelock
+        leaveSystemCall();
+        return;
+    }
     automode_flag = true;
     skip_mode &= ~SKIP_NORMAL;
     utils::printInfo("systemcall_automode: change to automode\n");

@@ -51,7 +51,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 35 // the "Version n" comments below name the parts in the order they are
+#define CONS_SAVE_VERSION 36 // the "Version n" comments below name the parts in the order they are
                             // written (version 26's first). A new part goes at the end; loading
                             // reads the parts an older save has and leaves the rest at their defaults
 #define CONS_SAVE_OLDEST  18 // the oldest block loading reads: version 18 reshaped earlier parts
@@ -546,6 +546,24 @@ void ONScripter::voiceAfterWait()
 int ONScripter::autooffCommand()
 {
     automode_flag = false;
+    webStateHook();
+    return RET_CONTINUE;
+}
+
+/* modelock bits[,mask]: 1 skip refused, 2 auto mode refused; only the
+ * mask's bits change (all when left out). A lock ends the mode it
+ * refuses; Ctrl held skips again only once pressed after the unlock. */
+int ONScripter::modelockCommand()
+{
+    const int all = MODE_LOCK_SKIP | MODE_LOCK_AUTO;
+    int bits = script_h.readInt();
+    int mask = script_h.getEndStatus() & ScriptHandler::END_COMMA ? script_h.readInt() & all : all;
+    mode_lock = (mode_lock & ~mask) | (bits & mask);
+    if (mode_lock & MODE_LOCK_SKIP){
+        skip_mode &= ~SKIP_NORMAL;
+        ctrl_pressed_status = 0;
+    }
+    if (mode_lock & MODE_LOCK_AUTO) automode_flag = false;
     webStateHook();
     return RET_CONTINUE;
 }
@@ -2106,6 +2124,9 @@ void ONScripter::saveSaveFileCons( bool output_flag )
     // Version 35: tateyoko (0 horizontal, 1 vertical text); the NScripter
     // data has none, so a vertical window's text came back horizontal.
     writeInt( sentence_font.getTateyokoMode(), output_flag );
+
+    // Version 36: modelock's bits.
+    writeInt( mode_lock, output_flag );
 }
 
 // A motion in the save (Version 18's and 33's): loop (1 + loop 4's key),
@@ -2247,6 +2268,7 @@ void ONScripter::loadSaveFileCons()
 #endif
     clearHandleSprites(); // a save without the block: no handle pictures, named locals at their defaults
     sentence_font.tateyoko_mode = FontInfo::YOKO_MODE; // older saves have none (not setTateyokoMode: its clear() would move the text)
+    mode_lock = 0; // older saves have none
     if (readInt() != CONS_SAVE_MAGIC){
         if (trace_fp) traceSaveLeftOut( 0 );
         return;
@@ -2710,6 +2732,9 @@ void ONScripter::loadSaveFileCons()
 
     if (version < 35) return;
     sentence_font.tateyoko_mode = readInt() == FontInfo::TATE_MODE ? FontInfo::TATE_MODE : FontInfo::YOKO_MODE;
+
+    if (version < 36) return;
+    mode_lock = readInt() & (MODE_LOCK_SKIP | MODE_LOCK_AUTO);
 }
 
 /* --save-dir path: makes the folder, and the folders it is in, if they
@@ -3237,7 +3262,7 @@ EMSCRIPTEN_KEEPALIVE void consPersist(){ ons.persistNow(); }
 // 'a' and 's' keys do at a click wait.
 bool ONScripter::webEvent( int code, int value )
 {
-    if (code == WEB_SET_AUTO && value && !automode_flag){
+    if (code == WEB_SET_AUTO && value && !automode_flag && !(mode_lock & MODE_LOCK_AUTO)){
         automode_flag = true;
         skip_mode &= ~SKIP_NORMAL;
         webStateHook();
@@ -3257,7 +3282,7 @@ bool ONScripter::webEvent( int code, int value )
         }
         webStateHook();
     }
-    else if (code == WEB_SET_SKIP && value && !(skip_mode & SKIP_NORMAL)){
+    else if (code == WEB_SET_SKIP && value && !(skip_mode & SKIP_NORMAL) && !(mode_lock & MODE_LOCK_SKIP)){
         automode_flag = false;
         skip_mode |= SKIP_NORMAL;
         webStateHook();

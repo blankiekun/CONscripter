@@ -806,6 +806,7 @@ void ONScripter::reset()
 {
     window_trans = 255;
     automode_flag = false;
+    mode_lock = 0;
     automode_time = DEFAULT_AUTOMODE_TIME;
     autoclick_time = 0;
     btntime2_flag = false;
