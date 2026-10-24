@@ -362,8 +362,45 @@ Impl `ScriptParser::effectCommand`.
 
 ### setlayer (define)
 `setlayer num,interval,"dll"` — a built-in layer effect (snow, oldmovie…);
-`layermessage num,"msg"` talks to it (result in `getret`).
-Impl `ScriptParser::setlayerCommand`, `ONScripter::layermessageCommand`.
+`layermessage num,"msg"` talks to it (result in `getret`); a sprite
+`"*num"` shows it. Impl `ScriptParser::setlayerCommand`,
+`ONScripter::layermessageCommand`.
+
+[cons] `"particle"`: a pool of particles with live random motion (snow,
+rising lights, confetti), every number from `layermessage
+num,"s|key=value,..."`, which (re)starts it. `"x"` stops and clears it,
+`"n"` returns the live count, `"t"` the ticks since the start, `"p"`
+every live particle as `x:y:class:alpha;` (string). Keys (`a:b` lists;
+`U` a uniform random number in [0,1), new each time):
+- `img` the sheet, cells `cw`×`ch` (default 32): row = int(class), column
+  = flip frame; `tint=rrggbb:...` a tinted copy each, one per particle at random.
+- `n` pool size (100); `hz` ticks a second (60), each `steps` steps (1);
+  `warm` steps run at once on start; the clock follows `consset "gamespeed"`.
+- `spawn` chance a free particle is born per step (1); `x=x0:w`
+  `y=y0:h` the birth box; `side=p:xl:xr:y0:y1` with chance p born at x
+  xl or xr (half each), y in [y0,y1) instead.
+- `cls=a:b:q` class = U·a + (U > q ? b : 0); `vy=v0:v1:...` fall per
+  step by class (the list spread over [0,a+b)).
+- `walk=x|y` the axis of the random walk: `wv=lo:hi` its speed range,
+  `wa=max:noise:a0` its acceleration (start U·a0, ±noise/2 a step, clamped
+  to ±max).
+- `end=e0:e1:dir` a line at y = e0 + e1·class (dir 1: below, -1: above):
+  past it a particle outside the birth box's x range is reborn, else
+  fades by `fade=step:min` a step and is reborn once alpha ≤ min.
+  `box=x0:y0:x1:y1` reborn when outside.
+- `drift=k0:k1:k2:speed` sideways speed ±(k0·class + k1 + k2·U)·speed;
+  `flip=frames:period:add:mul` every period ticks the frame steps,
+  ping-pong over frames; at each end the drift turns and ramps back up
+  (ramp = (ramp + add)·mul, at most 1).
+- `twinkle=n:step` n alpha waves, ±step a tick between 0 and 1; particle
+  i takes wave i mod n.
+- drawn at (x·`scale` + `ox`, y·`scale` + `oy`).
+
+```
+setlayer 2,16,"particle"   ; define section
+layermessage 2,"s|img=snow.png,n=200,steps=2,spawn=0.002,cls=4:1:0.7,vy=1:2:3:4:5,x=0:1280,y=-720:0,walk=x,wv=-1.3:1.3,wa=0.2:0.2:1,end=470:50:1,fade=20:25,scale=0.75,ox=31,oy=31"
+lsp 20,"*2",0,0
+```
 
 ### soundpressplgin / spi (define)
 `soundpressplgin "dll|ext"` — compressed sound plugin (ignored).

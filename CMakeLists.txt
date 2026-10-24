@@ -586,6 +586,7 @@ set(CONSCRIPTER_CODE
     src/cons/renderer/gles_renderer.cpp
     src/cons/builtin_dll/layer_oldmovie.cpp
     src/cons/builtin_dll/layer_snow.cpp
+    src/cons/builtin_dll/layer_particle.cpp
     src/cons/builtin_dll/ONScripter_effect_cascade.cpp
     src/cons/builtin_dll/ONScripter_effect_trig.cpp
 )

@@ -25,6 +25,7 @@
 #ifdef USE_BUILTIN_LAYER_EFFECTS
 #include "BaseReader.h"
 #include "AnimationInfo.h"
+#include <vector>
 
 #define MAX_LAYER_NUM 32
 
@@ -163,6 +164,56 @@ private:
   void furu_init();
   void validate_params();
   void buildAmpTables();
+};
+
+// CONscripter: setlayer num,interval,"particle": a pool of particles with
+// live random motion, every number from layermessage "s|key=value,..."
+// (layer_particle.cpp, COMMANDS.md "setlayer").
+class ParticleLayer : public Layer {
+public:
+  ParticleLayer(int w, int h, BaseReader *br);
+  ~ParticleLayer();
+  void update() final;
+  char* message(const char *message, int &ret_int) final;
+  void refresh(SDL_Surface* surface, SDL_Rect &clip) final;
+  struct Pt {
+    float x, y, wv, wa, c, alpha, drift, ramp, fdir;
+    int frame, last, tint;
+    bool active;
+  };
+  struct Params {
+    int n = 100, cw = 32, ch = 32, hz = 60, steps = 1, warm = 0;
+    float spawn = 1, scale = 1, ox = 0, oy = 0;
+    float cls[3] = { 0, 0, 0 };            // class = U*a + (U > q ? b : 0)
+    std::vector<float> vy;                 // vertical speed by class
+    float x0 = 0, xw = 0, y0 = 0, yh = 0;  // spawn box
+    float side[5] = { 0, 0, 0, 0, 0 };     // p, x left, x right, y0, y1
+    bool walk_y = false;
+    float wv[2] = { 0, 0 }, wa[3] = { 0, 0, 0 };
+    bool has_end = false;
+    float end[3] = { 0, 0, 1 }, fade[2] = { 255, 0 };
+    bool has_box = false;
+    float box[4] = { 0, 0, 0, 0 };
+    float drift[4] = { 0, 0, 0, 0 };
+    float flip[4] = { 1, 0, 0, 1 };        // frames, period, ramp add, ramp mul
+    std::vector<Uint32> tints;
+    int twinkle_n = 0;
+    float twinkle_step = 0;
+  } prm;
+private:
+  std::vector<Pt> pts;
+  std::vector<AnimationInfo*> sheets;      // one per tint, cells in a row
+  int cols, rows;                          // the sheet's grid
+  std::vector<float> tw_val, tw_dir;
+  bool running;
+  int time;                                // ticks since the start
+  Uint32 last_ticks;
+  float acc_ms;
+  void clearSheets();
+  void loadSheets(const char *file);
+  void spawn(Pt &p);
+  void step(Pt &p);
+  void tick();
 };
 
 inline void drawTaggedSurface(SDL_Surface *dst_surface, AnimationInfo *anim, SDL_Rect &clip) {
