@@ -97,6 +97,7 @@ static ONScripter::FuncLUT func_lut[] = {
     {"sptrail",			&ONScripter::sptrailCommand},
     {"seldisable",		&ONScripter::seldisableCommand},
     {"spwave",			&ONScripter::spwaveCommand},
+    {"spshake",			&ONScripter::spshakeCommand},
     {"spovertext",		&ONScripter::spovertextCommand},
     {"spblend",			&ONScripter::spblendCommand},
     {"spgrab",			&ONScripter::spgrabCommand},

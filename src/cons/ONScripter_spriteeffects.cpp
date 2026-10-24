@@ -1533,6 +1533,7 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
     // in together appeared one after another.
     DirtyRect changed;
     changed.setDimension(screen_width, screen_height);
+    proceedSpriteShakes( current_time, changed );
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
         AnimationInfo &ai = sprite_info[i];
         if (ai.wave_on()){ // spwave
@@ -1587,12 +1588,12 @@ bool ONScripter::proceedSpriteMotions( int current_time, bool draw )
     return true;
 }
 
-// Where an lsp sprite's picture is drawn: zoomed (spzoom), moved (spmotion).
+// Where an lsp sprite's picture is drawn: zoomed (spzoom), moved (spmotion, spshake).
 SDL_Rect ONScripter::drawnRect( const AnimationInfo &ai )
 {
     SDL_Rect r = zoomedRect( ai );
-    r.x += ai.motion_dx;
-    r.y += ai.motion_dy;
+    r.x += ai.motion_dx + ai.shake_dx;
+    r.y += ai.motion_dy + ai.shake_dy;
     if (ai.trail_rect.w > 0 && ai.trail_rect.h > 0){ // and its sptrail copies
         int x2 = r.x + r.w > ai.trail_rect.x + ai.trail_rect.w ? r.x + r.w : ai.trail_rect.x + ai.trail_rect.w;
         int y2 = r.y + r.h > ai.trail_rect.y + ai.trail_rect.h ? r.y + r.h : ai.trail_rect.y + ai.trail_rect.h;
@@ -1621,7 +1622,7 @@ bool ONScripter::spriteZoomOrMotion( const SDL_Rect &clip )
         AnimationInfo &ai = sprite_info[i];
         if (!ai.visible || !ai.image_surface) continue;
         if (ai.wave_on()) return true;
-        if (ai.motion_keys == 0 && ai.trail_keys == 0 && !ai.motion_add && ai.zoom_x == 100 && ai.zoom_y == 100 && ai.zoom_rot == 0) continue;
+        if (ai.motion_keys == 0 && ai.trail_keys == 0 && !ai.motion_add && ai.shake_dx == 0 && ai.shake_dy == 0 && ai.zoom_x == 100 && ai.zoom_y == 100 && ai.zoom_rot == 0) continue;
         SDL_Rect d = drawnRect( ai ), &p = ai.pos;
         if (d.x >= p.x && d.y >= p.y && d.x + d.w <= p.x + p.w && d.y + d.h <= p.y + p.h) continue; // drawn inside its place
         if (SDL_HasIntersection( &clip, &ai.pos )) return true;
@@ -1649,6 +1650,8 @@ int ONScripter::nextSpriteMotionTime()
         if (ai.motion_keys == 0 && ai.trail_keys == 0 && !ai.motion_add) continue;
         if (min == 0 || min > ai.motion_next) min = ai.motion_next;
     }
+    for (size_t k=0 ; k<sprite_shakes.size() ; k++) // spshake
+        if (min == 0 || min > sprite_shakes[k].e.next_step) min = sprite_shakes[k].e.next_step;
     return min;
 }
 

@@ -3325,6 +3325,7 @@ int ONScripter::cspCommand()
         if (!csp2_flag) si[no].blending_mode = AnimationInfo::BLEND_NORMAL; // CONscripter: spblend
         si[no].remove();
     }
+    if (!csp2_flag && no >= -1 && no < MAX_SPRITE_NUM) clearSpriteShakes( no ); // CONscripter: spshake
 
     return RET_CONTINUE;
 }

@@ -173,6 +173,7 @@ public:
     int motion_start;          // ticks when it started
     int motion_next;           // ticks of the next step
     int motion_dx, motion_dy;  // the offset drawn now
+    int shake_dx, shake_dy;    // spshake's offset drawn now, added to it (ONScripter::sprite_shakes)
     // in MOTION_FINE parts of the keys' units, so a slow zoom or turn moves on each frame
     int motion_zoom, motion_zoom_y; // 1/100 percent, 10000 = none
     int motion_rot;            // 1/100 degrees, counterclockwise as lsp2's

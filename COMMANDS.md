@@ -789,6 +789,19 @@ the whole screen. All go through `ONScripter::screenEffectCommand`.
   text window, not only what lies below the original's z.
   `screenlens 1,500,300,1200,1000,10,128`.
 
+### spshake [cons]
+`spshake num,slot,time,interval,mode,...` — `screenshake`'s shake (the same
+arguments after the slot: modes 0-3, end, curve, gamespeed) on `lsp` sprite
+num alone. Its offset is added where the sprite is drawn, on top of its place
+and `spmotion`'s, so it leaves no drift; other sprites stay put. Two slots (1,
+2) per sprite, their offsets added; a slot that ends (end, a list without
+loop) drops its offset at once. `spshake num,slot` clears that slot,
+`spshake num` both, num -1 every sprite (`spshake -1,2`). Saved (restarted on
+load), cleared by `reset` and `csp`; only the sprite's place is redrawn. With
+`--trace-motion-samples` its sample records carry `"shake":[dx,dy]` (script
+px). `spshake 10,1,0,16,0,1300,1700,6,6,6,6,500` shakes sprite 10 for half a
+second. Impl `ONScripter::spshakeCommand`.
+
 ## Sprites
 
 ### lsp / lsph

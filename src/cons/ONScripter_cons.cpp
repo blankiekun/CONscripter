@@ -51,7 +51,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 33 // the "Version n" comments below name the parts in the order they are
+#define CONS_SAVE_VERSION 34 // the "Version n" comments below name the parts in the order they are
                             // written (version 26's first). A new part goes at the end; loading
                             // reads the parts an older save has and leaves the rest at their defaults
 #define CONS_SAVE_OLDEST  18 // the oldest block loading reads: version 18 reshaped earlier parts
@@ -725,55 +725,41 @@ static double screenZoomEase( int ease, double power, double t )
     }
 }
 
-int ONScripter::screenEffectCommand( int kind, const char *name )
+// Reads an effect command's arguments after its slot (or sprite and
+// slot) into param and map_name (NULL when none).
+void ONScripter::readScreenEffect( int kind, int *param, char *&map_name )
 {
-    leaveTextDisplayMode();
-
-    int slot = script_h.readInt();
-    bool set = (script_h.getEndStatus() & ScriptHandler::END_COMMA) != 0;
     // Read the whole command before checking it: arguments left unread
     // would be shown as text.
-    char *map_name = NULL;
-    int param[SCREEN_EFFECT_PARAMS] = {0};
-    if (set && kind == SCREEN_EFFECT_LENS){
+    map_name = NULL;
+    for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++) param[i] = 0;
+    if (kind == SCREEN_EFFECT_LENS){
         // param: 0, interval, x, y, diameter, curvature, distance, opacity, loop
         for (int i=2 ; i<8 ; i++) param[i] = script_h.readInt();
         if (script_h.getEndStatus() & ScriptHandler::END_COMMA) param[1] = script_h.readInt();
         if (script_h.getEndStatus() & ScriptHandler::END_COMMA) setStr( &map_name, script_h.readStr() );
         if (script_h.getEndStatus() & ScriptHandler::END_COMMA) param[8] = script_h.readInt();
+        return;
     }
-    else if (set){
-        if (kind == SCREEN_EFFECT_RIPPLE) setStr( &map_name, script_h.readStr() );
-        // Nine numbers, then optional ones (screenripple's blend and phase, screenshake's end).
-        for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++){
-            if (i >= 9 && !(script_h.getEndStatus() & ScriptHandler::END_COMMA)) break;
-            param[i] = script_h.readInt();
-            // screenshake mode 3: the offsets list, then loop, end, delay
-            if (i == 2 && kind == SCREEN_EFFECT_SHAKE && param[2] == 3){
-                setStr( &map_name, script_h.readStr() );
-                const int opt[3] = {3, 9, 11};
-                for (int k=0 ; k<3 && (script_h.getEndStatus() & ScriptHandler::END_COMMA) ; k++)
-                    param[opt[k]] = script_h.readInt();
-                break;
-            }
+    if (kind == SCREEN_EFFECT_RIPPLE) setStr( &map_name, script_h.readStr() );
+    // Nine numbers, then optional ones (screenripple's blend and phase, screenshake's end).
+    for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++){
+        if (i >= 9 && !(script_h.getEndStatus() & ScriptHandler::END_COMMA)) break;
+        param[i] = script_h.readInt();
+        // screenshake mode 3: the offsets list, then loop, end, delay
+        if (i == 2 && kind == SCREEN_EFFECT_SHAKE && param[2] == 3){
+            setStr( &map_name, script_h.readStr() );
+            const int opt[3] = {3, 9, 11};
+            for (int k=0 ; k<3 && (script_h.getEndStatus() & ScriptHandler::END_COMMA) ; k++)
+                param[opt[k]] = script_h.readInt();
+            break;
         }
     }
-    if (slot < 0 || slot > MAX_SCREEN_EFFECT || (slot == 0 && set)){
-        utils::printError("%s: slot %d out of range\n", name, slot);
-        delete[] map_name;
-        return RET_CONTINUE;
-    }
-    if (!set){
-        for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++)
-            if ((slot == 0 || i == slot-1) && screen_effect[i].kind == SCREEN_EFFECT_SHAKE) traceShake( i+1, "stopped", screen_effect[i].ran );
-        if (slot == 0) clearScreenEffects();
-        else clearScreenEffect( screen_effect[slot-1] );
-        dirty_rect.fill( screen_width, screen_height );
-        return RET_CONTINUE;
-    }
+}
 
-    ScreenEffect &e = screen_effect[slot-1];
-    if (e.kind == SCREEN_EFFECT_SHAKE) traceShake( slot, "replaced", e.ran );
+// Puts what readScreenEffect read in e (which takes map_name) and starts it.
+void ONScripter::setScreenEffect( ScreenEffect &e, int kind, const int *param, char *map_name )
+{
     // a lens moved or faded keeps its map (the same shape)
     LensCell *lens = NULL;
     int lens_key[4];
@@ -799,10 +785,140 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
     }
     if (kind == SCREEN_EFFECT_LENS) e.param[1] = speedTime( e.param[1] );
     startScreenEffect( e );
+}
+
+int ONScripter::screenEffectCommand( int kind, const char *name )
+{
+    leaveTextDisplayMode();
+
+    int slot = script_h.readInt();
+    bool set = (script_h.getEndStatus() & ScriptHandler::END_COMMA) != 0;
+    char *map_name = NULL;
+    int param[SCREEN_EFFECT_PARAMS] = {0};
+    if (set) readScreenEffect( kind, param, map_name );
+    if (slot < 0 || slot > MAX_SCREEN_EFFECT || (slot == 0 && set)){
+        utils::printError("%s: slot %d out of range\n", name, slot);
+        delete[] map_name;
+        return RET_CONTINUE;
+    }
+    if (!set){
+        for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++)
+            if ((slot == 0 || i == slot-1) && screen_effect[i].kind == SCREEN_EFFECT_SHAKE) traceShake( i+1, "stopped", screen_effect[i].ran );
+        if (slot == 0) clearScreenEffects();
+        else clearScreenEffect( screen_effect[slot-1] );
+        dirty_rect.fill( screen_width, screen_height );
+        return RET_CONTINUE;
+    }
+
+    ScreenEffect &e = screen_effect[slot-1];
+    if (e.kind == SCREEN_EFFECT_SHAKE) traceShake( slot, "replaced", e.ran );
+    setScreenEffect( e, kind, param, map_name );
     if (e.kind == SCREEN_EFFECT_SHAKE) traceShake( slot, NULL, e.param[9] );
     dirty_rect.fill( screen_width, screen_height );
 
     return RET_CONTINUE;
+}
+
+/* spshake num, slot[, time, interval, mode, ...]
+ *   screenshake's shake (the same arguments after the slot, modes 0-3,
+ *   end, curve, delay, loop; gamespeed) on lsp sprite num alone: its
+ *   offset is added where the sprite is drawn, on top of its place and
+ *   spmotion's, so the sprite moves on as before and the shake leaves
+ *   no drift. Two slots (1, 2) per sprite, their offsets added. When a
+ *   slot ends (end, a list without loop) its offset is gone at once.
+ *   "spshake num,slot" clears that slot, "spshake num" both; num -1:
+ *   every sprite ("spshake -1,2" clears slot 2 everywhere). Kept in save
+ *   files (restarted when loaded), cleared by reset and csp. Only the
+ *   sprite's place is redrawn as it moves.
+ *   "spshake 10,1,500,16,0,1300,1700,6,6,6,6,500" shakes sprite 10 for
+ *   half a second. */
+int ONScripter::spshakeCommand()
+{
+    int no = script_h.readInt();
+    int slot = 0;
+    if (script_h.getEndStatus() & ScriptHandler::END_COMMA) slot = script_h.readInt();
+    bool set = (script_h.getEndStatus() & ScriptHandler::END_COMMA) != 0;
+    char *map_name = NULL;
+    int param[SCREEN_EFFECT_PARAMS] = {0};
+    if (set) readScreenEffect( SCREEN_EFFECT_SHAKE, param, map_name );
+    if (no < -1 || no >= MAX_SPRITE_NUM || (no < 0 && set) || slot < 0 || slot > 2 || (slot == 0 && set)){
+        utils::printError("spshake: sprite %d slot %d out of range\n", no, slot);
+        delete[] map_name;
+        return RET_CONTINUE;
+    }
+    if (!set){
+        clearSpriteShakes( no, slot );
+        return RET_CONTINUE;
+    }
+    SpriteShake *s = NULL;
+    for (size_t k=0 ; k<sprite_shakes.size() ; k++)
+        if (sprite_shakes[k].no == no && sprite_shakes[k].slot == slot) s = &sprite_shakes[k];
+    if (s == NULL){
+        SpriteShake n;
+        memset( &n, 0, sizeof(n) );
+        n.no = no;
+        n.slot = slot;
+        sprite_shakes.push_back( n );
+        s = &sprite_shakes.back();
+    }
+    setScreenEffect( s->e, SCREEN_EFFECT_SHAKE, param, map_name );
+    if (s->e.kind == SCREEN_EFFECT_NONE) sprite_shakes.erase( sprite_shakes.begin() + (s - &sprite_shakes[0]) ); // a list without offsets
+    updateSpriteShake( no, dirty_rect );
+
+    return RET_CONTINUE;
+}
+
+// spshake: clears slot (0 both) of sprite no (-1 every sprite).
+void ONScripter::clearSpriteShakes( int no, int slot )
+{
+    std::vector<int> moved;
+    for (size_t k=0 ; k<sprite_shakes.size() ; ){
+        SpriteShake &s = sprite_shakes[k];
+        if ((no >= 0 && s.no != no) || (slot > 0 && s.slot != slot)){
+            k++;
+            continue;
+        }
+        moved.push_back( s.no );
+        clearScreenEffect( s.e );
+        sprite_shakes.erase( sprite_shakes.begin() + k );
+    }
+    for (size_t k=0 ; k<moved.size() ; k++) updateSpriteShake( moved[k], dirty_rect );
+}
+
+// spshake: sets sprite no's drawn offset from its slots; when it moved,
+// where it was and is drawn go into changed.
+void ONScripter::updateSpriteShake( int no, DirtyRect &changed )
+{
+    int dx = 0, dy = 0;
+    for (size_t k=0 ; k<sprite_shakes.size() ; k++){
+        SpriteShake &s = sprite_shakes[k];
+        if (s.no != no || s.e.kind == SCREEN_EFFECT_NONE) continue;
+        int x, y;
+        shakeOffset( s.e, x, y );
+        dx += x;
+        dy += y;
+    }
+    AnimationInfo &ai = sprite_info[no];
+    if (dx == ai.shake_dx && dy == ai.shake_dy) return;
+    bool shown = ai.visible && ai.image_surface;
+    if (shown) changed.add( drawnRect( ai ) );
+    ai.shake_dx = dx;
+    ai.shake_dy = dy;
+    if (shown) changed.add( drawnRect( ai ) );
+}
+
+// Steps the sprite shakes to current_time; where they moved goes into changed.
+void ONScripter::proceedSpriteShakes( int current_time, DirtyRect &changed )
+{
+    std::vector<int> moved;
+    for (size_t k=0 ; k<sprite_shakes.size() ; ){
+        SpriteShake &s = sprite_shakes[k];
+        int r = runScreenEffect( s.e, current_time, 0 );
+        if (r) moved.push_back( s.no );
+        if (r == 2) sprite_shakes.erase( sprite_shakes.begin() + k );
+        else k++;
+    }
+    for (size_t k=0 ; k<moved.size() ; k++) updateSpriteShake( moved[k], changed );
 }
 
 // Puts an effect in its first state (after its parameters are set).
@@ -992,31 +1108,11 @@ void ONScripter::proceedScreenEffects( int current_time )
         ScreenEffect &e = screen_effect[i];
         if (e.kind == SCREEN_EFFECT_NONE) continue;
         if (e.kind == SCREEN_EFFECT_LENS && !lensMoves( e )) continue;
-        // After a long stop (a menu, a load) go on from now.
-        if (current_time - e.next_step > 1000) e.next_step = current_time;
-        bool stepped = false;
-        while (e.next_step <= current_time){
-            stepScreenEffect( e );
-            e.next_step += e.param[1];
-            stepped = true;
-            // a shake given an end clears its slot when it's over
-            if (e.kind == SCREEN_EFFECT_SHAKE && e.param[9] > 0 && e.ran >= e.param[9]){
-                traceShake( i+1, "ran out", e.ran );
-                clearScreenEffect( e );
-                changed = true;
-                break;
-            }
-            // a list without loop clears its slot after its last offset
-            if (e.kind == SCREEN_EFFECT_SHAKE && e.param[2] == 3 && e.point >= e.list_n){
-                traceShake( i+1, "list ended", e.ran );
-                clearScreenEffect( e );
-                changed = true;
-                break;
-            }
-        }
+        int r = runScreenEffect( e, current_time, i+1 );
+        if (r == 2) changed = true;
         // Redraw only when a step changed what it shows (a slow shake keeps
         // its offset for several steps, a finished zoom or pulse holds still).
-        if (!stepped || e.kind == SCREEN_EFFECT_NONE) continue;
+        if (r != 1) continue;
         int look[4];
         screenEffectLook( e, look );
         if (memcmp( look, e.drawn, sizeof(look) ) != 0){
@@ -1030,6 +1126,32 @@ void ONScripter::proceedScreenEffects( int current_time )
         screen_effect_flush_time = current_time;
         screen_effect_pending = false;
     }
+}
+
+// Steps effect e to current_time: 0 no step was due, 1 it stepped, 2 it
+// ended (a shake's end or a list's last offset) and was cleared.
+// trace_slot: screenshake's slot for the trace, 0 none.
+int ONScripter::runScreenEffect( ScreenEffect &e, int current_time, int trace_slot )
+{
+    // After a long stop (a menu, a load) go on from now.
+    if (current_time - e.next_step > 1000) e.next_step = current_time;
+    int r = 0;
+    while (e.next_step <= current_time){
+        stepScreenEffect( e );
+        e.next_step += e.param[1];
+        r = 1;
+        // a shake given an end clears its slot when it's over; a list
+        // without loop after its last offset
+        const char *ended = NULL;
+        if (e.kind == SCREEN_EFFECT_SHAKE && e.param[9] > 0 && e.ran >= e.param[9]) ended = "ran out";
+        else if (e.kind == SCREEN_EFFECT_SHAKE && e.param[2] == 3 && e.point >= e.list_n) ended = "list ended";
+        if (ended){
+            if (trace_slot > 0) traceShake( trace_slot, ended, e.ran );
+            clearScreenEffect( e );
+            return 2;
+        }
+    }
+    return r;
 }
 
 static const int shake_path[8][2] = { // 16.16, the original's table
@@ -1966,6 +2088,19 @@ void ONScripter::saveSaveFileCons( bool output_flag )
         writeInt( i, output_flag );
         writeMotion( *m, output_flag );
     }
+
+    // Version 34: the sprite shakes (spshake): the count, then per shake
+    // its sprite, slot, list (mode 3; "" none) and parameters (as version
+    // 4's). They start again when loaded.
+    writeInt( (int)sprite_shakes.size(), output_flag );
+    for (size_t k=0 ; k<sprite_shakes.size() ; k++){
+        SpriteShake &s = sprite_shakes[k];
+        writeInt( s.no, output_flag );
+        writeInt( s.slot, output_flag );
+        writeStr( s.e.map_name, output_flag );
+        for (int j=0 ; j<SCREEN_EFFECT_PARAMS ; j++)
+            writeInt( s.e.param[j], output_flag );
+    }
 }
 
 // A motion in the save (Version 18's and 33's): loop (1 + loop 4's key),
@@ -2086,6 +2221,7 @@ void ONScripter::loadSaveFileCons()
     clearScreenStack();
     clearScreenFilters();
     clearScreenEffects();
+    clearSpriteShakes( -1 );
     resetScriptVolumes(); // older saves have none: 100
     applyMusicVolume();
     for (int i=0 ; i<MAX_SPRITE_NUM ; i++){
@@ -2544,6 +2680,26 @@ void ONScripter::loadSaveFileCons()
         ai.motion_add = m;
         if (ai.motion_keys == 0) ai.motion_next = m->motion_start;
         stepMotionAdd( ai, m->motion_start );
+    }
+
+    if (version < 34) return;
+    num = readInt();
+    for (int n=0 ; n<num ; n++){
+        SpriteShake s;
+        memset( &s, 0, sizeof(s) );
+        s.no = readInt();
+        s.slot = readInt();
+        readStr( &s.e.map_name );
+        for (int j=0 ; j<SCREEN_EFFECT_PARAMS ; j++) s.e.param[j] = readInt();
+        if (s.no < 0 || s.no >= MAX_SPRITE_NUM || s.slot < 1 || s.slot > 2){
+            clearScreenEffect( s.e );
+            continue;
+        }
+        s.e.kind = SCREEN_EFFECT_SHAKE;
+        startScreenEffect( s.e );
+        if (s.e.kind == SCREEN_EFFECT_NONE) continue;
+        sprite_shakes.push_back( s );
+        updateSpriteShake( s.no, dirty_rect );
     }
 }
 

@@ -267,6 +267,7 @@ public:
     void setSkipScreens( const char *kinds );
     int spfreeCommand();
     int spwaveCommand();
+    int spshakeCommand();
     int spovertextCommand();
     int spblendCommand();
     int bitandCommand();
@@ -963,6 +964,17 @@ private:
     int screen_effect_flush_time;        // ticks of the last redraw proceedScreenEffects made
     bool screen_effect_pending = false;  // text drawn that the next redraw shows
     int screenEffectCommand( int kind, const char *name );
+    void readScreenEffect( int kind, int *param, char *&map_name );
+    void setScreenEffect( ScreenEffect &e, int kind, const int *param, char *map_name );
+    int runScreenEffect( ScreenEffect &e, int current_time, int trace_slot );
+    // CONscripter: spshake, screenshake's shake on one lsp sprite: slots 1
+    // and 2 per sprite, their offsets added where it is drawn
+    // (AnimationInfo::shake_dx)
+    struct SpriteShake { int no, slot; ScreenEffect e; };
+    std::vector<SpriteShake> sprite_shakes;
+    void clearSpriteShakes( int no, int slot = 0 );
+    void updateSpriteShake( int no, DirtyRect &changed );
+    void proceedSpriteShakes( int current_time, DirtyRect &changed );
     void startScreenEffect( ScreenEffect &e );
     void stepScreenEffect( ScreenEffect &e );
     void shakeOffset( ScreenEffect &e, int &dx, int &dy );
