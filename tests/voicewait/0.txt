@@ -1,0 +1,8 @@
+; Voice wait test: tests/voicewait/check.py writes v.wav (3 s), runs this with --auto-play and checks it ends.
+*define
+game
+*start
+dwave 0,"v.wav"
+`before !v2000 after@
+`next page\
+end
