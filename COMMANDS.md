@@ -1480,6 +1480,14 @@ Impl `ONScripter::waitCommand`, `delayCommand`.
 ### autooff [cons]
 `autooff` — leave auto mode (as a click would). Impl `ONScripter::autooffCommand`.
 
+### modelock [cons]
+`modelock bits[,mask]` — 1: skip refused (`systemcall skip`, the `s` key, Ctrl,
+the web page, a `select` keeping it); 2: auto mode refused (`systemcall
+automode`, `a`, the web page, `select`). Only the mask's bits change
+(all when left out). Setting 1 or 2 ends that mode. 0 lifts them; `reset`
+too. Saved (`CONS` block version 36).
+`modelock 3` (an ending's roll); `modelock 0,1` (skip again, auto kept). Impl `ONScripter::modelockCommand`.
+
 ## Saves
 
 ### savegame / savegame2

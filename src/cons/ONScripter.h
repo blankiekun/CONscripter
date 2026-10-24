@@ -435,6 +435,7 @@ public:
     int bgmlaterCommand();
     int getbgmposCommand();
     int autooffCommand();
+    int modelockCommand();
     int spcutCommand();
     int dwaveCommand();
     int dvCommand();
@@ -1549,6 +1550,8 @@ private:
 
     long internal_timer;
     bool automode_flag;
+    int  mode_lock; // CONscripter: modelock bits (MODE_LOCK_*)
+    enum { MODE_LOCK_SKIP = 1, MODE_LOCK_AUTO = 2 };
     long automode_time;
     long autoclick_time;
 

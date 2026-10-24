@@ -919,10 +919,12 @@ bool ONScripter::keyDownEvent( SDL_KeyboardEvent *event )
 
     switch ( event->keysym.sym ) {
       case SDLK_RCTRL:
+        if (mode_lock & MODE_LOCK_SKIP) break; // CONscripter: modelock
         ctrl_pressed_status  |= 0x01;
         sprintf(current_button_state.str, "CTRL");
         goto ctrl_pressed;
       case SDLK_LCTRL:
+        if (mode_lock & MODE_LOCK_SKIP) break; // CONscripter: modelock
         ctrl_pressed_status  |= 0x02;
         sprintf(current_button_state.str, "CTRL");
         goto ctrl_pressed;
@@ -1241,7 +1243,7 @@ bool ONScripter::keyPressEvent( SDL_KeyboardEvent *event )
     }
     
     if ( event_mode & WAIT_INPUT_MODE ){
-        if (event->keysym.sym == SDLK_s && !automode_flag ){
+        if (event->keysym.sym == SDLK_s && !automode_flag && !(mode_lock & MODE_LOCK_SKIP) ){
             skip_mode |= SKIP_NORMAL;
             utils::printInfo("toggle skip to true\n");
             stopAnimation( clickstr_state );
@@ -1260,7 +1262,7 @@ bool ONScripter::keyPressEvent( SDL_KeyboardEvent *event )
                 return true;
             }
         }
-        else if ( event->keysym.sym == SDLK_a && !automode_flag ){
+        else if ( event->keysym.sym == SDLK_a && !automode_flag && !(mode_lock & MODE_LOCK_AUTO) ){
             automode_flag = true;
             skip_mode &= ~SKIP_NORMAL;
             utils::printInfo("change to automode\n");
