@@ -690,6 +690,26 @@ int ONScripter::screenzoomCommand()
     return screenEffectCommand( SCREEN_EFFECT_ZOOM, "screenzoom" );
 }
 
+/* screenlens slot, x, y, diameter, curvature, distance, opacity
+ *            [, interval, "dx,dy dx,dy ...", loop]
+ *   A refraction disc (Nitroplus's CreateEffect "Lens") centred on x, y
+ *   (script px), the picture behind the text window seen through it, laid
+ *   over at opacity (0-255). curvature (1000 = 1.0) and distance shape it
+ *   as the original's $SYSTEM_effect_lens_curvature and _distance: R =
+ *   diameter / 2, K = R * curvature / 1000, a pixel d from the centre
+ *   takes the one f * (dx, dy) * 128 / (largest + 1) away, f = (sqrt(K² -
+ *   d²) - sqrt(K² - R²)) / (distance * R + sqrt(K² - d²) - sqrt(K² - R²)),
+ *   blended with its upper-left neighbours by the fraction. The map is
+ *   worked out once: the command again with only x, y or opacity changed
+ *   keeps it. With a list, the centre moves by each offset (script px) in
+ *   turn, the first at once and the next every interval ms; after the
+ *   last, loop 1 starts over, else the lens stays there.
+ *   "screenlens 1,500,300,1200,1000,10,128" */
+int ONScripter::screenlensCommand()
+{
+    return screenEffectCommand( SCREEN_EFFECT_LENS, "screenlens" );
+}
+
 // screenzoom's easing (the MAGES engine's): f(t) for t in 0..1.
 static double screenZoomEase( int ease, double power, double t )
 {
@@ -715,7 +735,14 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
     // would be shown as text.
     char *map_name = NULL;
     int param[SCREEN_EFFECT_PARAMS] = {0};
-    if (set){
+    if (set && kind == SCREEN_EFFECT_LENS){
+        // param: 0, interval, x, y, diameter, curvature, distance, opacity, loop
+        for (int i=2 ; i<8 ; i++) param[i] = script_h.readInt();
+        if (script_h.getEndStatus() & ScriptHandler::END_COMMA) param[1] = script_h.readInt();
+        if (script_h.getEndStatus() & ScriptHandler::END_COMMA) setStr( &map_name, script_h.readStr() );
+        if (script_h.getEndStatus() & ScriptHandler::END_COMMA) param[8] = script_h.readInt();
+    }
+    else if (set){
         if (kind == SCREEN_EFFECT_RIPPLE) setStr( &map_name, script_h.readStr() );
         // Nine numbers, then optional ones (screenripple's blend and phase, screenshake's end).
         for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++){
@@ -747,7 +774,20 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
 
     ScreenEffect &e = screen_effect[slot-1];
     if (e.kind == SCREEN_EFFECT_SHAKE) traceShake( slot, "replaced", e.ran );
+    // a lens moved or faded keeps its map (the same shape)
+    LensCell *lens = NULL;
+    int lens_key[4];
+    if (kind == SCREEN_EFFECT_LENS && e.kind == SCREEN_EFFECT_LENS && e.lens &&
+        e.param[4] == param[4] && e.param[5] == param[5] && e.param[6] == param[6]){
+        lens = e.lens;
+        memcpy( lens_key, e.lens_key, sizeof(lens_key) );
+        e.lens = NULL;
+    }
     clearScreenEffect( e );
+    if (lens){
+        e.lens = lens;
+        memcpy( e.lens_key, lens_key, sizeof(lens_key) );
+    }
     e.map_name = map_name;
     for (int i=0 ; i<SCREEN_EFFECT_PARAMS ; i++) e.param[i] = param[i];
     e.kind = kind;
@@ -757,6 +797,7 @@ int ONScripter::screenEffectCommand( int kind, const char *name )
         e.param[11] = speedTime( e.param[11] );
         if (e.param[2] == 3) e.param[1] = speedTime( e.param[1] ); // a list: its steps too
     }
+    if (kind == SCREEN_EFFECT_LENS) e.param[1] = speedTime( e.param[1] );
     startScreenEffect( e );
     if (e.kind == SCREEN_EFFECT_SHAKE) traceShake( slot, NULL, e.param[9] );
     dirty_rect.fill( screen_width, screen_height );
@@ -804,7 +845,7 @@ void ONScripter::startScreenEffect( ScreenEffect &e )
     delete[] e.list;
     e.list = NULL;
     e.list_n = 0;
-    if (e.kind == SCREEN_EFFECT_SHAKE && p[2] == 3 && e.map_name){
+    if ((e.kind == SCREEN_EFFECT_SHAKE && p[2] == 3 && e.map_name) || (e.kind == SCREEN_EFFECT_LENS && e.map_name && *e.map_name)){
         std::vector<int> v;
         for (const char *c = e.map_name ; *c ; ){
             if ((*c >= '0' && *c <= '9') || (*c == '-' && c[1] >= '0' && c[1] <= '9')){
@@ -816,12 +857,16 @@ void ONScripter::startScreenEffect( ScreenEffect &e )
         }
         e.list_n = (int)v.size() / 2;
         if (e.list_n == 0){
-            utils::printError("screenshake: no offsets in \"%s\"\n", e.map_name);
-            clearScreenEffect( e );
-            return;
+            utils::printError("%s: no offsets in \"%s\"\n", e.kind == SCREEN_EFFECT_LENS ? "screenlens" : "screenshake", e.map_name);
+            if (e.kind != SCREEN_EFFECT_LENS){
+                clearScreenEffect( e );
+                return;
+            }
         }
-        e.list = new int[e.list_n * 2];
-        for (int i=0 ; i<e.list_n * 2 ; i++) e.list[i] = v[i];
+        else{
+            e.list = new int[e.list_n * 2];
+            for (int i=0 ; i<e.list_n * 2 ; i++) e.list[i] = v[i];
+        }
         // a delay: no offset until it is over, then the first
         if (p[11] > 0){
             e.point = -1;
@@ -850,7 +895,11 @@ void ONScripter::stepScreenEffect( ScreenEffect &e )
     if (e.elapsed > time) e.elapsed = time;
     int t = (time > 0) ? (int)((long long)e.elapsed * 256 / time) : 256;
 
-    if (e.kind == SCREEN_EFFECT_SHAKE && p[2] == 3){
+    if (e.kind == SCREEN_EFFECT_LENS){
+        // the next offset of its list; after the last, the first again with loop
+        if (++e.point >= e.list_n) e.point = p[8] ? 0 : e.list_n - 1;
+    }
+    else if (e.kind == SCREEN_EFFECT_SHAKE && p[2] == 3){
         // the next offset of the list; its end: again from the first with loop
         if (e.point < 0) e.ran = e.elapsed = 0; // the delay's end: the list starts now
         if (++e.point >= e.list_n && p[3]) e.point = 0;
@@ -889,6 +938,8 @@ void ONScripter::clearScreenEffect( ScreenEffect &e )
     delete[] e.list;
     e.list = NULL;
     e.list_n = 0;
+    delete[] e.lens;
+    e.lens = NULL;
     e.kind = SCREEN_EFFECT_NONE;
     e.map_name = NULL;
     e.map = NULL;
@@ -900,6 +951,12 @@ void ONScripter::clearScreenEffects()
 {
     for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++)
         clearScreenEffect( screen_effect[i] );
+}
+
+// Whether a lens has offsets still to step through (a still one takes no steps).
+bool ONScripter::lensMoves( ScreenEffect &e )
+{
+    return e.list_n > 0 && (e.param[8] || e.point < e.list_n - 1);
 }
 
 bool ONScripter::screenEffectActive()
@@ -916,6 +973,7 @@ int ONScripter::nextScreenEffectTime()
     for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
         ScreenEffect &e = screen_effect[i];
         if (e.kind == SCREEN_EFFECT_NONE) continue;
+        if (e.kind == SCREEN_EFFECT_LENS && !lensMoves( e )) continue;
         if (min == 0 || min > e.next_step) min = e.next_step;
     }
     if (min && min - screen_effect_flush_time < FRAME_MS) min = screen_effect_flush_time + FRAME_MS;
@@ -933,6 +991,7 @@ void ONScripter::proceedScreenEffects( int current_time )
     for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
         ScreenEffect &e = screen_effect[i];
         if (e.kind == SCREEN_EFFECT_NONE) continue;
+        if (e.kind == SCREEN_EFFECT_LENS && !lensMoves( e )) continue;
         // After a long stop (a menu, a load) go on from now.
         if (current_time - e.next_step > 1000) e.next_step = current_time;
         bool stepped = false;
@@ -1016,6 +1075,7 @@ void ONScripter::screenEffectLook( ScreenEffect &e, int look[4] )
     else if (e.kind == SCREEN_EFFECT_RIPPLE){
         look[0] = e.opacity; look[1] = e.amp; look[2] = e.angle; look[3] = e.phase;
     }
+    else if (e.kind == SCREEN_EFFECT_LENS) lensOffset( e, look[0], look[1] );
     else look[0] = e.elapsed; // zoom, pulse
 }
 
@@ -1121,6 +1181,7 @@ void ONScripter::applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip )
                 }
             }
         }
+        else if (e.kind == SCREEN_EFFECT_LENS) applyLens( e, buf, pitch, copy, w, h, clip );
         else if (e.kind == SCREEN_EFFECT_RIPPLE){
             double amp = e.amp / 65536.0 * screen_ratio1 / screen_ratio2;
             double th = M_PI * 2 * e.angle / 3600;
@@ -1165,6 +1226,108 @@ void ONScripter::applyScreenEffects( SDL_Surface *surface, SDL_Rect &clip )
         SDL_UnlockSurface( surface );
     }
     delete[] copy;
+}
+
+// Where its list has moved a lens, in script pixels.
+void ONScripter::lensOffset( ScreenEffect &e, int &dx, int &dy )
+{
+    dx = dy = 0;
+    if (e.list && e.point >= 0 && e.point < e.list_n){
+        dx = e.list[e.point * 2];
+        dy = e.list[e.point * 2 + 1];
+    }
+}
+
+// The lens over the picture (CreateEffect "Lens"; init 004338f0, draw
+// 004409f0 of Muramasa.exe), worked out at screen size.
+void ONScripter::applyLens( ScreenEffect &e, ONSBuf *buf, int pitch, ONSBuf *copy, int w, int h, SDL_Rect &clip )
+{
+    int *p = e.param;
+    int n = p[4] * screen_ratio1 / screen_ratio2; // diameter, screen px
+    if (n < 2 || n > 8192) return;
+    int key[4] = { n, p[5], p[6], screen_ratio1 * 65536 / screen_ratio2 };
+    if (e.lens && memcmp( key, e.lens_key, sizeof(key) ) != 0){
+        delete[] e.lens;
+        e.lens = NULL;
+    }
+    if (e.lens == NULL){
+        e.lens = new LensCell[n * n];
+        memcpy( e.lens_key, key, sizeof(key) );
+        // the original's: R the half (rounded down), from pixel corners
+        double r = n >> 1, k = r * (p[5] ? p[5] / 1000.0 : 1.0), dist = p[6] ? p[6] : 1.0;
+        double edge = sqrt( std::max(0.0, k * k - r * r) );
+        std::vector<double> f( n * n, 0 );
+        double max_x = 0, max_y = 0;
+        for (int y=0 ; y<n ; y++){
+            double ry = y - r;
+            for (int x=0 ; x<n ; x++){
+                double rx = x - r;
+                if (rx * rx + ry * ry >= r * r) continue;
+                double a = sqrt( std::max(0.0, k * k - rx * rx - ry * ry) ) - edge;
+                double v = a / (dist * r + a);
+                f[y * n + x] = v;
+                max_x = std::max(max_x, fabs( v * rx ));
+                max_y = std::max(max_y, fabs( v * ry ));
+            }
+        }
+        // the largest offset just under 128 script px
+        double most = 128.0 * screen_ratio1 / screen_ratio2;
+        for (int y=0 ; y<n ; y++){
+            double ry = y - r;
+            for (int x=0 ; x<n ; x++){
+                double rx = x - r;
+                LensCell &c = e.lens[y * n + x];
+                c.in = rx * rx + ry * ry < r * r;
+                c.dx = c.dy = 0;
+                c.wx = c.wy = 0;
+                if (!c.in) continue;
+                double v = f[y * n + x];
+                double ox = v * rx * (most / (max_x + 1)), oy = v * ry * (most / (max_y + 1));
+                int ix = (int)floor( ox ), iy = (int)floor( oy );
+                // an offset out of the disc's square: none (the fraction stays)
+                c.dx = (x + ix < 0 || x + ix >= n) ? 0 : ix;
+                c.dy = (y + iy < 0 || y + iy >= n) ? 0 : iy;
+                c.wx = (unsigned char)((int)nearbyint( (ox - ix) * 255 ) & 0xff);
+                c.wy = (unsigned char)((int)nearbyint( (oy - iy) * 255 ) & 0xff);
+            }
+        }
+    }
+
+    int mx, my;
+    lensOffset( e, mx, my );
+    int left = (p[2] + mx) * screen_ratio1 / screen_ratio2 - (n >> 1);
+    int top = (p[3] + my) * screen_ratio1 / screen_ratio2 - (n >> 1);
+    int opa = p[7] < 0 ? 0 : p[7] > 255 ? 255 : p[7];
+    if (opa == 0) return;
+    int x0 = std::max(clip.x, left), x1 = std::min(clip.x + clip.w, left + n);
+    int y0 = std::max(clip.y, top), y1 = std::min(clip.y + clip.h, top + n);
+    for (int y=y0 ; y<y1 ; y++){
+        ONSBuf *dst = buf + y * pitch;
+        const LensCell *row = e.lens + (y - top) * n - left;
+        for (int x=x0 ; x<x1 ; x++){
+            const LensCell &c = row[x];
+            if (!c.in) continue;
+            // the original's sampling: the pixel and its upper-left
+            // neighbours, each weighted product rounded down
+            int sx = x + c.dx, sy = y + c.dy;
+            sx = sx < 1 ? 1 : sx >= w ? w - 1 : sx;
+            sy = sy < 1 ? 1 : sy >= h ? h - 1 : sy;
+            const ONSBuf *s0 = copy + sy * w + sx, *s1 = s0 - w;
+            int ax = 255 - c.wx, bx = c.wx, ay = 255 - c.wy, by = c.wy;
+            ONSBuf org = copy[y * w + x], out = 0;
+            for (int sh=0 ; sh<32 ; sh+=8){
+                int lo = ((((s0[0] >> sh) & 0xff) * ax) >> 8) + ((((s0[-1] >> sh) & 0xff) * bx) >> 8);
+                int up = ((((s1[0] >> sh) & 0xff) * ax) >> 8) + ((((s1[-1] >> sh) & 0xff) * bx) >> 8);
+                int v = ((lo * ay) >> 8) + ((up * by) >> 8);
+                if (opa < 255){
+                    int o = (org >> sh) & 0xff;
+                    v = o + (v - o) * opa / 255;
+                }
+                out |= (ONSBuf)v << sh;
+            }
+            dst[x] = (org & 0xff000000) | (out & 0xffffff);
+        }
+    }
 }
 
 static bool sameStr( const char *a, const char *b )

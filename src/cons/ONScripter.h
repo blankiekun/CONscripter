@@ -290,6 +290,7 @@ public:
     int screenrippleCommand();
     int screenpulseCommand();
     int screenzoomCommand();
+    int screenlensCommand();
     int windowtransCommand();
     int windowfadeCommand();
     int languageCommand(); // CONscripter: the text's language, for the web page
@@ -930,7 +931,12 @@ private:
     // CONscripter: animated effects on the same picture (screenshake,
     // screenripple, screenpulse), by slot, stepped like sprite animations
     enum { MAX_SCREEN_EFFECT = 8, SCREEN_EFFECT_PARAMS = 12 };
-    enum { SCREEN_EFFECT_NONE = 0, SCREEN_EFFECT_SHAKE = 1, SCREEN_EFFECT_RIPPLE = 2, SCREEN_EFFECT_PULSE = 3, SCREEN_EFFECT_ZOOM = 4 };
+    enum { SCREEN_EFFECT_NONE = 0, SCREEN_EFFECT_SHAKE = 1, SCREEN_EFFECT_RIPPLE = 2, SCREEN_EFFECT_PULSE = 3, SCREEN_EFFECT_ZOOM = 4, SCREEN_EFFECT_LENS = 5 };
+    struct LensCell {                    // screenlens: the map's cell for a pixel of the disc
+        short dx, dy;                    // the pixel it takes, this far away (screen px)
+        unsigned char wx, wy;            // how much of its left / upper neighbour (0-255)
+        unsigned char in;                // inside the disc
+    };
     struct ScreenEffect {
         int kind;
         int param[SCREEN_EFFECT_PARAMS]; // the command's numbers after the slot (and map)
@@ -949,6 +955,8 @@ private:
         ONSBuf *snap;                    // pulse: the tinted picture when it started
         int snap_w, snap_h;
         int drawn[4];                    // its look when last flushed (proceedScreenEffects)
+        LensCell *lens;                  // lens: the refraction map, diameter² cells
+        int lens_key[4];                 // its diameter, curvature, distance (screen px), ratio
     };
     ScreenEffect screen_effect[MAX_SCREEN_EFFECT];
     enum { FRAME_MS = 16 };              // effects draw at most once per this (60 Hz)
@@ -961,6 +969,9 @@ private:
     void screenEffectLook( ScreenEffect &e, int look[4] );
     void clearScreenEffect( ScreenEffect &e );
     void clearScreenEffects();
+    bool lensMoves( ScreenEffect &e );
+    void lensOffset( ScreenEffect &e, int &dx, int &dy );
+    void applyLens( ScreenEffect &e, ONSBuf *buf, int pitch, ONSBuf *copy, int w, int h, SDL_Rect &clip );
     bool screenEffectActive();
     int nextScreenEffectTime();
     void proceedScreenEffects( int current_time );

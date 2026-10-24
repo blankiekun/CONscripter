@@ -780,7 +780,7 @@ static const struct { const char *name; int kind; } trace_commands[] = {
     {"mp3fadein",2}, {"bgmfadein",2}, {"chvolfade",2}, {"bgmlater",2}, {"dwavefadein",2}, {"chvol",2}, {"chpan",2}, {"chfreq",2},
     {"consset",2}, {"btnse",2},
     {"wait",2}, {"delay",2}, // timed waits: their end, so a trace times the command before them apart from them
-    {"screenfilter",5}, {"screenshake",5}, {"screenripple",5}, {"screenpulse",5}, {"screenzoom",5},
+    {"screenfilter",5}, {"screenshake",5}, {"screenripple",5}, {"screenpulse",5}, {"screenzoom",5}, {"screenlens",5},
     {"pushscreen",5}, {"monocro",5}, {"nega",5}, {"quake",5}, {"quakex",5}, {"quakey",5},
     {"allsphide",5}, {"allspresume",5}, {"allsp2hide",5}, {"allsp2resume",5}, {"windowtrans",5}, {"windowfade",5}, {"screenflash",5},
     {"print",3},
@@ -1090,7 +1090,7 @@ void ONScripter::tracePage( bool dump )
     for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
         ScreenEffect &e = screen_effect[i];
         if (e.kind == SCREEN_EFFECT_NONE) continue;
-        static const char *names[] = { "", "shake", "ripple", "pulse", "zoom" };
+        static const char *names[] = { "", "shake", "ripple", "pulse", "zoom", "lens" };
         r += listed ? "," : ",\"fx\":[";
         listed = true;
         snprintf( buf, sizeof(buf), "{\"slot\":%d,\"kind\":\"%s\"", i+1, names[e.kind] );

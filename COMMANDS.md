@@ -716,7 +716,7 @@ everything, window and buttons included (not under `lsp2add`). Follow with
 `screenflash 128:print 1:delay 100:screenflash 0:print 1`.
 Impl `ONScripter::screenflashCommand`.
 
-### screenshake / screenripple / screenpulse / screenzoom [cons]
+### screenshake / screenripple / screenpulse / screenzoom / screenlens [cons]
 Self-running effects on the `screenfilter` picture (after the filters) while
 the script goes on. Slots 1-8 shared; a command with only a slot clears it,
 slot 0 clears all. Each steps every `interval` ms; sizes go from the first to
@@ -752,6 +752,18 @@ the whole screen. All go through `ONScripter::screenEffectCommand`.
   frozen copy zoomed from 1 to zoom/1000 and its centre moved to x,y over
   zoom_time (ease 0 linear, 1 in, 2 out, 3 in-out, power/1000, MAGES curves),
   faded in over fade_in, held until cleared. zoom 1000 = freeze frame.
+- `screenlens slot,x,y,diameter,curvature,distance,opacity[,interval,"dx,dy ...",loop]`
+  — a refraction disc centred on x,y (Nitroplus CreateEffect "Lens", as
+  Muramasa.exe 004338f0/004409f0): R = diameter/2, K = R × curvature/1000,
+  each pixel d from the centre takes the one f × (dx,dy) × 128/(largest+1)
+  away, f = (√(K²−d²) − √(K²−R²)) / (distance × R + √(K²−d²) − √(K²−R²)),
+  blended with its upper-left neighbours; laid over at opacity (0-255).
+  The map is made once: the command again with the same diameter,
+  curvature and distance (other x,y or opacity) keeps it. The list moves
+  the centre by each offset, the next every `interval` ms; after the last,
+  `loop` 1 starts over, else it stays. Ours: the whole screen below the
+  text window, not only what lies below the original's z.
+  `screenlens 1,500,300,1200,1000,10,128`.
 
 ## Sprites
 
