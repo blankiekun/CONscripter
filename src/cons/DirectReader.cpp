@@ -312,7 +312,11 @@ FILE *DirectReader::getFileHandle( const char *file_name, int &compression_type,
 
     for ( i=0 ; i<len ; i++ ){
         if ( capital_name[i] == '/' || capital_name[i] == '\\' ) capital_name[i] = (char)DELIMITER;
-        if ( (unsigned char)capital_name[i] > 0x80 ) i++;
+        // CONscripter: a Shift_JIS lead byte takes its trail byte (which can
+        // be '\\') along; UTF-8 has no '\\' inside a character, and skipping
+        // its 3-byte characters by pairs left the '\\' after an odd number of
+        // them as it was (`cg\cp\mura\自機カウンター\00.webp`: not found).
+        if ( (unsigned char)capital_name[i] > 0x80 && !coding2utf16->force_utf8 ) i++;
     }
 
 #if defined(UTF8_FILESYSTEM)
