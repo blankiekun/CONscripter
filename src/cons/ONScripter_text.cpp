@@ -1316,6 +1316,10 @@ bool ONScripter::processText()
                 if (played < 0 || played >= t) break;
                 event_mode = WAIT_TIMER_MODE | WAIT_INPUT_MODE;
                 if (waitEvent( t - played < 50 ? t - played : 50 )) break;
+                // auto-play answers the wait as a click, which waitEvent
+                // doesn't return (a real click sets skip_mode); in
+                // --real-time the voice plays out as for a reader
+                if (auto_play_flag && !auto_play_real) break;
             }
         }
         else if ( script_h.getStringBuffer()[ string_buffer_offset ] == 'w' ||
