@@ -703,7 +703,8 @@ int ONScripter::screenzoomCommand()
  *   worked out once: the command again with only x, y or opacity changed
  *   keeps it. With a list, the centre moves by each offset (script px) in
  *   turn, the first at once and the next every interval ms; after the
- *   last, loop 1 starts over, else the lens stays there.
+ *   last, loop 1 starts over, else the lens stays there. A load starts
+ *   the list again from its first offset (as screenshake mode 3).
  *   "screenlens 1,500,300,1200,1000,10,128" */
 int ONScripter::screenlensCommand()
 {
