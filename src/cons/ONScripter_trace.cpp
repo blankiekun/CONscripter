@@ -2517,7 +2517,7 @@ void ONScripter::traceVarsSetup( bool names )
     for (const char *p = trace_vars_spec ; p && *p ; ){
         bool str = (*p == '$');
         if (*p == '$' || *p == '%') p++;
-        bool name = isalpha( (unsigned char)*p ) || *p == '_'; // defvar, defstr's: once the define section declared it
+        bool name = isalpha( (unsigned char)*p ) || *p == '_'; // defvar, defstr, numalias names: once the define section declared them
         if (name != names){ // the other pass's
             p = strchr( p, ',' );
             if (p) p++;

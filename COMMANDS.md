@@ -191,6 +191,9 @@ Impl `ScriptParser::addCommand` etc.
 ### numalias / stralias (define)
 `numalias name,n`, `stralias name,"s"` — named constants.
 Impl `ScriptParser::numaliasCommand`, `straliasCommand`.
+[cons] `--trace-vars f1104` and a `--vars` line `%f1104=1` take a
+`numalias` name for its `%` variable; trace records keep the number
+(`%237`) ([DEBUG.md](DEBUG.md)).
 
 ### defvar / defstr / defarr [cons]
 `defvar name[,default][,global]`, `defstr name[,"default"][,global]`,
