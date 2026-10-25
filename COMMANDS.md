@@ -789,9 +789,9 @@ the whole screen. All go through `ONScripter::screenEffectCommand`.
   The map is made once: the command again with the same diameter,
   curvature and distance (other x,y or opacity) keeps it. The list moves
   the centre by each offset, the next every `interval` ms; after the last,
-  `loop` 1 starts over, else it stays. A load starts the list again from
-  its first offset, as `screenshake` mode 3: n ms after a load it is where
-  it was n ms after the command, not where it was when saved. Ours: the
+  `loop` 1 starts over, else it stays. A load puts it back at the offset
+  it stood at when saved and steps on from there (unlike `screenshake`
+  mode 3, whose list starts again from the first). Ours: the
   whole screen below the text window, not only what lies below the
   original's z. `screenlens 1,500,300,1200,1000,10,128`.
 

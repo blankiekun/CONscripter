@@ -51,7 +51,7 @@
 // written without it (stock ONScripter, older CONscripter) end before it,
 // and readInt() returns 0 past the end of the data.
 #define CONS_SAVE_MAGIC   0x534e4f43 // "CONS"
-#define CONS_SAVE_VERSION 36 // the "Version n" comments below name the parts in the order they are
+#define CONS_SAVE_VERSION 37 // the "Version n" comments below name the parts in the order they are
                             // written (version 26's first). A new part goes at the end; loading
                             // reads the parts an older save has and leaves the rest at their defaults
 #define CONS_SAVE_OLDEST  18 // the oldest block loading reads: version 18 reshaped earlier parts
@@ -721,8 +721,8 @@ int ONScripter::screenzoomCommand()
  *   worked out once: the command again with only x, y or opacity changed
  *   keeps it. With a list, the centre moves by each offset (script px) in
  *   turn, the first at once and the next every interval ms; after the
- *   last, loop 1 starts over, else the lens stays there. A load starts
- *   the list again from its first offset (as screenshake mode 3).
+ *   last, loop 1 starts over, else the lens stays there. A load puts it
+ *   back at the offset it stood at when saved (Version 37).
  *   "screenlens 1,500,300,1200,1000,10,128" */
 int ONScripter::screenlensCommand()
 {
@@ -2127,6 +2127,15 @@ void ONScripter::saveSaveFileCons( bool output_flag )
 
     // Version 36: modelock's bits.
     writeInt( mode_lock, output_flag );
+
+    // Version 37: where each screen effect slot's lens is in its offset
+    // list (Version 4 restarts it from the first): the count, then the
+    // points, -1 for a slot without a lens list.
+    writeInt( MAX_SCREEN_EFFECT, output_flag );
+    for (int i=0 ; i<MAX_SCREEN_EFFECT ; i++){
+        ScreenEffect &e = screen_effect[i];
+        writeInt( (e.kind == SCREEN_EFFECT_LENS && e.list_n > 0) ? e.point : -1, output_flag );
+    }
 }
 
 // A motion in the save (Version 18's and 33's): loop (1 + loop 4's key),
@@ -2735,6 +2744,15 @@ void ONScripter::loadSaveFileCons()
 
     if (version < 36) return;
     mode_lock = readInt() & (MODE_LOCK_SKIP | MODE_LOCK_AUTO);
+
+    if (version < 37) return;
+    num = readInt();
+    for (int i=0 ; i<num ; i++){
+        int point = readInt();
+        if (i >= MAX_SCREEN_EFFECT) continue;
+        ScreenEffect &e = screen_effect[i];
+        if (e.kind == SCREEN_EFFECT_LENS && point >= 0 && point < e.list_n) e.point = point;
+    }
 }
 
 /* --save-dir path: makes the folder, and the folders it is in, if they

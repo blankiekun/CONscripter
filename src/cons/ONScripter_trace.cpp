@@ -1103,6 +1103,10 @@ void ONScripter::tracePage( bool dump )
             r += ",\"map\":";
             traceString( r, e.map_name );
         }
+        if (e.kind == SCREEN_EFFECT_LENS && e.list_n > 0){
+            snprintf( buf, sizeof(buf), ",\"point\":%d", e.point );
+            r += buf;
+        }
         r += '}';
     }
     if (listed) r += ']';

@@ -612,7 +612,7 @@ handles the wait.
 | `nega` | The `nega` mode, while it is on |
 | `flash` | `[opacity, "#rrggbb"]` while a `screenflash` is on |
 | `filters` | The `screenfilter` slots in use: `{"slot","kind","blend","strength","p":[p1,p2,p3]}`, with `"z"` when it has one (see COMMANDS.md) |
-| `fx` | The `screenshake`/`screenripple`/`screenpulse` slots in use: `{"slot","kind":"shake"\|"ripple"\|"pulse"}`, with the ripple's `map` and a shake's `end` (ms) when it has one; a timed wait skipped by auto-play still counts toward that end |
+| `fx` | The `screenshake`/`screenripple`/`screenpulse` slots in use: `{"slot","kind":"shake"\|"ripple"\|"pulse"}`, with the ripple's `map` and a shake's `end` (ms) when it has one, a lens's offset list as `map` and the offset it stands at as `point`; a timed wait skipped by auto-play still counts toward that end |
 | `shot` | The picture saved of this page (`--shot-pages`, `--shot-every`) |
 | `sprites_hidden` | `true` while `allsphide` hides the `lsp` and `ld` sprites (they are still listed); `sprites2_hidden` likewise for `allsp2hide` and `lsp2` |
 | `sp` | Every visible sprite, in the order: `lsp` 0-999, `lsp2` 0-255, `ld` (0 left, 1 centre, 2 right). A lower `lsp` number is drawn in front |

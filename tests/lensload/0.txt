@@ -1,0 +1,15 @@
+; tests/lensload/check.py: a lens whose list has ended (at its last
+; offset) across a load
+*define
+game
+*start
+bg #204080,1
+lsp 1,":s/48,48,0;#ffffffABCDEFGHIJ",20,100
+lsp 2,":s/48,48,0;#ffff00KLMNOPQRST",20,200
+lsp 3,":s/48,48,0;#00ff00UVWXYZ0123",20,300
+screenlens 1,200,240,300,1000,10,255,2000,"0,0 200,0",0
+print 1
+wait 2500
+`one\
+`two\
+end
