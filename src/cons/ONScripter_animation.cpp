@@ -519,7 +519,13 @@ void ONScripter::drawTaggedSurface( SDL_Surface *dst_surface, AnimationInfo *ani
   if (anim->trans_mode == AnimationInfo::TRANS_LAYER) {
     if (anim->layer_no >= 0) {
       LayerInfo *tmp = &layer_info[anim->layer_no];
-      if (tmp->handler) tmp->handler->refresh(dst_surface, clip);
+      if (tmp->handler){
+        // CONscripter: spfadeto/spmask: a particle layer masked as a picture is
+        std::vector<Uint32> mask_saved;
+        if (anim->screen_mask >= 0) screenMaskBlend( dst_surface, anim, clip, mask_saved, false );
+        tmp->handler->refresh(dst_surface, clip);
+        if (anim->screen_mask >= 0) screenMaskBlend( dst_surface, anim, clip, mask_saved, true );
+      }
     }
     return;
   }

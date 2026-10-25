@@ -1093,7 +1093,8 @@ sat(k(n − u) + u·n), k = 2000 ÷ softness, n the level ÷ 1000. `curve` as
 stays masked (0: hidden). Multiplies the sprite's own alpha; drawn by
 `spmask`'s path, so `spmask` and `csp` end it. Stays through `lsp`, saved
 (going on after a load), not kept by `pushscreen`; under `--auto-play` it
-ends at once. Nitroplus's `DrawTransition`.
+ends at once. A particle layer (a builtin layer such as `rain`) is masked
+as a picture is (`spmask` too). Nitroplus's `DrawTransition`.
 `lsp 20,"a.png",0,0:spfadeto 20,"wipe.png",800,0,1000,100:print 1:wait 800`.
 Impl `ONScripter::spfadetoCommand`.
 
