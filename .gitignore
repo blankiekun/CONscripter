@@ -20,3 +20,4 @@ src/cons_android/app/cpp/thirdparty/**
 src/cons_android/app/.cxx/**
 src/cons_android/app/debug/**
 src/cons_android/app/release/**
+__pycache__/
