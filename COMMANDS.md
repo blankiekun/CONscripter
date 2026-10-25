@@ -402,8 +402,10 @@ every live particle as `x:y:class:alpha;` (string). Keys (`a:b` lists;
 - `dx=lo:hi` each particle on its own path: from its birth point to (that
   x + lo + U·(hi-lo), `ey=y`), moving vy (by class) a step along y, and at
   the end back to its own start (no rebirth); walk, drift, end, box are not
-  used. `swing=s`: a cubic Bezier instead, control points s left of both
-  ends at 1/4 of the height and s right of them at 3/4 (one S sway).
+  used. `swing=s`: a cubic Bezier instead, control points at y = ey/4 and
+  3·ey/4 (whole numbers, from 0), s left of both ends at the first and s
+  right of them at the second (one S sway), the other way round for every
+  other particle.
 - `cscale=a:b:...` drawn size in ‰ by class (spread as vy), about the cell's
   centre.
 - `spin=mx:my:mz:k` particle i turns ((i mod m) + 1)·k degrees a step about

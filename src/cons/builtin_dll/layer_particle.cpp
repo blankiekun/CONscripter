@@ -379,8 +379,11 @@ float ParticleLayer::byClass(const std::vector<float> &v, const Pt &p) const
 }
 
 // the point pt along p's path: a line from its start to (start x + dx, ey),
-// or with swing a cubic Bezier whose control points are swing left of both
-// ends at 1/4 of the height and swing right of them at 3/4 (one S sway)
+// or with swing a cubic Bezier whose control points sit at y = ey/4 and
+// 3ey/4 (whole numbers, measured from 0, not from the start), swing left of
+// both ends at the first and swing right of them at the second (one S
+// sway), mirrored for every other particle (Muramasa.exe 00434200 calling
+// 00414260: ey>>2, (ey>>1)+(ey>>2); the side by its per-drop seed's parity)
 void ParticleLayer::pathPos(Pt &p)
 {
   const float len = prm.ey - p.py, u = len > 0 ? p.pt / len : 0;
@@ -390,8 +393,11 @@ void ParticleLayer::pathPos(Pt &p)
     p.y = p.py + p.pt;
     return;
   }
-  const float x1 = (p.px < xe ? p.px : xe) - prm.swing, x2 = (p.px > xe ? p.px : xe) + prm.swing;
-  const float y1 = p.py + len / 4, y2 = p.py + len * 3 / 4;
+  const float lo = (p.px < xe ? p.px : xe) - prm.swing, hi = (p.px > xe ? p.px : xe) + prm.swing;
+  const bool flip = ((&p - pts.data()) & 1) == 0;
+  const float x1 = flip ? hi : lo, x2 = flip ? lo : hi;
+  const int ey = (int)prm.ey;
+  const float y1 = (float)(ey >> 2), y2 = (float)((ey >> 1) + (ey >> 2));
   const float a = 1 - u, b0 = a * a * a, b1 = 3 * a * a * u, b2 = 3 * a * u * u, b3 = u * u * u;
   p.x = b0 * p.px + b1 * x1 + b2 * x2 + b3 * xe;
   p.y = b0 * p.py + b1 * y1 + b2 * y2 + b3 * prm.ey;
