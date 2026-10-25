@@ -215,6 +215,15 @@ def script_lines(path, utf8):
     return lines
 
 
+def script_numaliases(path):
+    """{name: number} from the script's `numalias name,n` lines, names lower-cased as the engine does."""
+    out = {}
+    for line in script_lines(path, False):
+        for m in re.finditer(r'(?:^|:)\s*numalias\s+([A-Za-z_]\w*)\s*,\s*(-?\d+)', line, re.I):
+            out.setdefault(m.group(1).lower(), int(m.group(2)))
+    return out
+
+
 def script_labels(lines):
     """[(line number, label)] for each label in the script, lower-cased as the engine does."""
     out = []
@@ -1314,6 +1323,13 @@ def apply_config(ap, args):
         if getattr(args, key) is None:
             setattr(args, key, v)
     args.known = known
+    names = [e for e in args.engine_vars if e['var'] and e['var'][0] == '%' and not e['var'][1:].isdigit()]
+    if names and args.script:  # numalias names: trace records carry the number
+        aliases = script_numaliases(args.script)
+        for e in names:
+            n = aliases.get(e['var'][1:].lower())
+            if n is not None:
+                e['var'] = '%%%d' % n
 
 
 def main():

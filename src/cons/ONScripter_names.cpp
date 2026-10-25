@@ -234,8 +234,8 @@ void ScriptParser::namedEntries( std::vector<NamedEntry> &out )
     }
 }
 
-/* "%name", "$name" or "?name[i]" (the leading character may be left out):
- * where its number is (% and ?; for $ the slot's num), NULL when no such
+/* "%name", "$name" or "?name[i]" (the leading character may be left out;
+ * a numalias name is its % variable): where its number is (% and ?; for $ the slot's num), NULL when no such
  * name; kind gets '%', '$' or '?', no the slot. */
 int *ScriptParser::namedSlot( const char *key, char *kind, int *no )
 {
@@ -243,6 +243,13 @@ int *ScriptParser::namedSlot( const char *key, char *kind, int *no )
     std::string name;
     while (isalnum( (unsigned char)*key ) || *key == '_') name += (char)tolower( (unsigned char)*key++ );
     const NamedVar *v = findNamedVar( name.c_str() );
+    if (!v && k != '$' && k != '?'){ // a plain numalias name: its % variable
+        int n;
+        if (!script_h.findNumAlias( name.c_str(), &n ) || n < 0 || n >= script_h.variable_range) return NULL;
+        *kind = '%';
+        *no = n;
+        return &script_h.getVariableData( n ).num;
+    }
     if (!v || (k && k != v->kind)) return NULL;
     *kind = v->kind;
     *no = v->no;

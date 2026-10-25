@@ -41,7 +41,7 @@ Other options add to what the trace holds:
 
 | Option | Adds |
 |---|---|
-| `--trace-vars 300-899,$10-20` | a `var` record for each change of these variables: numbers alone are `%` variables, `$` before the strings; numbers and ranges, comma-separated (0 to the script's `numalias` range, 4096 by default); a `defvar` or `defstr` name (`%score`, `$who`) watches that one, recorded under its name |
+| `--trace-vars 300-899,$10-20` | a `var` record for each change of these variables: numbers alone are `%` variables, `$` before the strings; numbers and ranges, comma-separated (0 to the script's `numalias` range, 4096 by default); a `defvar` or `defstr` name (`%score`, `$who`) watches that one, recorded under its name; a `numalias` name (`f1104`) watches its `%` variable, recorded under the number (`%237`) |
 | `--trace-layers` | a `layers` record on each `print` or effect: what the new screen is drawn from, front to back (below) |
 | `--audio-stats` | an `audio` record for every 100 ms of sound mixed, for each dwave channel playing and for the whole mix (off by default: nothing is counted) |
 | `--trace-perf` | a `perf` record after each page: the frames it put on the screen and the wall-clock ms they cost; `--dump-frames file` writes a line per frame (below) |
@@ -343,7 +343,8 @@ $5=text to the end of the line
 
 `defvar`, `defstr` and `defarr` names are written and read by name
 (`%score`, `$who`, `?cg_seen[12]` for an array's element), not by slot,
-in these files and in a dump's `vars`.
+in these files and in a dump's `vars`. A `numalias` name may stand for
+its `%` variable in a `--vars` file (`%f1104=1`); dumps keep the number.
 
 A `--vars` run is a test run: it doesn't write `gloval.sav`, so global
 variables in the file (an old dump's unlocks and settings) don't replace
@@ -1139,7 +1140,7 @@ command line. Any option goes in by its name (`coverage_skip` or
 | `ignore` | Sprites to leave out of every check, written as for `--trace-ignore`: the game's own interface, when the trace was made without it |
 | `known` | Findings to leave out: each `{"rule": ..., "match": REGEX}` (a regex on the message), `{"rule", "file"}` (a file named in it) or `{"rule", "sprite": "lsp:61"}`, with an optional `"at"` regex on the place. `"rule": "*"` matches every rule |
 | `skip` | Rules to leave out, a list |
-| `engine_vars` | Variables for the `engine-var` rule: each `{"var": 237, "name": "F1104", "when": "!=0", "note": "the original drops the window's plate"}`; `var` is the `0.txt` variable (`237` or `"%237"`, `"$5"`, a `defvar` name `"%score"`), `when` the values that matter (comma-separated `N`, `A-B`, `!=N`, or `*`, the default), `note` what the original does then. Several entries may share a `var`. `--trace-vars-of FILE` prints the `--trace-vars` list that records them, for the run tools |
+| `engine_vars` | Variables for the `engine-var` rule: each `{"var": 237, "name": "F1104", "when": "!=0", "note": "the original drops the window's plate"}`; `var` is the `0.txt` variable (`237` or `"%237"`, `"$5"`, a `defvar` name `"%score"`, or a `numalias` name `"%f1104"`, looked up in the `--script`'s `numalias` lines), `when` the values that matter (comma-separated `N`, `A-B`, `!=N`, or `*`, the default), `note` what the original does then. Several entries may share a `var`. `--trace-vars-of FILE` prints the `--trace-vars` list that records them, for the run tools |
 | `script` | The script, relative to the config file |
 | `_comment` | Anything; keys starting with `_` are left out |
 

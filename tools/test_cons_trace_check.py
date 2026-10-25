@@ -206,6 +206,32 @@ class EngineVars(unittest.TestCase):
         self.assertIn('not in 0.txt (the converter drops their writes): F022', out)
         self.assertEqual(cons_trace_check.trace_vars_of(conf), '400,401')
 
+    def test_numalias_name_matches_its_number(self):
+        d = tempfile.mkdtemp()
+        conf = os.path.join(d, 'c.json')
+        with open(conf, 'w') as f:
+            json.dump({'engine_vars': [{'var': '%f1104', 'when': '!=0', 'note': 'no window background'}]}, f)
+        script = os.path.join(d, '0.txt')
+        with open(script, 'w') as f:
+            f.write('*define\nnumalias f1103,236:numalias F1104,237\ngame\n*a\nmov %f1104,1\n')
+        f = os.path.join(d, 't.jsonl')
+        with open(f, 'w') as t:
+            t.write(''.join(json.dumps(r) + '\n' for r in [
+                {'t': 'var', 'pg': 1, 'at': '*a:1', 'n': '%237', 'v': 1},
+                {'t': 'var', 'pg': 1, 'at': '*a:1', 'n': '%236', 'v': 1},
+                {'t': 'end', 'pg': 1, 'reason': 'script end'}]))
+        out = io.StringIO()
+        argv, sys.argv = sys.argv, ['x', f, '--skip', 'coverage', '--config', conf, '--script', script]
+        try:
+            with contextlib.redirect_stdout(out):
+                cons_trace_check.main()
+        finally:
+            sys.argv = argv
+        out = out.getvalue()
+        self.assertIn('%f1104 (%237) = 1: no window background', out)
+        self.assertIn('engine vars: %f1104 1 sets at 1 places', out)
+        self.assertEqual(cons_trace_check.trace_vars_of(conf), '%f1104')
+
 
 if __name__ == '__main__':
     unittest.main()
