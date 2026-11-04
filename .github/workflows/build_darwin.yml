@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   build_darwin_universal:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
